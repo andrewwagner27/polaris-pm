@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from "react";
 
 const CATEGORIES = [
   { id: "plumbing",    label: "Plumbing",     icon: "🚿" },
@@ -18,14 +19,14 @@ const PRIORITIES = [
 
 const s = {
   app: {
-    maxWidth: 460,
-    margin: "40px auto",
+    width: "100%",
+    maxWidth: "100%",
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
     fontSize: 14,
     color: "#1a1a1a",
     background: "#f4f5f7",
     minHeight: "100vh",
-    padding: "0 0 40px",
+    padding: "0 0 80px",
   },
   header: {
     background: "#0C447C",
@@ -340,6 +341,7 @@ function SuccessScreen({ ticket, category, title, priority, onReset }) {
 }
 
 export default function MaintenanceRequestForm() {
+  const navigate = useNavigate();
   const [category, setCategory]   = useState("");
   const [title, setTitle]         = useState("");
   const [description, setDesc]    = useState("");
@@ -411,7 +413,7 @@ export default function MaintenanceRequestForm() {
         {/* Header */}
         <div style={s.header}>
           <div style={s.headerTop}>
-            <button style={s.backBtn}>←</button>
+            <button style={s.backBtn} onClick={() => navigate('/home')}>←</button>
             <span style={s.headerTitle}>Maintenance request</span>
           </div>
           <div style={s.headerSub}>Unit 4B · Clifton Manor</div>

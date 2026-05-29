@@ -2,12 +2,12 @@ import { useState } from "react";
 
 const s = {
   app: {
-    maxWidth: 460,
-    margin: "0 auto",
+    width: "100%",
+    maxWidth: "100%",
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
     fontSize: 14,
     color: "#1a1a1a",
-    background: "#f4f5f7",
+    background: "#0C447C",
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
@@ -46,6 +46,10 @@ const s = {
     flex: 1,
     padding: "28px 24px 40px",
     marginTop: -16,
+    width: "100%",
+    maxWidth: 560,
+    margin: "-16px auto 0",
+    boxSizing: "border-box",
   },
   tabs: {
     display: "flex",
@@ -406,7 +410,7 @@ function MagicLinkSent({ email, onBack }) {
 }
 
 // ── Logged in state ───────────────────────────────────────────────────────────
-function LoggedIn({ email, onSignOut }) {
+function LoggedIn({ email, onSignOut, onPortal }) {
   return (
     <div style={s.successWrap}>
       <div style={s.successIcon}>✅</div>
@@ -429,7 +433,7 @@ function LoggedIn({ email, onSignOut }) {
       </div>
       <button
         style={{ ...s.submitBtn(false), background: "#0C447C", color: "#fff", marginBottom: 10 }}
-        onClick={() => {}}
+        onClick={() => onPortal && onPortal()}
       >
         Go to my portal →
       </button>
@@ -444,7 +448,7 @@ function LoggedIn({ email, onSignOut }) {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function LoginScreen() {
+export default function LoginScreen({ onSuccess }) {
   const [tab, setTab]           = useState("signin");
   const [magicEmail, setMagicEmail] = useState("");
   const [magicLoading, setMagicLoading] = useState(false);
@@ -471,7 +475,7 @@ export default function LoginScreen() {
           <div style={s.appTagline}>Your property portal</div>
         </div>
         <div style={s.card}>
-          <LoggedIn email={userEmail} onSignOut={() => { setLoggedIn(false); setUserEmail(""); }} />
+          <LoggedIn email={userEmail} onSignOut={() => { setLoggedIn(false); setUserEmail(""); }} onPortal={onSuccess} />
         </div>
       </div>
     );

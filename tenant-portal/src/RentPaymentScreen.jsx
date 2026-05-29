@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from "react";
 
 function formatCardNumber(val) {
   return val.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
@@ -23,8 +24,8 @@ const brandInfo = {
 
 const s = {
   app: {
-    maxWidth: 460,
-    margin: "40px auto",
+    width: "100%",
+    maxWidth: "100%",
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
     fontSize: 14,
     color: "#1a1a1a",
@@ -199,7 +200,7 @@ function Input({ value, onChange, placeholder, maxLength, inputMode }) {
   );
 }
 
-function CardForm({ onSubmit, loading }) {
+function CardForm({ onSubmit, loading, amount }) {
   const [num, setNum]       = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvc, setCvc]       = useState("");
@@ -257,7 +258,7 @@ function CardForm({ onSubmit, loading }) {
       >
         {loading
           ? <><Spinner /> Processing…</>
-          : <>🔒 Pay $1,150.00</>}
+          : <>🔒 Pay ${amount ? amount.toFixed(2) : '1,150.00'}</>}
       </button>
     </div>
   );
@@ -313,11 +314,13 @@ function SuccessScreen({ last4, onReset }) {
 }
 
 export default function RentPaymentScreen() {
+  const navigate = useNavigate();
   const [method, setMethod]   = useState("card");
   const [loading, setLoading] = useState(false);
   const [paid, setPaid]       = useState(false);
   const [last4, setLast4]     = useState("4242");
   const [autopay, setAutopay] = useState(false);
+  const [userShare, setUserShare] = useState(575);
 
   async function handleSubmit(cardData) {
     setLoading(true);
@@ -350,8 +353,9 @@ export default function RentPaymentScreen() {
               </div>
               <span style={s.duePill}>Due Jun 1</span>
             </div>
-            <div style={s.amountLabel}>Amount due</div>
-            <div style={s.amountVal}>$1,150.00</div>
+            <div style={s.amountLabel}>Your share due</div>
+            <div style={s.amountVal}>${userShare.toFixed(2)}</div>
+            <div style={{ fontSize: 11, color: "#85B7EB", marginTop: 3 }}>of $1,150.00 total</div>
           </div>
         </div>
 
@@ -388,7 +392,7 @@ export default function RentPaymentScreen() {
               </div>
 
               {method === "card" ? (
-                <CardForm onSubmit={handleSubmit} loading={loading} />
+                <CardForm onSubmit={handleSubmit} loading={loading} amount={userShare} />
               ) : (
                 <ACHForm />
               )}
