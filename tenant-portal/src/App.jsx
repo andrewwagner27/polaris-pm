@@ -1,5 +1,5 @@
-import RentPaymentScreen from './RentPaymentScreen'
+import LoginScreen from './LoginScreen'
 
 export default function App() {
-  return <RentPaymentScreen />
+  return <LoginScreen />
 }
