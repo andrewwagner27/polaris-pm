@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { useTenant, signOut } from "./useTenant";
 import { useState } from "react";
 
 const s = {
@@ -295,8 +297,25 @@ const NAV_ITEMS = [
 ];
 
 export default function HomeDashboard({ onNavigate }) {
+  const { tenant, user, loading } = useTenant();
+
+  // Use real data if available, fall back to demo data
+  const tenantName = tenant?.name || "Tenant";
+  const firstName  = tenantName.split(" ")[0];
+  const unitNum    = tenant?.unit || "—";
+  const propName   = tenant?.property || "Your Property";
+  const propAddr   = tenant?.address || "—";
+  const rentAmount = tenant?.rent || 0;
+  const payments   = tenant?.payments || [];
+  const maintenance = tenant?.maintenance || [];
   const [activeNav, setActiveNav] = useState(0);
   const unreadCount = MESSAGES.filter(m => m.unread).length;
+
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "'Inter',sans-serif", color: "#888" }}>
+      Loading your portal…
+    </div>
+  );
 
   return (
     <div style={s.app}>
@@ -310,15 +329,15 @@ export default function HomeDashboard({ onNavigate }) {
 
       {/* ── Hero / rent card ── */}
       <div style={s.hero}>
-        <div style={s.greeting}>Good evening,</div>
-        <div style={s.greetingName}>Maria Rodriguez 👋</div>
+        <div style={s.greeting}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"},</div>
+        <div style={s.greetingName}>{firstName} 👋</div>
 
         <div style={s.rentCard}>
           <div style={s.rentCardTop}>
             <div>
               <div style={s.rentLabel}>Rent due</div>
-              <div style={s.rentAmount}>$1,150</div>
-              <div style={s.rentSub}>Unit 4B · Clifton Manor</div>
+              <div style={s.rentAmount}>{rentAmount > 0 ? `$${rentAmount.toLocaleString()}` : "—"}</div>
+              <div style={s.rentSub}>Unit {unitNum} · {propName}</div>
             </div>
             <span style={s.duePill(false)}>Due Jun 1</span>
           </div>
@@ -372,26 +391,6 @@ export default function HomeDashboard({ onNavigate }) {
           </div>
         </div>
       </div>
-
-{/* ── Bulletin Board ── */}
-<div style={s.section}>
-  <div style={s.sectionHeader}>
-    <span style={s.sectionTitle}>Community</span>
-  </div>
-  <div
-    style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
-    onClick={() => onNavigate("/bulletin")}
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span style={{ fontSize: 22 }}>📋</span>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>Bulletin Board</div>
-        <div style={{ fontSize: 11, color: "#888" }}>4 posts · For sale, lost & found, events</div>
-      </div>
-    </div>
-    <span style={{ fontSize: 18, color: "#aaa" }}>›</span>
-  </div>
-</div>
 
       {/* ── Maintenance requests ── */}
       <div style={s.section}>

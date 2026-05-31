@@ -112,7 +112,7 @@ export default function LandingPage() {
         </div>
         <div style={s.navCta}>
           <button style={s.navBtnSecondary} onClick={() => navigate("/login")}>Tenant login</button>
-          <button style={s.navBtnPrimary} onClick={() => navigate("/landlord")}>Landlord login</button>
+          <button style={s.navBtnPrimary} onClick={() => navigate("/landlord/login")}>Landlord login</button>
         </div>
       </nav>
 
@@ -135,7 +135,7 @@ export default function LandingPage() {
             Collect rent, track maintenance, manage leases, and analyze your portfolio — all in one place. Built for the modern landlord.
           </p>
           <div style={s.heroCtas}>
-            <button style={s.heroBtn(true)} onClick={() => navigate("/landlord")}>
+            <button style={s.heroBtn(true)} onClick={() => navigate("/landlord/login")}>
               🏢 I'm a landlord →
             </button>
             <button style={s.heroBtn(false)} onClick={() => navigate("/login")}>
@@ -180,7 +180,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <button style={s.portalBtn("#0C447C")} onClick={() => navigate("/landlord")}>
+            <button style={s.portalBtn("#0C447C")} onClick={() => navigate("/landlord/login")}>
               Go to landlord dashboard →
             </button>
           </div>
@@ -235,7 +235,7 @@ export default function LandingPage() {
         <div style={s.ctaTitle}>Ready to take control of your portfolio?</div>
         <div style={s.ctaSub}>Join landlords who've ditched expensive SaaS tools and built their own.</div>
         <div style={s.ctaBtns}>
-          <button style={s.heroBtn(true)} onClick={() => navigate("/landlord")}>
+          <button style={s.heroBtn(true)} onClick={() => navigate("/landlord/login")}>
             🏢 Landlord dashboard →
           </button>
           <button style={s.heroBtn(false)} onClick={() => navigate("/login")}>

@@ -18,6 +18,10 @@ import LandlordProperties from './LandlordProperties'
 import LandlordReports from './LandlordReports'
 import LandlordSettings from './LandlordSettings'
 import LandingPage from './LandingPage'
+import TenantOnboarding from './TenantOnboarding'
+import AuthCallback from './AuthCallback'
+import LandlordLogin from './LandlordLogin'
+import ProtectedLandlordRoute from './ProtectedLandlordRoute'
 
 // ── Bottom nav bar — shown on all screens except login ───────────────────────
 function BottomNav() {
@@ -70,7 +74,13 @@ function BottomNav() {
 // ── Login wrapper — redirects to /home after sign-in ─────────────────────────
 function Login() {
   const navigate = useNavigate();
-  return <LoginScreen onSuccess={() => navigate("/home")} />;
+  return <LoginScreen onSuccess={(user) => {
+    if (user?.user_metadata?.onboarding_complete) {
+      navigate("/home");
+    } else {
+      navigate("/onboarding");
+    }
+  }} />;
 }
 
 // ── Home wrapper — passes navigation handlers to dashboard buttons ────────────
@@ -95,17 +105,20 @@ export default function App() {
         <Route path="/bulletin" element={<BulletinBoard />} />
         <Route path="/account" element={<AccountScreen />} />
         <Route path="/insurance" element={<InsuranceValidator />} />
-        <Route path="/landlord" element={<LandlordDashboard />} />
-        <Route path="/landlord/tenants" element={<LandlordTenants />} />
-        <Route path="/landlord/tenants/:id" element={<LandlordTenantDetail />} />
-        <Route path="/landlord/maintenance" element={<LandlordMaintenance />} />
-        <Route path="/landlord/financials" element={<LandlordFinancials />} />
-        <Route path="/landlord/messages" element={<LandlordMessages />} />
-        <Route path="/landlord/properties" element={<LandlordProperties />} />
-        <Route path="/landlord/reports" element={<LandlordReports />} />
-        <Route path="/landlord/rentroll" element={<LandlordReports />} />
-        <Route path="/landlord/settings" element={<LandlordSettings />} />
+        <Route path="/landlord" element={<ProtectedLandlordRoute><LandlordDashboard /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/tenants" element={<ProtectedLandlordRoute><LandlordTenants /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/tenants/:id" element={<ProtectedLandlordRoute><LandlordTenantDetail /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/maintenance" element={<ProtectedLandlordRoute><LandlordMaintenance /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/financials" element={<ProtectedLandlordRoute><LandlordFinancials /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/messages" element={<ProtectedLandlordRoute><LandlordMessages /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/properties" element={<ProtectedLandlordRoute><LandlordProperties /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/rentroll" element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/reports" element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/settings" element={<ProtectedLandlordRoute><LandlordSettings /></ProtectedLandlordRoute>} />
         <Route path="/" element={<LandingPage />} />
+        <Route path="/onboarding" element={<TenantOnboarding />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/landlord/login" element={<LandlordLogin />} />
       </Routes>
       <BottomNav />
     </BrowserRouter>
