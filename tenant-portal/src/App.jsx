@@ -27,6 +27,7 @@ import ProtectedLandlordRoute from './ProtectedLandlordRoute'
 function BottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  if (pathname === '/onboarding') return null;
 
   // Don't show on login screen
   if (pathname === "/" || pathname === "/login" || pathname.startsWith("/landlord")) return null;
@@ -120,7 +121,13 @@ export default function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/landlord/login" element={<LandlordLogin />} />
       </Routes>
-      <BottomNav />
+{!location.pathname.startsWith("/landlord") &&
+  location.pathname !== "/onboarding" &&
+  location.pathname !== "/" &&
+  location.pathname !== "/login" &&
+  location.pathname !== "/auth/callback" && (
+    <BottomNav />
+  )}
     </BrowserRouter>
   );
 }

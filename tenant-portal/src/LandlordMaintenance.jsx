@@ -1,21 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
-const TICKETS = [
-  { id: 1,  property: "Clifton Manor",  unit: "2B", tenant: "Priya M.",   category: "plumbing",    title: "Kitchen faucet dripping",       description: "The kitchen faucet has been dripping constantly for about a week. Getting worse over time.", priority: "normal", status: "in_progress", submitted: "May 18, 2026", updated: "May 20, 2026", vendor: "Mike's Plumbing",    vendorPhone: "(216) 555-9001", cost: 150,  scheduled: "Jun 2, 2026",  notes: "Parts ordered. Mike confirmed Jun 2 visit 10am-12pm." },
-  { id: 2,  property: "Clifton Manor",  unit: "4B", tenant: "Chris L.",   category: "electrical",  title: "Bathroom exhaust fan broken",   description: "Fan stopped working completely. No noise, no airflow.", priority: "normal", status: "open",        submitted: "Jun 1, 2026",  updated: "Jun 1, 2026",  vendor: null,              vendorPhone: null,             cost: null, scheduled: null,           notes: "" },
-  { id: 3,  property: "944 18th Ave S", unit: "Main", tenant: "Kaidyn T.", category: "hvac",       title: "AC not cooling properly",       description: "AC runs but room temperature stays at 82F. Thermostat set to 72F.", priority: "high",   status: "open",        submitted: "Jun 2, 2026",  updated: "Jun 2, 2026",  vendor: null,              vendorPhone: null,             cost: null, scheduled: null,           notes: "" },
-  { id: 4,  property: "Clifton Manor",  unit: "1A", tenant: "James W.",   category: "other",       title: "Window seal cracked",           description: "Seal around bedroom window is cracked. Drafty in winter.", priority: "low",    status: "open",        submitted: "May 25, 2026", updated: "May 25, 2026", vendor: null,              vendorPhone: null,             cost: null, scheduled: null,           notes: "" },
-  { id: 5,  property: "Clifton Manor",  unit: "3A", tenant: "Maria R.",   category: "plumbing",    title: "Bathroom exhaust fan replaced", description: "Old fan was rattling loudly.", priority: "normal", status: "resolved",    submitted: "Apr 10, 2026", updated: "Apr 22, 2026", vendor: "Handy Andy LLC",  vendorPhone: "(216) 555-9002", cost: 220,  scheduled: null,           notes: "Resolved. New fan installed Apr 22." },
-  { id: 6,  property: "Clifton Manor",  unit: "5B", tenant: "Marcus B.",  category: "appliance",   title: "Dishwasher not draining",       description: "Standing water after every cycle.", priority: "normal", status: "resolved",    submitted: "Apr 5, 2026",  updated: "Apr 8, 2026",  vendor: "Handy Andy LLC",  vendorPhone: "(216) 555-9002", cost: 85,   scheduled: null,           notes: "Clog cleared. Working fine." },
-];
-
-const VENDORS = [
-  { id: 1, name: "Mike's Plumbing",   specialty: "Plumbing",          phone: "(216) 555-9001", email: "mike@mikesplumbing.com",  rating: 5, jobs: 8,  avgCost: 185 },
-  { id: 2, name: "Handy Andy LLC",    specialty: "General",           phone: "(216) 555-9002", email: "andy@handyandy.com",      rating: 4, jobs: 14, avgCost: 120 },
-  { id: 3, name: "CoolAir HVAC",      specialty: "HVAC",              phone: "(216) 555-9003", email: "info@coolair.com",        rating: 5, jobs: 3,  avgCost: 340 },
-  { id: 4, name: "Spark Electric",    specialty: "Electrical",        phone: "(216) 555-9004", email: "info@sparkelectric.com",  rating: 4, jobs: 5,  avgCost: 210 },
-];
+import { supabase } from "./supabase";
 
 const PRIORITY_CONFIG = {
   low:    { label: "Low",    color: "#3B6D11", bg: "#EAF3DE" },
@@ -74,7 +59,6 @@ const s = {
   filterBtn: (active) => ({ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: active ? 600 : 400, background: active ? "#0C447C" : "#fff", color: active ? "#fff" : "#555", border: "1px solid #e8eaed", cursor: "pointer", fontFamily: "'Inter',sans-serif" }),
   searchBar: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e8eaed", borderRadius: 8, padding: "7px 12px", flex: 1, maxWidth: 280 },
   searchInput: { flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'Inter',sans-serif", background: "transparent" },
-  // Ticket card
   ticketCard: (priority) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "16px", marginBottom: 10, cursor: "pointer", transition: "box-shadow 0.15s", borderLeft: `4px solid ${PRIORITY_CONFIG[priority]?.color || "#e8eaed"}` }),
   ticketHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 },
   ticketTitle: { fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginBottom: 3 },
@@ -86,13 +70,10 @@ const s = {
   ticketFooterItem: { fontSize: 11, color: "#888", display: "flex", alignItems: "center", gap: 4 },
   actionBtn: { padding: "5px 10px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
   actionBtnPrimary: { padding: "5px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  // Vendor card
   vendorCard: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "16px", marginBottom: 10 },
   vendorHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   vendorName: { fontSize: 14, fontWeight: 700 },
   vendorSpecialty: { fontSize: 11, color: "#888", marginTop: 2 },
-  stars: (n) => "⭐".repeat(n),
-  // Detail panel
   detailOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", justifyContent: "flex-end" },
   detailPanel: { width: 480, background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.15)" },
   detailHeader: { background: "#0C447C", padding: "20px 20px 16px" },
@@ -114,29 +95,100 @@ const s = {
 
 export default function LandlordMaintenance() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab]     = useState("Requests");
+  const [activeTab, setActiveTab]       = useState("Requests");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [propFilter, setPropFilter]   = useState("all");
-  const [search, setSearch]           = useState("");
-  const [selected, setSelected]       = useState(null);
-  const [tickets, setTickets]         = useState(TICKETS);
+  const [propFilter, setPropFilter]     = useState("all");
+  const [search, setSearch]             = useState("");
+  const [selected, setSelected]         = useState(null);
+  const [tickets, setTickets]           = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [notes, setNotes]               = useState("");
+  const [saving, setSaving]             = useState(false);
+
+  // Load tickets from Supabase
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  async function fetchTickets() {
+    setLoading(true);
+    setError(null);
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setTickets(data || []);
+    }
+    setLoading(false);
+  }
+
+  async function updateStatus(id, newStatus) {
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (!error) {
+      setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+      if (selected?.id === id) setSelected(prev => ({ ...prev, status: newStatus }));
+    }
+  }
+
+  async function saveNotes(id) {
+    setSaving(true);
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ notes, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (!error) {
+      setTickets(prev => prev.map(t => t.id === id ? { ...t, notes } : t));
+    }
+    setSaving(false);
+  }
+
+  // Normalize field names — Supabase uses snake_case
+  function field(ticket, key) {
+const map = {
+  submittedAt: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
+  updatedAt:   ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
+  property:    ticket.property_name || "—",
+  unit:        ticket.unit_id || "—",
+  tenant:      ticket.tenant_id || "Unknown",
+  category:    ticket.category || "other",
+  title:       ticket.title || "Untitled",
+  description: ticket.description || "",
+  priority:    ticket.priority || "normal",
+  status:      ticket.status || "open",
+  vendor:      ticket.vendor_name || null,
+  scheduled:   ticket.scheduled_date || null,
+  cost:        ticket.cost || null,
+  notes:       ticket.notes || "",
+  photo_url:   ticket.photos || null,
+};
+    return map[key];
+  }
 
   const openCount       = tickets.filter(t => t.status === "open").length;
   const inProgressCount = tickets.filter(t => t.status === "in_progress").length;
   const resolvedCount   = tickets.filter(t => t.status === "resolved").length;
-  const totalCost       = tickets.reduce((s, t) => s + (t.cost || 0), 0);
+  const totalCost       = tickets.reduce((sum, t) => sum + (t.cost || 0), 0);
 
   const filtered = tickets.filter(t => {
+    const prop = field(t, "property");
     const matchStatus = statusFilter === "all" || t.status === statusFilter;
-    const matchProp   = propFilter === "all" || t.property === "Clifton Manor" && propFilter === "clifton" || t.property === "944 18th Ave S" && propFilter === "stpete";
-    const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) || t.tenant.toLowerCase().includes(search.toLowerCase());
+    const matchProp   = propFilter === "all"
+      || (propFilter === "clifton" && prop.includes("Clifton"))
+      || (propFilter === "stpete"  && prop.includes("18th"));
+    const matchSearch = field(t, "title").toLowerCase().includes(search.toLowerCase())
+      || field(t, "tenant").toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchProp && matchSearch;
   });
-
-  function updateStatus(id, newStatus) {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus, updated: "Just now" } : t));
-    if (selected?.id === id) setSelected(prev => ({ ...prev, status: newStatus }));
-  }
 
   return (
     <div style={s.app}>
@@ -172,18 +224,27 @@ export default function LandlordMaintenance() {
         <div style={s.topBar}>
           <div>
             <div style={s.pageTitle}>Maintenance</div>
-            <div style={s.pageSub}>{openCount + inProgressCount} active tickets across all properties</div>
+            <div style={s.pageSub}>
+              {loading ? "Loading…" : `${openCount + inProgressCount} active tickets across all properties`}
+            </div>
           </div>
           <button style={s.btn(true)}>+ New request</button>
         </div>
 
+        {error && (
+          <div style={{ background: "#FDECEA", border: "1px solid #F5C6C6", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#A32D2D" }}>
+            ⚠️ Error loading tickets: {error}
+            <button onClick={fetchTickets} style={{ marginLeft: 12, fontSize: 12, color: "#A32D2D", textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>Retry</button>
+          </div>
+        )}
+
         {/* Stats */}
         <div style={s.statGrid}>
           {[
-            { label: "Open",          value: openCount,       sub: "awaiting action",    accent: "#854F0B" },
-            { label: "In progress",   value: inProgressCount, sub: "vendor assigned",    accent: "#185FA5" },
-            { label: "Resolved (MTD)",value: resolvedCount,   sub: "this month",         accent: "#3B6D11" },
-            { label: "Maintenance cost",value: `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: "#6B3FA0" },
+            { label: "Open",             value: loading ? "—" : openCount,       sub: "awaiting action",  accent: "#854F0B" },
+            { label: "In progress",      value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: "#185FA5" },
+            { label: "Resolved (MTD)",   value: loading ? "—" : resolvedCount,   sub: "this month",       accent: "#3B6D11" },
+            { label: "Maintenance cost", value: loading ? "—" : `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: "#6B3FA0" },
           ].map((stat, i) => (
             <div key={i} style={s.statCard(stat.accent)}>
               <div style={s.statLabel}>{stat.label}</div>
@@ -195,7 +256,7 @@ export default function LandlordMaintenance() {
 
         {/* Tabs */}
         <div style={s.tabs}>
-          {["Requests", "Vendors", "Cost Tracker"].map(tab => (
+          {["Requests", "Cost Tracker"].map(tab => (
             <button key={tab} style={s.tab(activeTab === tab)} onClick={() => setActiveTab(tab)}>{tab}</button>
           ))}
         </div>
@@ -221,70 +282,52 @@ export default function LandlordMaintenance() {
               </select>
             </div>
 
-            {filtered.map(ticket => (
-              <div key={ticket.id} style={s.ticketCard(ticket.priority)} onClick={() => setSelected(ticket)}>
-                <div style={s.ticketHeader}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 18 }}>{CATEGORY_ICONS[ticket.category]}</span>
-                      <div style={s.ticketTitle}>{ticket.title}</div>
-                    </div>
-                    <div style={s.ticketMeta}>{ticket.property} · Unit {ticket.unit} · {ticket.tenant}</div>
-                  </div>
-                  <div style={s.ticketBadges}>
-                    <span style={s.badge(PRIORITY_CONFIG[ticket.priority].color, PRIORITY_CONFIG[ticket.priority].bg)}>{PRIORITY_CONFIG[ticket.priority].label}</span>
-                    <span style={s.badge(STATUS_CONFIG[ticket.status].color, STATUS_CONFIG[ticket.status].bg)}>{STATUS_CONFIG[ticket.status].label}</span>
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5, marginBottom: 8 }}>{ticket.description}</div>
-                <div style={s.ticketFooter}>
-                  <div style={s.ticketFooterLeft}>
-                    <span style={s.ticketFooterItem}>📅 {ticket.submitted}</span>
-                    {ticket.vendor && <span style={s.ticketFooterItem}>🔧 {ticket.vendor}</span>}
-                    {ticket.scheduled && <span style={s.ticketFooterItem}>📆 Scheduled {ticket.scheduled}</span>}
-                    {ticket.cost && <span style={s.ticketFooterItem}>💰 ${ticket.cost}</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-                    {ticket.status === "open" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "in_progress")}>Assign vendor</button>}
-                    {ticket.status === "in_progress" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "resolved")}>Mark resolved</button>}
-                    {ticket.status === "resolved" && <span style={{ fontSize: 11, color: "#3B6D11", fontWeight: 600 }}>✓ Resolved</span>}
-                    <button style={s.actionBtn} onClick={() => setSelected(ticket)}>View</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
+            {loading && (
+              <div style={{ textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>Loading tickets…</div>
+            )}
 
-        {/* ── Vendors tab ── */}
-        {activeTab === "Vendors" && (
-          <>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-              <button style={s.btn(true)}>+ Add vendor</button>
-            </div>
-            {VENDORS.map(vendor => (
-              <div key={vendor.id} style={s.vendorCard}>
-                <div style={s.vendorHeader}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 42, height: 42, borderRadius: 10, background: "#E6F1FB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🔧</div>
-                    <div>
-                      <div style={s.vendorName}>{vendor.name}</div>
-                      <div style={s.vendorSpecialty}>{vendor.specialty} · {vendor.phone}</div>
+            {!loading && filtered.length === 0 && (
+              <div style={{ textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>
+                {tickets.length === 0 ? "No maintenance requests yet." : "No tickets match your filters."}
+              </div>
+            )}
+
+            {!loading && filtered.map(ticket => {
+              const priority = field(ticket, "priority");
+              const status   = field(ticket, "status");
+              return (
+                <div key={ticket.id} style={s.ticketCard(priority)} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); }}>
+                  <div style={s.ticketHeader}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 18 }}>{CATEGORY_ICONS[field(ticket, "category")] || "🔧"}</span>
+                        <div style={s.ticketTitle}>{field(ticket, "title")}</div>
+                      </div>
+                      <div style={s.ticketMeta}>{field(ticket, "property")} · Unit {field(ticket, "unit")} · {field(ticket, "tenant")}</div>
+                    </div>
+                    <div style={s.ticketBadges}>
+                      <span style={s.badge(PRIORITY_CONFIG[priority]?.color, PRIORITY_CONFIG[priority]?.bg)}>{PRIORITY_CONFIG[priority]?.label}</span>
+                      <span style={s.badge(STATUS_CONFIG[status]?.color, STATUS_CONFIG[status]?.bg)}>{STATUS_CONFIG[status]?.label}</span>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 13, marginBottom: 3 }}>{s.stars(vendor.rating)}</div>
-                    <div style={{ fontSize: 11, color: "#888" }}>{vendor.jobs} jobs · avg ${vendor.avgCost}</div>
+                  <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5, marginBottom: 8 }}>{field(ticket, "description")}</div>
+                  <div style={s.ticketFooter}>
+                    <div style={s.ticketFooterLeft}>
+                      <span style={s.ticketFooterItem}>📅 {field(ticket, "submittedAt")}</span>
+                      {field(ticket, "vendor") && <span style={s.ticketFooterItem}>🔧 {field(ticket, "vendor")}</span>}
+                      {field(ticket, "scheduled") && <span style={s.ticketFooterItem}>📆 {field(ticket, "scheduled")}</span>}
+                      {field(ticket, "cost") && <span style={s.ticketFooterItem}>💰 ${field(ticket, "cost")}</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+                      {status === "open"        && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "in_progress")}>Assign vendor</button>}
+                      {status === "in_progress" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "resolved")}>Mark resolved</button>}
+                      {status === "resolved"    && <span style={{ fontSize: 11, color: "#3B6D11", fontWeight: 600 }}>✓ Resolved</span>}
+                      <button style={s.actionBtn} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); }}>View</button>
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button style={s.actionBtnPrimary}>Assign to ticket</button>
-                  <button style={s.actionBtn}>📞 Call</button>
-                  <button style={s.actionBtn}>✉️ Email</button>
-                  <button style={s.actionBtn}>View history</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -306,19 +349,24 @@ export default function LandlordMaintenance() {
               <tbody>
                 {tickets.filter(t => t.cost).map(t => (
                   <tr key={t.id}>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{t.property}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>Unit {t.unit}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{t.title}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{t.vendor}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "property")}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>Unit {field(t, "unit")}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "title")}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "vendor") || "—"}</td>
                     <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, borderBottom: "1px solid #f8f9fa" }}>${t.cost}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, color: "#888", borderBottom: "1px solid #f8f9fa" }}>{t.updated}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, color: "#888", borderBottom: "1px solid #f8f9fa" }}>{field(t, "updatedAt")}</td>
                   </tr>
                 ))}
-                <tr>
-                  <td colSpan={4} style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#fafafa" }}>Total</td>
-                  <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 700, color: "#0C447C", background: "#fafafa" }}>${totalCost}</td>
-                  <td style={{ background: "#fafafa" }}></td>
-                </tr>
+                {tickets.filter(t => t.cost).length === 0 && (
+                  <tr><td colSpan={6} style={{ padding: "20px 14px", fontSize: 13, color: "#888", textAlign: "center" }}>No costs recorded yet.</td></tr>
+                )}
+                {tickets.some(t => t.cost) && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#fafafa" }}>Total</td>
+                    <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 700, color: "#0C447C", background: "#fafafa" }}>${totalCost.toLocaleString()}</td>
+                    <td style={{ background: "#fafafa" }}></td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -332,34 +380,40 @@ export default function LandlordMaintenance() {
             <div style={s.detailHeader}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div style={s.detailTitle}>{selected.title}</div>
-                  <div style={s.detailMeta}>{selected.property} · Unit {selected.unit} · {selected.tenant}</div>
+                  <div style={s.detailTitle}>{field(selected, "title")}</div>
+                  <div style={s.detailMeta}>{field(selected, "property")} · Unit {field(selected, "unit")} · {field(selected, "tenant")}</div>
                 </div>
                 <button onClick={() => setSelected(null)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>✕</button>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <span style={s.badge(PRIORITY_CONFIG[selected.priority].color, "rgba(255,255,255,0.2)")}>{PRIORITY_CONFIG[selected.priority].label} priority</span>
-                <span style={s.badge(STATUS_CONFIG[selected.status].color, "rgba(255,255,255,0.2)")}>{STATUS_CONFIG[selected.status].label}</span>
+                <span style={s.badge(PRIORITY_CONFIG[field(selected,"priority")]?.color, "rgba(255,255,255,0.2)")}>{PRIORITY_CONFIG[field(selected,"priority")]?.label} priority</span>
+                <span style={s.badge(STATUS_CONFIG[field(selected,"status")]?.color, "rgba(255,255,255,0.2)")}>{STATUS_CONFIG[field(selected,"status")]?.label}</span>
               </div>
             </div>
 
             <div style={s.detailBody}>
-              {/* Description */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Description</div>
-                <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{selected.description}</p>
+                <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{field(selected, "description")}</p>
               </div>
 
-              {/* Details */}
+              {/* Photo */}
+              {field(selected, "photo_url") && (
+                <div style={s.detailSection}>
+                  <div style={s.detailSectionTitle}>Photo</div>
+                  <img src={field(selected, "photo_url")} alt="Maintenance" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8eaed" }} />
+                </div>
+              )}
+
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Details</div>
                 {[
-                  ["Submitted",  selected.submitted],
-                  ["Last updated", selected.updated],
-                  ["Category",   selected.category],
-                  ["Vendor",     selected.vendor || "—"],
-                  ["Scheduled",  selected.scheduled || "—"],
-                  ["Cost",       selected.cost ? `$${selected.cost}` : "—"],
+                  ["Submitted",    field(selected, "submittedAt")],
+                  ["Last updated", field(selected, "updatedAt")],
+                  ["Category",     field(selected, "category")],
+                  ["Vendor",       field(selected, "vendor") || "—"],
+                  ["Scheduled",    field(selected, "scheduled") || "—"],
+                  ["Cost",         field(selected, "cost") ? `$${field(selected, "cost")}` : "—"],
                 ].map(([k, v]) => (
                   <div key={k} style={s.infoRow}>
                     <span style={s.infoKey}>{k}</span>
@@ -368,49 +422,40 @@ export default function LandlordMaintenance() {
                 ))}
               </div>
 
-              {/* Assign vendor */}
-              {selected.status !== "resolved" && (
-                <div style={s.detailSection}>
-                  <div style={s.detailSectionTitle}>Assign vendor</div>
-                  <select style={s.select}>
-                    <option value="">Select vendor…</option>
-                    {VENDORS.map(v => <option key={v.id}>{v.name} · {v.specialty}</option>)}
-                  </select>
-                  <input placeholder="Schedule date (e.g. Jun 10, 2026)" style={{ ...s.select, marginBottom: 8 }} />
-                  <input placeholder="Estimated cost ($)" style={{ ...s.select, marginBottom: 8 }} />
-                </div>
-              )}
-
-              {/* Update status */}
-              {selected.status !== "resolved" && (
+              {field(selected, "status") !== "resolved" && (
                 <div style={s.detailSection}>
                   <div style={s.detailSectionTitle}>Update status</div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {selected.status === "open" && <button style={{ ...s.btn(true), flex: 1, justifyContent: "center" }} onClick={() => updateStatus(selected.id, "in_progress")}>→ In Progress</button>}
-                    {selected.status === "in_progress" && <button style={{ ...s.btn(true), flex: 1, justifyContent: "center", background: "#3B6D11" }} onClick={() => updateStatus(selected.id, "resolved")}>✓ Mark Resolved</button>}
+                    {field(selected, "status") === "open" && (
+                      <button style={{ ...s.btn(true), flex: 1, justifyContent: "center" }} onClick={() => updateStatus(selected.id, "in_progress")}>→ In Progress</button>
+                    )}
+                    {field(selected, "status") === "in_progress" && (
+                      <button style={{ ...s.btn(true), flex: 1, justifyContent: "center", background: "#3B6D11" }} onClick={() => updateStatus(selected.id, "resolved")}>✓ Mark Resolved</button>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Notes */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Internal notes</div>
                 <textarea
                   style={s.notesArea}
-                  defaultValue={selected.notes}
-                  placeholder="Add notes visible only to you — vendor contact, parts needed, cost breakdown…"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Add notes — vendor contact, parts needed, cost breakdown…"
                 />
-                <button style={{ ...s.btn(true), marginTop: 8 }}>Save notes</button>
+                <button style={{ ...s.btn(true), marginTop: 8 }} onClick={() => saveNotes(selected.id)} disabled={saving}>
+                  {saving ? "Saving…" : "Save notes"}
+                </button>
               </div>
 
-              {/* Timeline */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Timeline</div>
                 {[
-                  { color: "#854F0B", text: `Ticket submitted by ${selected.tenant}`, time: selected.submitted },
-                  selected.vendor && { color: "#185FA5", text: `Assigned to ${selected.vendor}`, time: selected.updated },
-                  selected.scheduled && { color: "#185FA5", text: `Repair scheduled for ${selected.scheduled}`, time: selected.updated },
-                  selected.status === "resolved" && { color: "#3B6D11", text: "Ticket resolved", time: selected.updated },
+                  { color: "#854F0B", text: `Submitted by ${field(selected, "tenant")}`, time: field(selected, "submittedAt") },
+                  field(selected, "vendor") && { color: "#185FA5", text: `Assigned to ${field(selected, "vendor")}`, time: field(selected, "updatedAt") },
+                  field(selected, "scheduled") && { color: "#185FA5", text: `Scheduled for ${field(selected, "scheduled")}`, time: field(selected, "updatedAt") },
+                  field(selected, "status") === "resolved" && { color: "#3B6D11", text: "Ticket resolved", time: field(selected, "updatedAt") },
                 ].filter(Boolean).map((item, i) => (
                   <div key={i} style={s.timelineItem}>
                     <div style={s.timelineDot(item.color)} />

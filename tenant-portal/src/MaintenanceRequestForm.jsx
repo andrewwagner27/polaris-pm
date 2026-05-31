@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "./supabase";
 
 const CATEGORIES = [
@@ -132,15 +132,6 @@ const s = {
     fontSize: 11,
     color: "#fff",
   }),
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#555",
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-    display: "block",
-    marginBottom: 5,
-  },
   fieldWrap: { marginBottom: 14 },
   input: {
     width: "100%",
@@ -347,7 +338,7 @@ export default function MaintenanceRequestForm() {
   const [title, setTitle]         = useState("");
   const [description, setDesc]    = useState("");
   const [priority, setPriority]   = useState("normal");
-  const [photos, setPhotos]       = useState([]);
+  const [photos, setPhotos]       = useState([]); // { file, previewUrl }
   const [errors, setErrors]       = useState({});
   const [loading, setLoading]     = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -367,17 +358,38 @@ export default function MaintenanceRequestForm() {
     const newPhotos = [];
     Array.from(files).slice(0, 6 - photos.length).forEach(file => {
       if (!file.type.startsWith("image/")) return;
-      const url = URL.createObjectURL(file);
-      newPhotos.push({ url, name: file.name });
+      const previewUrl = URL.createObjectURL(file);
+      newPhotos.push({ file, previewUrl });
     });
     setPhotos(p => [...p, ...newPhotos].slice(0, 6));
+  }
+
+  async function uploadPhotos(requestId) {
+    const urls = [];
+    for (const photo of photos) {
+      const ext = photo.file.name.split(".").pop();
+      const path = `${requestId}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("maintenance-photos")
+        .upload(path, photo.file, { contentType: photo.file.type });
+      if (!error) {
+const { data: urlData } = supabase.storage
+  .from("maintenance-photos")
+  .getPublicUrl(path);
+console.log("Public URL:", urlData?.publicUrl);
+urls.push(urlData.publicUrl);
+      }
+    }
+    return urls;
   }
 
   async function handleSubmit() {
     if (!validate()) return;
     setLoading(true);
-    // Save to Supabase
+
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Insert the request first to get the ID
     const { data, error } = await supabase
       .from("maintenance_requests")
       .insert({
@@ -391,11 +403,39 @@ export default function MaintenanceRequestForm() {
       .select()
       .single();
 
+    if (error) {
+      setLoading(false);
+      alert("Failed to submit request. Please try again.");
+      return;
+    }
+
+    // Upload photos if any, then save URLs back to the row
+    if (photos.length > 0) {
+      const photoUrls = await uploadPhotos(data.id);
+      if (photoUrls.length > 0) {
+console.log("Attempting update for ID:", data.id);
+console.log("Photo URL to save:", photoUrls[0]);
+const { data: updateData, error: photoError } = await supabase
+  .from("maintenance_requests")
+.update({ photos: [photoUrls[0]] })
+  .eq("id", data.id)
+  .select();
+console.log("Update result:", updateData, photoError);      }
+    }
+
     setLoading(false);
-    if (error) { alert("Failed to submit request. Please try again."); return; }
-    const id = "MR-" + data.id.slice(0, 5).toUpperCase();
-    setTicket(id);
+    setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
+  }
+
+  function handleReset() {
+    setSubmitted(false);
+    setCategory("");
+    setTitle("");
+    setDesc("");
+    setPriority("normal");
+    setPhotos([]);
+    setErrors({});
   }
 
   if (submitted) {
@@ -413,7 +453,7 @@ export default function MaintenanceRequestForm() {
             category={category}
             title={title}
             priority={priority}
-            onReset={() => { setSubmitted(false); setCategory(""); setTitle(""); setDesc(""); setPriority("normal"); setPhotos([]); setErrors({}); }}
+            onReset={handleReset}
           />
         </div>
       </div>
@@ -511,7 +551,7 @@ export default function MaintenanceRequestForm() {
             <div style={s.photoGrid}>
               {photos.map((p, i) => (
                 <div key={i} style={{ position: "relative" }}>
-                  <img src={p.url} alt={p.name} style={s.photoThumb} />
+                  <img src={p.previewUrl} alt={`photo-${i}`} style={s.photoThumb} />
                   <button
                     style={s.photoRemove}
                     onClick={() => setPhotos(ph => ph.filter((_, j) => j !== i))}
