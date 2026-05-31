@@ -387,21 +387,28 @@ urls.push(urlData.publicUrl);
     if (!validate()) return;
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
+const { data: { user } } = await supabase.auth.getUser();
 
-    // Insert the request first to get the ID
-    const { data, error } = await supabase
-      .from("maintenance_requests")
-      .insert({
-        tenant_id: user.id,
-        category,
-        title,
-        description,
-        priority,
-        status: "open",
-      })
-      .select()
-      .single();
+// Look up tenant's unit
+const { data: tenantData } = await supabase
+  .from("tenants")
+  .select("unit_id")
+  .eq("id", user.id)
+  .single();
+
+const { data, error } = await supabase
+  .from("maintenance_requests")
+  .insert({
+    tenant_id: user.id,
+    unit_id: tenantData?.unit_id || null,
+    category,
+    title,
+    description,
+    priority,
+    status: "open",
+  })
+  .select()
+  .single();
 
     if (error) {
       setLoading(false);
@@ -417,7 +424,7 @@ console.log("Attempting update for ID:", data.id);
 console.log("Photo URL to save:", photoUrls[0]);
 const { data: updateData, error: photoError } = await supabase
   .from("maintenance_requests")
-.update({ photos: [photoUrls[0]] })
+.update({ photos: photoUrls })
   .eq("id", data.id)
   .select();
 console.log("Update result:", updateData, photoError);      }

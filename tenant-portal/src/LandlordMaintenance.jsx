@@ -105,6 +105,7 @@ export default function LandlordMaintenance() {
   const [error, setError]               = useState(null);
   const [notes, setNotes]               = useState("");
   const [saving, setSaving]             = useState(false);
+  const [lightbox, setLightbox] = useState(null);
 
   // Load tickets from Supabase
   useEffect(() => {
@@ -112,20 +113,32 @@ export default function LandlordMaintenance() {
   }, []);
 
   async function fetchTickets() {
-    setLoading(true);
-    setError(null);
-    const { data, error } = await supabase
-      .from("maintenance_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
+  setLoading(true);
+  setError(null);
+  const { data, error } = await supabase
+  .from("maintenance_requests")
+  .select(`
+    *,
+    units (
+      unit_number,
+      property_id,
+      properties (
+        name
+      )
+    ),
+    tenants (
+      name
+    )
+  `)
+  .order("created_at", { ascending: false });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setTickets(data || []);
-    }
-    setLoading(false);
+  if (error) {
+    setError(error.message);
+  } else {
+    setTickets(data || []);
   }
+  setLoading(false);
+}
 
   async function updateStatus(id, newStatus) {
     const { error } = await supabase
@@ -157,9 +170,9 @@ export default function LandlordMaintenance() {
 const map = {
   submittedAt: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
   updatedAt:   ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
-  property:    ticket.property_name || "—",
-  unit:        ticket.unit_id || "—",
-  tenant:      ticket.tenant_id || "Unknown",
+  property:    ticket.units?.properties?.name || "—",
+  unit:        ticket.units?.unit_number || "—",
+  tenant: ticket.tenants?.name || "Unknown",
   category:    ticket.category || "other",
   title:       ticket.title || "Untitled",
   description: ticket.description || "",
@@ -169,7 +182,6 @@ const map = {
   scheduled:   ticket.scheduled_date || null,
   cost:        ticket.cost || null,
   notes:       ticket.notes || "",
-  photo_url:   ticket.photos || null,
 };
     return map[key];
   }
@@ -397,13 +409,34 @@ const map = {
                 <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{field(selected, "description")}</p>
               </div>
 
-              {/* Photo */}
-              {field(selected, "photo_url") && (
-                <div style={s.detailSection}>
-                  <div style={s.detailSectionTitle}>Photo</div>
-                  <img src={field(selected, "photo_url")} alt="Maintenance" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8eaed" }} />
-                </div>
-              )}
+             {/* Photos */}
+{selected.photos?.length > 0 && (
+  <div style={s.detailSection}>
+    <div style={s.detailSectionTitle}>Photos ({selected.photos.length})</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {selected.photos.map((url, i) => (
+        <img
+          key={i}
+          src={url}
+          alt={`photo-${i}`}
+          onClick={() => setLightbox({ urls: selected.photos, index: i })}
+          style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e8eaed", cursor: "pointer" }}
+        />
+      ))}
+    </div>
+  </div>
+)}
+
+{/* Lightbox */}
+{lightbox && (
+  <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
+    <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
+    <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index + 1) % l.urls.length })); }} style={{ position: "absolute", right: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
+    <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 16, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
+    <div style={{ position: "absolute", bottom: 20, color: "#fff", fontSize: 13 }}>{lightbox.index + 1} / {lightbox.urls.length}</div>
+  </div>
+)}
 
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Details</div>
