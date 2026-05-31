@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabase";
 
 const CATEGORIES = [
   { id: "plumbing",    label: "Plumbing",     icon: "🚿" },
@@ -375,11 +376,25 @@ export default function MaintenanceRequestForm() {
   async function handleSubmit() {
     if (!validate()) return;
     setLoading(true);
-    // TODO: POST to /api/maintenance with { category, title, description, priority, photos }
-    await new Promise(r => setTimeout(r, 1800));
-    const id = "MR-" + Math.random().toString(36).slice(2, 7).toUpperCase();
-    setTicket(id);
+    // Save to Supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .insert({
+        tenant_id: user.id,
+        category,
+        title,
+        description,
+        priority,
+        status: "open",
+      })
+      .select()
+      .single();
+
     setLoading(false);
+    if (error) { alert("Failed to submit request. Please try again."); return; }
+    const id = "MR-" + data.id.slice(0, 5).toUpperCase();
+    setTicket(id);
     setSubmitted(true);
   }
 
