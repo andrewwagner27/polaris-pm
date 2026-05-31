@@ -147,7 +147,7 @@ const s = {
   },
 };
 
-export default function RoommateSplitter() {
+export default function RoommateSplitter({ onShareChange }) {
   const [roommates, setRoommates] = useState(INITIAL_ROOMMATES);
   const [loading, setLoading]     = useState(false);
   const [paid, setPaid]           = useState(false);
@@ -164,6 +164,9 @@ export default function RoommateSplitter() {
       if (r.id === other.id) return { ...r, share: otherShare };
       return r;
     }));
+    // notify parent of new share amount
+    const myNewAmount = (clampedShare / 100) * TOTAL_RENT;
+    if (onShareChange) onShareChange(parseFloat(myNewAmount.toFixed(2)));
   }
 
   const currentUser = roommates.find(r => r.id === currentUserId);
