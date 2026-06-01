@@ -8,15 +8,50 @@ export default function AuthCallback() {
   useEffect(() => {
     async function handleCallback() {
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error || !session) {
         navigate("/login");
         return;
       }
 
       const user = session.user;
-      
-      // Check if onboarding is complete
+
+      // Check if this user came from a tenant invite
+      const tenantId = user?.user_metadata?.tenant_id;
+
+      if (tenantId) {
+        // Link this auth account to the tenant record
+        const { error: linkError } = await supabase
+          .from("tenants")
+          .update({ user_id: user.id })
+          .eq("id", tenantId);
+
+        if (linkError) {
+          console.error("Failed to link tenant:", linkError.message);
+        }
+
+        // Mark onboarding needed
+        await supabase.auth.updateUser({
+          data: { onboarding_complete: false, role: "tenant" }
+        });
+
+        navigate("/onboarding");
+        return;
+      }
+
+      // Check profile role for existing users
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role === "landlord") {
+        navigate("/landlord");
+        return;
+      }
+
+      // Regular tenant flow
       if (user?.user_metadata?.onboarding_complete) {
         navigate("/home");
       } else {
