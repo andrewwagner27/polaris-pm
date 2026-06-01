@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
 const STATUS_CONFIG = {
   current: { label: "Current", color: "#3B6D11", bg: "#EAF3DE" },
@@ -17,30 +18,7 @@ const AVATAR_COLORS = [
   { color: "#6B3FA0", bg: "#F3EEFB" },
 ];
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   id: "dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  id: "properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     id: "tenants",     route: "/landlord/tenants" },
-  { icon: "💰", label: "Rent Roll",   id: "rentroll",    route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", id: "maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  id: "financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    id: "messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   id: "settings",    route: "/landlord/settings" },
-];
-
 const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  navIcon: { fontSize: 16, flexShrink: 0 },
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
   main: { flex: 1, padding: "28px", overflowY: "auto" },
   topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
   pageTitle: { fontSize: 22, fontWeight: 700 },
@@ -52,6 +30,7 @@ const s = {
   filterRow: { display: "flex", gap: 8, marginBottom: 20, alignItems: "center", flexWrap: "wrap" },
   filterSelect: { padding: "8px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 13, background: "#fff", outline: "none", fontFamily: "'Inter',sans-serif", cursor: "pointer" },
   statRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 },
+  statRowMobile: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 },
   statCard: (accent) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 10, padding: "14px 16px", borderTop: `3px solid ${accent}` }),
   statLabel: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 },
   statValue: { fontSize: 24, fontWeight: 700, color: "#1a1a1a" },
@@ -64,7 +43,6 @@ const s = {
   statusBadge: (status) => ({ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#555", whiteSpace: "nowrap" }),
   actionBtn: { padding: "5px 10px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
   actionBtnPrimary: { padding: "5px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  // Modal
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
   modal: { background: "#fff", borderRadius: 14, width: 500, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" },
   modalHeader: { padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" },
@@ -74,35 +52,37 @@ const s = {
   fieldWrap: { marginBottom: 16 },
   fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 },
   input: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif", color: "#1a1a1a" },
-select: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif", color: "#1a1a1a" },
+  select: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif", color: "#1a1a1a" },
   twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }),
 };
 
-// ── Add Tenant Modal ──────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 function AddTenantModal({ properties, units, onClose, onSaved }) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", property_id: "", unit_id: "", lease_start: "", lease_end: "" });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError]   = useState("");
 
   function update(k, v) { setForm(f => ({ ...f, [k]: v })); }
-
   const filteredUnits = units.filter(u => u.property_id === form.property_id);
 
   async function save() {
     if (!form.name.trim()) { setError("Name is required."); return; }
     if (!form.unit_id)     { setError("Please select a unit."); return; }
     setSaving(true);
-
     const { error } = await supabase.from("tenants").insert({
-      name:        form.name,
-      email:       form.email || null,
-      phone:       form.phone || null,
-      unit_id:     form.unit_id,
-      lease_start: form.lease_start || null,
-      lease_end:   form.lease_end   || null,
+      name: form.name, email: form.email || null, phone: form.phone || null,
+      unit_id: form.unit_id, lease_start: form.lease_start || null, lease_end: form.lease_end || null,
     });
-
     setSaving(false);
     if (error) { setError(error.message); return; }
     onSaved();
@@ -117,12 +97,10 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
         </div>
         <div style={s.modalBody}>
           {error && <div style={{ background: "#FDECEA", color: "#A32D2D", fontSize: 12, padding: "10px 12px", borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-
           <div style={s.fieldWrap}>
             <label style={s.fieldLabel}>Full name *</label>
             <input style={s.input} placeholder="e.g. James Wilson" value={form.name} onChange={e => update("name", e.target.value)} />
           </div>
-
           <div style={{ ...s.twoCol, marginBottom: 16 }}>
             <div>
               <label style={s.fieldLabel}>Email</label>
@@ -133,7 +111,6 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
               <input style={s.input} placeholder="(216) 555-0101" value={form.phone} onChange={e => update("phone", e.target.value)} />
             </div>
           </div>
-
           <div style={s.fieldWrap}>
             <label style={s.fieldLabel}>Property *</label>
             <select style={s.select} value={form.property_id} onChange={e => update("property_id", e.target.value)}>
@@ -141,7 +118,6 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
               {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-
           <div style={s.fieldWrap}>
             <label style={s.fieldLabel}>Unit *</label>
             <select style={s.select} value={form.unit_id} onChange={e => update("unit_id", e.target.value)} disabled={!form.property_id}>
@@ -149,7 +125,6 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
               {filteredUnits.map(u => <option key={u.id} value={u.id}>Unit {u.unit_number} — ${(u.rent_amount || 0).toLocaleString()}/mo</option>)}
             </select>
           </div>
-
           <div style={{ ...s.twoCol, marginBottom: 16 }}>
             <div>
               <label style={s.fieldLabel}>Lease start</label>
@@ -170,9 +145,11 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function LandlordTenants() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const width     = useWindowWidth();
+  const isMobile  = width < 768;
+
   const [tenants, setTenants]       = useState([]);
   const [units, setUnits]           = useState([]);
   const [properties, setProperties] = useState([]);
@@ -207,32 +184,25 @@ export default function LandlordTenants() {
     setLoading(false);
   }
 
-  // Enrich tenants with unit/property/payment data
   const enriched = tenants.map((t, i) => {
     const unit     = units.find(u => u.id === t.unit_id);
     const property = properties.find(p => p.id === unit?.property_id);
     const latestPay = payments.find(p => p.tenant_id === t.id);
     const ac = AVATAR_COLORS[i % AVATAR_COLORS.length];
-
     let status = "current";
     if (latestPay?.status === "failed") status = "late";
     else if (!latestPay || latestPay.status === "pending") status = "pending";
-
     const initials = t.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-
     return {
       ...t,
-      unit:         unit?.unit_number || "—",
-      unit_id:      unit?.id,
-      property:     property?.name || "—",
-      property_id:  property?.id,
-      rent:         unit?.rent_amount || 0,
+      unit:        unit?.unit_number || "—",
+      property:    property?.name || "—",
+      property_id: property?.id,
+      rent:        unit?.rent_amount || 0,
       status,
-      lastPaid:     latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—",
-      balance:      latestPay?.status !== "paid" ? (unit?.rent_amount || 0) : 0,
-      initials,
-      color:        ac.color,
-      bg:           ac.bg,
+      lastPaid:    latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—",
+      balance:     latestPay?.status !== "paid" ? (unit?.rent_amount || 0) : 0,
+      initials, color: ac.color, bg: ac.bg,
     };
   });
 
@@ -257,77 +227,66 @@ export default function LandlordTenants() {
 
   const sorted = [...filtered].sort((a, b) => {
     let aVal, bVal;
-    if (sortCol === "name")     { aVal = a.name;     bVal = b.name; }
+    if (sortCol === "name")     { aVal = a.name;    bVal = b.name; }
     if (sortCol === "property") { aVal = a.property + a.unit; bVal = b.property + b.unit; }
-    if (sortCol === "rent")     { aVal = a.rent;     bVal = b.rent; }
-    if (sortCol === "status")   { aVal = a.status;   bVal = b.status; }
-    if (sortCol === "balance")  { aVal = a.balance;  bVal = b.balance; }
+    if (sortCol === "rent")     { aVal = a.rent;    bVal = b.rent; }
+    if (sortCol === "status")   { aVal = a.status;  bVal = b.status; }
+    if (sortCol === "balance")  { aVal = a.balance; bVal = b.balance; }
     if (typeof aVal === "string") return sortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     return sortDir === "asc" ? aVal - bVal : bVal - aVal;
   });
 
-  const currentCount = enriched.filter(t => t.status === "current").length;
+  const currentCount     = enriched.filter(t => t.status === "current").length;
   const outstandingCount = enriched.filter(t => t.status === "late" || t.status === "pending").length;
 
-async function inviteTenant(tenant) {
-  if (!tenant.email) { alert("No email on file for this tenant."); return; }
-  const { error } = await supabase.auth.signInWithOtp({
-    email: tenant.email,
-    options: {
-      data: { tenant_id: tenant.id, role: "tenant" },
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
-    }
-  });
-  if (error) alert("Failed to send invite: " + error.message);
-  else alert(`Invite sent to ${tenant.email}`);
-}
+  async function inviteTenant(tenant) {
+    if (!tenant.email) { alert("No email on file for this tenant."); return; }
+    const { error } = await supabase.auth.signInWithOtp({
+      email: tenant.email,
+      options: {
+        data: { tenant_id: tenant.id, role: "tenant" },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      }
+    });
+    if (error) alert("Failed to send invite: " + error.message);
+    else alert(`Invite sent to ${tenant.email}`);
+  }
 
   return (
-    <div style={s.app}>
+    <LandlordLayout>
       <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } tr:hover td { background: #fafafa; cursor: pointer; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
+      <div style={{ padding: isMobile ? "16px" : "28px" }}>
 
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.id} style={s.navItem(item.id === "tenants")} onClick={() => navigate(item.route)}>
-            <span style={s.navIcon}>{item.icon}</span>{item.label}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main */}
-      <div style={s.main}>
-        <div style={s.topBar}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 16 : 24, flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={s.pageTitle}>Tenants</div>
-            <div style={s.pageSub}>{loading ? "Loading…" : `${tenants.length} tenants across ${properties.length} properties`}</div>
+            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Tenants</div>
+            <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{loading ? "Loading…" : `${tenants.length} tenants across ${properties.length} properties`}</div>
           </div>
-          <div style={s.topBarRight}>
-            <div style={s.searchBar}>
-              <span>🔍</span>
-              <input style={s.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…" />
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {!isMobile && (
+              <div style={s.searchBar}>
+                <span>🔍</span>
+                <input style={s.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…" />
+              </div>
+            )}
             <button style={s.addBtn} onClick={() => setShowAdd(true)}>+ Add tenant</button>
           </div>
         </div>
 
+        {isMobile && (
+          <div style={{ ...s.searchBar, maxWidth: "100%", marginBottom: 16 }}>
+            <span>🔍</span>
+            <input style={s.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…" />
+          </div>
+        )}
+
         {/* Stats */}
-        <div style={s.statRow}>
+        <div style={isMobile ? s.statRowMobile : s.statRow}>
           {[
-            { label: "Total tenants",   value: loading ? "—" : tenants.length,     sub: "across all properties", accent: "#185FA5" },
-            { label: "Current",         value: loading ? "—" : currentCount,        sub: "paid & up to date",     accent: "#3B6D11" },
-            { label: "Outstanding",     value: loading ? "—" : outstandingCount,    sub: "need follow-up",        accent: "#E24B4A" },
-            { label: "Properties",      value: loading ? "—" : properties.length,   sub: "in portfolio",          accent: "#854F0B" },
+            { label: "Total tenants", value: loading ? "—" : tenants.length,    sub: "across all properties", accent: "#185FA5" },
+            { label: "Current",       value: loading ? "—" : currentCount,       sub: "paid & up to date",     accent: "#3B6D11" },
+            { label: "Outstanding",   value: loading ? "—" : outstandingCount,   sub: "need follow-up",        accent: "#E24B4A" },
+            { label: "Properties",    value: loading ? "—" : properties.length,  sub: "in portfolio",          accent: "#854F0B" },
           ].map((stat, i) => (
             <div key={i} style={s.statCard(stat.accent)}>
               <div style={s.statLabel}>{stat.label}</div>
@@ -360,18 +319,16 @@ async function inviteTenant(tenant) {
               <thead>
                 <tr>
                   <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("name")}>Tenant {sortIcon("name")}</th>
-                  <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("property")}>Property · Unit {sortIcon("property")}</th>
+                  {!isMobile && <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("property")}>Property · Unit {sortIcon("property")}</th>}
                   <th style={{ ...s.th, textAlign: "right", cursor: "pointer" }} onClick={() => handleSort("rent")}>Rent {sortIcon("rent")}</th>
                   <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("status")}>Status {sortIcon("status")}</th>
-                  <th style={{ ...s.th, textAlign: "right", cursor: "pointer" }} onClick={() => handleSort("balance")}>Balance {sortIcon("balance")}</th>
-                  <th style={s.th}>Last paid</th>
-                  <th style={s.th}>Lease start</th>
+                  {!isMobile && <th style={{ ...s.th, textAlign: "right", cursor: "pointer" }} onClick={() => handleSort("balance")}>Balance {sortIcon("balance")}</th>}
                   <th style={s.th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {sorted.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: 32, textAlign: "center", color: "#aaa", fontSize: 13 }}>No tenants match your search.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: 32, textAlign: "center", color: "#aaa", fontSize: 13 }}>No tenants match your search.</td></tr>
                 )}
                 {sorted.map(t => (
                   <tr key={t.id}>
@@ -380,34 +337,30 @@ async function inviteTenant(tenant) {
                         <div style={s.avatar(t.color, t.bg)}>{t.initials}</div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{t.name}</div>
-                          <div style={{ fontSize: 11, color: "#888" }}>{t.email || "—"}</div>
+                          <div style={{ fontSize: 11, color: "#888" }}>{isMobile ? `${t.property} · Unit ${t.unit}` : (t.email || "—")}</div>
                         </div>
                       </div>
                     </td>
-                    <td style={s.td}>
-                      <div style={{ fontWeight: 500 }}>{t.property}</div>
-                      <div style={{ fontSize: 11, color: "#888" }}>Unit {t.unit}</div>
-                    </td>
+                    {!isMobile && (
+                      <td style={s.td}>
+                        <div style={{ fontWeight: 500 }}>{t.property}</div>
+                        <div style={{ fontSize: 11, color: "#888" }}>Unit {t.unit}</div>
+                      </td>
+                    )}
                     <td style={{ ...s.td, textAlign: "right", fontWeight: 600 }}>${(t.rent || 0).toLocaleString()}</td>
                     <td style={s.td}><span style={s.statusBadge(t.status)}>{STATUS_CONFIG[t.status]?.label}</span></td>
-                    <td style={{ ...s.td, textAlign: "right" }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: t.balance > 0 ? "#A32D2D" : "#3B6D11" }}>
-                        {t.balance > 0 ? `-$${t.balance.toLocaleString()}` : "✓ $0"}
-                      </span>
-                    </td>
-                    <td style={s.td}><span style={{ fontSize: 12, color: "#555" }}>{t.lastPaid}</span></td>
-                    <td style={s.td}>
-                      <span style={{ fontSize: 12, color: "#555" }}>
-                        {t.lease_start ? new Date(t.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
-                      </span>
-                    </td>
+                    {!isMobile && (
+                      <td style={{ ...s.td, textAlign: "right" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: t.balance > 0 ? "#A32D2D" : "#3B6D11" }}>
+                          {t.balance > 0 ? `-$${t.balance.toLocaleString()}` : "✓ $0"}
+                        </span>
+                      </td>
+                    )}
                     <td style={s.td}>
                       <div style={{ display: "flex", gap: 6 }}>
-<button style={s.actionBtnPrimary} onClick={() => navigate(`/landlord/tenants/${t.id}`)}>View</button>
-<button style={s.actionBtn} onClick={() => navigate("/landlord/messages", { state: { tenantId: t.id } })}>Message</button>
-{!t.user_id && (
-  <button style={s.actionBtn} onClick={() => inviteTenant(t)}>Invite</button>
-)}
+                        <button style={s.actionBtnPrimary} onClick={() => navigate(`/landlord/tenants/${t.id}`)}>View</button>
+                        {!isMobile && <button style={s.actionBtn} onClick={() => navigate("/landlord/messages", { state: { tenantId: t.id } })}>Message</button>}
+                        {!t.user_id && <button style={s.actionBtn} onClick={() => inviteTenant(t)}>Invite</button>}
                       </div>
                     </td>
                   </tr>
@@ -418,7 +371,6 @@ async function inviteTenant(tenant) {
         </div>
       </div>
 
-      {/* Add Tenant Modal */}
       {showAdd && (
         <AddTenantModal
           properties={properties}
@@ -427,6 +379,6 @@ async function inviteTenant(tenant) {
           onSaved={() => { setShowAdd(false); fetchAll(); }}
         />
       )}
-    </div>
+    </LandlordLayout>
   );
 }

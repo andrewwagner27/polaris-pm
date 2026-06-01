@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
 const STATUS_CONFIG = {
   paid:    { label: "Paid",    color: "#3B6D11", bg: "#EAF3DE" },
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
   { icon: "📊", label: "Dashboard",   route: "/landlord" },
   { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
   { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "📋", label: "Reports", route: "/landlord/rentroll" },
+  { icon: "💰", label: "Rent Roll",   route: "/landlord/rentroll" },
   { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
   { icon: "📈", label: "Financials",  route: "/landlord/financials" },
   { icon: "💬", label: "Messages",    route: "/landlord/messages" },
@@ -283,29 +284,8 @@ export default function LandlordProperties() {
   }
 
   return (
-    <div style={s.app}>
+    <LandlordLayout>
       <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
-
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.route} style={s.navItem(item.label === "Properties")} onClick={() => navigate(item.route)}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main */}
       <div style={s.main}>
         <div style={s.topBar}>
           <div>
@@ -499,6 +479,6 @@ export default function LandlordProperties() {
           onSaved={() => { setShowAddUnit(false); fetchAll(); }}
         />
       )}
-    </div>
+    </LandlordLayout>
   );
 }

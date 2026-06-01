@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
 const STATUS_CONFIG = {
   paid:    { label: "Paid",    color: "#3B6D11", bg: "#EAF3DE" },
@@ -17,47 +18,28 @@ const PRIORITY_CONFIG = {
   urgent: { label: "Urgent", color: "#A32D2D", bg: "#FDECEA" },
 };
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   id: "dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  id: "properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     id: "tenants",     route: "/landlord/tenants" },
-  { icon: "📋", label: "Reports", route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", id: "maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  id: "financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    id: "messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   id: "settings",    route: "/landlord/settings" },
-];
-
 const PROP_COLORS = ["#0C447C","#3B6D11","#854F0B","#6B3FA0","#185FA5"];
 const PROP_BGS    = ["#E6F1FB","#EAF3DE","#FAEEDA","#F0E6FB","#E6F1FB"];
 const PROP_ICONS  = ["🏢","🏖️","🏗️","🏠","🏘️"];
 
 const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", transition: "all 0.15s", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  navIcon: { fontSize: 16, flexShrink: 0 },
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10, cursor: "pointer" },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
   main: { flex: 1, padding: "28px", overflowY: "auto" },
+  mainMobile: { padding: "16px" },
   topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
   pageTitle: { fontSize: 22, fontWeight: 700, color: "#1a1a1a" },
   pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
-  topBarRight: { display: "flex", alignItems: "center", gap: 12 },
   addBtn: { padding: "9px 16px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Inter',sans-serif" },
   statGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 },
+  statGridMobile: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 },
   statCard: (accent) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "18px", borderTop: `3px solid ${accent}` }),
   statLabel: { fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 },
   statValue: { fontSize: 28, fontWeight: 700, color: "#1a1a1a", lineHeight: 1, marginBottom: 4 },
+  statValueMobile: { fontSize: 22, fontWeight: 700, color: "#1a1a1a", lineHeight: 1, marginBottom: 4 },
   statSub: { fontSize: 12, color: "#888" },
   twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 },
+  oneCol: { display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 16 },
   threeCol: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 },
+  oneColProps: { display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 20 },
   card: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
   cardHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #f4f5f7" },
   cardTitle: { fontSize: 13, fontWeight: 700, color: "#1a1a1a" },
@@ -83,9 +65,21 @@ const s = {
   activityTime: { fontSize: 10, color: "#aaa", marginTop: 3 },
 };
 
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 export default function LandlordDashboard() {
-  const navigate = useNavigate();
-  const [activeNav, setActiveNav]     = useState("dashboard");
+  const navigate  = useNavigate();
+  const width     = useWindowWidth();
+  const isMobile  = width < 768;
+
   const [rentFilter, setRentFilter]   = useState("all");
   const [properties, setProperties]   = useState([]);
   const [units, setUnits]             = useState([]);
@@ -119,7 +113,6 @@ export default function LandlordDashboard() {
     setLoading(false);
   }
 
-  // Derived stats
   const totalUnits    = units.length;
   const occupiedUnits = tenants.length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
@@ -156,61 +149,35 @@ export default function LandlordDashboard() {
     time: new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   }));
 
+  const stats = [
+    { label: "Collected this month", value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, accent: "#185FA5" },
+    { label: "Outstanding",          value: loading ? "—" : rentRollRows.filter(r => r.status === "pending" || r.status === "late").length, sub: "tenants pending/late", accent: "#E24B4A" },
+    { label: "Occupancy",            value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units`, accent: "#3B6D11" },
+    { label: "Open Maintenance",     value: loading ? "—" : openMaintenance.length, sub: "active requests", accent: "#854F0B" },
+  ];
+
   return (
-    <div style={s.app}>
+    <LandlordLayout openMaintenance={openMaintenance.length} unreadMessages={0}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } tr:hover td { background: #fafafa; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
-
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.id} style={s.navItem(activeNav === item.id)} onClick={() => { setActiveNav(item.id); navigate(item.route); }}>
-            <span style={s.navIcon}>{item.icon}</span>
-            {item.label}
-            {item.id === "maintenance" && openMaintenance.length > 0 && (
-              <span style={{ marginLeft: "auto", background: "#E24B4A", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>{openMaintenance.length}</span>
-            )}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div>
-              <div style={s.sidebarName}>Andrew Wagner</div>
-              <div style={s.sidebarRole}>Portfolio Owner</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main */}
-      <div style={s.main}>
+      <div style={{ padding: isMobile ? "16px" : "28px" }}>
 
         {/* Top bar */}
-        <div style={s.topBar}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 16 : 24 }}>
           <div>
-            <div style={s.pageTitle}>Good morning, Andrew 👋</div>
-            <div style={s.pageSub}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
+            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Good morning, Andrew 👋</div>
+            <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
           </div>
-          <div style={s.topBarRight}>
+          {!isMobile && (
             <button style={s.addBtn} onClick={() => navigate("/landlord/tenants")}>+ Add tenant</button>
-          </div>
+          )}
         </div>
 
         {/* Stat cards */}
-        <div style={s.statGrid}>
-          {[
-            { label: "Collected this month", value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, accent: "#185FA5" },
-            { label: "Outstanding",          value: loading ? "—" : rentRollRows.filter(r => r.status === "pending" || r.status === "late").length, sub: "tenants pending/late", accent: "#E24B4A" },
-            { label: "Occupancy",            value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units occupied`, accent: "#3B6D11" },
-            { label: "Open Maintenance",     value: loading ? "—" : openMaintenance.length, sub: "active requests", accent: "#854F0B" },
-          ].map((stat, i) => (
+        <div style={isMobile ? s.statGridMobile : s.statGrid}>
+          {stats.map((stat, i) => (
             <div key={i} style={s.statCard(stat.accent)}>
               <div style={s.statLabel}>{stat.label}</div>
-              <div style={s.statValue}>{stat.value}</div>
+              <div style={isMobile ? s.statValueMobile : s.statValue}>{stat.value}</div>
               <div style={s.statSub}>{stat.sub}</div>
             </div>
           ))}
@@ -224,16 +191,16 @@ export default function LandlordDashboard() {
         {loading ? (
           <div style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>Loading properties…</div>
         ) : (
-          <div style={s.threeCol}>
+          <div style={isMobile ? s.oneColProps : s.threeCol}>
             {properties.map((prop, i) => {
-              const propUnits   = units.filter(u => u.property_id === prop.id);
-              const propTenants = tenants.filter(t => propUnits.some(u => u.id === t.unit_id));
-              const occupied    = propTenants.length;
-              const total       = propUnits.length;
-              const occPct      = total > 0 ? Math.round((occupied / total) * 100) : 0;
-              const color       = PROP_COLORS[i % PROP_COLORS.length];
-              const bg          = PROP_BGS[i % PROP_BGS.length];
-              const icon        = PROP_ICONS[i % PROP_ICONS.length];
+              const propUnits    = units.filter(u => u.property_id === prop.id);
+              const propTenants  = tenants.filter(t => propUnits.some(u => u.id === t.unit_id));
+              const occupied     = propTenants.length;
+              const total        = propUnits.length;
+              const occPct       = total > 0 ? Math.round((occupied / total) * 100) : 0;
+              const color        = PROP_COLORS[i % PROP_COLORS.length];
+              const bg           = PROP_BGS[i % PROP_BGS.length];
+              const icon         = PROP_ICONS[i % PROP_ICONS.length];
               const propPayments = payments.filter(p => propUnits.some(u => u.id === p.unit_id) && p.status === "paid");
               const propCollected = (propPayments.reduce((s, p) => s + (p.amount_cents || 0), 0) / 100).toLocaleString();
               return (
@@ -245,9 +212,7 @@ export default function LandlordDashboard() {
                     </div>
                     <div style={s.propIcon(bg)}>{icon}</div>
                   </div>
-                  <div style={s.occupancyBar}>
-                    <div style={s.occupancyFill(occPct, color)} />
-                  </div>
+                  <div style={s.occupancyBar}><div style={s.occupancyFill(occPct, color)} /></div>
                   <div style={{ fontSize: 11, color: "#888", marginTop: 4, marginBottom: 8 }}>{occupied}/{total} units occupied · {occPct}%</div>
                   <div style={s.propStats}>
                     <div style={s.propStat(bg)}>
@@ -263,13 +228,13 @@ export default function LandlordDashboard() {
               );
             })}
             {properties.length === 0 && (
-              <div style={{ gridColumn: "1/-1", color: "#888", fontSize: 13, padding: 20, textAlign: "center" }}>No properties yet.</div>
+              <div style={{ color: "#888", fontSize: 13, padding: 20, textAlign: "center" }}>No properties yet.</div>
             )}
           </div>
         )}
 
         {/* Rent Roll + Right Column */}
-        <div style={s.twoCol}>
+        <div style={isMobile ? s.oneCol : s.twoCol}>
 
           {/* Rent Roll */}
           <div style={s.card}>
@@ -280,14 +245,14 @@ export default function LandlordDashboard() {
               </div>
               <button style={s.cardAction} onClick={() => navigate("/landlord/rentroll")}>View all</button>
             </div>
-            <div style={{ display: "flex", gap: 4, padding: "10px 14px", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ display: "flex", gap: 4, padding: "10px 14px", borderBottom: "1px solid #f0f0f0", flexWrap: "wrap" }}>
               {["all","paid","pending","late","vacant"].map(f => (
                 <button key={f} onClick={() => setRentFilter(f)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: rentFilter === f ? 600 : 400, background: rentFilter === f ? "#0C447C" : "#f4f5f7", color: rentFilter === f ? "#fff" : "#666", border: "none", cursor: "pointer", fontFamily: "'Inter',sans-serif", textTransform: "capitalize" }}>
                   {f}
                 </button>
               ))}
             </div>
-            <div style={{ overflowY: "auto", maxHeight: 340 }}>
+            <div style={{ overflowY: "auto", maxHeight: 340, overflowX: "auto" }}>
               {loading ? (
                 <div style={{ padding: 20, color: "#888", fontSize: 13, textAlign: "center" }}>Loading…</div>
               ) : (
@@ -296,7 +261,7 @@ export default function LandlordDashboard() {
                     <tr>
                       <th style={s.th}>Unit</th>
                       <th style={s.th}>Tenant</th>
-                      <th style={{ ...s.th, textAlign: "right" }}>Rent</th>
+                      {!isMobile && <th style={{ ...s.th, textAlign: "right" }}>Rent</th>}
                       <th style={s.th}>Status</th>
                     </tr>
                   </thead>
@@ -305,13 +270,13 @@ export default function LandlordDashboard() {
                       <tr><td colSpan={4} style={{ ...s.td, textAlign: "center", color: "#888" }}>No records.</td></tr>
                     )}
                     {filteredRoll.map((row, i) => (
-                      <tr key={i} style={{ cursor: "pointer" }}>
+                      <tr key={i}>
                         <td style={s.td}>
                           <div style={{ fontWeight: 600 }}>{row.unit}</div>
                           <div style={{ fontSize: 10, color: "#aaa" }}>{row.property}</div>
                         </td>
                         <td style={s.td}>{row.tenant}</td>
-                        <td style={{ ...s.td, textAlign: "right", fontWeight: 600 }}>${(row.rent || 0).toLocaleString()}</td>
+                        {!isMobile && <td style={{ ...s.td, textAlign: "right", fontWeight: 600 }}>${(row.rent || 0).toLocaleString()}</td>}
                         <td style={s.td}><span style={s.statusBadge(row.status)}>{STATUS_CONFIG[row.status]?.label}</span></td>
                       </tr>
                     ))}
@@ -323,7 +288,6 @@ export default function LandlordDashboard() {
 
           {/* Right column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
             {/* Maintenance queue */}
             <div style={s.card}>
               <div style={s.cardHeader}>
@@ -375,10 +339,9 @@ export default function LandlordDashboard() {
                 </div>
               ))}
             </div>
-
           </div>
         </div>
       </div>
-    </div>
+    </LandlordLayout>
   );
 }

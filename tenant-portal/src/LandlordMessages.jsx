@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
 const NAV_ITEMS = [
   { icon: "📊", label: "Dashboard",   route: "/landlord" },
   { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
   { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "📋", label: "Reports", route: "/landlord/rentroll" },
+  { icon: "💰", label: "Rent Roll",   route: "/landlord/rentroll" },
   { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
   { icon: "📈", label: "Financials",  route: "/landlord/financials" },
   { icon: "💬", label: "Messages",    route: "/landlord/messages" },
@@ -30,8 +31,8 @@ const QUICK_REPLIES = [
 ];
 
 const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh", width: "100vw", overflow: "hidden" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
+  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", height: "100vh", overflow: "hidden", width: "100%" },
+  sidebar: { width: 180, background: "#0C1F3F", height: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" },
   sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
   logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
   logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
@@ -41,8 +42,9 @@ const s = {
   sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
   sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
   sidebarRole: { fontSize: 10, color: "#5B7FA6" },
-  content: { flex: 1, display: "flex", height: "100vh", overflow: "hidden", minWidth: 0 },
-  threadList: { width: 280, minWidth: 200, background: "#fff", borderRight: "1px solid #e8eaed", display: "flex", flexDirection: "column", flexShrink: 1 },  threadListHeader: { padding: "16px 16px 12px", borderBottom: "1px solid #f0f0f0" },
+  content: { flex: 1, display: "flex", overflow: "hidden", minWidth: 0 },
+  threadList: { width: 280, flexShrink: 0, background: "#fff", borderRight: "1px solid #e8eaed", display: "flex", flexDirection: "column", overflow: "hidden" },
+  threadListHeader: { padding: "16px 16px 12px", borderBottom: "1px solid #f0f0f0" },
   searchBar: { display: "flex", alignItems: "center", gap: 8, background: "#f4f5f7", borderRadius: 8, padding: "8px 12px", marginTop: 10 },
   searchInput: { flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'Inter',sans-serif", background: "transparent" },
   filterRow: { display: "flex", flexDirection: "column", gap: 8, padding: "10px 16px", borderBottom: "1px solid #f0f0f0" },
@@ -343,33 +345,10 @@ export default function LandlordMessages() {
   const activeMessages = messages.filter(m => m.tenant_id === activeId);
 
   return (
-    <div style={{ ...s.app, width: "100vw", maxWidth: "100vw" }}>
+    <LandlordLayout unreadMessages={totalUnread}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }`}</style>
 
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.route} style={s.navItem(item.label === "Messages")} onClick={() => navigate(item.route)}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>
-            {item.label}
-            {item.label === "Messages" && totalUnread > 0 && (
-              <span style={{ marginLeft: "auto", background: "#E24B4A", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>{totalUnread}</span>
-            )}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ ...s.content, width: "calc(100vw - 180px)" }}>
+      <div style={s.content}>
         {/* Thread list */}
         <div style={s.threadList}>
           <div style={s.threadListHeader}>
@@ -514,6 +493,6 @@ export default function LandlordMessages() {
           ✓ Broadcast sent to {broadcastSent} tenant{broadcastSent !== 1 ? "s" : ""}
         </div>
       )}
-    </div>
+    </LandlordLayout>
   );
 }

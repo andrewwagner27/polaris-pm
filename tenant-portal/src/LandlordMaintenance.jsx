@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
 const PRIORITY_CONFIG = {
   low:    { label: "Low",    color: "#3B6D11", bg: "#EAF3DE" },
@@ -20,35 +21,14 @@ const CATEGORY_ICONS = {
   appliance: "🍳", pest: "🐛", other: "🔧",
 };
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "📋", label: "Reports", route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   route: "/landlord/settings" },
-];
-
 const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
   main: { flex: 1, padding: "28px", overflowY: "auto" },
   topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
   pageTitle: { fontSize: 22, fontWeight: 700 },
   pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
   btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 6 }),
   statGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 },
+  statGridMobile: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 },
   statCard: (accent) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 10, padding: "14px 16px", borderTop: `3px solid ${accent}` }),
   statLabel: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 },
   statValue: { fontSize: 26, fontWeight: 700, color: "#1a1a1a" },
@@ -66,16 +46,12 @@ const s = {
   ticketBadges: { display: "flex", gap: 6, alignItems: "center", flexShrink: 0 },
   badge: (color, bg) => ({ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: bg, color, whiteSpace: "nowrap" }),
   ticketFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: "1px solid #f4f5f7" },
-  ticketFooterLeft: { display: "flex", alignItems: "center", gap: 12 },
+  ticketFooterLeft: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
   ticketFooterItem: { fontSize: 11, color: "#888", display: "flex", alignItems: "center", gap: 4 },
   actionBtn: { padding: "5px 10px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
   actionBtnPrimary: { padding: "5px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  vendorCard: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "16px", marginBottom: 10 },
-  vendorHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  vendorName: { fontSize: 14, fontWeight: 700 },
-  vendorSpecialty: { fontSize: 11, color: "#888", marginTop: 2 },
   detailOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", justifyContent: "flex-end" },
-  detailPanel: { width: 480, background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.15)" },
+  detailPanel: { width: "min(480px, 100vw)", background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.15)" },
   detailHeader: { background: "#0C447C", padding: "20px 20px 16px" },
   detailTitle: { fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 4 },
   detailMeta: { fontSize: 12, color: "#85B7EB" },
@@ -93,8 +69,21 @@ const s = {
   timelineTime: { fontSize: 10, color: "#aaa", marginTop: 2 },
 };
 
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 export default function LandlordMaintenance() {
   const navigate = useNavigate();
+  const width    = useWindowWidth();
+  const isMobile = width < 768;
+
   const [activeTab, setActiveTab]       = useState("Requests");
   const [statusFilter, setStatusFilter] = useState("all");
   const [propFilter, setPropFilter]     = useState("all");
@@ -105,47 +94,27 @@ export default function LandlordMaintenance() {
   const [error, setError]               = useState(null);
   const [notes, setNotes]               = useState("");
   const [saving, setSaving]             = useState(false);
-  const [lightbox, setLightbox] = useState(null);
+  const [lightbox, setLightbox]         = useState(null);
 
-  // Load tickets from Supabase
-  useEffect(() => {
-    fetchTickets();
-  }, []);
+  useEffect(() => { fetchTickets(); }, []);
 
   async function fetchTickets() {
-  setLoading(true);
-  setError(null);
-  const { data, error } = await supabase
-  .from("maintenance_requests")
-  .select(`
-    *,
-    units (
-      unit_number,
-      property_id,
-      properties (
-        name
-      )
-    ),
-    tenants (
-      name
-    )
-  `)
-  .order("created_at", { ascending: false });
-
-  if (error) {
-    setError(error.message);
-  } else {
-    setTickets(data || []);
+    setLoading(true);
+    setError(null);
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .select(`*, units(unit_number, property_id, properties(name)), tenants(name)`)
+      .order("created_at", { ascending: false });
+    if (error) setError(error.message);
+    else setTickets(data || []);
+    setLoading(false);
   }
-  setLoading(false);
-}
 
   async function updateStatus(id, newStatus) {
     const { error } = await supabase
       .from("maintenance_requests")
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq("id", id);
-
     if (!error) {
       setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
       if (selected?.id === id) setSelected(prev => ({ ...prev, status: newStatus }));
@@ -154,35 +123,28 @@ export default function LandlordMaintenance() {
 
   async function saveNotes(id) {
     setSaving(true);
-    const { error } = await supabase
-      .from("maintenance_requests")
-      .update({ notes, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      setTickets(prev => prev.map(t => t.id === id ? { ...t, notes } : t));
-    }
+    await supabase.from("maintenance_requests").update({ notes, updated_at: new Date().toISOString() }).eq("id", id);
+    setTickets(prev => prev.map(t => t.id === id ? { ...t, notes } : t));
     setSaving(false);
   }
 
-  // Normalize field names — Supabase uses snake_case
   function field(ticket, key) {
-const map = {
-  submittedAt: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
-  updatedAt:   ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
-  property:    ticket.units?.properties?.name || "—",
-  unit:        ticket.units?.unit_number || "—",
-  tenant: ticket.tenants?.name || "Unknown",
-  category:    ticket.category || "other",
-  title:       ticket.title || "Untitled",
-  description: ticket.description || "",
-  priority:    ticket.priority || "normal",
-  status:      ticket.status || "open",
-  vendor:      ticket.vendor_name || null,
-  scheduled:   ticket.scheduled_date || null,
-  cost:        ticket.cost || null,
-  notes:       ticket.notes || "",
-};
+    const map = {
+      submittedAt: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
+      updatedAt:   ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
+      property:    ticket.units?.properties?.name || "—",
+      unit:        ticket.units?.unit_number || "—",
+      tenant:      ticket.tenants?.name || "Unknown",
+      category:    ticket.category || "other",
+      title:       ticket.title || "Untitled",
+      description: ticket.description || "",
+      priority:    ticket.priority || "normal",
+      status:      ticket.status || "open",
+      vendor:      ticket.vendor_name || null,
+      scheduled:   ticket.scheduled_date || null,
+      cost:        ticket.cost || null,
+      notes:       ticket.notes || "",
+    };
     return map[key];
   }
 
@@ -203,40 +165,14 @@ const map = {
   });
 
   return (
-    <div style={s.app}>
+    <LandlordLayout openMaintenance={openCount + inProgressCount}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
+      <div style={{ padding: isMobile ? "16px" : "28px" }}>
 
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.route} style={s.navItem(item.label === "Maintenance")} onClick={() => navigate(item.route)}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>
-            {item.label}
-            {item.label === "Maintenance" && openCount + inProgressCount > 0 && (
-              <span style={{ marginLeft: "auto", background: "#E24B4A", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>
-                {openCount + inProgressCount}
-              </span>
-            )}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main */}
-      <div style={s.main}>
-        <div style={s.topBar}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 16 : 24 }}>
           <div>
-            <div style={s.pageTitle}>Maintenance</div>
-            <div style={s.pageSub}>
+            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Maintenance</div>
+            <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
               {loading ? "Loading…" : `${openCount + inProgressCount} active tickets across all properties`}
             </div>
           </div>
@@ -251,7 +187,7 @@ const map = {
         )}
 
         {/* Stats */}
-        <div style={s.statGrid}>
+        <div style={isMobile ? s.statGridMobile : s.statGrid}>
           {[
             { label: "Open",             value: loading ? "—" : openCount,       sub: "awaiting action",  accent: "#854F0B" },
             { label: "In progress",      value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: "#185FA5" },
@@ -273,7 +209,7 @@ const map = {
           ))}
         </div>
 
-        {/* ── Requests tab ── */}
+        {/* Requests tab */}
         {activeTab === "Requests" && (
           <>
             <div style={s.filterRow}>
@@ -286,18 +222,17 @@ const map = {
                   {f === "all" ? `All (${tickets.length})` : f === "in_progress" ? `In Progress (${inProgressCount})` : `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t=>t.status===f).length})`}
                 </button>
               ))}
-              <select style={{ padding: "7px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none" }}
-                value={propFilter} onChange={e => setPropFilter(e.target.value)}>
-                <option value="all">All properties</option>
-                <option value="clifton">Clifton Manor</option>
-                <option value="stpete">944 18th Ave S</option>
-              </select>
+              {!isMobile && (
+                <select style={{ padding: "7px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none" }}
+                  value={propFilter} onChange={e => setPropFilter(e.target.value)}>
+                  <option value="all">All properties</option>
+                  <option value="clifton">Clifton Manor</option>
+                  <option value="stpete">944 18th Ave S</option>
+                </select>
+              )}
             </div>
 
-            {loading && (
-              <div style={{ textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>Loading tickets…</div>
-            )}
-
+            {loading && <div style={{ textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>Loading tickets…</div>}
             {!loading && filtered.length === 0 && (
               <div style={{ textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>
                 {tickets.length === 0 ? "No maintenance requests yet." : "No tickets match your filters."}
@@ -319,21 +254,20 @@ const map = {
                     </div>
                     <div style={s.ticketBadges}>
                       <span style={s.badge(PRIORITY_CONFIG[priority]?.color, PRIORITY_CONFIG[priority]?.bg)}>{PRIORITY_CONFIG[priority]?.label}</span>
-                      <span style={s.badge(STATUS_CONFIG[status]?.color, STATUS_CONFIG[status]?.bg)}>{STATUS_CONFIG[status]?.label}</span>
+                      {!isMobile && <span style={s.badge(STATUS_CONFIG[status]?.color, STATUS_CONFIG[status]?.bg)}>{STATUS_CONFIG[status]?.label}</span>}
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5, marginBottom: 8 }}>{field(ticket, "description")}</div>
+                  {!isMobile && <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5, marginBottom: 8 }}>{field(ticket, "description")}</div>}
                   <div style={s.ticketFooter}>
                     <div style={s.ticketFooterLeft}>
                       <span style={s.ticketFooterItem}>📅 {field(ticket, "submittedAt")}</span>
-                      {field(ticket, "vendor") && <span style={s.ticketFooterItem}>🔧 {field(ticket, "vendor")}</span>}
-                      {field(ticket, "scheduled") && <span style={s.ticketFooterItem}>📆 {field(ticket, "scheduled")}</span>}
-                      {field(ticket, "cost") && <span style={s.ticketFooterItem}>💰 ${field(ticket, "cost")}</span>}
+                      {!isMobile && field(ticket, "vendor") && <span style={s.ticketFooterItem}>🔧 {field(ticket, "vendor")}</span>}
+                      {!isMobile && field(ticket, "cost") && <span style={s.ticketFooterItem}>💰 ${field(ticket, "cost")}</span>}
                     </div>
                     <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-                      {status === "open"        && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "in_progress")}>Assign vendor</button>}
-                      {status === "in_progress" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "resolved")}>Mark resolved</button>}
-                      {status === "resolved"    && <span style={{ fontSize: 11, color: "#3B6D11", fontWeight: 600 }}>✓ Resolved</span>}
+                      {status === "open"        && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "in_progress")}>{isMobile ? "→" : "Assign vendor"}</button>}
+                      {status === "in_progress" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</button>}
+                      {status === "resolved"    && <span style={{ fontSize: 11, color: "#3B6D11", fontWeight: 600 }}>✓</span>}
                       <button style={s.actionBtn} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); }}>View</button>
                     </div>
                   </div>
@@ -343,49 +277,51 @@ const map = {
           </>
         )}
 
-        {/* ── Cost Tracker tab ── */}
+        {/* Cost Tracker tab */}
         {activeTab === "Cost Tracker" && (
           <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>Maintenance spend by ticket</div>
               <button style={s.btn(false)}>⬇️ Export CSV</button>
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  {["Property", "Unit", "Issue", "Vendor", "Cost", "Date"].map(h => (
-                    <th key={h} style={{ fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.filter(t => t.cost).map(t => (
-                  <tr key={t.id}>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "property")}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>Unit {field(t, "unit")}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "title")}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "vendor") || "—"}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, borderBottom: "1px solid #f8f9fa" }}>${t.cost}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, color: "#888", borderBottom: "1px solid #f8f9fa" }}>{field(t, "updatedAt")}</td>
-                  </tr>
-                ))}
-                {tickets.filter(t => t.cost).length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: "20px 14px", fontSize: 13, color: "#888", textAlign: "center" }}>No costs recorded yet.</td></tr>
-                )}
-                {tickets.some(t => t.cost) && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
                   <tr>
-                    <td colSpan={4} style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#fafafa" }}>Total</td>
-                    <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 700, color: "#0C447C", background: "#fafafa" }}>${totalCost.toLocaleString()}</td>
-                    <td style={{ background: "#fafafa" }}></td>
+                    {["Property", "Unit", "Issue", "Vendor", "Cost", "Date"].map(h => (
+                      <th key={h} style={{ fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tickets.filter(t => t.cost).map(t => (
+                    <tr key={t.id}>
+                      <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "property")}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>Unit {field(t, "unit")}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "title")}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 13, borderBottom: "1px solid #f8f9fa" }}>{field(t, "vendor") || "—"}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, borderBottom: "1px solid #f8f9fa" }}>${t.cost}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 13, color: "#888", borderBottom: "1px solid #f8f9fa" }}>{field(t, "updatedAt")}</td>
+                    </tr>
+                  ))}
+                  {tickets.filter(t => t.cost).length === 0 && (
+                    <tr><td colSpan={6} style={{ padding: "20px 14px", fontSize: 13, color: "#888", textAlign: "center" }}>No costs recorded yet.</td></tr>
+                  )}
+                  {tickets.some(t => t.cost) && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#fafafa" }}>Total</td>
+                      <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 700, color: "#0C447C", background: "#fafafa" }}>${totalCost.toLocaleString()}</td>
+                      <td style={{ background: "#fafafa" }}></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ── Ticket detail panel ── */}
+      {/* Ticket detail panel */}
       {selected && (
         <div style={s.detailOverlay} onClick={() => setSelected(null)}>
           <div style={s.detailPanel} onClick={e => e.stopPropagation()}>
@@ -409,34 +345,28 @@ const map = {
                 <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{field(selected, "description")}</p>
               </div>
 
-             {/* Photos */}
-{selected.photos?.length > 0 && (
-  <div style={s.detailSection}>
-    <div style={s.detailSectionTitle}>Photos ({selected.photos.length})</div>
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      {selected.photos.map((url, i) => (
-        <img
-          key={i}
-          src={url}
-          alt={`photo-${i}`}
-          onClick={() => setLightbox({ urls: selected.photos, index: i })}
-          style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e8eaed", cursor: "pointer" }}
-        />
-      ))}
-    </div>
-  </div>
-)}
+              {selected.photos?.length > 0 && (
+                <div style={s.detailSection}>
+                  <div style={s.detailSectionTitle}>Photos ({selected.photos.length})</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {selected.photos.map((url, i) => (
+                      <img key={i} src={url} alt={`photo-${i}`}
+                        onClick={() => setLightbox({ urls: selected.photos, index: i })}
+                        style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e8eaed", cursor: "pointer" }} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-{/* Lightbox */}
-{lightbox && (
-  <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
-    <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
-    <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
-    <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index + 1) % l.urls.length })); }} style={{ position: "absolute", right: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
-    <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 16, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
-    <div style={{ position: "absolute", bottom: 20, color: "#fff", fontSize: 13 }}>{lightbox.index + 1} / {lightbox.urls.length}</div>
-  </div>
-)}
+              {lightbox && (
+                <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
+                  <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
+                  <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index + 1) % l.urls.length })); }} style={{ position: "absolute", right: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
+                  <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 16, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
+                  <div style={{ position: "absolute", bottom: 20, color: "#fff", fontSize: 13 }}>{lightbox.index + 1} / {lightbox.urls.length}</div>
+                </div>
+              )}
 
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Details</div>
@@ -471,12 +401,7 @@ const map = {
 
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Internal notes</div>
-                <textarea
-                  style={s.notesArea}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Add notes — vendor contact, parts needed, cost breakdown…"
-                />
+                <textarea style={s.notesArea} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add notes — vendor contact, parts needed, cost breakdown…" />
                 <button style={{ ...s.btn(true), marginTop: 8 }} onClick={() => saveNotes(selected.id)} disabled={saving}>
                   {saving ? "Saving…" : "Save notes"}
                 </button>
@@ -503,6 +428,6 @@ const map = {
           </div>
         </div>
       )}
-    </div>
+    </LandlordLayout>
   );
 }
