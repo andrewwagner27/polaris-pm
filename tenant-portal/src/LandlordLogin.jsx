@@ -50,6 +50,12 @@ const s = {
     borderRadius: 8, padding: "10px 14px", marginBottom: 16,
     fontSize: 13, color: "#A32D2D",
   },
+  forgotWrap: { textAlign: "right", marginBottom: 16, marginTop: -8 },
+  forgotLink: {
+    fontSize: 12, color: "#185FA5", cursor: "pointer",
+    background: "none", border: "none",
+    fontFamily: "'Inter',sans-serif", padding: 0,
+  },
   submitBtn: (loading) => ({
     width: "100%", padding: 13, border: "none", borderRadius: 8,
     fontSize: 15, fontWeight: 600,
@@ -58,9 +64,7 @@ const s = {
     display: "flex", alignItems: "center", justifyContent: "center",
     gap: 8, fontFamily: "'Inter',sans-serif", marginTop: 8,
   }),
-  backLink: {
-    textAlign: "center", marginTop: 16, fontSize: 13, color: "#888",
-  },
+  backLink: { textAlign: "center", marginTop: 16, fontSize: 13, color: "#888" },
   backBtn: {
     color: "#185FA5", cursor: "pointer", background: "none",
     border: "none", fontFamily: "'Inter',sans-serif", fontSize: 13,
@@ -100,14 +104,12 @@ export default function LandlordLogin() {
 
     if (authError) { setError(authError.message); return; }
 
-    // Check if this email is authorized as a landlord
     if (!LANDLORD_EMAILS.includes(data.user.email)) {
       await supabase.auth.signOut();
       setError("This account does not have landlord access. Please use the tenant portal.");
       return;
     }
 
-    // Store landlord session flag
     localStorage.setItem("polaris_landlord", "true");
     navigate("/landlord");
   }
@@ -142,6 +144,12 @@ export default function LandlordLogin() {
               {showPw ? "🙈" : "👁️"}
             </button>
           </div>
+        </div>
+
+        <div style={s.forgotWrap}>
+          <button style={s.forgotLink} onClick={() => navigate("/forgot-password")}>
+            Forgot password?
+          </button>
         </div>
 
         <button style={s.submitBtn(loading)} onClick={handleLogin} disabled={loading}>

@@ -72,16 +72,10 @@ const s = {
     border: "none", cursor: "pointer", fontSize: 16,
     color: "#888", padding: 0,
   },
-  fieldErr: { fontSize: 11, color: "#c0392b", marginTop: 4 },
   errorBanner: {
     background: "#FDECEA", border: "1px solid #f5c6c6",
     borderRadius: 8, padding: "10px 14px", marginBottom: 16,
     fontSize: 13, color: "#A32D2D", display: "flex", alignItems: "center", gap: 8,
-  },
-  successBanner: {
-    background: "#EAF3DE", border: "1px solid #c3e6a0",
-    borderRadius: 8, padding: "10px 14px", marginBottom: 16,
-    fontSize: 13, color: "#3B6D11", display: "flex", alignItems: "center", gap: 8,
   },
   forgotWrap: { textAlign: "right", marginBottom: 20, marginTop: -8 },
   forgotLink: {
@@ -99,18 +93,11 @@ const s = {
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
     opacity: loading ? 0.85 : 1,
   }),
-  divider: {
-    display: "flex", alignItems: "center", gap: 12, margin: "20px 0",
-  },
-  dividerLine: { flex: 1, height: 1, background: "#e8eaed" },
-  dividerText: { fontSize: 12, color: "#aaa", whiteSpace: "nowrap" },
-
   termsText: {
     fontSize: 11, color: "#aaa", textAlign: "center",
     marginTop: 20, lineHeight: 1.6,
   },
   termsLink: { color: "#185FA5", cursor: "pointer" },
-
 };
 
 function Spinner() {
@@ -124,8 +111,8 @@ function Spinner() {
   );
 }
 
-// ── Sign In ───────────────────────────────────────────────────────────────────
 function SignInForm({ onSuccess }) {
+  const navigate = useNavigate();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]     = useState(false);
@@ -164,11 +151,9 @@ function SignInForm({ onSuccess }) {
         </div>
       </div>
       <div style={s.forgotWrap}>
-        <button style={s.forgotLink} onClick={async () => {
-          if (!email) { setError("Enter your email first."); return; }
-          await supabase.auth.resetPasswordForEmail(email);
-          setError(""); alert("Password reset email sent!");
-        }}>Forgot password?</button>
+        <button style={s.forgotLink} onClick={() => navigate("/forgot-password")}>
+          Forgot password?
+        </button>
       </div>
       <button style={s.submitBtn(loading)} onClick={handleSubmit} disabled={loading}>
         {loading ? <><Spinner /> Signing in…</> : "Sign in"}
@@ -177,15 +162,14 @@ function SignInForm({ onSuccess }) {
   );
 }
 
-// ── Sign Up ───────────────────────────────────────────────────────────────────
 function SignUpForm({ onSuccess }) {
-  const [name, setName]         = useState("");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [unit, setUnit]         = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [name, setName]           = useState("");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [unit, setUnit]           = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
   const [emailSent, setEmailSent] = useState(false);
 
   async function handleSubmit() {
@@ -255,11 +239,9 @@ function SignUpForm({ onSuccess }) {
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 export default function LoginScreen({ onSuccess }) {
   const navigate = useNavigate();
-  const [tab, setTab]             = useState("signin");
-
+  const [tab, setTab] = useState("signin");
 
   function handleSuccess(user) {
     if (onSuccess) onSuccess(user);
@@ -275,13 +257,11 @@ export default function LoginScreen({ onSuccess }) {
           <div style={s.appName}>Polaris Tenant</div>
           <div style={s.appTagline}>Pay rent, submit requests,<br />and message your property manager</div>
         </div>
-
         <div style={s.card}>
           <div style={s.tabs}>
             <button style={tab === "signin" ? s.tabActive : s.tabInactive} onClick={() => setTab("signin")}>Sign in</button>
             <button style={tab === "signup" ? s.tabActive : s.tabInactive} onClick={() => setTab("signup")}>Create account</button>
           </div>
-
           {tab === "signin"
             ? <SignInForm onSuccess={handleSuccess} />
             : <SignUpForm onSuccess={handleSuccess} />
