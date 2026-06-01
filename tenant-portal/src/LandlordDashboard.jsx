@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { icon: "📊", label: "Dashboard",   id: "dashboard",   route: "/landlord" },
   { icon: "🏢", label: "Properties",  id: "properties",  route: "/landlord/properties" },
   { icon: "👥", label: "Tenants",     id: "tenants",     route: "/landlord/tenants" },
-  { icon: "💰", label: "Rent Roll",   id: "rentroll",    route: "/landlord/rentroll" },
+  { icon: "📋", label: "Reports", route: "/landlord/rentroll" },
   { icon: "🔧", label: "Maintenance", id: "maintenance", route: "/landlord/maintenance" },
   { icon: "📈", label: "Financials",  id: "financials",  route: "/landlord/financials" },
   { icon: "💬", label: "Messages",    id: "messages",    route: "/landlord/messages" },
