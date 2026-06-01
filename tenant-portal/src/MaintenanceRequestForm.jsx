@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from "react";
 import { supabase } from "./supabase";
+import { notifyNewMaintenanceTicket } from "./notifications";
 
 const CATEGORIES = [
   { id: "plumbing",    label: "Plumbing",     icon: "🚿" },
@@ -373,11 +374,10 @@ export default function MaintenanceRequestForm() {
         .from("maintenance-photos")
         .upload(path, photo.file, { contentType: photo.file.type });
       if (!error) {
-const { data: urlData } = supabase.storage
-  .from("maintenance-photos")
-  .getPublicUrl(path);
-console.log("Public URL:", urlData?.publicUrl);
-urls.push(urlData.publicUrl);
+        const { data } = supabase.storage
+          .from("maintenance-photos")
+          .getPublicUrl(path);
+        urls.push(data.publicUrl);
       }
     }
     return urls;
@@ -387,28 +387,21 @@ urls.push(urlData.publicUrl);
     if (!validate()) return;
     setLoading(true);
 
-const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
-// Look up tenant's unit
-const { data: tenantData } = await supabase
-  .from("tenants")
-  .select("unit_id")
-  .eq("id", user.id)
-  .single();
-
-const { data, error } = await supabase
-  .from("maintenance_requests")
-  .insert({
-    tenant_id: user.id,
-    unit_id: tenantData?.unit_id || null,
-    category,
-    title,
-    description,
-    priority,
-    status: "open",
-  })
-  .select()
-  .single();
+    // Insert the request first to get the ID
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .insert({
+        tenant_id: user.id,
+        category,
+        title,
+        description,
+        priority,
+        status: "open",
+      })
+      .select()
+      .single();
 
     if (error) {
       setLoading(false);
@@ -420,20 +413,26 @@ const { data, error } = await supabase
     if (photos.length > 0) {
       const photoUrls = await uploadPhotos(data.id);
       if (photoUrls.length > 0) {
-console.log("Attempting update for ID:", data.id);
-console.log("Photo URL to save:", photoUrls[0]);
-const { data: updateData, error: photoError } = await supabase
-  .from("maintenance_requests")
-.update({ photos: photoUrls })
-  .eq("id", data.id)
-  .select();
-console.log("Update result:", updateData, photoError);      }
+        await supabase
+          .from("maintenance_requests")
+          .update({ photos: photoUrls[0] }) // saves first photo URL; extend to array if needed
+          .eq("id", data.id);
+      }
     }
 
     setLoading(false);
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
-  }
+
+    // Send email notification to landlord
+    const { data: tenantData } = await supabase.from("tenants").select("name, units(unit_number, properties(name))").eq("user_id", user.id).maybeSingle();
+    notifyNewMaintenanceTicket({
+      tenantName: tenantData?.name || user.email,
+      title,
+      unit:     tenantData?.units?.unit_number || "—",
+      property: tenantData?.units?.properties?.name || "—",
+      ticketId: data.id,
+    });
 
   function handleReset() {
     setSubmitted(false);
@@ -475,7 +474,7 @@ console.log("Update result:", updateData, photoError);      }
         {/* Header */}
         <div style={s.header}>
           <div style={s.headerTop}>
-            <button style={s.backBtn} onClick={() => navigate('/maintenance')}>←</button>
+            <button style={s.backBtn} onClick={() => navigate('/home')}>←</button>
             <span style={s.headerTitle}>Maintenance request</span>
           </div>
           <div style={s.headerSub}>Unit 4B · Clifton Manor</div>

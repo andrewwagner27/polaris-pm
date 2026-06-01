@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { notifyTicketStatusUpdate, notifyTenantNewComment } from "./notifications";
 
 const PRIORITY_CONFIG = {
   low:    { label: "Low",    color: "#3B6D11", bg: "#EAF3DE" },
@@ -131,6 +132,19 @@ export default function LandlordMaintenance() {
     if (!error) {
       setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
       if (selected?.id === id) setSelected(prev => ({ ...prev, status: newStatus }));
+
+      // Notify tenant
+      const ticket = tickets.find(t => t.id === id);
+      if (ticket?.tenants?.name) {
+        const { data: tenantAuth } = await supabase.from("tenants").select("email").eq("id", ticket.tenant_id).maybeSingle();
+        notifyTicketStatusUpdate({
+          tenantEmail: tenantAuth?.email || ticket.tenants?.email,
+          tenantName:  ticket.tenants?.name,
+          title:       ticket.title,
+          newStatus,
+          ticketId:    id,
+        });
+      }
     }
   }
 
@@ -161,6 +175,19 @@ export default function LandlordMaintenance() {
       body:              newComment.trim(),
       visible_to_tenant: visibility === "visible",
     });
+
+    // Notify tenant if comment is visible
+    if (visibility === "visible" && selected.tenants?.name) {
+      const { data: tenantAuth } = await supabase.from("tenants").select("email").eq("id", selected.tenant_id).maybeSingle();
+      notifyTenantNewComment({
+        tenantEmail:  tenantAuth?.email,
+        tenantName:   selected.tenants?.name,
+        title:        selected.title,
+        commentBody:  newComment.trim(),
+        ticketId:     selected.id,
+      });
+    }
+
     setNewComment("");
     await fetchComments(selected.id);
     setPosting(false);

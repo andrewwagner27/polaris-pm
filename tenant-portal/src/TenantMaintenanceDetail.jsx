@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
+import { notifyLandlordTenantComment } from "./notifications";
 
 const STATUS_CONFIG = {
   open:        { label: "Open",        color: "#854F0B", bg: "#FAEEDA" },
@@ -80,6 +81,15 @@ export default function TenantMaintenanceDetail() {
       body:              newComment.trim(),
       visible_to_tenant: true,
     });
+
+    // Notify landlord
+    notifyLandlordTenantComment({
+      tenantName:  tenant?.name || user.email,
+      title:       ticket?.title || "Maintenance request",
+      commentBody: newComment.trim(),
+      ticketId:    id,
+    });
+
     setNewComment("");
     await fetchComments();
     setPosting(false);
