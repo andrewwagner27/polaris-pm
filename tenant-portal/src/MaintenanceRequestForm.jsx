@@ -433,6 +433,7 @@ export default function MaintenanceRequestForm() {
       property: tenantData?.units?.properties?.name || "—",
       ticketId: data.id,
     });
+  }
 
   function handleReset() {
     setSubmitted(false);
