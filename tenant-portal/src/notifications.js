@@ -1,24 +1,14 @@
-const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
-const FROM_EMAIL = "Polaris PM <onboarding@resend.dev>";
+import { supabase } from "./supabase";
+
 const LANDLORD_EMAIL = "andrewwagner27@gmail.com";
 const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {
-  if (!RESEND_API_KEY) {
-    console.warn("No Resend API key found — skipping email");
-    return;
-  }
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+    const { data, error } = await supabase.functions.invoke("send-email", {
+      body: { to, subject, html },
     });
-    const data = await res.json();
-    if (!res.ok) console.error("Resend error:", data);
+    if (error) console.error("Edge Function error:", error);
     return data;
   } catch (err) {
     console.error("Failed to send email:", err);
