@@ -475,7 +475,7 @@ console.log("Update result:", updateData, photoError);      }
         {/* Header */}
         <div style={s.header}>
           <div style={s.headerTop}>
-            <button style={s.backBtn} onClick={() => navigate('/home')}>←</button>
+            <button style={s.backBtn} onClick={() => navigate('/maintenance')}>←</button>
             <span style={s.headerTitle}>Maintenance request</span>
           </div>
           <div style={s.headerSub}>Unit 4B · Clifton Manor</div>

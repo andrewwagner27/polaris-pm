@@ -23,9 +23,6 @@ const CATEGORY_ICONS = {
 
 const s = {
   main: { flex: 1, padding: "28px", overflowY: "auto" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
-  pageTitle: { fontSize: 22, fontWeight: 700 },
-  pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
   btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 6 }),
   statGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 },
   statGridMobile: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 },
@@ -51,7 +48,7 @@ const s = {
   actionBtn: { padding: "5px 10px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
   actionBtnPrimary: { padding: "5px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
   detailOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", justifyContent: "flex-end" },
-  detailPanel: { width: "min(480px, 100vw)", background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.15)" },
+  detailPanel: { width: "min(520px, 100vw)", background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.15)" },
   detailHeader: { background: "#0C447C", padding: "20px 20px 16px" },
   detailTitle: { fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 4 },
   detailMeta: { fontSize: 12, color: "#85B7EB" },
@@ -61,8 +58,7 @@ const s = {
   infoRow: { display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f4f5f7" },
   infoKey: { fontSize: 13, color: "#888" },
   infoVal: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  select: { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", marginBottom: 8 },
-  notesArea: { width: "100%", minHeight: 80, padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, resize: "vertical", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box" },
+  notesArea: { width: "100%", minHeight: 80, padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, resize: "vertical", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box", color: "#1a1a1a", background: "#fff" },
   timelineItem: { display: "flex", gap: 10, marginBottom: 12 },
   timelineDot: (color) => ({ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 4 }),
   timelineText: { fontSize: 12, color: "#444", lineHeight: 1.5 },
@@ -96,7 +92,15 @@ export default function LandlordMaintenance() {
   const [saving, setSaving]             = useState(false);
   const [lightbox, setLightbox]         = useState(null);
 
+  // Comments state
+  const [comments, setComments]         = useState([]);
+  const [newComment, setNewComment]     = useState("");
+  const [visibility, setVisibility]     = useState("hidden");
+  const [posting, setPosting]           = useState(false);
+  const [showConfirm, setShowConfirm]   = useState(false);
+
   useEffect(() => { fetchTickets(); }, []);
+  useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
 
   async function fetchTickets() {
     setLoading(true);
@@ -108,6 +112,15 @@ export default function LandlordMaintenance() {
     if (error) setError(error.message);
     else setTickets(data || []);
     setLoading(false);
+  }
+
+  async function fetchComments(requestId) {
+    const { data } = await supabase
+      .from("maintenance_comments")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
+    setComments(data || []);
   }
 
   async function updateStatus(id, newStatus) {
@@ -126,6 +139,31 @@ export default function LandlordMaintenance() {
     await supabase.from("maintenance_requests").update({ notes, updated_at: new Date().toISOString() }).eq("id", id);
     setTickets(prev => prev.map(t => t.id === id ? { ...t, notes } : t));
     setSaving(false);
+  }
+
+  function handlePostComment() {
+    if (!newComment.trim()) return;
+    if (visibility === "visible") {
+      setShowConfirm(true);
+    } else {
+      postComment();
+    }
+  }
+
+  async function postComment() {
+    setShowConfirm(false);
+    setPosting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("maintenance_comments").insert({
+      request_id:        selected.id,
+      author_id:         user.id,
+      author_name:       "Property Manager",
+      body:              newComment.trim(),
+      visible_to_tenant: visibility === "visible",
+    });
+    setNewComment("");
+    await fetchComments(selected.id);
+    setPosting(false);
   }
 
   function field(ticket, key) {
@@ -181,7 +219,7 @@ export default function LandlordMaintenance() {
 
         {error && (
           <div style={{ background: "#FDECEA", border: "1px solid #F5C6C6", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#A32D2D" }}>
-            ⚠️ Error loading tickets: {error}
+            ⚠️ Error: {error}
             <button onClick={fetchTickets} style={{ marginLeft: 12, fontSize: 12, color: "#A32D2D", textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>Retry</button>
           </div>
         )}
@@ -209,7 +247,7 @@ export default function LandlordMaintenance() {
           ))}
         </div>
 
-        {/* Requests tab */}
+        {/* Requests */}
         {activeTab === "Requests" && (
           <>
             <div style={s.filterRow}>
@@ -223,7 +261,7 @@ export default function LandlordMaintenance() {
                 </button>
               ))}
               {!isMobile && (
-                <select style={{ padding: "7px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none" }}
+                <select style={{ padding: "7px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", color: "#1a1a1a" }}
                   value={propFilter} onChange={e => setPropFilter(e.target.value)}>
                   <option value="all">All properties</option>
                   <option value="clifton">Clifton Manor</option>
@@ -243,7 +281,7 @@ export default function LandlordMaintenance() {
               const priority = field(ticket, "priority");
               const status   = field(ticket, "status");
               return (
-                <div key={ticket.id} style={s.ticketCard(priority)} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); }}>
+                <div key={ticket.id} style={s.ticketCard(priority)} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>
                   <div style={s.ticketHeader}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -268,7 +306,7 @@ export default function LandlordMaintenance() {
                       {status === "open"        && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "in_progress")}>{isMobile ? "→" : "Assign vendor"}</button>}
                       {status === "in_progress" && <button style={s.actionBtnPrimary} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</button>}
                       {status === "resolved"    && <span style={{ fontSize: 11, color: "#3B6D11", fontWeight: 600 }}>✓</span>}
-                      <button style={s.actionBtn} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); }}>View</button>
+                      <button style={s.actionBtn} onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>View</button>
                     </div>
                   </div>
                 </div>
@@ -277,7 +315,7 @@ export default function LandlordMaintenance() {
           </>
         )}
 
-        {/* Cost Tracker tab */}
+        {/* Cost Tracker */}
         {activeTab === "Cost Tracker" && (
           <div style={{ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -340,11 +378,14 @@ export default function LandlordMaintenance() {
             </div>
 
             <div style={s.detailBody}>
+
+              {/* Description */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Description</div>
                 <p style={{ fontSize: 13, color: "#444", lineHeight: 1.6, margin: 0 }}>{field(selected, "description")}</p>
               </div>
 
+              {/* Photos */}
               {selected.photos?.length > 0 && (
                 <div style={s.detailSection}>
                   <div style={s.detailSectionTitle}>Photos ({selected.photos.length})</div>
@@ -358,6 +399,7 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
+              {/* Lightbox */}
               {lightbox && (
                 <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
@@ -368,6 +410,7 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
+              {/* Details */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Details</div>
                 {[
@@ -385,6 +428,7 @@ export default function LandlordMaintenance() {
                 ))}
               </div>
 
+              {/* Update status */}
               {field(selected, "status") !== "resolved" && (
                 <div style={s.detailSection}>
                   <div style={s.detailSectionTitle}>Update status</div>
@@ -399,14 +443,68 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
+              {/* Comments */}
               <div style={s.detailSection}>
-                <div style={s.detailSectionTitle}>Internal notes</div>
-                <textarea style={s.notesArea} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add notes — vendor contact, parts needed, cost breakdown…" />
-                <button style={{ ...s.btn(true), marginTop: 8 }} onClick={() => saveNotes(selected.id)} disabled={saving}>
-                  {saving ? "Saving…" : "Save notes"}
-                </button>
+                <div style={s.detailSectionTitle}>Comments</div>
+
+                {/* Comment list */}
+                <div style={{ maxHeight: 240, overflowY: "auto", marginBottom: 12 }}>
+                  {comments.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "16px 0", color: "#aaa", fontSize: 13 }}>No comments yet.</div>
+                  )}
+                  {comments.map(c => {
+                    const isMe = c.author_name === "Property Manager";
+                    const displayName = isMe ? "Property Manager" : (c.author_name || "Tenant");
+                    const initials = displayName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                    const date = new Date(c.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    return (
+                      <div key={c.id} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                        {/* Name + avatar row */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexDirection: isMe ? "row-reverse" : "row" }}>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? "#0C447C" : "#e8eaed", color: isMe ? "#fff" : "#555", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                            {initials}
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>{displayName}</span>
+                          {!c.visible_to_tenant && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "#FAEEDA", color: "#854F0B", fontWeight: 600 }}>🔒 Internal</span>}
+                          {c.visible_to_tenant && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "#EAF3DE", color: "#3B6D11", fontWeight: 600 }}>👁 Visible</span>}
+                          <span style={{ fontSize: 10, color: "#aaa" }}>{date}</span>
+                        </div>
+                        {/* Bubble */}
+                        <div style={{ maxWidth: "80%", background: isMe ? "#0C447C" : "#f0f0f0", borderRadius: isMe ? "16px 4px 16px 16px" : "4px 16px 16px 16px", padding: "10px 14px", opacity: !c.visible_to_tenant ? 0.85 : 1, border: !c.visible_to_tenant ? "1px dashed #d1a050" : "none" }}>
+                          <p style={{ fontSize: 13, color: isMe ? "#fff" : "#1a1a1a", lineHeight: 1.5, margin: 0 }}>{c.body}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add comment */}
+                <textarea
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  placeholder="Add a comment…"
+                  rows={3}
+                  style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, resize: "none", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box", color: "#1a1a1a", background: "#fff", lineHeight: 1.5, marginBottom: 8 }}
+                />
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <select
+                    value={visibility}
+                    onChange={e => setVisibility(e.target.value)}
+                    style={{ flex: 1, padding: "8px 10px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", color: "#1a1a1a" }}
+                  >
+                    <option value="hidden">🔒 Internal only (hidden from tenant)</option>
+                    <option value="visible">👁 Visible to tenant</option>
+                  </select>
+                  <button
+                    onClick={handlePostComment}
+                    disabled={posting || !newComment.trim()}
+                    style={{ padding: "8px 14px", background: newComment.trim() ? "#0C447C" : "#e8eaed", color: newComment.trim() ? "#fff" : "#aaa", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" }}>
+                    {posting ? "Posting…" : "Post"}
+                  </button>
+                </div>
               </div>
 
+              {/* Timeline */}
               <div style={s.detailSection}>
                 <div style={s.detailSectionTitle}>Timeline</div>
                 {[
@@ -424,6 +522,33 @@ export default function LandlordMaintenance() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation popup */}
+      {showConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400, padding: "32px 28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FAEEDA", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>Your tenant will see this message.</div>
+            <div style={{ fontSize: 14, color: "#666", lineHeight: 1.6, marginBottom: 24 }}>
+              This message will be sent directly to your tenant. Please make sure everything looks good before sending.
+            </div>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "12px 14px", marginBottom: 24, textAlign: "left" }}>
+              <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Message preview</div>
+              <p style={{ fontSize: 13, color: "#1a1a1a", margin: 0, lineHeight: 1.5 }}>{newComment}</p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowConfirm(false)}
+                style={{ flex: 1, padding: "11px", background: "#fff", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 14, fontWeight: 600, color: "#1a1a1a", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+                Cancel
+              </button>
+              <button onClick={postComment}
+                style={{ flex: 1, padding: "11px", background: "#0C447C", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+                Send message
+              </button>
             </div>
           </div>
         </div>

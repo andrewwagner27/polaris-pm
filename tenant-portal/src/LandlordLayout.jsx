@@ -87,8 +87,8 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
 
   // Desktop layout
   return (
-    <div style={{ display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" }}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
+    <div style={{ display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh", width: "100%", overflowX: "hidden" }}>
+      <style>{`* { box-sizing: border-box; } html, body { margin: 0; padding: 0; width: 100%; overflow-x: hidden; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
 
       {/* Sidebar */}
       <div style={{ width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
@@ -127,7 +127,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
       </div>
 
       {/* Page content */}
-      <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+      <div style={{ flex: 1, overflowY: "auto", minWidth: 0, width: "100%" }}>
         {children}
       </div>
     </div>

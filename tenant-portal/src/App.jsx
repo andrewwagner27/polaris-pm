@@ -24,11 +24,14 @@ import LandlordLogin from './LandlordLogin';
 import ProtectedLandlordRoute from './ProtectedLandlordRoute';
 import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
+import TenantMaintenanceList from './TenantMaintenanceList';
+import TenantMaintenanceDetail from './TenantMaintenanceDetail';
 
 function BottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
+  // Hide on these routes entirely
   if (
     pathname === '/onboarding' ||
     pathname === '/' ||
@@ -36,8 +39,12 @@ function BottomNav() {
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname === '/auth/callback' ||
-    pathname.startsWith('/landlord')
+    pathname.startsWith('/landlord') ||
+    pathname.startsWith('/maintenance') // TenantLayout handles its own nav
   ) return null;
+
+  // Hide on desktop — TenantLayout provides sidebar there
+  if (window.innerWidth >= 768) return null;
 
   const items = [
     { icon: "🏠", label: "Home",     path: "/home" },
@@ -105,7 +112,9 @@ export default function App() {
         <Route path="/reset-password"      element={<ResetPassword />} />
         <Route path="/home"                element={<Home />} />
         <Route path="/pay"                 element={<RentPaymentScreen />} />
-        <Route path="/maintenance"         element={<MaintenanceRequestForm />} />
+        <Route path="/maintenance"         element={<TenantMaintenanceList />} />
+        <Route path="/maintenance/new"     element={<MaintenanceRequestForm />} />
+        <Route path="/maintenance/:id"     element={<TenantMaintenanceDetail />} />
         <Route path="/messages"            element={<MessagingScreen />} />
         <Route path="/documents"           element={<DocumentsScreen />} />
         <Route path="/bulletin"            element={<BulletinBoard />} />

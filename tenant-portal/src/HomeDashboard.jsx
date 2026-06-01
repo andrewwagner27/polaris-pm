@@ -279,7 +279,7 @@ export default function HomeDashboard({ onNavigate }) {
       <div style={s.section}>
         <div style={s.sectionHeader}>
           <span style={s.sectionTitle}>Maintenance</span>
-          <button style={s.seeAll} onClick={() => nav("/maintenance")}>+ New request</button>
+          <button style={s.seeAll} onClick={() => nav("/maintenance")}>See all</button>
         </div>
         {maintenance.length === 0 && (
           <div style={{ ...s.emptyState, background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: 20 }}>
@@ -290,7 +290,7 @@ export default function HomeDashboard({ onNavigate }) {
           const sc = STATUS_COLORS[m.status] || STATUS_COLORS.open;
           const date = new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
           return (
-            <div key={m.id} style={{ ...s.maintItem, cursor: "pointer" }} onClick={() => nav("/maintenance")}>
+            <div key={m.id} style={{ ...s.maintItem, cursor: "pointer" }} onClick={() => nav(`/maintenance/${m.id}`)}>
               <div>
                 <div style={s.maintTitle}>{m.title}</div>
                 <div style={s.maintSub}>Submitted {date}</div>
