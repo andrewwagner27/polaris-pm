@@ -1,42 +1,26 @@
 import { useNavigate } from "react-router-dom";
-import { useTenant, signOut } from "./useTenant";
-import { useState } from "react";
+import { useTenant } from "./useTenant";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 const s = {
   app: {
-    width: "100%",
-    maxWidth: "100%",
+    width: "100%", maxWidth: "100%",
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    fontSize: 14,
-    color: "#1a1a1a",
-    background: "#f4f5f7",
-    minHeight: "100vh",
-    paddingBottom: 80,
+    fontSize: 14, color: "#1a1a1a",
+    background: "#f4f5f7", minHeight: "100vh", paddingBottom: 80,
   },
-  // ── Top nav ──
   nav: {
-    background: "#0C447C",
-    padding: "16px 20px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+    background: "#0C447C", padding: "16px 20px",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
   },
   navLogo: { fontSize: 15, fontWeight: 600, color: "#E6F1FB" },
   navAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: "50%",
-    background: "#185FA5",
-    border: "2px solid rgba(255,255,255,0.3)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#fff",
-    cursor: "pointer",
+    width: 34, height: 34, borderRadius: "50%",
+    background: "#185FA5", border: "2px solid rgba(255,255,255,0.3)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer",
   },
-  // ── Hero ──
   hero: {
     background: "linear-gradient(160deg, #0C447C 0%, #185FA5 100%)",
     padding: "20px 20px 32px",
@@ -46,14 +30,11 @@ const s = {
   rentCard: {
     background: "rgba(255,255,255,0.12)",
     border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: 14,
-    padding: "16px 18px",
+    borderRadius: 14, padding: "16px 18px",
   },
   rentCardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 14,
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", marginBottom: 14,
   },
   rentLabel: { fontSize: 11, color: "#85B7EB", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 },
   rentAmount: { fontSize: 34, fontWeight: 700, color: "#fff", lineHeight: 1 },
@@ -65,27 +46,15 @@ const s = {
     borderRadius: 20, fontWeight: 600, flexShrink: 0,
   }),
   payBtn: {
-    width: "100%",
-    padding: "11px",
-    background: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#0C447C",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    width: "100%", padding: "11px", background: "#fff", border: "none",
+    borderRadius: 8, fontSize: 14, fontWeight: 600, color: "#0C447C",
+    cursor: "pointer", display: "flex", alignItems: "center",
+    justifyContent: "center", gap: 6,
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
   },
   autoPay: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 10,
-    padding: "4px 2px",
+    display: "flex", alignItems: "center",
+    justifyContent: "space-between", marginTop: 10, padding: "4px 2px",
   },
   autoPayText: { fontSize: 11, color: "#85B7EB" },
   autoPayBadge: {
@@ -93,13 +62,10 @@ const s = {
     background: "rgba(255,255,255,0.15)",
     color: "#B5D4F4", borderRadius: 10, fontWeight: 500,
   },
-  // ── Sections ──
   section: { padding: "20px 20px 0" },
   sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    display: "flex", justifyContent: "space-between",
+    alignItems: "center", marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 11, fontWeight: 600, color: "#555",
@@ -110,206 +76,104 @@ const s = {
     background: "none", border: "none",
     fontFamily: "'Inter', 'Segoe UI', sans-serif", padding: 0,
   },
-  // ── Quick actions ──
-  actionGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 10,
+  actionGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 },
+  actionBtn: {
+    background: "#fff", border: "1px solid #e8eaed", borderRadius: 12,
+    padding: "14px 6px 12px", cursor: "pointer", textAlign: "center",
+    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
   },
-  actionBtn: (color) => ({
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 12,
-    padding: "14px 6px 12px",
-    cursor: "pointer",
-    textAlign: "center",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6,
-    transition: "border-color 0.15s",
+  actionIcon: (bg) => ({
+    width: 40, height: 40, borderRadius: 10, background: bg,
+    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
   }),
-  actionIcon: (color) => ({
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    background: color,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 18,
-  }),
-  actionLabel: {
-    fontSize: 11, fontWeight: 500, color: "#333", lineHeight: 1.2,
-  },
-  // ── Payment history ──
+  actionLabel: { fontSize: 11, fontWeight: 500, color: "#333", lineHeight: 1.2 },
+  card: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
+  cardInner: { padding: "0 14px" },
   paymentItem: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
     padding: "11px 0",
-    borderBottom: "1px solid #f0f0f0",
   },
   paymentLeft: { display: "flex", alignItems: "center", gap: 12 },
-  paymentDot: (color) => ({
-    width: 9, height: 9, borderRadius: "50%",
-    background: color, flexShrink: 0,
-  }),
+  paymentDot: (color) => ({ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }),
   paymentDesc: { fontSize: 13, fontWeight: 500, color: "#1a1a1a" },
   paymentDate: { fontSize: 11, color: "#aaa", marginTop: 2 },
   paymentAmount: (color) => ({ fontSize: 13, fontWeight: 600, color }),
-  // ── Maintenance ──
   maintItem: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 10,
-    padding: "12px 14px",
-    marginBottom: 8,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 10,
+    background: "#fff", border: "1px solid #e8eaed", borderRadius: 10,
+    padding: "12px 14px", marginBottom: 8,
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", gap: 10,
   },
   maintTitle: { fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 3 },
   maintSub: { fontSize: 11, color: "#888" },
   badge: (bg, color) => ({
-    fontSize: 10, padding: "3px 8px",
-    background: bg, color, borderRadius: 10,
-    fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
+    fontSize: 10, padding: "3px 8px", background: bg, color,
+    borderRadius: 10, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
   }),
-  // ── Messages ──
   msgItem: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 10,
-    padding: "12px 14px",
-    marginBottom: 8,
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 12,
-    cursor: "pointer",
+    background: "#fff", border: "1px solid #e8eaed", borderRadius: 10,
+    padding: "12px 14px", marginBottom: 8,
+    display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer",
   },
   msgAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: "50%",
-    background: "#E6F1FB",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#185FA5",
-    flexShrink: 0,
+    width: 38, height: 38, borderRadius: "50%", background: "#E6F1FB",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: 13, fontWeight: 600, color: "#185FA5", flexShrink: 0,
   },
   msgBody: { flex: 1, minWidth: 0 },
   msgName: { fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 2 },
-  msgPreview: {
-    fontSize: 12, color: "#888",
-    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  },
+  msgPreview: { fontSize: 12, color: "#888", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   msgTime: { fontSize: 11, color: "#aaa", flexShrink: 0 },
-  unreadDot: {
-    width: 8, height: 8, borderRadius: "50%",
-    background: "#185FA5", marginTop: 4, flexShrink: 0,
-  },
-  // ── Bottom nav ──
-  bottomNav: {
-    position: "fixed",
-    bottom: 0,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "100%",
-    maxWidth: 460,
-    background: "#fff",
-    borderTop: "1px solid #e8eaed",
-    display: "flex",
-    zIndex: 100,
-  },
-  bnItem: (active) => ({
-    flex: 1,
-    padding: "10px 0 8px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 3,
-    cursor: "pointer",
-    background: "none",
-    border: "none",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-  }),
-  bnIcon: { fontSize: 20 },
-  bnLabel: (active) => ({
-    fontSize: 10,
-    fontWeight: active ? 600 : 400,
-    color: active ? "#0C447C" : "#aaa",
-  }),
-  emptyState: {
-    textAlign: "center",
-    padding: "20px 0 10px",
-    color: "#aaa",
-    fontSize: 13,
-  },
-  card: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  cardInner: { padding: "0 14px" },
+  unreadDot: { width: 8, height: 8, borderRadius: "50%", background: "#185FA5", marginTop: 4, flexShrink: 0 },
+  emptyState: { textAlign: "center", padding: "20px 0 10px", color: "#aaa", fontSize: 13 },
 };
 
-const PAYMENTS = [
-  { desc: "May rent",  date: "May 1, 2026",  amount: -1150, status: "paid" },
-  { desc: "Apr rent",  date: "Apr 1, 2026",  amount: -1150, status: "paid" },
-  { desc: "Late fee",  date: "Mar 6, 2026",  amount: -75,   status: "fee" },
-  { desc: "Mar rent",  date: "Mar 1, 2026",  amount: -1150, status: "paid" },
-];
-
-const MAINTENANCE = [
-  { title: "Kitchen faucet dripping", date: "Submitted May 18", status: "in_progress", statusLabel: "In progress" },
-  { title: "Bathroom exhaust fan",    date: "Resolved Apr 22",  status: "resolved",    statusLabel: "Resolved" },
-];
-
-const MESSAGES = [
-  { from: "Polaris Properties", preview: "Hi Maria — confirming the plumber visit on Jun 2 between 10am–12pm. Please make sure someone is home.", time: "Today", unread: true },
-  { from: "Polaris Properties", preview: "Your May rent payment of $1,150 was received. Thank you!", time: "May 1", unread: false },
-];
-
 const STATUS_COLORS = {
-  in_progress: { bg: "#E6F1FB", color: "#185FA5" },
-  resolved:    { bg: "#EAF3DE", color: "#3B6D11" },
-  open:        { bg: "#FAEEDA", color: "#854F0B" },
+  in_progress: { bg: "#E6F1FB", color: "#185FA5", label: "In progress" },
+  resolved:    { bg: "#EAF3DE", color: "#3B6D11", label: "Resolved" },
+  open:        { bg: "#FAEEDA", color: "#854F0B", label: "Open" },
 };
 
 const ACTIONS = [
-  { icon: "💳", label: "Pay rent",   bg: "#E6F1FB", route: "/pay" },
-  { icon: "🔧", label: "Request",    bg: "#EAF3DE", route: "/maintenance" },
-  { icon: "💬", label: "Messages",   bg: "#F3EEFB", route: "/messages" },
-  { icon: "📄", label: "Documents",  bg: "#FAEEDA", route: "/documents" },
-];
-
-const NAV_ITEMS = [
-  { icon: "🏠", label: "Home" },
-  { icon: "💳", label: "Pay" },
-  { icon: "🔧", label: "Requests" },
-  { icon: "💬", label: "Messages" },
+  { icon: "💳", label: "Pay rent",  bg: "#E6F1FB", route: "/pay" },
+  { icon: "🔧", label: "Request",   bg: "#EAF3DE", route: "/maintenance" },
+  { icon: "💬", label: "Messages",  bg: "#F3EEFB", route: "/messages" },
+  { icon: "📄", label: "Documents", bg: "#FAEEDA", route: "/documents" },
 ];
 
 export default function HomeDashboard({ onNavigate }) {
+  const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
+  const [messages, setMessages]   = useState([]);
+  const [msgsLoading, setMsgsLoading] = useState(true);
 
-  // Use real data if available, fall back to demo data
-  const tenantName = tenant?.name || "Tenant";
-  const firstName  = tenantName.split(" ")[0];
-  const unitNum    = tenant?.unit || "—";
-  const propName   = tenant?.property || "Your Property";
-  const propAddr   = tenant?.address || "—";
-  const rentAmount = tenant?.rent || 0;
-  const payments   = tenant?.payments || [];
-  const maintenance = tenant?.maintenance || [];
-  const [activeNav, setActiveNav] = useState(0);
-  const unreadCount = MESSAGES.filter(m => m.unread).length;
+  const nav = onNavigate || navigate;
+
+  useEffect(() => {
+    if (user) fetchMessages();
+  }, [user]);
+
+  async function fetchMessages() {
+    setMsgsLoading(true);
+    // Find tenant record for this user
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!tenantData) { setMsgsLoading(false); return; }
+
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("tenant_id", tenantData.id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    setMessages(data || []);
+    setMsgsLoading(false);
+  }
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "'Inter',sans-serif", color: "#888" }}>
@@ -317,21 +181,32 @@ export default function HomeDashboard({ onNavigate }) {
     </div>
   );
 
+  const firstName    = (tenant?.name || "Tenant").split(" ")[0];
+  const unitNum      = tenant?.unit || "—";
+  const propName     = tenant?.property || "Your Property";
+  const rentAmount   = tenant?.rent || 0;
+  const payments     = tenant?.payments || [];
+  const maintenance  = tenant?.maintenance || [];
+  const initials     = (tenant?.name || "T").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const unreadCount  = messages.filter(m => !m.read && m.recipient_id === user?.id).length;
+
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
   return (
     <div style={s.app}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; }`}</style>
 
-      {/* ── Top nav ── */}
+      {/* Top nav */}
       <div style={s.nav}>
         <span style={s.navLogo}>🏢 Polaris Tenant</span>
-        <div style={s.navAvatar}>MR</div>
+        <div style={s.navAvatar} onClick={() => nav("/account")}>{initials}</div>
       </div>
 
-      {/* ── Hero / rent card ── */}
+      {/* Hero */}
       <div style={s.hero}>
-        <div style={s.greeting}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"},</div>
+        <div style={s.greeting}>Good {timeOfDay},</div>
         <div style={s.greetingName}>{firstName} 👋</div>
-
         <div style={s.rentCard}>
           <div style={s.rentCardTop}>
             <div>
@@ -339,11 +214,9 @@ export default function HomeDashboard({ onNavigate }) {
               <div style={s.rentAmount}>{rentAmount > 0 ? `$${rentAmount.toLocaleString()}` : "—"}</div>
               <div style={s.rentSub}>Unit {unitNum} · {propName}</div>
             </div>
-            <span style={s.duePill(false)}>Due Jun 1</span>
+            <span style={s.duePill(false)}>Due 1st</span>
           </div>
-
-          <button style={s.payBtn} onClick={() => onNavigate('/pay')}>💳 Pay now</button>
-
+          <button style={s.payBtn} onClick={() => nav("/pay")}>💳 Pay now</button>
           <div style={s.autoPay}>
             <span style={s.autoPayText}>Autopay is off</span>
             <span style={s.autoPayBadge}>Turn on</span>
@@ -351,14 +224,14 @@ export default function HomeDashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* ── Quick actions ── */}
+      {/* Quick actions */}
       <div style={s.section}>
         <div style={s.sectionHeader}>
           <span style={s.sectionTitle}>Quick actions</span>
         </div>
         <div style={s.actionGrid}>
           {ACTIONS.map((a, i) => (
-            <button key={i} style={s.actionBtn(a.bg)} onClick={() => onNavigate(a.route)}>
+            <button key={i} style={s.actionBtn} onClick={() => nav(a.route)}>
               <div style={s.actionIcon(a.bg)}>{a.icon}</div>
               <span style={s.actionLabel}>{a.label}</span>
             </button>
@@ -366,53 +239,69 @@ export default function HomeDashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* ── Payment history ── */}
+      {/* Payment history */}
       <div style={s.section}>
         <div style={s.sectionHeader}>
           <span style={s.sectionTitle}>Payment history</span>
-          <button style={s.seeAll}>See all</button>
+          <button style={s.seeAll} onClick={() => nav("/pay")}>See all</button>
         </div>
         <div style={s.card}>
           <div style={s.cardInner}>
-            {PAYMENTS.map((p, i) => (
-              <div key={i} style={{ ...s.paymentItem, borderBottom: i === PAYMENTS.length - 1 ? "none" : "1px solid #f0f0f0" }}>
-                <div style={s.paymentLeft}>
-                  <div style={s.paymentDot(p.status === "fee" ? "#E24B4A" : "#639922")} />
-                  <div>
-                    <div style={s.paymentDesc}>{p.desc}</div>
-                    <div style={s.paymentDate}>{p.date}</div>
+            {payments.length === 0 && (
+              <div style={s.emptyState}>No payment history yet.</div>
+            )}
+            {payments.slice(0, 4).map((p, i) => {
+              const amount = (p.amount_cents || 0) / 100;
+              const date   = p.paid_at
+                ? new Date(p.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              const isPaid = p.status === "paid";
+              return (
+                <div key={p.id} style={{ ...s.paymentItem, borderBottom: i === Math.min(payments.length, 4) - 1 ? "none" : "1px solid #f0f0f0" }}>
+                  <div style={s.paymentLeft}>
+                    <div style={s.paymentDot(isPaid ? "#639922" : "#E24B4A")} />
+                    <div>
+                      <div style={s.paymentDesc}>{isPaid ? "Rent payment" : "Payment failed"}</div>
+                      <div style={s.paymentDate}>{date}</div>
+                    </div>
                   </div>
+                  <span style={s.paymentAmount(isPaid ? "#3B6D11" : "#A32D2D")}>
+                    ${amount.toLocaleString()}
+                  </span>
                 </div>
-                <span style={s.paymentAmount(p.status === "fee" ? "#A32D2D" : "#3B6D11")}>
-                  ${Math.abs(p.amount).toLocaleString()}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* ── Maintenance requests ── */}
+      {/* Maintenance */}
       <div style={s.section}>
         <div style={s.sectionHeader}>
           <span style={s.sectionTitle}>Maintenance</span>
-          <button style={s.seeAll} onClick={() => onNavigate("/maintenance")}>+ New request</button>
+          <button style={s.seeAll} onClick={() => nav("/maintenance")}>+ New request</button>
         </div>
-        {MAINTENANCE.map((m, i) => {
+        {maintenance.length === 0 && (
+          <div style={{ ...s.emptyState, background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: 20 }}>
+            No maintenance requests yet.
+          </div>
+        )}
+        {maintenance.slice(0, 3).map((m, i) => {
           const sc = STATUS_COLORS[m.status] || STATUS_COLORS.open;
+          const date = new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
           return (
-            <div key={i} style={s.maintItem}>
+            <div key={m.id} style={{ ...s.maintItem, cursor: "pointer" }} onClick={() => nav("/maintenance")}>
               <div>
                 <div style={s.maintTitle}>{m.title}</div>
-                <div style={s.maintSub}>{m.date}</div>
+                <div style={s.maintSub}>Submitted {date}</div>
               </div>
-              <span style={s.badge(sc.bg, sc.color)}>{m.statusLabel}</span>
+              <span style={s.badge(sc.bg, sc.color)}>{sc.label}</span>
             </div>
           );
         })}
       </div>
 
-      {/* ── Messages ── */}
+      {/* Messages */}
       <div style={s.section}>
         <div style={s.sectionHeader}>
           <span style={s.sectionTitle}>
@@ -422,31 +311,31 @@ export default function HomeDashboard({ onNavigate }) {
               </span>
             )}
           </span>
-          <button style={s.seeAll}>See all</button>
+          <button style={s.seeAll} onClick={() => nav("/messages")}>See all</button>
         </div>
-        {MESSAGES.map((m, i) => (
-          <div key={i} style={s.msgItem}>
-            <div style={s.msgAvatar}>PP</div>
-            <div style={s.msgBody}>
-              <div style={s.msgName}>{m.from}</div>
-              <div style={s.msgPreview}>{m.preview}</div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
-              <span style={s.msgTime}>{m.time}</span>
-              {m.unread && <div style={s.unreadDot} />}
-            </div>
+        {msgsLoading && <div style={s.emptyState}>Loading messages…</div>}
+        {!msgsLoading && messages.length === 0 && (
+          <div style={{ ...s.emptyState, background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: 20 }}>
+            No messages yet.
           </div>
-        ))}
-      </div>
-
-      {/* ── Bottom nav ── */}
-      <div style={s.bottomNav}>
-        {NAV_ITEMS.map((item, i) => (
-          <button key={i} style={s.bnItem(activeNav === i)} onClick={() => setActiveNav(i)}>
-            <span style={s.bnIcon}>{item.icon}</span>
-            <span style={s.bnLabel(activeNav === i)}>{item.label}</span>
-          </button>
-        ))}
+        )}
+        {!msgsLoading && messages.map((m, i) => {
+          const isUnread = !m.read && m.recipient_id === user?.id;
+          const date = new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          return (
+            <div key={m.id} style={s.msgItem} onClick={() => nav("/messages")}>
+              <div style={s.msgAvatar}>PP</div>
+              <div style={s.msgBody}>
+                <div style={s.msgName}>Polaris Properties</div>
+                <div style={s.msgPreview}>{m.body}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+                <span style={s.msgTime}>{date}</span>
+                {isUnread && <div style={s.unreadDot} />}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
