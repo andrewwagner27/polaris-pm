@@ -3,165 +3,149 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
-const STATUS_CONFIG = {
-  paid:    { label: "Paid",    color: "#3B6D11", bg: "#EAF3DE" },
-  pending: { label: "Pending", color: "#854F0B", bg: "#FAEEDA" },
-  late:    { label: "Late",    color: "#A32D2D", bg: "#FDECEA" },
-  vacant:  { label: "Vacant",  color: "#888",    bg: "#f4f5f7" },
+// ─── Modus tokens ──────────────────────────────────────────────────────────
+const C = {
+  bg:       "#0A0B0D",
+  surface:  "#111316",
+  raised:   "#181C21",
+  border:   "#252930",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#7A5C2E",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
-const PROP_COLORS = ["#0C447C","#3B6D11","#854F0B","#6B3FA0","#185FA5"];
-const PROP_BGS    = ["#E6F1FB","#EAF3DE","#FAEEDA","#F0E6FB","#E6F1FB"];
-const PROP_ICONS  = ["🏢","🏖️","🏗️","🏠","🏘️"];
-
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "💰", label: "Rent Roll",   route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   route: "/landlord/settings" },
-];
-
-const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
-  main: { flex: 1, padding: "28px", overflowY: "auto" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
-  pageTitle: { fontSize: 22, fontWeight: 700 },
-  pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
-  btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 6 }),
-  kpiRow: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 28 },
-  kpiCard: (accent) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 10, padding: "14px 16px", borderTop: `3px solid ${accent}` }),
-  kpiLabel: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 },
-  kpiValue: { fontSize: 26, fontWeight: 700, color: "#1a1a1a" },
-  kpiSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  propGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, marginBottom: 24 },
-  propCard: (color) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 14, overflow: "hidden", cursor: "pointer", transition: "box-shadow 0.15s", borderTop: `3px solid ${color}` }),
-  propCardHeader: (bg) => ({ background: bg, padding: "18px 18px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }),
-  propName: (color) => ({ fontSize: 15, fontWeight: 700, color }),
-  propAddr: { fontSize: 12, color: "#555", marginTop: 2 },
-  propBody: { padding: "14px 18px 16px" },
-  occupancyRow: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 5 },
-  occupancyBar: { height: 6, background: "#f0f0f0", borderRadius: 3, overflow: "hidden", marginBottom: 14 },
-  occupancyFill: (pct, color) => ({ height: "100%", width: `${pct}%`, background: color, borderRadius: 3 }),
-  kpiGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 },
-  miniKpi: (bg) => ({ background: bg, borderRadius: 8, padding: "9px 10px", textAlign: "center" }),
-  propFooter: { display: "flex", gap: 8, paddingTop: 12, borderTop: "1px solid #f4f5f7" },
-  propBtn: { flex: 1, padding: "7px 0", background: "#f8f9fa", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif", textAlign: "center" },
-  propBtnPrimary: { flex: 1, padding: "7px 0", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 8, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif", textAlign: "center" },
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", justifyContent: "flex-end" },
-  detailPanel: { width: 560, background: "#fff", height: "100vh", overflowY: "auto", boxShadow: "-4px 0 24px rgba(0,0,0,0.15)" },
-  detailHeader: (bg) => ({ background: bg, padding: "20px 24px 18px" }),
-  detailName: (color) => ({ fontSize: 20, fontWeight: 700, color, marginBottom: 3 }),
-  detailAddr: { fontSize: 13, color: "#555", marginBottom: 10 },
-  detailBody: { padding: "20px 24px" },
-  tabs: { display: "flex", borderBottom: "2px solid #e8eaed", marginBottom: 20 },
-  tab: (active) => ({ padding: "9px 16px", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#0C447C" : "#888", cursor: "pointer", background: "none", border: "none", borderBottom: active ? "2px solid #0C447C" : "2px solid transparent", marginBottom: -2, fontFamily: "'Inter',sans-serif" }),
-  sectionTitle: { fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 },
-  infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 },
-  infoBox: { background: "#f8f9fa", borderRadius: 8, padding: "10px 12px" },
-  infoBoxLabel: { fontSize: 11, color: "#888", marginBottom: 3 },
-  infoBoxVal: { fontSize: 14, fontWeight: 700, color: "#1a1a1a" },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
-  td: { fontSize: 13, padding: "10px 12px", borderBottom: "1px solid #f8f9fa", color: "#1a1a1a" },
-  statusBadge: (status) => ({ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#888" }),
-  // Modal
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
-  modal: { background: "#fff", borderRadius: 14, width: 480, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" },
-  modalHeader: { padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { fontSize: 16, fontWeight: 700 },
-  modalBody: { padding: "20px 24px" },
-  modalFooter: { padding: "16px 24px", borderTop: "1px solid #f0f0f0", display: "flex", gap: 10, justifyContent: "flex-end" },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 },
-  input: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif" },
-  twoInputRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+const STATUS = {
+  paid:    { label: "Paid",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
 };
 
-// ── Add Property Modal ────────────────────────────────────────────────────────
+const PROP_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
+
+function useWindowWidth() {
+  const [w, setW] = useState(window.innerWidth);
+  useEffect(() => {
+    const h = () => setW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return w;
+}
+
+// ─── Shared ────────────────────────────────────────────────────────────────
+function Badge({ status }) {
+  const cfg = STATUS[status];
+  if (!cfg) return null;
+  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>;
+}
+
+function PrimaryBtn({ children, onClick, small }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.goldDim}`,
+      color: C.gold, fontSize: small ? 11 : 13, fontWeight: 500,
+      padding: small ? "6px 12px" : "9px 18px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      letterSpacing: "0.04em", transition: "background 0.15s",
+    }}
+      onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
+      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, onClick, small }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.border}`,
+      color: C.textSub, fontSize: small ? 11 : 13, fontWeight: 500,
+      padding: small ? "6px 12px" : "9px 18px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+    }}
+      onMouseOver={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.text; }}
+      onMouseOut={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSub; }}
+    >{children}</button>
+  );
+}
+
+function FieldLabel({ children }) {
+  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{children}</label>;
+}
+
+function Input({ value, onChange, placeholder, type = "text", maxLength }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type={type} value={value} onChange={onChange} placeholder={placeholder} maxLength={maxLength}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={{
+        width: "100%", padding: "10px 12px", fontSize: 13,
+        border: `1px solid ${focused ? C.gold : C.border}`,
+        borderRadius: 7, background: C.raised, color: C.text,
+        outline: "none", boxSizing: "border-box",
+        fontFamily: "'DM Sans', sans-serif",
+        boxShadow: focused ? `0 0 0 3px rgba(201,169,110,0.08)` : "none",
+        transition: "border-color 0.15s",
+      }}
+    />
+  );
+}
+
+// ─── Add Property Modal ────────────────────────────────────────────────────
 function AddPropertyModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ name: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  function update(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   async function save() {
     if (!form.name.trim() || !form.address.trim()) { setError("Name and address are required."); return; }
     setSaving(true);
-    const { error } = await supabase.from("properties").insert({
-      name: form.name,
-      address: form.address,
-      city: form.city,
-      state: form.state,
-      zip: form.zip,
-    });
+    const { error } = await supabase.from("properties").insert({ name: form.name, address: form.address, city: form.city, state: form.state, zip: form.zip });
     setSaving(false);
     if (error) { setError(error.message); return; }
     onSaved();
   }
 
   return (
-    <div style={s.modalOverlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <div style={s.modalHeader}>
-          <div style={s.modalTitle}>Add property</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#888" }}>✕</button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 480, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Add property</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: C.textSub }}>✕</button>
         </div>
-        <div style={s.modalBody}>
-          {error && <div style={{ background: "#FDECEA", color: "#A32D2D", fontSize: 12, padding: "10px 12px", borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Property name *</label>
-            <input style={s.input} placeholder="e.g. Clifton Manor" value={form.name} onChange={e => update("name", e.target.value)} />
+        <div style={{ padding: "20px 24px" }}>
+          {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+          <div style={{ marginBottom: 14 }}><FieldLabel>Property name *</FieldLabel><Input value={form.name} onChange={e => update("name", e.target.value)} placeholder="e.g. Clifton Manor" /></div>
+          <div style={{ marginBottom: 14 }}><FieldLabel>Street address *</FieldLabel><Input value={form.address} onChange={e => update("address", e.target.value)} placeholder="e.g. 12009 Clifton Blvd" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>City</FieldLabel><Input value={form.city} onChange={e => update("city", e.target.value)} placeholder="Lakewood" /></div>
+            <div><FieldLabel>State</FieldLabel><Input value={form.state} onChange={e => update("state", e.target.value)} placeholder="OH" maxLength={2} /></div>
           </div>
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Street address *</label>
-            <input style={s.input} placeholder="e.g. 12009 Clifton Blvd" value={form.address} onChange={e => update("address", e.target.value)} />
-          </div>
-          <div style={{ ...s.twoInputRow, marginBottom: 16 }}>
-            <div>
-              <label style={s.fieldLabel}>City</label>
-              <input style={s.input} placeholder="Lakewood" value={form.city} onChange={e => update("city", e.target.value)} />
-            </div>
-            <div>
-              <label style={s.fieldLabel}>State</label>
-              <input style={s.input} placeholder="OH" value={form.state} onChange={e => update("state", e.target.value)} maxLength={2} />
-            </div>
-          </div>
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>ZIP code</label>
-            <input style={s.input} placeholder="44107" value={form.zip} onChange={e => update("zip", e.target.value)} maxLength={10} />
-          </div>
+          <div style={{ marginBottom: 14 }}><FieldLabel>ZIP code</FieldLabel><Input value={form.zip} onChange={e => update("zip", e.target.value)} placeholder="44107" maxLength={10} /></div>
         </div>
-        <div style={s.modalFooter}>
-          <button style={s.btn(false)} onClick={onClose}>Cancel</button>
-          <button style={s.btn(true)} onClick={save} disabled={saving}>{saving ? "Saving…" : "Add property"}</button>
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save}>{saving ? "Saving…" : "Add property"}</PrimaryBtn>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Add Unit Modal ────────────────────────────────────────────────────────────
+// ─── Add Unit Modal ────────────────────────────────────────────────────────
 function AddUnitModal({ propertyId, onClose, onSaved }) {
   const [form, setForm] = useState({ unit_number: "", bedrooms: "", bathrooms: "", rent_amount: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  function update(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   async function save() {
     if (!form.unit_number.trim()) { setError("Unit number is required."); return; }
@@ -179,55 +163,46 @@ function AddUnitModal({ propertyId, onClose, onSaved }) {
   }
 
   return (
-    <div style={s.modalOverlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <div style={s.modalHeader}>
-          <div style={s.modalTitle}>Add unit</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#888" }}>✕</button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 480, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Add unit</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: C.textSub }}>✕</button>
         </div>
-        <div style={s.modalBody}>
-          {error && <div style={{ background: "#FDECEA", color: "#A32D2D", fontSize: 12, padding: "10px 12px", borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Unit number *</label>
-            <input style={s.input} placeholder="e.g. 1A, 2B, Main" value={form.unit_number} onChange={e => update("unit_number", e.target.value)} />
+        <div style={{ padding: "20px 24px" }}>
+          {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+          <div style={{ marginBottom: 14 }}><FieldLabel>Unit number *</FieldLabel><Input value={form.unit_number} onChange={e => update("unit_number", e.target.value)} placeholder="e.g. 1A, 2B, Main" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>Bedrooms</FieldLabel><Input type="number" value={form.bedrooms} onChange={e => update("bedrooms", e.target.value)} placeholder="2" /></div>
+            <div><FieldLabel>Bathrooms</FieldLabel><Input type="number" value={form.bathrooms} onChange={e => update("bathrooms", e.target.value)} placeholder="1" /></div>
           </div>
-          <div style={{ ...s.twoInputRow, marginBottom: 16 }}>
-            <div>
-              <label style={s.fieldLabel}>Bedrooms</label>
-              <input style={s.input} type="number" placeholder="2" value={form.bedrooms} onChange={e => update("bedrooms", e.target.value)} />
-            </div>
-            <div>
-              <label style={s.fieldLabel}>Bathrooms</label>
-              <input style={s.input} type="number" placeholder="1" value={form.bathrooms} onChange={e => update("bathrooms", e.target.value)} />
-            </div>
-          </div>
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Monthly rent ($)</label>
-            <input style={s.input} type="number" placeholder="1250" value={form.rent_amount} onChange={e => update("rent_amount", e.target.value)} />
-          </div>
+          <div style={{ marginBottom: 14 }}><FieldLabel>Monthly rent ($)</FieldLabel><Input type="number" value={form.rent_amount} onChange={e => update("rent_amount", e.target.value)} placeholder="1250" /></div>
         </div>
-        <div style={s.modalFooter}>
-          <button style={s.btn(false)} onClick={onClose}>Cancel</button>
-          <button style={s.btn(true)} onClick={save} disabled={saving}>{saving ? "Saving…" : "Add unit"}</button>
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save}>{saving ? "Saving…" : "Add unit"}</PrimaryBtn>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordProperties() {
   const navigate = useNavigate();
-  const [properties, setProperties]       = useState([]);
-  const [units, setUnits]                 = useState([]);
-  const [tenants, setTenants]             = useState([]);
-  const [payments, setPayments]           = useState([]);
-  const [maintenance, setMaintenance]     = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [selected, setSelected]           = useState(null);
-  const [detailTab, setDetailTab]         = useState("Overview");
-  const [showAddProp, setShowAddProp]     = useState(false);
-  const [showAddUnit, setShowAddUnit]     = useState(false);
+  const width    = useWindowWidth();
+  const isMobile = width < 768;
+
+  const [properties, setProperties]   = useState([]);
+  const [units, setUnits]             = useState([]);
+  const [tenants, setTenants]         = useState([]);
+  const [payments, setPayments]       = useState([]);
+  const [maintenance, setMaintenance] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [selected, setSelected]       = useState(null);
+  const [detailTab, setDetailTab]     = useState("Overview");
+  const [showAddProp, setShowAddProp] = useState(false);
+  const [showAddUnit, setShowAddUnit] = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -244,7 +219,7 @@ export default function LandlordProperties() {
       supabase.from("units").select("*"),
       supabase.from("tenants").select("*"),
       supabase.from("payments").select("*"),
-      supabase.from("maintenance_requests").select("*").neq("status", "resolved"),
+      supabase.from("maintenance_requests").select("id, unit_id, status, priority, title").neq("status", "resolved"),
     ]);
     setProperties(propsData || []);
     setUnits(unitsData || []);
@@ -257,69 +232,87 @@ export default function LandlordProperties() {
   const totalUnits    = units.length;
   const totalOccupied = tenants.length;
 
-  const prop     = selected ? properties.find(p => p.id === selected) : null;
-  const propIdx  = prop ? properties.indexOf(prop) : 0;
+  const prop      = selected ? properties.find(p => p.id === selected) : null;
+  const propIdx   = prop ? properties.indexOf(prop) : 0;
   const propColor = PROP_COLORS[propIdx % PROP_COLORS.length];
-  const propBg    = PROP_BGS[propIdx % PROP_BGS.length];
 
-  function propUnitsFor(propId) { return units.filter(u => u.property_id === propId); }
-  function propTenantsFor(propId) { return tenants.filter(t => propUnitsFor(propId).some(u => u.id === t.unit_id)); }
-  function propMaintFor(propId) { return maintenance.filter(m => propUnitsFor(propId).some(u => u.id === m.unit_id)); }
-  function propCollectedFor(propId) {
-    const propUnitIds = propUnitsFor(propId).map(u => u.id);
-    return payments.filter(p => propUnitIds.includes(p.unit_id) && p.status === "paid").reduce((s, p) => s + (p.amount_cents || 0), 0) / 100;
+  function propUnitsFor(id)    { return units.filter(u => u.property_id === id); }
+  function propTenantsFor(id)  { return tenants.filter(t => propUnitsFor(id).some(u => u.id === t.unit_id)); }
+  function propMaintFor(id)    { return maintenance.filter(m => propUnitsFor(id).some(u => u.id === m.unit_id)); }
+  function propCollectedFor(id) {
+    const ids = propUnitsFor(id).map(u => u.id);
+    return payments.filter(p => ids.includes(p.unit_id) && p.status === "paid").reduce((s, p) => s + (p.amount_cents || 0), 0) / 100;
   }
-
-  // Unit roster for detail panel
-  function unitRosterFor(propId) {
-    return propUnitsFor(propId).map(unit => {
+  function unitRosterFor(id) {
+    return propUnitsFor(id).map(unit => {
       const tenant = tenants.find(t => t.unit_id === unit.id);
-      const latestPayment = payments.find(p => p.unit_id === unit.id);
-      let status = "vacant";
-      if (tenant) {
-        status = latestPayment?.status === "paid" ? "paid" : latestPayment?.status === "failed" ? "late" : "pending";
-      }
-      return { id: unit.id, unit: unit.unit_number, tenant: tenant?.name || "—", rent: unit.rent_amount || 0, status, bedrooms: unit.bedrooms, bathrooms: unit.bathrooms };
+      const pay    = payments.find(p => p.unit_id === unit.id);
+      let status   = "vacant";
+      if (tenant) status = pay?.status === "paid" ? "paid" : pay?.status === "failed" ? "late" : "pending";
+      return { id: unit.id, unit: unit.unit_number, tenant: tenant?.name || "—", rent: unit.rent_amount || 0, status };
     });
   }
 
+  // Gross rental revenue = sum of rent_amount for all occupied units
+  const grossRevenue = units
+    .filter(u => tenants.some(t => t.unit_id === u.id))
+    .reduce((s, u) => s + (u.rent_amount || 0), 0);
+
+  const stats = [
+    { label: "Total properties",   value: loading ? "—" : properties.length,  sub: "in portfolio",              accent: C.gold },
+    { label: "Total units",        value: loading ? "—" : totalUnits,          sub: `${totalOccupied} occupied`, accent: C.blue },
+    { label: "Occupancy",          value: loading ? "—" : totalUnits > 0 ? `${Math.round((totalOccupied/totalUnits)*100)}%` : "—", sub: "across all properties", accent: C.green },
+    { label: "Gross Rent Revenue", value: loading ? "—" : `$${grossRevenue.toLocaleString()}`, sub: "occupied units · monthly", accent: C.amber },
+  ];
+
   return (
-    <LandlordLayout>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
-      <div style={s.main}>
-        <div style={s.topBar}>
+    <LandlordLayout openMaintenance={maintenance.length} unreadMessages={0}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+        .m-prop-card:hover { border-color: #353A44 !important; }
+        .m-row:hover td { background: ${C.raised} !important; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+      `}</style>
+
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
+
+        {/* Top bar */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
           <div>
-            <div style={s.pageTitle}>Properties</div>
-            <div style={s.pageSub}>{loading ? "Loading…" : `${properties.length} properties · ${totalUnits} total units`}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Properties</div>
+            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>{loading ? "Loading…" : `${properties.length} properties · ${totalUnits} total units`}</div>
           </div>
-          <button style={s.btn(true)} onClick={() => setShowAddProp(true)}>+ Add property</button>
+          <PrimaryBtn onClick={() => setShowAddProp(true)}>+ Add property</PrimaryBtn>
         </div>
 
         {/* KPI row */}
-        <div style={s.kpiRow}>
-          {[
-            { label: "Total properties", value: loading ? "—" : properties.length,  sub: "in portfolio",          accent: "#0C447C" },
-            { label: "Total units",       value: loading ? "—" : totalUnits,          sub: `${totalOccupied} occupied`, accent: "#185FA5" },
-            { label: "Occupancy",         value: loading ? "—" : totalUnits > 0 ? `${Math.round((totalOccupied/totalUnits)*100)}%` : "—", sub: "across all properties", accent: "#3B6D11" },
-            { label: "Open maintenance",  value: loading ? "—" : maintenance.length,  sub: "active tickets",       accent: "#854F0B" },
-          ].map((k, i) => (
-            <div key={i} style={s.kpiCard(k.accent)}>
-              <div style={s.kpiLabel}>{k.label}</div>
-              <div style={s.kpiValue}>{k.value}</div>
-              <div style={s.kpiSub}>{k.sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+          {stats.map((s, i) => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
+              </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: s.accent, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: C.textSub }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Property cards */}
         {loading ? (
-          <div style={{ color: "#888", fontSize: 13 }}>Loading properties…</div>
+          <div style={{ color: C.textSub, fontSize: 13 }}>Loading properties…</div>
+        ) : properties.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 48, color: C.textSub, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
+            No properties yet. Click "+ Add property" to get started.
+          </div>
         ) : (
-          <div style={s.propGrid}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12 }}>
             {properties.map((prop, i) => {
               const color    = PROP_COLORS[i % PROP_COLORS.length];
-              const bg       = PROP_BGS[i % PROP_BGS.length];
-              const icon     = PROP_ICONS[i % PROP_ICONS.length];
               const pUnits   = propUnitsFor(prop.id);
               const pTenants = propTenantsFor(prop.id);
               const pMaint   = propMaintFor(prop.id);
@@ -328,100 +321,124 @@ export default function LandlordProperties() {
               const occPct   = total > 0 ? Math.round((occupied / total) * 100) : 0;
               const collected = propCollectedFor(prop.id);
               return (
-                <div key={prop.id} style={s.propCard(color)} onClick={() => { setSelected(prop.id); setDetailTab("Overview"); }}>
-                  <div style={s.propCardHeader(bg)}>
-                    <div>
-                      <div style={s.propName(color)}>{prop.name}</div>
-                      <div style={s.propAddr}>{prop.address}</div>
-                      <div style={s.propAddr}>{prop.city}, {prop.state} {prop.zip}</div>
+                <div key={prop.id} className="m-prop-card"
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
+                  onClick={() => { setSelected(prop.id); setDetailTab("Overview"); }}
+                >
+                  {/* Card top accent */}
+                  <div style={{ height: 3, background: color }} />
+                  <div style={{ padding: "16px 18px" }}>
+                    {/* Header */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, marginTop: 5, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{prop.name}</div>
+                        <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{prop.address}</div>
+                        <div style={{ fontSize: 11, color: C.textSub }}>{prop.city}, {prop.state} {prop.zip}</div>
+                      </div>
                     </div>
-                    <span style={{ fontSize: 32 }}>{icon}</span>
-                  </div>
-                  <div style={s.propBody}>
-                    <div style={s.occupancyRow}>
+
+                    {/* Occupancy bar */}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textSub, marginBottom: 5 }}>
                       <span>{occupied}/{total} units occupied</span>
                       <span style={{ fontWeight: 600, color }}>{occPct}%</span>
                     </div>
-                    <div style={s.occupancyBar}>
-                      <div style={s.occupancyFill(occPct, color)} />
+                    <div style={{ height: 3, background: C.raised, borderRadius: 2, overflow: "hidden", marginBottom: 14 }}>
+                      <div style={{ height: "100%", width: `${occPct}%`, background: color, borderRadius: 2 }} />
                     </div>
-                    <div style={s.kpiGrid}>
-                      <div style={s.miniKpi(bg)}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color }}>${collected.toLocaleString()}</div>
-                        <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>Collected</div>
-                      </div>
-                      <div style={s.miniKpi("#f8f9fa")}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{total}</div>
-                        <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>Total units</div>
-                      </div>
-                      <div style={s.miniKpi(pMaint.length > 0 ? "#FAEEDA" : "#EAF3DE")}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: pMaint.length > 0 ? "#854F0B" : "#3B6D11" }}>{pMaint.length}</div>
-                        <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>Open tickets</div>
-                      </div>
-                      <div style={s.miniKpi("#f8f9fa")}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{total - occupied}</div>
-                        <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>Vacant</div>
-                      </div>
+
+                    {/* Mini KPIs */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 14 }}>
+                      {[
+                        { label: "Collected",    value: `$${collected.toLocaleString()}`,       color },
+                        { label: "Total units",  value: total,                                  color: C.text },
+                        { label: "Open tickets", value: pMaint.length,                          color: pMaint.length > 0 ? C.amber : C.textSub },
+                        { label: "Vacant",       value: total - occupied,                       color: total - occupied > 0 ? C.red : C.textSub },
+                      ].map((k, j) => (
+                        <div key={j} style={{ background: C.raised, borderRadius: 7, padding: "8px 10px", textAlign: "center" }}>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: k.color }}>{k.value}</div>
+                          <div style={{ fontSize: 10, color: C.textSub, marginTop: 2 }}>{k.label}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div style={s.propFooter}>
-                      <button style={s.propBtnPrimary} onClick={e => { e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }}>View units</button>
-                      <button style={s.propBtn} onClick={e => { e.stopPropagation(); navigate("/landlord/maintenance"); }}>Maintenance</button>
+
+                    {/* Footer buttons */}
+                    <div style={{ display: "flex", gap: 8, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                      <button onClick={e => { e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }} style={{
+                        flex: 1, padding: "7px 0", background: "transparent",
+                        border: `1px solid ${C.goldDim}`, borderRadius: 6,
+                        fontSize: 11, fontWeight: 500, color: C.gold, cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s",
+                      }}>View units</button>
+                      <button onClick={e => { e.stopPropagation(); navigate("/landlord/maintenance"); }} style={{
+                        flex: 1, padding: "7px 0", background: "transparent",
+                        border: `1px solid ${C.border}`, borderRadius: 6,
+                        fontSize: 11, fontWeight: 500, color: C.textSub, cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                      }}>Maintenance</button>
                     </div>
                   </div>
                 </div>
               );
             })}
-            {properties.length === 0 && (
-              <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 40, color: "#888", fontSize: 13 }}>
-                No properties yet. Click "+ Add property" to get started.
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      {/* Detail panel */}
+      {/* ── Detail panel ── */}
       {prop && (
-        <div style={s.overlay} onClick={() => setSelected(null)}>
-          <div style={s.detailPanel} onClick={e => e.stopPropagation()}>
-            <div style={s.detailHeader(propBg)}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <div style={s.detailName(propColor)}>{PROP_ICONS[propIdx % PROP_ICONS.length]} {prop.name}</div>
-                  <div style={s.detailAddr}>{prop.address}, {prop.city} {prop.state} {prop.zip}</div>
-                </div>
-                <button onClick={() => setSelected(null)} style={{ background: "rgba(0,0,0,0.1)", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13, color: "#555" }}>✕</button>
-              </div>
-            </div>
-            <div style={s.detailBody}>
-              <div style={s.tabs}>
-                {["Overview", "Units"].map(tab => (
-                  <button key={tab} style={s.tab(detailTab === tab)} onClick={() => setDetailTab(tab)}>{tab}</button>
-                ))}
-              </div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={() => setSelected(null)}>
+          <div style={{ width: 540, background: C.surface, height: "100vh", overflowY: "auto", borderLeft: `1px solid ${C.border}` }} onClick={e => e.stopPropagation()}>
 
+            {/* Panel header */}
+            <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: propColor }} />
+                  <div style={{ fontSize: 17, fontWeight: 600, color: C.text }}>{prop.name}</div>
+                </div>
+                <div style={{ fontSize: 12, color: C.textSub }}>{prop.address}, {prop.city} {prop.state} {prop.zip}</div>
+              </div>
+              <button onClick={() => setSelected(null)} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13, color: C.textSub }}>✕</button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, padding: "0 24px" }}>
+              {["Overview", "Units"].map(tab => (
+                <button key={tab} onClick={() => setDetailTab(tab)} style={{
+                  padding: "11px 16px", fontSize: 13, fontWeight: detailTab === tab ? 600 : 400,
+                  color: detailTab === tab ? C.gold : C.textSub,
+                  background: "none", border: "none",
+                  borderBottom: detailTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
+                  marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                  transition: "color 0.15s",
+                }}>{tab}</button>
+              ))}
+            </div>
+
+            <div style={{ padding: "20px 24px" }}>
               {/* Overview */}
               {detailTab === "Overview" && (
                 <>
-                  <div style={s.sectionTitle}>Property summary</div>
-                  <div style={s.infoGrid}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Property Summary</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
                     {[
-                      ["Total units",   propUnitsFor(prop.id).length],
-                      ["Occupied",      propTenantsFor(prop.id).length],
-                      ["Vacant",        propUnitsFor(prop.id).length - propTenantsFor(prop.id).length],
-                      ["Open tickets",  propMaintFor(prop.id).length],
-                      ["Collected",     `$${propCollectedFor(prop.id).toLocaleString()}`],
-                      ["City",          `${prop.city}, ${prop.state}`],
+                      ["Total units",  propUnitsFor(prop.id).length],
+                      ["Occupied",     propTenantsFor(prop.id).length],
+                      ["Vacant",       propUnitsFor(prop.id).length - propTenantsFor(prop.id).length],
+                      ["Open tickets", propMaintFor(prop.id).length],
+                      ["Collected",    `$${propCollectedFor(prop.id).toLocaleString()}`],
+                      ["City",         `${prop.city}, ${prop.state}`],
                     ].map(([k, v]) => (
-                      <div key={k} style={s.infoBox}>
-                        <div style={s.infoBoxLabel}>{k}</div>
-                        <div style={s.infoBoxVal}>{v}</div>
+                      <div key={k} style={{ background: C.raised, borderRadius: 8, padding: "11px 14px" }}>
+                        <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>{k}</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{v}</div>
                       </div>
                     ))}
                   </div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button style={{ ...s.btn(true), flex: 1, justifyContent: "center" }} onClick={() => setDetailTab("Units")}>View units →</button>
-                    <button style={{ ...s.btn(false), flex: 1, justifyContent: "center" }} onClick={() => navigate("/landlord/maintenance")}>View maintenance →</button>
+                    <PrimaryBtn onClick={() => setDetailTab("Units")}>View units →</PrimaryBtn>
+                    <GhostBtn onClick={() => navigate("/landlord/maintenance")}>View maintenance →</GhostBtn>
                   </div>
                 </>
               )}
@@ -430,27 +447,31 @@ export default function LandlordProperties() {
               {detailTab === "Units" && (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <div style={s.sectionTitle}>Unit roster — {propUnitsFor(prop.id).length} units</div>
-                    <button style={{ ...s.btn(true), padding: "6px 12px", fontSize: 11 }} onClick={() => setShowAddUnit(true)}>+ Add unit</button>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                      Unit roster — {propUnitsFor(prop.id).length} units
+                    </div>
+                    <PrimaryBtn onClick={() => setShowAddUnit(true)} small>+ Add unit</PrimaryBtn>
                   </div>
                   {unitRosterFor(prop.id).length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "30px", color: "#aaa", fontSize: 13 }}>No units yet — click "+ Add unit" to add one.</div>
+                    <div style={{ textAlign: "center", padding: 32, color: C.textSub, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 8 }}>
+                      No units yet — click "+ Add unit" to add one.
+                    </div>
                   ) : (
-                    <table style={s.table}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
                         <tr>
                           {["Unit", "Tenant", "Rent", "Status"].map(h => (
-                            <th key={h} style={s.th}>{h}</th>
+                            <th key={h} style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "9px 12px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: C.raised }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {unitRosterFor(prop.id).map((u, i) => (
-                          <tr key={i}>
-                            <td style={{ ...s.td, fontWeight: 600 }}>{u.unit}</td>
-                            <td style={s.td}>{u.tenant}</td>
-                            <td style={{ ...s.td, fontWeight: 600 }}>${(u.rent || 0).toLocaleString()}</td>
-                            <td style={s.td}><span style={s.statusBadge(u.status)}>{STATUS_CONFIG[u.status]?.label}</span></td>
+                          <tr key={i} className="m-row">
+                            <td style={{ fontSize: 13, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, color: C.text, fontWeight: 600 }}>{u.unit}</td>
+                            <td style={{ fontSize: 13, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, color: C.textSub }}>{u.tenant}</td>
+                            <td style={{ fontSize: 13, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, color: C.text, fontWeight: 600 }}>${(u.rent || 0).toLocaleString()}</td>
+                            <td style={{ fontSize: 13, padding: "11px 12px", borderBottom: `1px solid ${C.border}` }}><Badge status={u.status} /></td>
                           </tr>
                         ))}
                       </tbody>
@@ -463,22 +484,8 @@ export default function LandlordProperties() {
         </div>
       )}
 
-      {/* Add Property Modal */}
-      {showAddProp && (
-        <AddPropertyModal
-          onClose={() => setShowAddProp(false)}
-          onSaved={() => { setShowAddProp(false); fetchAll(); }}
-        />
-      )}
-
-      {/* Add Unit Modal */}
-      {showAddUnit && prop && (
-        <AddUnitModal
-          propertyId={prop.id}
-          onClose={() => setShowAddUnit(false)}
-          onSaved={() => { setShowAddUnit(false); fetchAll(); }}
-        />
-      )}
+      {showAddProp && <AddPropertyModal onClose={() => setShowAddProp(false)} onSaved={() => { setShowAddProp(false); fetchAll(); }} />}
+      {showAddUnit && prop && <AddUnitModal propertyId={prop.id} onClose={() => setShowAddUnit(false)} onSaved={() => { setShowAddUnit(false); fetchAll(); }} />}
     </LandlordLayout>
   );
 }

@@ -1,379 +1,295 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import LandlordLayout from "./LandlordLayout";
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "💰", label: "Rent Roll",   route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   route: "/landlord/settings" },
-];
-
-const NOTIFICATION_SETTINGS = [
-  { id: "rent_received",   label: "Rent payment received",        sub: "When a tenant pays rent",                  email: true,  sms: true  },
-  { id: "rent_late",       label: "Rent payment overdue",         sub: "When rent is 1+ days past due",            email: true,  sms: true  },
-  { id: "maintenance_new", label: "New maintenance request",      sub: "When a tenant submits a request",          email: true,  sms: false },
-  { id: "maintenance_upd", label: "Maintenance status update",    sub: "When a ticket status changes",             email: true,  sms: false },
-  { id: "lease_expiry",    label: "Lease expiring soon",          sub: "90 days before a lease expires",           email: true,  sms: false },
-  { id: "new_message",     label: "New tenant message",           sub: "When a tenant sends you a message",        email: false, sms: true  },
-  { id: "insurance_lapse", label: "Insurance policy lapsed",      sub: "When a tenant's policy expires",           email: true,  sms: false },
-];
-
-const TEAM_MEMBERS = [
-  { id: 1, name: "Andrew Wagner", email: "andrew@polarispm.com", role: "Owner",            avatar: "AW", color: "#185FA5", bg: "#E6F1FB", status: "active" },
-];
-
-const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
-  main: { flex: 1, padding: "28px", overflowY: "auto" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
-  pageTitle: { fontSize: 22, fontWeight: 700 },
-  pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
-  layout: { display: "grid", gridTemplateColumns: "220px 1fr", gap: 24 },
-  settingNav: { display: "flex", flexDirection: "column", gap: 2 },
-  settingNavItem: (active) => ({ padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#0C447C" : "#555", background: active ? "#E6F1FB" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.1s" }),
-  content: { display: "flex", flexDirection: "column", gap: 16 },
-  card: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
-  cardHeader: { padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 14, fontWeight: 700, color: "#1a1a1a" },
-  cardSub: { fontSize: 12, color: "#888", marginTop: 2 },
-  cardBody: { padding: "20px" },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 5 },
-  input: { width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", color: "#1a1a1a", boxSizing: "border-box" },
-  halfGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 },
-  saveBtn: { padding: "9px 20px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  savedMsg: { fontSize: 12, color: "#3B6D11", fontWeight: 600 },
-  // Notifications
-  notifRow: (last) => ({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 20px", borderBottom: last ? "none" : "1px solid #f8f9fa" }),
-  notifLeft: { flex: 1 },
-  notifLabel: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  notifSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  notifToggles: { display: "flex", gap: 20, flexShrink: 0 },
-  toggleWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  toggleLabel: { fontSize: 10, color: "#aaa", fontWeight: 500 },
-  toggle: (on) => ({ width: 36, height: 20, borderRadius: 10, background: on ? "#185FA5" : "#d1d5db", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }),
-  toggleThumb: (on) => ({ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: on ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }),
-  // Team
-  memberRow: (last) => ({ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderBottom: last ? "none" : "1px solid #f8f9fa" }),
-  memberAvatar: (color, bg) => ({ width: 36, height: 36, borderRadius: "50%", background: bg, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }),
-  memberName: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  memberEmail: { fontSize: 11, color: "#888", marginTop: 1 },
-  roleBadge: { fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "#E6F1FB", color: "#185FA5" },
-  // Integrations
-  integRow: (last) => ({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: last ? "none" : "1px solid #f8f9fa" }),
-  integLeft: { display: "flex", alignItems: "center", gap: 12 },
-  integIcon: (bg) => ({ width: 40, height: 40, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }),
-  integName: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  integSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  connectedBadge: { fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: "#EAF3DE", color: "#3B6D11" },
-  connectBtn: { fontSize: 11, fontWeight: 600, padding: "7px 14px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  dangerZone: { background: "#FDECEA", border: "1px solid #f5c6c6", borderRadius: 12, padding: "16px 20px" },
-  dangerTitle: { fontSize: 13, fontWeight: 700, color: "#A32D2D", marginBottom: 6 },
-  dangerSub: { fontSize: 12, color: "#888", marginBottom: 12 },
-  dangerBtn: { padding: "8px 16px", background: "#fff", border: "1px solid #f5c6c6", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#A32D2D", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
+// ─── Modus tokens ──────────────────────────────────────────────────────────
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
 };
 
-const SETTING_SECTIONS = [
-  { id: "profile",       icon: "👤", label: "Profile" },
-  { id: "company",       icon: "🏢", label: "Company" },
-  { id: "notifications", icon: "🔔", label: "Notifications" },
-  { id: "team",          icon: "👥", label: "Team & Access" },
-  { id: "integrations",  icon: "🔌", label: "Integrations" },
-  { id: "billing",       icon: "💳", label: "Billing & Plan" },
+const NOTIFICATION_SETTINGS = [
+  { id: "rent_received",   label: "Rent payment received",     sub: "When a tenant pays rent",             email: true,  sms: true  },
+  { id: "rent_late",       label: "Rent payment overdue",      sub: "When rent is 1+ days past due",       email: true,  sms: true  },
+  { id: "maintenance_new", label: "New maintenance request",   sub: "When a tenant submits a request",     email: true,  sms: false },
+  { id: "maintenance_upd", label: "Maintenance status update", sub: "When a ticket status changes",        email: true,  sms: false },
+  { id: "lease_expiry",    label: "Lease expiring soon",       sub: "90 days before a lease expires",      email: true,  sms: false },
+  { id: "new_message",     label: "New tenant message",        sub: "When a tenant sends you a message",   email: false, sms: true  },
+  { id: "insurance_lapse", label: "Insurance policy lapsed",   sub: "When a tenant's policy expires",      email: true,  sms: false },
 ];
+
+const SETTING_SECTIONS = [
+  { id: "profile",       label: "Profile" },
+  { id: "company",       label: "Company" },
+  { id: "notifications", label: "Notifications" },
+  { id: "team",          label: "Team & Access" },
+  { id: "integrations",  label: "Integrations" },
+  { id: "billing",       label: "Billing & Plan" },
+];
+
+// ─── Shared ────────────────────────────────────────────────────────────────
+function FieldLabel({ children }) {
+  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.07em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{children}</label>;
+}
+
+function Input({ value, onChange, placeholder, type = "text" }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+    />
+  );
+}
+
+function PrimaryBtn({ children, onClick }) {
+  return (
+    <button onClick={onClick} style={{ background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s" }}
+      onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
+      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, onClick, small, danger }) {
+  const borderColor = danger ? "rgba(224,85,85,0.3)" : C.border;
+  const textColor   = danger ? C.red : C.textSub;
+  return (
+    <button onClick={onClick} style={{ background: danger ? "rgba(224,85,85,0.08)" : "transparent", border: `1px solid ${borderColor}`, color: textColor, fontSize: small ? 11 : 13, fontWeight: 500, padding: small ? "6px 12px" : "8px 16px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}
+      onMouseOver={e => !danger && (e.currentTarget.style.color = C.text)}
+      onMouseOut={e => !danger && (e.currentTarget.style.color = textColor)}
+    >{children}</button>
+  );
+}
+
+function Card({ children }) {
+  return <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>{children}</div>;
+}
+
+function CardHeader({ title, sub, action }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{title}</div>
+        {sub && <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{sub}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Toggle({ on, onToggle }) {
+  return (
+    <div onClick={onToggle} style={{ width: 36, height: 20, borderRadius: 10, background: on ? C.goldDim : C.raised, border: `1px solid ${on ? C.goldDim : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
+      <div style={{ width: 14, height: 14, borderRadius: "50%", background: on ? C.gold : C.textMuted, position: "absolute", top: 2, left: on ? 19 : 2, transition: "left 0.2s" }} />
+    </div>
+  );
+}
 
 export default function LandlordSettings() {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState("profile");
-  const [saved, setSaved] = useState(false);
-  const [notifs, setNotifs] = useState(NOTIFICATION_SETTINGS);
-  const [team, setTeam] = useState(TEAM_MEMBERS);
+  const [activeSection, setActiveSection]   = useState("profile");
+  const [saved, setSaved]                   = useState(false);
+  const [notifs, setNotifs]                 = useState(NOTIFICATION_SETTINGS);
+  const [profile, setProfile]               = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrewwagner27@gmail.com", phone: "(614) 555-0100" });
+  const [company, setCompany]               = useState({ name: "Modus Property Management", address: "Columbus, OH", ein: "**-*******", website: "moduspm.com" });
 
-  // Profile state
-  const [profile, setProfile] = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrew@polarispm.com", phone: "(614) 555-0100" });
-  const [company, setCompany] = useState({ name: "Polaris Property Solutions LLC", address: "Columbus, OH", ein: "**-*******", website: "polarispm.com" });
-
-  function saveProfile() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
-
-  function toggleNotif(id, type) {
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, [type]: !n[type] } : n));
-  }
+  function save() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+  function toggleNotif(id, type) { setNotifs(prev => prev.map(n => n.id === id ? { ...n, [type]: !n[type] } : n)); }
 
   return (
-    <div style={s.app}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
+    <LandlordLayout openMaintenance={0} unreadMessages={0}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+        .m-setting-nav-item:hover { background: ${C.raised} !important; color: ${C.text} !important; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+      `}</style>
 
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.route} style={s.navItem(item.label === "Settings")} onClick={() => navigate(item.route)}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "28px 32px 48px" }}>
 
-      {/* Main */}
-      <div style={s.main}>
-        <div style={s.topBar}>
-          <div>
-            <div style={s.pageTitle}>Settings</div>
-            <div style={s.pageSub}>Manage your account, notifications, and integrations</div>
-          </div>
+        {/* Top bar */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>Settings</div>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Manage your account, notifications, and integrations</div>
         </div>
 
-        <div style={s.layout}>
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 20 }}>
+
           {/* Settings nav */}
-          <div style={s.settingNav}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {SETTING_SECTIONS.map(section => (
-              <div key={section.id} style={s.settingNavItem(activeSection === section.id)} onClick={() => setActiveSection(section.id)}>
-                <span>{section.icon}</span>{section.label}
-              </div>
+              <div key={section.id} className="m-setting-nav-item"
+                style={{
+                  padding: "9px 14px", borderRadius: 7, fontSize: 13, fontWeight: activeSection === section.id ? 500 : 400,
+                  color: activeSection === section.id ? C.gold : C.textSub,
+                  background: activeSection === section.id ? `rgba(201,169,110,0.07)` : "transparent",
+                  borderLeft: `2px solid ${activeSection === section.id ? C.gold : "transparent"}`,
+                  cursor: "pointer", transition: "all 0.12s",
+                }}
+                onClick={() => setActiveSection(section.id)}
+              >{section.label}</div>
             ))}
-            <div style={{ marginTop: 16, padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 400, color: "#A32D2D", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }} onClick={() => navigate("/login")}>
-              <span>🚪</span>Sign out
-            </div>
+            <div style={{ marginTop: 16, padding: "9px 14px", borderRadius: 7, fontSize: 13, color: C.red, cursor: "pointer", borderLeft: "2px solid transparent" }}
+              onClick={() => navigate("/login")}>Sign out</div>
           </div>
 
           {/* Content */}
-          <div style={s.content}>
+          <div>
 
             {/* ── Profile ── */}
             {activeSection === "profile" && (
               <>
-                <div style={s.card}>
-                  <div style={s.cardHeader}>
-                    <div>
-                      <div style={s.cardTitle}>Personal information</div>
-                      <div style={s.cardSub}>Your name and contact details</div>
+                <Card>
+                  <CardHeader title="Personal information" sub="Your name and contact details" action={saved && <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>✓ Saved!</span>} />
+                  <div style={{ padding: "20px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                      <div><FieldLabel>First name</FieldLabel><Input value={profile.firstName} onChange={e => setProfile(p => ({...p, firstName: e.target.value}))} /></div>
+                      <div><FieldLabel>Last name</FieldLabel><Input value={profile.lastName} onChange={e => setProfile(p => ({...p, lastName: e.target.value}))} /></div>
                     </div>
-                    {saved && <span style={s.savedMsg}>✓ Saved!</span>}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+                      <div><FieldLabel>Email</FieldLabel><Input type="email" value={profile.email} onChange={e => setProfile(p => ({...p, email: e.target.value}))} /></div>
+                      <div><FieldLabel>Phone</FieldLabel><Input value={profile.phone} onChange={e => setProfile(p => ({...p, phone: e.target.value}))} /></div>
+                    </div>
+                    <PrimaryBtn onClick={save}>Save changes</PrimaryBtn>
                   </div>
-                  <div style={s.cardBody}>
-                    <div style={s.halfGrid}>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>First name</label>
-                        <input style={s.input} value={profile.firstName} onChange={e => setProfile(p => ({...p, firstName: e.target.value}))} />
-                      </div>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>Last name</label>
-                        <input style={s.input} value={profile.lastName} onChange={e => setProfile(p => ({...p, lastName: e.target.value}))} />
-                      </div>
+                </Card>
+                <Card>
+                  <CardHeader title="Password" sub="Change your login password" />
+                  <div style={{ padding: "20px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+                      <div><FieldLabel>Current password</FieldLabel><Input type="password" placeholder="••••••••" value="" onChange={() => {}} /></div>
+                      <div><FieldLabel>New password</FieldLabel><Input type="password" placeholder="••••••••" value="" onChange={() => {}} /></div>
                     </div>
-                    <div style={s.halfGrid}>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>Email</label>
-                        <input style={s.input} type="email" value={profile.email} onChange={e => setProfile(p => ({...p, email: e.target.value}))} />
-                      </div>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>Phone</label>
-                        <input style={s.input} value={profile.phone} onChange={e => setProfile(p => ({...p, phone: e.target.value}))} />
-                      </div>
-                    </div>
-                    <button style={s.saveBtn} onClick={saveProfile}>Save changes</button>
+                    <PrimaryBtn onClick={() => {}}>Update password</PrimaryBtn>
                   </div>
-                </div>
-
-                <div style={s.card}>
-                  <div style={s.cardHeader}>
-                    <div>
-                      <div style={s.cardTitle}>Password</div>
-                      <div style={s.cardSub}>Change your login password</div>
-                    </div>
-                  </div>
-                  <div style={s.cardBody}>
-                    <div style={s.halfGrid}>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>Current password</label>
-                        <input style={s.input} type="password" placeholder="••••••••" />
-                      </div>
-                      <div style={s.fieldWrap}>
-                        <label style={s.fieldLabel}>New password</label>
-                        <input style={s.input} type="password" placeholder="••••••••" />
-                      </div>
-                    </div>
-                    <button style={s.saveBtn}>Update password</button>
-                  </div>
-                </div>
+                </Card>
               </>
             )}
 
             {/* ── Company ── */}
             {activeSection === "company" && (
-              <div style={s.card}>
-                <div style={s.cardHeader}>
-                  <div>
-                    <div style={s.cardTitle}>Company information</div>
-                    <div style={s.cardSub}>Shown on leases, receipts, and PDF reports</div>
+              <Card>
+                <CardHeader title="Company information" sub="Shown on leases, receipts, and PDF reports" action={saved && <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>✓ Saved!</span>} />
+                <div style={{ padding: "20px" }}>
+                  <div style={{ marginBottom: 14 }}><FieldLabel>Company name</FieldLabel><Input value={company.name} onChange={e => setCompany(p => ({...p, name: e.target.value}))} /></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    <div><FieldLabel>Business address</FieldLabel><Input value={company.address} onChange={e => setCompany(p => ({...p, address: e.target.value}))} /></div>
+                    <div><FieldLabel>EIN</FieldLabel><Input value={company.ein} onChange={e => setCompany(p => ({...p, ein: e.target.value}))} placeholder="XX-XXXXXXX" /></div>
                   </div>
-                  {saved && <span style={s.savedMsg}>✓ Saved!</span>}
+                  <div style={{ marginBottom: 20 }}><FieldLabel>Website</FieldLabel><Input value={company.website} onChange={e => setCompany(p => ({...p, website: e.target.value}))} placeholder="moduspm.com" /></div>
+                  <PrimaryBtn onClick={save}>Save changes</PrimaryBtn>
                 </div>
-                <div style={s.cardBody}>
-                  <div style={s.fieldWrap}>
-                    <label style={s.fieldLabel}>Company name</label>
-                    <input style={s.input} value={company.name} onChange={e => setCompany(p => ({...p, name: e.target.value}))} />
-                  </div>
-                  <div style={s.halfGrid}>
-                    <div style={s.fieldWrap}>
-                      <label style={s.fieldLabel}>Business address</label>
-                      <input style={s.input} value={company.address} onChange={e => setCompany(p => ({...p, address: e.target.value}))} />
-                    </div>
-                    <div style={s.fieldWrap}>
-                      <label style={s.fieldLabel}>EIN</label>
-                      <input style={s.input} value={company.ein} onChange={e => setCompany(p => ({...p, ein: e.target.value}))} placeholder="XX-XXXXXXX" />
-                    </div>
-                  </div>
-                  <div style={s.fieldWrap}>
-                    <label style={s.fieldLabel}>Website</label>
-                    <input style={s.input} value={company.website} onChange={e => setCompany(p => ({...p, website: e.target.value}))} placeholder="yourcompany.com" />
-                  </div>
-                  <button style={s.saveBtn} onClick={saveProfile}>Save changes</button>
-                </div>
-              </div>
+              </Card>
             )}
 
             {/* ── Notifications ── */}
             {activeSection === "notifications" && (
-              <div style={s.card}>
-                <div style={s.cardHeader}>
-                  <div>
-                    <div style={s.cardTitle}>Notification preferences</div>
-                    <div style={s.cardSub}>Choose how you receive alerts for each event</div>
-                  </div>
-                </div>
+              <Card>
+                <CardHeader title="Notification preferences" sub="Choose how you receive alerts for each event" />
                 <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 20px 0", gap: 40 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#888", width: 36, textAlign: "center" }}>EMAIL</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#888", width: 36, textAlign: "center" }}>SMS</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, width: 36, textAlign: "center", letterSpacing: "0.08em" }}>EMAIL</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, width: 36, textAlign: "center", letterSpacing: "0.08em" }}>SMS</span>
                 </div>
                 {notifs.map((n, i) => (
-                  <div key={n.id} style={s.notifRow(i === notifs.length - 1)}>
-                    <div style={s.notifLeft}>
-                      <div style={s.notifLabel}>{n.label}</div>
-                      <div style={s.notifSub}>{n.sub}</div>
+                  <div key={n.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 20px", borderBottom: i === notifs.length - 1 ? "none" : `1px solid ${C.border}` }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{n.label}</div>
+                      <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{n.sub}</div>
                     </div>
-                    <div style={s.notifToggles}>
-                      {["email", "sms"].map(type => (
-                        <div key={type} style={s.toggleWrap}>
-                          <div style={s.toggle(n[type])} onClick={() => toggleNotif(n.id, type)}>
-                            <div style={s.toggleThumb(n[type])} />
-                          </div>
-                        </div>
-                      ))}
+                    <div style={{ display: "flex", gap: 40, flexShrink: 0 }}>
+                      <Toggle on={n.email} onToggle={() => toggleNotif(n.id, "email")} />
+                      <Toggle on={n.sms}   onToggle={() => toggleNotif(n.id, "sms")}   />
                     </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             )}
 
             {/* ── Team ── */}
             {activeSection === "team" && (
-              <div style={s.card}>
-                <div style={s.cardHeader}>
-                  <div>
-                    <div style={s.cardTitle}>Team members</div>
-                    <div style={s.cardSub}>Invite property managers or maintenance staff</div>
+              <Card>
+                <CardHeader title="Team members" sub="Invite property managers or maintenance staff" action={<PrimaryBtn onClick={() => {}}>+ Invite member</PrimaryBtn>} />
+                <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${C.gold}22`, border: `1px solid ${C.gold}44`, color: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>AW</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Andrew Wagner</div>
+                    <div style={{ fontSize: 11, color: C.textSub }}>andrewwagner27@gmail.com</div>
                   </div>
-                  <button style={{ ...s.saveBtn, padding: "7px 14px", fontSize: 12 }}>+ Invite member</button>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.gold}18`, color: C.gold }}>Owner</span>
                 </div>
-                {team.map((m, i) => (
-                  <div key={m.id} style={s.memberRow(i === team.length - 1)}>
-                    <div style={s.memberAvatar(m.color, m.bg)}>{m.avatar}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={s.memberName}>{m.name}</div>
-                      <div style={s.memberEmail}>{m.email}</div>
-                    </div>
-                    <span style={s.roleBadge}>{m.role}</span>
-                  </div>
-                ))}
-                <div style={{ padding: "16px 20px", borderTop: "1px solid #f0f0f0", background: "#fafafa" }}>
-                  <div style={{ fontSize: 12, color: "#888" }}>
-                    💡 Team members can be assigned properties, manage maintenance tickets, and message tenants. Owners have full access.
-                  </div>
+                <div style={{ padding: "14px 20px", background: C.raised }}>
+                  <div style={{ fontSize: 12, color: C.textSub }}>Team members can be assigned properties, manage maintenance tickets, and message tenants. Owners have full access.</div>
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* ── Integrations ── */}
             {activeSection === "integrations" && (
-              <div style={s.card}>
-                <div style={s.cardHeader}>
-                  <div style={s.cardTitle}>Connected integrations</div>
-                </div>
+              <Card>
+                <CardHeader title="Connected integrations" />
                 {[
-                  { icon: "💳", bg: "#E6F1FB", name: "Stripe", sub: "Payment processing for rent collection", connected: false },
-                  { icon: "🏦", bg: "#EAF3DE", name: "Plaid",  sub: "Bank account verification for ACH payments", connected: false },
-                  { icon: "📧", bg: "#FAEEDA", name: "SendGrid", sub: "Email notifications and receipts", connected: false },
-                  { icon: "📱", bg: "#F3EEFB", name: "Twilio", sub: "SMS notifications to tenants", connected: false },
-                  { icon: "📊", bg: "#f4f5f7", name: "QuickBooks", sub: "Sync income and expenses to QBO", connected: false },
+                  { name: "Stripe",      sub: "Payment processing for rent collection",     connected: false, color: C.blue },
+                  { name: "Plaid",       sub: "Bank account verification for ACH payments", connected: false, color: C.green },
+                  { name: "Resend",      sub: "Email notifications and receipts",           connected: true,  color: C.gold },
+                  { name: "Twilio",      sub: "SMS notifications to tenants",               connected: false, color: C.amber },
+                  { name: "QuickBooks",  sub: "Sync income and expenses to QBO",            connected: false, color: C.textSub },
                 ].map((integ, i, arr) => (
-                  <div key={i} style={s.integRow(i === arr.length - 1)}>
-                    <div style={s.integLeft}>
-                      <div style={s.integIcon(integ.bg)}>{integ.icon}</div>
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 8, background: `${integ.color}18`, border: `1px solid ${integ.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <div style={{ width: 14, height: 14, borderRadius: "50%", background: integ.color }} />
+                      </div>
                       <div>
-                        <div style={s.integName}>{integ.name}</div>
-                        <div style={s.integSub}>{integ.sub}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{integ.name}</div>
+                        <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{integ.sub}</div>
                       </div>
                     </div>
                     {integ.connected
-                      ? <span style={s.connectedBadge}>● Connected</span>
-                      : <button style={s.connectBtn}>Connect</button>
+                      ? <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: `${C.green}15`, color: C.green }}>● Connected</span>
+                      : <GhostBtn small onClick={() => {}}>Connect</GhostBtn>
                     }
                   </div>
                 ))}
-              </div>
+              </Card>
             )}
 
             {/* ── Billing ── */}
             {activeSection === "billing" && (
               <>
-                <div style={s.card}>
-                  <div style={s.cardHeader}>
-                    <div>
-                      <div style={s.cardTitle}>Current plan</div>
-                      <div style={s.cardSub}>Polaris PM — Self-hosted</div>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px", background: "#EAF3DE", color: "#3B6D11", borderRadius: 20 }}>Active</span>
-                  </div>
+                <Card>
+                  <CardHeader title="Current plan" sub="Modus PM — Self-hosted"
+                    action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", background: `${C.green}15`, color: C.green, borderRadius: 20 }}>Active</span>}
+                  />
                   <div style={{ padding: "20px" }}>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: "#0C447C", marginBottom: 6 }}>$0<span style={{ fontSize: 14, fontWeight: 400, color: "#888" }}>/month</span></div>
-                    <div style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>You built this. No subscription fees.</div>
+                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: C.gold, marginBottom: 6 }}>$0<span style={{ fontSize: 14, fontWeight: 400, color: C.textSub }}>/month</span></div>
+                    <div style={{ fontSize: 13, color: C.textSub, marginBottom: 18 }}>You built this. No subscription fees.</div>
                     {["Unlimited properties", "Unlimited tenants", "Rent collection via Stripe", "Maintenance tracking", "Financial reports & DSCR"].map((f, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13 }}>
-                        <span style={{ color: "#3B6D11" }}>✓</span>{f}
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: C.textSub }}>
+                        <span style={{ color: C.green, fontWeight: 600 }}>✓</span>{f}
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
 
-                <div style={s.dangerZone}>
-                  <div style={s.dangerTitle}>⚠️ Danger zone</div>
-                  <div style={s.dangerSub}>These actions are irreversible. Proceed with caution.</div>
+                <div style={{ background: "rgba(224,85,85,0.06)", border: `1px solid rgba(224,85,85,0.2)`, borderRadius: 10, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.red, marginBottom: 6 }}>Danger zone</div>
+                  <div style={{ fontSize: 12, color: C.textSub, marginBottom: 14 }}>These actions are irreversible. Proceed with caution.</div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button style={s.dangerBtn}>Export all data</button>
-                    <button style={s.dangerBtn}>Delete account</button>
+                    <GhostBtn danger onClick={() => {}}>Export all data</GhostBtn>
+                    <GhostBtn danger onClick={() => {}}>Delete account</GhostBtn>
                   </div>
                 </div>
               </>
@@ -381,6 +297,6 @@ export default function LandlordSettings() {
           </div>
         </div>
       </div>
-    </div>
+    </LandlordLayout>
   );
 }

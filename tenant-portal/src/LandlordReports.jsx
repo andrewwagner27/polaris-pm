@@ -5,158 +5,168 @@ import autoTable from "jspdf-autotable";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
-const STATUS_CONFIG = {
-  paid:    { label: "Paid",    color: "#3B6D11", bg: "#EAF3DE" },
-  pending: { label: "Pending", color: "#854F0B", bg: "#FAEEDA" },
-  late:    { label: "Late",    color: "#A32D2D", bg: "#FDECEA" },
-  vacant:  { label: "Vacant",  color: "#888",    bg: "#f4f5f7" },
+// ─── Modus tokens ──────────────────────────────────────────────────────────
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
 };
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "📋", label: "Reports",     route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   route: "/landlord/settings" },
-];
+const STATUS = {
+  paid:    { label: "Paid",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
+};
 
 const REPORT_CARDS = [
-  { id: "rentroll",    icon: "💰", title: "Rent Roll",           sub: "Current payment status for all units",      status: "live",   color: "#185FA5", bg: "#E6F1FB" },
-  { id: "delinquency", icon: "⚠️", title: "Delinquency Report", sub: "Late & pending payments with aging",        status: "live",   color: "#A32D2D", bg: "#FDECEA" },
-  { id: "vacancy",     icon: "🏠", title: "Vacancy Report",      sub: "Vacant units and lost revenue",            status: "live",   color: "#854F0B", bg: "#FAEEDA" },
-  { id: "expiry",      icon: "📅", title: "Lease Expiration",    sub: "Leases expiring in the next 180 days",     status: "live",   color: "#3B6D11", bg: "#EAF3DE" },
-  { id: "income",      icon: "📈", title: "Income Statement",    sub: "Revenue vs expenses by property",          status: "coming", color: "#888",    bg: "#f4f5f7" },
-  { id: "cashflow",    icon: "💸", title: "Cash Flow Report",    sub: "Monthly cash in vs cash out",              status: "coming", color: "#888",    bg: "#f4f5f7" },
-  { id: "maintenance", icon: "🔧", title: "Maintenance Cost",    sub: "Spend by vendor, property, category",     status: "coming", color: "#888",    bg: "#f4f5f7" },
-  { id: "yearend",     icon: "📁", title: "Year-End Summary",    sub: "CPA-ready annual income & expense report", status: "coming", color: "#888",    bg: "#f4f5f7" },
+  { id: "rentroll",    title: "Rent Roll",          sub: "Current payment status for all units",      status: "live",   accent: C.blue },
+  { id: "delinquency", title: "Delinquency Report", sub: "Late & pending payments with aging",        status: "live",   accent: C.red },
+  { id: "vacancy",     title: "Vacancy Report",     sub: "Vacant units and lost revenue",             status: "live",   accent: C.amber },
+  { id: "expiry",      title: "Lease Expiration",   sub: "Leases expiring in the next 180 days",      status: "live",   accent: C.green },
+  { id: "income",      title: "Income Statement",   sub: "Revenue vs expenses by property",           status: "coming", accent: C.textMuted },
+  { id: "cashflow",    title: "Cash Flow Report",   sub: "Monthly cash in vs cash out",               status: "coming", accent: C.textMuted },
+  { id: "maintenance", title: "Maintenance Cost",   sub: "Spend by vendor, property, category",      status: "coming", accent: C.textMuted },
+  { id: "yearend",     title: "Year-End Summary",   sub: "CPA-ready annual income & expense report",  status: "coming", accent: C.textMuted },
 ];
 
-const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
-  main: { flex: 1, padding: "28px", overflowY: "auto" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
-  pageTitle: { fontSize: 22, fontWeight: 700 },
-  pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
-  btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 6 }),
-  reportGrid: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 32 },
-  reportCard: (active, color, bg, coming) => ({ background: coming ? "#fafafa" : active ? bg : "#fff", border: `1px solid ${active ? color + "40" : "#e8eaed"}`, borderRadius: 12, padding: "16px", cursor: coming ? "not-allowed" : "pointer", opacity: coming ? 0.6 : 1, transition: "all 0.15s", borderTop: `3px solid ${coming ? "#e8eaed" : color}` }),
-  reportIcon: { fontSize: 24, marginBottom: 10 },
-  reportTitle: (active, color) => ({ fontSize: 13, fontWeight: 700, color: active ? color : "#1a1a1a", marginBottom: 4 }),
-  reportSub: { fontSize: 11, color: "#888", lineHeight: 1.5 },
-  reportBadge: (status) => ({ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: status === "live" ? "#EAF3DE" : "#f4f5f7", color: status === "live" ? "#3B6D11" : "#aaa", marginTop: 8 }),
-  reportContent: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
-  reportHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
-  reportTitle2: { fontSize: 15, fontWeight: 700 },
-  reportMeta: { fontSize: 12, color: "#888", marginTop: 2 },
-  exportBtns: { display: "flex", gap: 8 },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 16px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
-  td: { fontSize: 13, color: "#1a1a1a", padding: "11px 16px", borderBottom: "1px solid #f8f9fa", verticalAlign: "middle" },
-  statusBadge: (status) => ({ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#888" }),
-  propBadge: (name) => ({ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 8, background: "#E6F1FB", color: "#185FA5" }),
-  summaryRow: { display: "flex", justifyContent: "space-between", padding: "12px 20px", background: "#f8f9fa", borderTop: "1px solid #e8eaed" },
-  filterRow: { display: "flex", gap: 10, padding: "12px 20px", borderBottom: "1px solid #f0f0f0", alignItems: "center" },
-  select: { padding: "7px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", color: "#1a1a1a" },
-  statRow: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, padding: "16px 20px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
-  statBox: (color, bg) => ({ background: bg, borderRadius: 8, padding: "10px 12px", textAlign: "center" }),
-  statVal: (color) => ({ fontSize: 18, fontWeight: 700, color }),
-  statLabel: { fontSize: 10, color: "#888", marginTop: 2 },
-  alertBanner: (color, bg) => ({ background: bg, border: `1px solid ${color}30`, borderRadius: 8, padding: "10px 14px", margin: "12px 20px 0", display: "flex", alignItems: "center", gap: 8, fontSize: 12, color }),
-};
+function useWindowWidth() {
+  const [w, setW] = useState(window.innerWidth);
+  useEffect(() => {
+    const h = () => setW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return w;
+}
+
+function Badge({ status }) {
+  const cfg = STATUS[status];
+  if (!cfg) return null;
+  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: cfg.bg, color: cfg.color, whiteSpace: "nowrap" }}>{cfg.label}</span>;
+}
+
+function PropBadge({ name }) {
+  return <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 5, background: "rgba(74,154,232,0.13)", color: C.blue }}>{name}</span>;
+}
+
+function PrimaryBtn({ children, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold,
+      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
+      cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+      transition: "background 0.15s", opacity: disabled ? 0.6 : 1,
+    }}
+      onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
+      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, onClick, small }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
+      fontSize: small ? 11 : 12, fontWeight: 500, padding: small ? "5px 10px" : "7px 14px",
+      borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+    }}
+      onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
+      onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
+    >{children}</button>
+  );
+}
+
+function SectionLabel({ children }) {
+  return <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{children}</div>;
+}
+
+function StatBox({ label, value, accent }) {
+  return (
+    <div style={{ background: C.raised, borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: accent, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: 10, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
+    </div>
+  );
+}
+
+function AlertBanner({ color, children }) {
+  return (
+    <div style={{ background: `${color}11`, border: `1px solid ${color}33`, borderRadius: 8, padding: "10px 14px", margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 12, color }}>
+      {children}
+    </div>
+  );
+}
 
 function generateRentRollPDF(data, month) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
   const navy = [12, 68, 124];
   const pageW = doc.internal.pageSize.getWidth();
-
   doc.setFillColor(...navy);
   doc.rect(0, 0, pageW, 28, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text("POLARIS PROPERTY SOLUTIONS", 14, 12);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(133, 183, 235);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(255,255,255);
+  doc.text("MODUS PROPERTY MANAGEMENT", 14, 12);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(133,183,235);
   doc.text(`RENT ROLL REPORT — ${month.toUpperCase()}`, 14, 19);
   doc.text(`Generated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`, 14, 24);
-
-  const collected   = data.filter(r => r.status === "paid").reduce((s, r) => s + r.rent, 0);
-  const outstanding = data.filter(r => r.status !== "paid" && r.status !== "vacant").reduce((s, r) => s + r.rent, 0);
-
-  const stats = [
-    [`$${collected.toLocaleString()}`,   "COLLECTED"],
-    [`$${outstanding.toLocaleString()}`,  "OUTSTANDING"],
-    [`${data.filter(r => r.status === "paid").length}`,   "PAID"],
-    [`${data.filter(r => r.status === "vacant").length}`, "VACANT"],
-  ];
+  const collected   = data.filter(r => r.status === "paid").reduce((s,r) => s+r.rent, 0);
+  const outstanding = data.filter(r => r.status !== "paid" && r.status !== "vacant").reduce((s,r) => s+r.rent, 0);
+  const stats = [[`$${collected.toLocaleString()}`, "COLLECTED"], [`$${outstanding.toLocaleString()}`, "OUTSTANDING"], [`${data.filter(r => r.status === "paid").length}`, "PAID"], [`${data.filter(r => r.status === "vacant").length}`, "VACANT"]];
   const bw = 45;
   stats.forEach((st, i) => {
     const x = 14 + i * (bw + 4);
-    doc.setFillColor(245, 246, 247);
-    doc.roundedRect(x, 32, bw, 18, 2, 2, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(12, 68, 124);
-    doc.text(st[0], x + bw / 2, 42, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.text(st[1], x + bw / 2, 47, { align: "center" });
+    doc.setFillColor(245,246,247); doc.roundedRect(x, 32, bw, 18, 2, 2, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(12,68,124);
+    doc.text(st[0], x + bw/2, 42, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(100,100,100);
+    doc.text(st[1], x + bw/2, 47, { align: "center" });
   });
-
   autoTable(doc, {
-    startY: 55,
-    margin: { left: 14, right: 14 },
-    head: [["PROPERTY", "UNIT", "TENANT", "RENT", "STATUS", "PAID DATE", "BALANCE", "LEASE END"]],
-    body: data.map(r => [r.property, r.unit, r.tenant, `$${r.rent.toLocaleString()}`, r.status.toUpperCase(), r.paidDate || "—", r.balance > 0 ? `-$${r.balance}` : "$0", r.leaseEnd || "—"]),
-    headStyles: { fillColor: navy, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold", cellPadding: 4 },
+    startY: 55, margin: { left: 14, right: 14 },
+    head: [["PROPERTY","UNIT","TENANT","RENT","STATUS","PAID DATE","BALANCE","LEASE END"]],
+    body: data.map(r => [r.property, r.unit, r.tenant, `$${r.rent.toLocaleString()}`, r.status.toUpperCase(), r.paidDate||"—", r.balance > 0 ? `-$${r.balance}` : "$0", r.leaseEnd||"—"]),
+    headStyles: { fillColor: navy, textColor: [255,255,255], fontSize: 8, fontStyle: "bold", cellPadding: 4 },
     bodyStyles: { fontSize: 8, cellPadding: 3 },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
+    alternateRowStyles: { fillColor: [249,250,251] },
     didParseCell: (data) => {
       if (data.column.index === 4 && data.section === "body") {
-        const status = data.cell.raw.toLowerCase();
-        if (status === "paid")    data.cell.styles.textColor = [59, 109, 17];
-        if (status === "late")    data.cell.styles.textColor = [163, 45, 45];
-        if (status === "pending") data.cell.styles.textColor = [133, 79, 11];
+        const s = data.cell.raw.toLowerCase();
+        if (s === "paid")    data.cell.styles.textColor = [59,109,17];
+        if (s === "late")    data.cell.styles.textColor = [163,45,45];
+        if (s === "pending") data.cell.styles.textColor = [133,79,11];
       }
     },
   });
-
   const finalY = doc.lastAutoTable.finalY + 8;
-  doc.setFillColor(245, 246, 247);
-  doc.rect(0, finalY, pageW, 16, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text("Polaris Property Solutions LLC · Columbus, OH", pageW / 2, finalY + 8, { align: "center" });
-  doc.save(`Polaris_Rent_Roll_${month.replace(" ", "_")}.pdf`);
+  doc.setFillColor(245,246,247); doc.rect(0, finalY, pageW, 16, "F");
+  doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(100,100,100);
+  doc.text("Modus Property Management · Columbus, OH", pageW/2, finalY+8, { align: "center" });
+  doc.save(`Modus_Rent_Roll_${month.replace(" ","_")}.pdf`);
 }
 
 export default function LandlordReports() {
   const navigate = useNavigate();
+  const width    = useWindowWidth();
+  const isMobile = width < 768;
+
   const [activeReport, setActiveReport] = useState("rentroll");
   const [propFilter, setPropFilter]     = useState("all");
   const [generating, setGenerating]     = useState(false);
   const [loading, setLoading]           = useState(true);
-
-  const [properties, setProperties] = useState([]);
-  const [units, setUnits]           = useState([]);
-  const [tenants, setTenants]       = useState([]);
-  const [payments, setPayments]     = useState([]);
+  const [properties, setProperties]     = useState([]);
+  const [units, setUnits]               = useState([]);
+  const [tenants, setTenants]           = useState([]);
+  const [payments, setPayments]         = useState([]);
 
   const month = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
@@ -164,12 +174,7 @@ export default function LandlordReports() {
 
   async function fetchAll() {
     setLoading(true);
-    const [
-      { data: propsData },
-      { data: unitsData },
-      { data: tenantsData },
-      { data: paymentsData },
-    ] = await Promise.all([
+    const [{ data: propsData }, { data: unitsData }, { data: tenantsData }, { data: paymentsData }] = await Promise.all([
       supabase.from("properties").select("*"),
       supabase.from("units").select("*"),
       supabase.from("tenants").select("*"),
@@ -182,64 +187,30 @@ export default function LandlordReports() {
     setLoading(false);
   }
 
-  // Build rent roll rows from real data
   const rentRoll = units.map(unit => {
-    const tenant   = tenants.find(t => t.unit_id === unit.id);
-    const property = properties.find(p => p.id === unit.property_id);
+    const tenant    = tenants.find(t => t.unit_id === unit.id);
+    const property  = properties.find(p => p.id === unit.property_id);
     const latestPay = payments.find(p => p.unit_id === unit.id);
-
-    let status = "vacant";
-    let balance = 0;
-    let paidDate = "—";
-
+    let status = "vacant", balance = 0, paidDate = "—";
     if (tenant) {
-      if (latestPay?.status === "paid") {
-        status   = "paid";
-        paidDate = new Date(latestPay.paid_at || latestPay.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      } else if (latestPay?.status === "failed") {
-        status  = "late";
-        balance = unit.rent_amount || 0;
-      } else {
-        status  = "pending";
-        balance = unit.rent_amount || 0;
-      }
+      if (latestPay?.status === "paid") { status = "paid"; paidDate = new Date(latestPay.paid_at || latestPay.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+      else if (latestPay?.status === "failed") { status = "late"; balance = unit.rent_amount || 0; }
+      else { status = "pending"; balance = unit.rent_amount || 0; }
     }
-
-    return {
-      id:        unit.id,
-      property:  property?.name || "—",
-      unit:      unit.unit_number || "—",
-      tenant:    tenant?.name || "Vacant",
-      rent:      unit.rent_amount || 0,
-      status,
-      paidDate,
-      balance,
-      leaseEnd:  tenant?.lease_end ? new Date(tenant.lease_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
-      leaseEndRaw: tenant?.lease_end || null,
-    };
+    return { id: unit.id, property: property?.name || "—", unit: unit.unit_number || "—", tenant: tenant?.name || "Vacant", rent: unit.rent_amount || 0, status, paidDate, balance, leaseEnd: tenant?.lease_end ? new Date(tenant.lease_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—", leaseEndRaw: tenant?.lease_end || null };
   });
 
-  const filtered = propFilter === "all" ? rentRoll : rentRoll.filter(r => {
-    const prop = properties.find(p => p.id === propFilter);
-    return r.property === prop?.name;
-  });
-
-  const paid        = filtered.filter(r => r.status === "paid");
-  const late        = filtered.filter(r => r.status === "late");
-  const pending     = filtered.filter(r => r.status === "pending");
-  const vacant      = filtered.filter(r => r.status === "vacant");
-  const delinquent  = filtered.filter(r => r.status === "late" || r.status === "pending");
-  const vacancies   = filtered.filter(r => r.status === "vacant");
-
-  const totalRoll        = filtered.reduce((s, r) => s + r.rent, 0);
-  const totalCollected   = paid.reduce((s, r) => s + r.rent, 0);
-  const totalOutstanding = delinquent.reduce((s, r) => s + r.balance, 0);
-
-  const leaseExpiry = filtered
-    .filter(r => r.leaseEndRaw)
-    .map(r => ({ ...r, daysLeft: Math.ceil((new Date(r.leaseEndRaw) - new Date()) / (1000 * 60 * 60 * 24)) }))
-    .filter(r => r.daysLeft < 180)
-    .sort((a, b) => a.daysLeft - b.daysLeft);
+  const filtered = propFilter === "all" ? rentRoll : rentRoll.filter(r => { const prop = properties.find(p => p.id === propFilter); return r.property === prop?.name; });
+  const paid = filtered.filter(r => r.status === "paid");
+  const late = filtered.filter(r => r.status === "late");
+  const pending = filtered.filter(r => r.status === "pending");
+  const vacant = filtered.filter(r => r.status === "vacant");
+  const delinquent = filtered.filter(r => r.status === "late" || r.status === "pending");
+  const vacancies  = filtered.filter(r => r.status === "vacant");
+  const totalRoll        = filtered.reduce((s,r) => s+r.rent, 0);
+  const totalCollected   = paid.reduce((s,r) => s+r.rent, 0);
+  const totalOutstanding = delinquent.reduce((s,r) => s+r.balance, 0);
+  const leaseExpiry = filtered.filter(r => r.leaseEndRaw).map(r => ({ ...r, daysLeft: Math.ceil((new Date(r.leaseEndRaw) - new Date()) / (1000*60*60*24)) })).filter(r => r.daysLeft < 180).sort((a,b) => a.daysLeft - b.daysLeft);
 
   async function handlePDFExport() {
     setGenerating(true);
@@ -249,234 +220,226 @@ export default function LandlordReports() {
   }
 
   function exportCSV() {
-    const headers = ["Property", "Unit", "Tenant", "Rent", "Status", "Paid Date", "Balance", "Lease End"];
+    const headers = ["Property","Unit","Tenant","Rent","Status","Paid Date","Balance","Lease End"];
     const rows = filtered.map(r => [r.property, r.unit, r.tenant, r.rent, r.status, r.paidDate, r.balance, r.leaseEnd]);
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `Rent_Roll_${month.replace(" ", "_")}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `Modus_Rent_Roll_${month.replace(" ","_")}.csv`; a.click();
   }
 
+  const TH = ({ children, right }) => (
+    <th style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>
+  );
+  const TD = ({ children, right, bold, color }) => (
+    <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", verticalAlign: "middle" }}>{children}</td>
+  );
+
   return (
-    <LandlordLayout>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
-      <div style={s.main}>
-        <div style={s.topBar}>
-          <div>
-            <div style={s.pageTitle}>Reports</div>
-            <div style={s.pageSub}>Portfolio reporting · {month}</div>
-          </div>
+    <LandlordLayout openMaintenance={0} unreadMessages={0}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+        .m-report-card:hover { border-color: #353A44 !important; }
+        .m-row:hover td { background: ${C.raised} !important; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+      `}</style>
+
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
+
+        {/* Top bar */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Reports</div>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Portfolio reporting · {month}</div>
         </div>
 
-        {/* Report selector cards */}
-        <div style={s.reportGrid}>
-          {REPORT_CARDS.map(card => (
-            <div key={card.id}
-              style={s.reportCard(activeReport === card.id, card.color, card.bg, card.status === "coming")}
-              onClick={() => card.status === "live" && setActiveReport(card.id)}>
-              <div style={s.reportIcon}>{card.icon}</div>
-              <div style={s.reportTitle(activeReport === card.id, card.color)}>{card.title}</div>
-              <div style={s.reportSub}>{card.sub}</div>
-              <div style={s.reportBadge(card.status)}>{card.status === "live" ? "● Live" : "Coming soon"}</div>
-            </div>
-          ))}
+        {/* Report selector grid */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, marginBottom: 28 }}>
+          {REPORT_CARDS.map(card => {
+            const active  = activeReport === card.id;
+            const coming  = card.status === "coming";
+            return (
+              <div key={card.id} className={coming ? "" : "m-report-card"}
+                style={{
+                  background: active ? `${card.accent}0F` : C.surface,
+                  border: `1px solid ${active ? card.accent + "44" : C.border}`,
+                  borderTop: `2px solid ${coming ? C.border : card.accent}`,
+                  borderRadius: 10, padding: "14px 16px",
+                  cursor: coming ? "not-allowed" : "pointer",
+                  opacity: coming ? 0.5 : 1, transition: "border-color 0.15s",
+                }}
+                onClick={() => !coming && setActiveReport(card.id)}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: active ? card.accent : C.text, marginBottom: 4 }}>{card.title}</div>
+                <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.5 }}>{card.sub}</div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, marginTop: 8, padding: "2px 8px", borderRadius: 5, background: coming ? C.raised : `${card.accent}15`, color: coming ? C.textMuted : card.accent }}>
+                  {coming ? "Coming soon" : "● Live"}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {loading && <div style={{ color: "#888", fontSize: 13, textAlign: "center", padding: 40 }}>Loading data…</div>}
+        {loading && <div style={{ color: C.textSub, fontSize: 13, textAlign: "center", padding: 40 }}>Loading data…</div>}
 
         {!loading && (
-          <>
-            {/* Rent Roll */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+
+            {/* ── Rent Roll ── */}
             {activeReport === "rentroll" && (
-              <div style={s.reportContent}>
-                <div style={s.reportHeader}>
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
                   <div>
-                    <div style={s.reportTitle2}>Rent Roll — {month}</div>
-                    <div style={s.reportMeta}>{filtered.length} units · {paid.length} paid · {delinquent.length} outstanding · {vacant.length} vacant</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Rent Roll — {month}</div>
+                    <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{filtered.length} units · {paid.length} paid · {delinquent.length} outstanding · {vacant.length} vacant</div>
                   </div>
-                  <div style={s.exportBtns}>
-                    <button style={s.btn(false)} onClick={exportCSV}>⬇️ CSV</button>
-                    <button style={s.btn(true)} onClick={handlePDFExport} disabled={generating}>
-                      {generating ? "⏳ Generating…" : "⬇️ PDF"}
-                    </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <GhostBtn onClick={exportCSV}>⬇ CSV</GhostBtn>
+                    <PrimaryBtn onClick={handlePDFExport} disabled={generating}>{generating ? "Generating…" : "⬇ PDF"}</PrimaryBtn>
                   </div>
                 </div>
-                <div style={s.statRow}>
-                  {[
-                    { label: "Gross Roll",   value: `$${totalRoll.toLocaleString()}`,       color: "#185FA5", bg: "#E6F1FB" },
-                    { label: "Collected",    value: `$${totalCollected.toLocaleString()}`,   color: "#3B6D11", bg: "#EAF3DE" },
-                    { label: "Outstanding",  value: `$${totalOutstanding.toLocaleString()}`, color: "#A32D2D", bg: "#FDECEA" },
-                    { label: "Collection %", value: totalRoll > 0 ? `${Math.round((totalCollected/totalRoll)*100)}%` : "—", color: "#0C447C", bg: "#E6F1FB" },
-                  ].map((st, i) => (
-                    <div key={i} style={s.statBox(st.color, st.bg)}>
-                      <div style={s.statVal(st.color)}>{st.value}</div>
-                      <div style={s.statLabel}>{st.label}</div>
-                    </div>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <StatBox label="Gross Roll"   value={`$${totalRoll.toLocaleString()}`}       accent={C.blue} />
+                  <StatBox label="Collected"    value={`$${totalCollected.toLocaleString()}`}   accent={C.green} />
+                  <StatBox label="Outstanding"  value={`$${totalOutstanding.toLocaleString()}`} accent={C.red} />
+                  <StatBox label="Collection %" value={totalRoll > 0 ? `${Math.round((totalCollected/totalRoll)*100)}%` : "—"} accent={C.gold} />
                 </div>
-                <div style={s.filterRow}>
-                  <select style={s.select} value={propFilter} onChange={e => setPropFilter(e.target.value)}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
                     <option value="all">All properties</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
-                  <span style={{ fontSize: 12, color: "#888", marginLeft: "auto" }}>{filtered.length} units</span>
+                  <span style={{ fontSize: 12, color: C.textMuted, marginLeft: "auto" }}>{filtered.length} units</span>
                 </div>
-                <table style={s.table}>
-                  <thead>
-                    <tr>{["Property","Unit","Tenant","Rent","Status","Paid Date","Balance","Lease End"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {filtered.length === 0 && <tr><td colSpan={8} style={{ ...s.td, textAlign: "center", color: "#aaa" }}>No units found.</td></tr>}
-                    {filtered.map((r, i) => (
-                      <tr key={i}>
-                        <td style={s.td}><span style={s.propBadge(r.property)}>{r.property}</span></td>
-                        <td style={{ ...s.td, fontWeight: 600 }}>{r.unit}</td>
-                        <td style={s.td}>{r.tenant}</td>
-                        <td style={{ ...s.td, fontWeight: 600 }}>${r.rent.toLocaleString()}</td>
-                        <td style={s.td}><span style={s.statusBadge(r.status)}>{STATUS_CONFIG[r.status]?.label}</span></td>
-                        <td style={{ ...s.td, color: "#888" }}>{r.paidDate}</td>
-                        <td style={{ ...s.td, fontWeight: 600, color: r.balance > 0 ? "#A32D2D" : "#3B6D11" }}>{r.balance > 0 ? `-$${r.balance}` : "✓ $0"}</td>
-                        <td style={{ ...s.td, fontSize: 12, color: "#888" }}>{r.leaseEnd}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={s.summaryRow}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>Totals</span>
-                  <span style={{ fontSize: 13, color: "#888" }}>{paid.length} paid · {late.length} late · {pending.length} pending · {vacant.length} vacant</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#3B6D11" }}>Collected: ${totalCollected.toLocaleString()}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#A32D2D" }}>Outstanding: ${totalOutstanding.toLocaleString()}</span>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent</TH><TH>Status</TH><TH>Paid Date</TH><TH right>Balance</TH><TH>Lease End</TH></tr></thead>
+                    <tbody>
+                      {filtered.length === 0 && <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: C.textSub, fontSize: 13 }}>No units found.</td></tr>}
+                      {filtered.map((r, i) => (
+                        <tr key={i} className="m-row">
+                          <TD><PropBadge name={r.property} /></TD>
+                          <TD bold>{r.unit}</TD>
+                          <TD>{r.tenant}</TD>
+                          <TD right bold>${r.rent.toLocaleString()}</TD>
+                          <TD><Badge status={r.status} /></TD>
+                          <TD>{r.paidDate}</TD>
+                          <TD right bold color={r.balance > 0 ? C.red : C.green}>{r.balance > 0 ? `-$${r.balance}` : "✓ $0"}</TD>
+                          <TD>{r.leaseEnd}</TD>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 20px", background: C.raised, borderTop: `1px solid ${C.border}`, flexWrap: "wrap", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Totals</span>
+                  <span style={{ fontSize: 13, color: C.textSub }}>{paid.length} paid · {late.length} late · {pending.length} pending · {vacant.length} vacant</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>Collected: ${totalCollected.toLocaleString()}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>Outstanding: ${totalOutstanding.toLocaleString()}</span>
+                </div>
+              </>
             )}
 
-            {/* Delinquency */}
+            {/* ── Delinquency ── */}
             {activeReport === "delinquency" && (
-              <div style={s.reportContent}>
-                <div style={s.reportHeader}>
-                  <div>
-                    <div style={s.reportTitle2}>Delinquency Report — {month}</div>
-                    <div style={s.reportMeta}>{delinquent.length} tenants with outstanding balances · ${delinquent.reduce((s,r) => s+r.balance,0).toLocaleString()} total</div>
-                  </div>
+              <>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Delinquency Report — {month}</div>
+                  <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{delinquent.length} tenants with outstanding balances · ${delinquent.reduce((s,r) => s+r.balance, 0).toLocaleString()} total</div>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  {delinquent.length > 0 && <AlertBanner color={C.red}>🚨 <strong>{delinquent.length} tenants</strong> have outstanding balances totaling <strong>${delinquent.reduce((s,r) => s+r.balance, 0).toLocaleString()}</strong>.</AlertBanner>}
+                  {delinquent.length === 0 && <div style={{ padding: "24px 0", textAlign: "center", color: C.green, fontSize: 14, fontWeight: 600 }}>🎉 No delinquent tenants this month!</div>}
                 </div>
                 {delinquent.length > 0 && (
-                  <div style={s.alertBanner("#A32D2D", "#FDECEA")}>
-                    🚨 <strong>{delinquent.length} tenants</strong> have outstanding balances totaling <strong>${delinquent.reduce((s,r) => s+r.balance,0).toLocaleString()}</strong>.
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent Due</TH><TH>Status</TH><TH>Action</TH></tr></thead>
+                      <tbody>
+                        {delinquent.map((r, i) => (
+                          <tr key={i} className="m-row">
+                            <TD><PropBadge name={r.property} /></TD>
+                            <TD bold>{r.unit}</TD>
+                            <TD>{r.tenant}</TD>
+                            <TD right bold color={C.red}>${r.balance.toLocaleString()}</TD>
+                            <TD><Badge status={r.status} /></TD>
+                            <TD><GhostBtn small onClick={() => navigate("/landlord/messages")}>Message</GhostBtn></TD>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-                {delinquent.length === 0 && (
-                  <div style={{ padding: 32, textAlign: "center", color: "#3B6D11", fontSize: 14, fontWeight: 600 }}>🎉 No delinquent tenants this month!</div>
-                )}
-                {delinquent.length > 0 && (
-                  <table style={{ ...s.table, marginTop: 12 }}>
-                    <thead>
-                      <tr>{["Property","Unit","Tenant","Rent Due","Status","Action"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {delinquent.map((r, i) => (
-                        <tr key={i}>
-                          <td style={s.td}><span style={s.propBadge(r.property)}>{r.property}</span></td>
-                          <td style={{ ...s.td, fontWeight: 600 }}>{r.unit}</td>
-                          <td style={s.td}>{r.tenant}</td>
-                          <td style={{ ...s.td, fontWeight: 700, color: "#A32D2D" }}>${r.balance.toLocaleString()}</td>
-                          <td style={s.td}><span style={s.statusBadge(r.status)}>{STATUS_CONFIG[r.status]?.label}</span></td>
-                          <td style={s.td}>
-                            <button style={{ padding: "4px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
-                              onClick={() => navigate("/landlord/messages")}>Message</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              </>
             )}
 
-            {/* Vacancy */}
+            {/* ── Vacancy ── */}
             {activeReport === "vacancy" && (
-              <div style={s.reportContent}>
-                <div style={s.reportHeader}>
-                  <div>
-                    <div style={s.reportTitle2}>Vacancy Report — {month}</div>
-                    <div style={s.reportMeta}>{vacancies.length} vacant units · ${vacancies.reduce((s,r) => s+r.rent,0).toLocaleString()} lost monthly revenue</div>
-                  </div>
+              <>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacancy Report — {month}</div>
+                  <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{vacancies.length} vacant units · ${vacancies.reduce((s,r) => s+r.rent, 0).toLocaleString()} lost monthly revenue</div>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  {vacancies.length > 0 && <AlertBanner color={C.amber}>💸 <strong>${(vacancies.reduce((s,r) => s+r.rent,0)*12).toLocaleString()}/year</strong> in lost revenue from {vacancies.length} vacant units.</AlertBanner>}
+                  {vacancies.length === 0 && <div style={{ padding: "24px 0", textAlign: "center", color: C.green, fontSize: 14, fontWeight: 600 }}>🎉 All units are occupied!</div>}
                 </div>
                 {vacancies.length > 0 && (
-                  <div style={s.alertBanner("#854F0B", "#FAEEDA")}>
-                    💸 <strong>${(vacancies.reduce((s,r) => s+r.rent,0)*12).toLocaleString()}/year</strong> in lost revenue from {vacancies.length} vacant units.
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead><tr><TH>Property</TH><TH>Unit</TH><TH right>Monthly Rent</TH><TH right>Annual Lost Revenue</TH><TH>Status</TH></tr></thead>
+                      <tbody>
+                        {vacancies.map((r, i) => (
+                          <tr key={i} className="m-row">
+                            <TD><PropBadge name={r.property} /></TD>
+                            <TD bold>{r.unit}</TD>
+                            <TD right bold>${r.rent.toLocaleString()}</TD>
+                            <TD right bold color={C.amber}>${(r.rent*12).toLocaleString()}</TD>
+                            <TD><Badge status="vacant" /></TD>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-                {vacancies.length === 0 && (
-                  <div style={{ padding: 32, textAlign: "center", color: "#3B6D11", fontSize: 14, fontWeight: 600 }}>🎉 All units are occupied!</div>
-                )}
-                {vacancies.length > 0 && (
-                  <table style={{ ...s.table, marginTop: 12 }}>
-                    <thead>
-                      <tr>{["Property","Unit","Monthly Rent","Annual Lost Revenue","Status"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {vacancies.map((r, i) => (
-                        <tr key={i}>
-                          <td style={s.td}><span style={s.propBadge(r.property)}>{r.property}</span></td>
-                          <td style={{ ...s.td, fontWeight: 600 }}>{r.unit}</td>
-                          <td style={{ ...s.td, fontWeight: 600 }}>${r.rent.toLocaleString()}</td>
-                          <td style={{ ...s.td, fontWeight: 700, color: "#854F0B" }}>${(r.rent*12).toLocaleString()}</td>
-                          <td style={s.td}><span style={s.statusBadge("vacant")}>Vacant</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              </>
             )}
 
-            {/* Lease Expiry */}
+            {/* ── Lease Expiry ── */}
             {activeReport === "expiry" && (
-              <div style={s.reportContent}>
-                <div style={s.reportHeader}>
-                  <div>
-                    <div style={s.reportTitle2}>Lease Expiration — Next 180 Days</div>
-                    <div style={s.reportMeta}>{leaseExpiry.length} leases expiring · action required</div>
-                  </div>
+              <>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Lease Expiration — Next 180 Days</div>
+                  <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{leaseExpiry.length} leases expiring · action required</div>
                 </div>
-                {leaseExpiry.some(r => r.daysLeft < 60) && (
-                  <div style={s.alertBanner("#A32D2D", "#FDECEA")}>
-                    ⚠️ <strong>{leaseExpiry.filter(r => r.daysLeft < 60).length} lease(s)</strong> expiring within 60 days. Send renewal offers immediately.
+                <div style={{ padding: "16px 20px" }}>
+                  {leaseExpiry.some(r => r.daysLeft < 60) && <AlertBanner color={C.red}>⚠️ <strong>{leaseExpiry.filter(r => r.daysLeft < 60).length} lease(s)</strong> expiring within 60 days. Send renewal offers immediately.</AlertBanner>}
+                  {leaseExpiry.length === 0 && <div style={{ padding: "24px 0", textAlign: "center", color: C.textSub, fontSize: 13 }}>No leases expiring in the next 180 days.</div>}
+                </div>
+                {leaseExpiry.length > 0 && (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent</TH><TH>Expiry Date</TH><TH>Days Left</TH><TH>Action</TH></tr></thead>
+                      <tbody>
+                        {leaseExpiry.map((r, i) => (
+                          <tr key={i} className="m-row">
+                            <TD><PropBadge name={r.property} /></TD>
+                            <TD bold>{r.unit}</TD>
+                            <TD>{r.tenant}</TD>
+                            <TD right bold>${r.rent.toLocaleString()}</TD>
+                            <TD>{r.leaseEnd}</TD>
+                            <TD><span style={{ fontSize: 13, fontWeight: 700, color: r.daysLeft < 60 ? C.red : r.daysLeft < 90 ? C.amber : C.green }}>{r.daysLeft}d</span></TD>
+                            <TD><GhostBtn small onClick={() => navigate("/landlord/messages")}>Send renewal</GhostBtn></TD>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-                {leaseExpiry.length === 0 && (
-                  <div style={{ padding: 32, textAlign: "center", color: "#888", fontSize: 13 }}>No leases expiring in the next 180 days.</div>
-                )}
-                {leaseExpiry.length > 0 && (
-                  <table style={{ ...s.table, marginTop: 12 }}>
-                    <thead>
-                      <tr>{["Property","Unit","Tenant","Rent","Expiry Date","Days Left","Action"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {leaseExpiry.map((r, i) => (
-                        <tr key={i}>
-                          <td style={s.td}><span style={s.propBadge(r.property)}>{r.property}</span></td>
-                          <td style={{ ...s.td, fontWeight: 600 }}>{r.unit}</td>
-                          <td style={s.td}>{r.tenant}</td>
-                          <td style={{ ...s.td, fontWeight: 600 }}>${r.rent.toLocaleString()}</td>
-                          <td style={s.td}>{r.leaseEnd}</td>
-                          <td style={s.td}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: r.daysLeft < 60 ? "#A32D2D" : r.daysLeft < 90 ? "#854F0B" : "#3B6D11" }}>
-                              {r.daysLeft}d
-                            </span>
-                          </td>
-                          <td style={s.td}>
-                            <button style={{ padding: "4px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
-                              onClick={() => navigate("/landlord/messages")}>Send renewal</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              </>
             )}
-          </>
+          </div>
         )}
       </div>
     </LandlordLayout>

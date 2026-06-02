@@ -3,76 +3,120 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
-const STATUS_CONFIG = {
-  current: { label: "Current", color: "#3B6D11", bg: "#EAF3DE" },
-  pending: { label: "Pending", color: "#854F0B", bg: "#FAEEDA" },
-  late:    { label: "Late",    color: "#A32D2D", bg: "#FDECEA" },
-  notice:  { label: "Notice",  color: "#6B3FA0", bg: "#F3EEFB" },
+// ─── Modus tokens ──────────────────────────────────────────────────────────
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
 };
 
-const AVATAR_COLORS = [
-  { color: "#185FA5", bg: "#E6F1FB" },
-  { color: "#3B6D11", bg: "#EAF3DE" },
-  { color: "#854F0B", bg: "#FAEEDA" },
-  { color: "#A32D2D", bg: "#FDECEA" },
-  { color: "#6B3FA0", bg: "#F3EEFB" },
-];
-
-const s = {
-  main: { flex: 1, padding: "28px", overflowY: "auto" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
-  pageTitle: { fontSize: 22, fontWeight: 700 },
-  pageSub: { fontSize: 13, color: "#888", marginTop: 2 },
-  topBarRight: { display: "flex", alignItems: "center", gap: 10 },
-  addBtn: { padding: "9px 16px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Inter',sans-serif" },
-  searchBar: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e8eaed", borderRadius: 8, padding: "8px 12px", width: 240 },
-  searchInput: { flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'Inter',sans-serif", background: "transparent" },
-  filterRow: { display: "flex", gap: 8, marginBottom: 20, alignItems: "center", flexWrap: "wrap" },
-  filterSelect: { padding: "8px 12px", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 13, background: "#fff", outline: "none", fontFamily: "'Inter',sans-serif", cursor: "pointer" },
-  statRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 },
-  statRowMobile: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 },
-  statCard: (accent) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 10, padding: "14px 16px", borderTop: `3px solid ${accent}` }),
-  statLabel: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 },
-  statValue: { fontSize: 24, fontWeight: 700, color: "#1a1a1a" },
-  statSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  card: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 16px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa", whiteSpace: "nowrap" },
-  td: { fontSize: 13, color: "#1a1a1a", padding: "12px 16px", borderBottom: "1px solid #f8f9fa", verticalAlign: "middle" },
-  avatar: (color, bg) => ({ width: 34, height: 34, borderRadius: "50%", background: bg, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }),
-  statusBadge: (status) => ({ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#555", whiteSpace: "nowrap" }),
-  actionBtn: { padding: "5px 10px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#555", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  actionBtnPrimary: { padding: "5px 10px", background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#185FA5", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
-  modal: { background: "#fff", borderRadius: 14, width: 500, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" },
-  modalHeader: { padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { fontSize: 16, fontWeight: 700 },
-  modalBody: { padding: "20px 24px" },
-  modalFooter: { padding: "16px 24px", borderTop: "1px solid #f0f0f0", display: "flex", gap: 10, justifyContent: "flex-end" },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 },
-  input: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif", color: "#1a1a1a" },
-  select: { width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif", color: "#1a1a1a" },
-  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  btn: (primary) => ({ padding: "9px 16px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }),
+const STATUS = {
+  current: { label: "Current", color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  notice:  { label: "Notice",  color: "#C9A96E", bg: "rgba(201,169,110,0.13)" },
 };
+
+const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 function useWindowWidth() {
-  const [width, setWidth] = useState(window.innerWidth);
+  const [w, setW] = useState(window.innerWidth);
   useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const h = () => setW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, []);
-  return width;
+  return w;
 }
 
+// ─── Shared ────────────────────────────────────────────────────────────────
+function Badge({ status }) {
+  const cfg = STATUS[status];
+  if (!cfg) return null;
+  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: cfg.bg, color: cfg.color, whiteSpace: "nowrap" }}>{cfg.label}</span>;
+}
+
+function FieldLabel({ children }) {
+  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{children}</label>;
+}
+
+function Input({ value, onChange, placeholder, type = "text" }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={{
+        width: "100%", padding: "10px 12px", fontSize: 13,
+        border: `1px solid ${focused ? C.gold : C.border}`,
+        borderRadius: 7, background: C.raised, color: C.text,
+        outline: "none", boxSizing: "border-box",
+        fontFamily: "'DM Sans', sans-serif",
+        boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none",
+        transition: "border-color 0.15s",
+      }}
+    />
+  );
+}
+
+function Select({ value, onChange, children, disabled }) {
+  return (
+    <select value={value} onChange={onChange} disabled={disabled} style={{
+      width: "100%", padding: "10px 12px", fontSize: 13,
+      border: `1px solid ${C.border}`, borderRadius: 7,
+      background: C.raised, color: value ? C.text : C.textSub,
+      outline: "none", boxSizing: "border-box",
+      fontFamily: "'DM Sans', sans-serif", cursor: disabled ? "not-allowed" : "pointer",
+      opacity: disabled ? 0.5 : 1,
+    }}>{children}</select>
+  );
+}
+
+function PrimaryBtn({ children, onClick, small }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.goldDim}`,
+      color: C.gold, fontSize: small ? 11 : 13, fontWeight: 500,
+      padding: small ? "5px 10px" : "9px 18px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      letterSpacing: "0.04em", transition: "background 0.15s", whiteSpace: "nowrap",
+    }}
+      onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
+      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, onClick, small }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.border}`,
+      color: C.textSub, fontSize: small ? 11 : 13, fontWeight: 500,
+      padding: small ? "5px 10px" : "9px 18px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      transition: "all 0.15s", whiteSpace: "nowrap",
+    }}
+      onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
+      onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
+    >{children}</button>
+  );
+}
+
+// ─── Add Tenant Modal ──────────────────────────────────────────────────────
 function AddTenantModal({ properties, units, onClose, onSaved }) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", property_id: "", unit_id: "", lease_start: "", lease_end: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
-
-  function update(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const filteredUnits = units.filter(u => u.property_id === form.property_id);
 
   async function save() {
@@ -89,66 +133,52 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
   }
 
   return (
-    <div style={s.modalOverlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <div style={s.modalHeader}>
-          <div style={s.modalTitle}>Add tenant</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#888" }}>✕</button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 500, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Add tenant</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: C.textSub }}>✕</button>
         </div>
-        <div style={s.modalBody}>
-          {error && <div style={{ background: "#FDECEA", color: "#A32D2D", fontSize: 12, padding: "10px 12px", borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Full name *</label>
-            <input style={s.input} placeholder="e.g. James Wilson" value={form.name} onChange={e => update("name", e.target.value)} />
+        <div style={{ padding: "20px 24px" }}>
+          {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+          <div style={{ marginBottom: 14 }}><FieldLabel>Full name *</FieldLabel><Input value={form.name} onChange={e => update("name", e.target.value)} placeholder="e.g. James Wilson" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>Email</FieldLabel><Input type="email" value={form.email} onChange={e => update("email", e.target.value)} placeholder="james@email.com" /></div>
+            <div><FieldLabel>Phone</FieldLabel><Input value={form.phone} onChange={e => update("phone", e.target.value)} placeholder="(216) 555-0101" /></div>
           </div>
-          <div style={{ ...s.twoCol, marginBottom: 16 }}>
-            <div>
-              <label style={s.fieldLabel}>Email</label>
-              <input style={s.input} type="email" placeholder="james@email.com" value={form.email} onChange={e => update("email", e.target.value)} />
-            </div>
-            <div>
-              <label style={s.fieldLabel}>Phone</label>
-              <input style={s.input} placeholder="(216) 555-0101" value={form.phone} onChange={e => update("phone", e.target.value)} />
-            </div>
-          </div>
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Property *</label>
-            <select style={s.select} value={form.property_id} onChange={e => update("property_id", e.target.value)}>
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Property *</FieldLabel>
+            <Select value={form.property_id} onChange={e => update("property_id", e.target.value)}>
               <option value="">Select property…</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </Select>
           </div>
-          <div style={s.fieldWrap}>
-            <label style={s.fieldLabel}>Unit *</label>
-            <select style={s.select} value={form.unit_id} onChange={e => update("unit_id", e.target.value)} disabled={!form.property_id}>
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Unit *</FieldLabel>
+            <Select value={form.unit_id} onChange={e => update("unit_id", e.target.value)} disabled={!form.property_id}>
               <option value="">Select unit…</option>
               {filteredUnits.map(u => <option key={u.id} value={u.id}>Unit {u.unit_number} — ${(u.rent_amount || 0).toLocaleString()}/mo</option>)}
-            </select>
+            </Select>
           </div>
-          <div style={{ ...s.twoCol, marginBottom: 16 }}>
-            <div>
-              <label style={s.fieldLabel}>Lease start</label>
-              <input style={s.input} type="date" value={form.lease_start} onChange={e => update("lease_start", e.target.value)} />
-            </div>
-            <div>
-              <label style={s.fieldLabel}>Lease end</label>
-              <input style={s.input} type="date" value={form.lease_end} onChange={e => update("lease_end", e.target.value)} />
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>Lease start</FieldLabel><Input type="date" value={form.lease_start} onChange={e => update("lease_start", e.target.value)} /></div>
+            <div><FieldLabel>Lease end</FieldLabel><Input type="date" value={form.lease_end} onChange={e => update("lease_end", e.target.value)} /></div>
           </div>
         </div>
-        <div style={s.modalFooter}>
-          <button style={s.btn(false)} onClick={onClose}>Cancel</button>
-          <button style={s.btn(true)} onClick={save} disabled={saving}>{saving ? "Saving…" : "Add tenant"}</button>
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save}>{saving ? "Saving…" : "Add tenant"}</PrimaryBtn>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordTenants() {
-  const navigate  = useNavigate();
-  const width     = useWindowWidth();
-  const isMobile  = width < 768;
+  const navigate = useNavigate();
+  const width    = useWindowWidth();
+  const isMobile = width < 768;
 
   const [tenants, setTenants]       = useState([]);
   const [units, setUnits]           = useState([]);
@@ -185,10 +215,10 @@ export default function LandlordTenants() {
   }
 
   const enriched = tenants.map((t, i) => {
-    const unit     = units.find(u => u.id === t.unit_id);
-    const property = properties.find(p => p.id === unit?.property_id);
+    const unit      = units.find(u => u.id === t.unit_id);
+    const property  = properties.find(p => p.id === unit?.property_id);
     const latestPay = payments.find(p => p.tenant_id === t.id);
-    const ac = AVATAR_COLORS[i % AVATAR_COLORS.length];
+    const accentColor = AVATAR_COLORS[i % AVATAR_COLORS.length];
     let status = "current";
     if (latestPay?.status === "failed") status = "late";
     else if (!latestPay || latestPay.status === "pending") status = "pending";
@@ -202,7 +232,8 @@ export default function LandlordTenants() {
       status,
       lastPaid:    latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—",
       balance:     latestPay?.status !== "paid" ? (unit?.rent_amount || 0) : 0,
-      initials, color: ac.color, bg: ac.bg,
+      initials,
+      accentColor,
     };
   });
 
@@ -211,9 +242,9 @@ export default function LandlordTenants() {
     else { setSortCol(col); setSortDir("asc"); }
   }
 
-  function sortIcon(col) {
-    if (sortCol !== col) return <span style={{ color: "#ccc", marginLeft: 3 }}>↕</span>;
-    return <span style={{ color: "#185FA5", marginLeft: 3 }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+  function SortIcon({ col }) {
+    if (sortCol !== col) return <span style={{ color: C.textMuted, marginLeft: 3 }}>↕</span>;
+    return <span style={{ color: C.gold, marginLeft: 3 }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
   }
 
   const filtered = enriched.filter(t => {
@@ -243,124 +274,176 @@ export default function LandlordTenants() {
     if (!tenant.email) { alert("No email on file for this tenant."); return; }
     const { error } = await supabase.auth.signInWithOtp({
       email: tenant.email,
-      options: {
-        data: { tenant_id: tenant.id, role: "tenant" },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      }
+      options: { data: { tenant_id: tenant.id, role: "tenant" }, emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) alert("Failed to send invite: " + error.message);
     else alert(`Invite sent to ${tenant.email}`);
   }
 
-  return (
-    <LandlordLayout>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } tr:hover td { background: #fafafa; cursor: pointer; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
-      <div style={{ padding: isMobile ? "16px" : "28px" }}>
+  const stats = [
+    { label: "Total tenants", value: loading ? "—" : tenants.length,    sub: "across all properties", accent: C.blue },
+    { label: "Current",       value: loading ? "—" : currentCount,       sub: "paid & up to date",     accent: C.green },
+    { label: "Outstanding",   value: loading ? "—" : outstandingCount,   sub: "need follow-up",        accent: C.red },
+    { label: "Properties",    value: loading ? "—" : properties.length,  sub: "in portfolio",          accent: C.gold },
+  ];
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 16 : 24, flexWrap: "wrap", gap: 10 }}>
+  return (
+    <LandlordLayout openMaintenance={0} unreadMessages={0}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+        .m-row:hover td { background: ${C.raised} !important; cursor: pointer; }
+        .m-filter-pill:hover { color: ${C.text} !important; border-color: #353A44 !important; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+      `}</style>
+
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
+
+        {/* Top bar */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>Tenants</div>
-            <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{loading ? "Loading…" : `${tenants.length} tenants across ${properties.length} properties`}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Tenants</div>
+            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>{loading ? "Loading…" : `${tenants.length} tenants across ${properties.length} properties`}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {!isMobile && (
-              <div style={s.searchBar}>
-                <span>🔍</span>
-                <input style={s.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…" />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 12px", width: 240 }}>
+                <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…"
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
               </div>
             )}
-            <button style={s.addBtn} onClick={() => setShowAdd(true)}>+ Add tenant</button>
+            <PrimaryBtn onClick={() => setShowAdd(true)}>+ Add tenant</PrimaryBtn>
           </div>
         </div>
 
         {isMobile && (
-          <div style={{ ...s.searchBar, maxWidth: "100%", marginBottom: 16 }}>
-            <span>🔍</span>
-            <input style={s.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…" />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 12px", marginBottom: 16 }}>
+            <span style={{ color: C.textMuted }}>⌕</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, unit, email…"
+              style={{ flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
           </div>
         )}
 
         {/* Stats */}
-        <div style={isMobile ? s.statRowMobile : s.statRow}>
-          {[
-            { label: "Total tenants", value: loading ? "—" : tenants.length,    sub: "across all properties", accent: "#185FA5" },
-            { label: "Current",       value: loading ? "—" : currentCount,       sub: "paid & up to date",     accent: "#3B6D11" },
-            { label: "Outstanding",   value: loading ? "—" : outstandingCount,   sub: "need follow-up",        accent: "#E24B4A" },
-            { label: "Properties",    value: loading ? "—" : properties.length,  sub: "in portfolio",          accent: "#854F0B" },
-          ].map((stat, i) => (
-            <div key={i} style={s.statCard(stat.accent)}>
-              <div style={s.statLabel}>{stat.label}</div>
-              <div style={s.statValue}>{stat.value}</div>
-              <div style={s.statSub}>{stat.sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+          {stats.map((s, i) => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
+              </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: s.accent, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: C.textSub }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Filters */}
-        <div style={s.filterRow}>
-          <select style={s.filterSelect} value={propFilter} onChange={e => setPropFilter(e.target.value)}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{
+            padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 7,
+            fontSize: 12, background: C.surface, color: C.textSub,
+            outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
+          }}>
             <option value="all">All Properties</option>
             {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {["all","current","pending","late"].map(f => (
-            <button key={f} onClick={() => setStatusFilter(f)} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: statusFilter === f ? 600 : 400, background: statusFilter === f ? "#0C447C" : "#fff", color: statusFilter === f ? "#fff" : "#555", border: "1px solid #e8eaed", cursor: "pointer", fontFamily: "'Inter',sans-serif", textTransform: "capitalize" }}>
-              {f === "all" ? `All (${enriched.length})` : `${f.charAt(0).toUpperCase()+f.slice(1)} (${enriched.filter(t => t.status === f).length})`}
+
+          {["all", "current", "pending", "late"].map(f => (
+            <button key={f} className="m-filter-pill" onClick={() => setStatusFilter(f)} style={{
+              padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+              background: statusFilter === f ? C.goldDim : "transparent",
+              color: statusFilter === f ? C.text : C.textSub,
+              border: `1px solid ${statusFilter === f ? C.goldDim : C.border}`,
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              textTransform: "capitalize", transition: "all 0.12s",
+            }}>
+              {f === "all" ? `All (${enriched.length})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${enriched.filter(t => t.status === f).length})`}
             </button>
           ))}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#888" }}>{filtered.length} results</span>
+          <span style={{ marginLeft: "auto", fontSize: 12, color: C.textMuted }}>{filtered.length} results</span>
         </div>
 
         {/* Table */}
-        <div style={{ ...s.card, overflowX: "auto" }}>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", overflowX: "auto" }}>
           {loading ? (
-            <div style={{ padding: 32, textAlign: "center", color: "#888", fontSize: 13 }}>Loading tenants…</div>
+            <div style={{ padding: 32, textAlign: "center", color: C.textSub, fontSize: 13 }}>Loading tenants…</div>
           ) : (
-            <table style={s.table}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("name")}>Tenant {sortIcon("name")}</th>
-                  {!isMobile && <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("property")}>Property · Unit {sortIcon("property")}</th>}
-                  <th style={{ ...s.th, textAlign: "right", cursor: "pointer" }} onClick={() => handleSort("rent")}>Rent {sortIcon("rent")}</th>
-                  <th style={{ ...s.th, cursor: "pointer" }} onClick={() => handleSort("status")}>Status {sortIcon("status")}</th>
-                  {!isMobile && <th style={{ ...s.th, textAlign: "right", cursor: "pointer" }} onClick={() => handleSort("balance")}>Balance {sortIcon("balance")}</th>}
-                  <th style={s.th}>Actions</th>
+                  {[
+                    { col: "name",     label: "Tenant",          always: true },
+                    { col: "property", label: "Property · Unit",  always: false },
+                    { col: "rent",     label: "Rent",             always: true,  right: true },
+                    { col: "status",   label: "Status",           always: true },
+                    { col: "balance",  label: "Balance",          always: false, right: true },
+                    { col: null,       label: "Actions",          always: true },
+                  ].filter(h => h.always || !isMobile).map(h => (
+                    <th key={h.label}
+                      onClick={h.col ? () => handleSort(h.col) : undefined}
+                      style={{
+                        fontSize: 10, fontWeight: 600, color: C.textSub,
+                        textTransform: "uppercase", letterSpacing: "0.1em",
+                        padding: "10px 16px", textAlign: h.right ? "right" : "left",
+                        borderBottom: `1px solid ${C.border}`, background: C.raised,
+                        cursor: h.col ? "pointer" : "default", whiteSpace: "nowrap",
+                      }}>
+                      {h.label}{h.col && <SortIcon col={h.col} />}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {sorted.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: 32, textAlign: "center", color: "#aaa", fontSize: 13 }}>No tenants match your search.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: 32, textAlign: "center", color: C.textSub, fontSize: 13 }}>No tenants match your search.</td></tr>
                 )}
                 {sorted.map(t => (
-                  <tr key={t.id}>
-                    <td style={s.td}>
+                  <tr key={t.id} className="m-row" onClick={() => navigate(`/landlord/tenants/${t.id}`)}>
+                    <td style={{ fontSize: 13, color: C.text, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={s.avatar(t.color, t.bg)}>{t.initials}</div>
+                        <div style={{
+                          width: 34, height: 34, borderRadius: "50%",
+                          background: `${t.accentColor}22`,
+                          border: `1px solid ${t.accentColor}44`,
+                          color: t.accentColor,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 11, fontWeight: 700, flexShrink: 0,
+                        }}>{t.initials}</div>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{t.name}</div>
-                          <div style={{ fontSize: 11, color: "#888" }}>{isMobile ? `${t.property} · Unit ${t.unit}` : (t.email || "—")}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{t.name}</div>
+                          <div style={{ fontSize: 11, color: C.textSub }}>{isMobile ? `${t.property} · Unit ${t.unit}` : (t.email || "—")}</div>
                         </div>
                       </div>
                     </td>
                     {!isMobile && (
-                      <td style={s.td}>
+                      <td style={{ fontSize: 13, color: C.text, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
                         <div style={{ fontWeight: 500 }}>{t.property}</div>
-                        <div style={{ fontSize: 11, color: "#888" }}>Unit {t.unit}</div>
+                        <div style={{ fontSize: 11, color: C.textSub }}>Unit {t.unit}</div>
                       </td>
                     )}
-                    <td style={{ ...s.td, textAlign: "right", fontWeight: 600 }}>${(t.rent || 0).toLocaleString()}</td>
-                    <td style={s.td}><span style={s.statusBadge(t.status)}>{STATUS_CONFIG[t.status]?.label}</span></td>
+                    <td style={{ fontSize: 13, color: C.text, padding: "12px 16px", borderBottom: `1px solid ${C.border}`, textAlign: "right", fontWeight: 600 }}>
+                      ${(t.rent || 0).toLocaleString()}
+                    </td>
+                    <td style={{ fontSize: 13, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+                      <Badge status={t.status} />
+                    </td>
                     {!isMobile && (
-                      <td style={{ ...s.td, textAlign: "right" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: t.balance > 0 ? "#A32D2D" : "#3B6D11" }}>
+                      <td style={{ fontSize: 13, padding: "12px 16px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>
+                        <span style={{ fontWeight: 600, color: t.balance > 0 ? C.red : C.green }}>
                           {t.balance > 0 ? `-$${t.balance.toLocaleString()}` : "✓ $0"}
                         </span>
                       </td>
                     )}
-                    <td style={s.td}>
+                    <td style={{ fontSize: 13, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}
+                      onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button style={s.actionBtnPrimary} onClick={() => navigate(`/landlord/tenants/${t.id}`)}>View</button>
-                        {!isMobile && <button style={s.actionBtn} onClick={() => navigate("/landlord/messages", { state: { tenantId: t.id } })}>Message</button>}
-                        {!t.user_id && <button style={s.actionBtn} onClick={() => inviteTenant(t)}>Invite</button>}
+                        <PrimaryBtn small onClick={() => navigate(`/landlord/tenants/${t.id}`)}>View</PrimaryBtn>
+                        {!isMobile && <GhostBtn small onClick={() => navigate("/landlord/messages", { state: { tenantId: t.id } })}>Message</GhostBtn>}
+                        {!t.user_id && <GhostBtn small onClick={() => inviteTenant(t)}>Invite</GhostBtn>}
                       </div>
                     </td>
                   </tr>
