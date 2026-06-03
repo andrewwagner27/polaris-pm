@@ -1,85 +1,123 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import LandlordLayout from "./LandlordLayout";
 
-const STATUS_CONFIG = {
-  current:     { label: "Current",     color: "#3B6D11", bg: "#EAF3DE" },
-  pending:     { label: "Pending",     color: "#854F0B", bg: "#FAEEDA" },
-  late:        { label: "Late",        color: "#A32D2D", bg: "#FDECEA" },
-  paid:        { label: "Paid",        color: "#3B6D11", bg: "#EAF3DE" },
-  upcoming:    { label: "Upcoming",    color: "#185FA5", bg: "#E6F1FB" },
-  failed:      { label: "Failed",      color: "#A32D2D", bg: "#FDECEA" },
-  in_progress: { label: "In Progress", color: "#185FA5", bg: "#E6F1FB" },
-  resolved:    { label: "Resolved",    color: "#3B6D11", bg: "#EAF3DE" },
-  open:        { label: "Open",        color: "#854F0B", bg: "#FAEEDA" },
+// ─── Modus tokens ──────────────────────────────────────────────────────────
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
+};
+
+const STATUS = {
+  current:     { label: "Current",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  pending:     { label: "Pending",     color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  late:        { label: "Late",        color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  paid:        { label: "Paid",        color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  upcoming:    { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
+  failed:      { label: "Failed",      color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  in_progress: { label: "In Progress", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
+  resolved:    { label: "Resolved",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  open:        { label: "Open",        color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
 };
 
 const TABS = ["Overview", "Payments", "Maintenance", "Notes"];
+const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
-const NAV_ITEMS = [
-  { icon: "📊", label: "Dashboard",   route: "/landlord" },
-  { icon: "🏢", label: "Properties",  route: "/landlord/properties" },
-  { icon: "👥", label: "Tenants",     route: "/landlord/tenants" },
-  { icon: "💰", label: "Rent Roll",   route: "/landlord/rentroll" },
-  { icon: "🔧", label: "Maintenance", route: "/landlord/maintenance" },
-  { icon: "📈", label: "Financials",  route: "/landlord/financials" },
-  { icon: "💬", label: "Messages",    route: "/landlord/messages" },
-  { icon: "⚙️", label: "Settings",   route: "/landlord/settings" },
-];
+function useWindowWidth() {
+  const [w, setW] = useState(window.innerWidth);
+  useEffect(() => {
+    const h = () => setW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return w;
+}
 
-const s = {
-  app: { display: "flex", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#f4f5f7", minHeight: "100vh" },
-  sidebar: { width: 220, background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh" },
-  sidebarLogo: { padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 8 },
-  logoText: { fontSize: 15, fontWeight: 700, color: "#fff" },
-  logoSub: { fontSize: 10, color: "#5B7FA6", marginTop: 2 },
-  navItem: (active) => ({ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: active ? "rgba(255,255,255,0.1)" : "transparent", borderLeft: active ? "3px solid #378ADD" : "3px solid transparent", cursor: "pointer", color: active ? "#fff" : "#7A9CC4", fontSize: 13, fontWeight: active ? 600 : 400 }),
-  sidebarFooter: { marginTop: "auto", padding: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  sidebarUser: { display: "flex", alignItems: "center", gap: 10 },
-  sidebarAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#185FA5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 },
-  sidebarName: { fontSize: 12, fontWeight: 600, color: "#fff" },
-  sidebarRole: { fontSize: 10, color: "#5B7FA6" },
-  main: { flex: 1, padding: "28px", overflowY: "auto" },
-  backBtn: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#185FA5", cursor: "pointer", background: "none", border: "none", fontFamily: "'Inter',sans-serif", padding: 0, marginBottom: 16 },
-  headerCard: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 14, padding: "20px 24px", marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 },
-  headerLeft: { display: "flex", alignItems: "flex-start", gap: 16 },
-  avatar: (color, bg) => ({ width: 56, height: 56, borderRadius: "50%", background: bg, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, flexShrink: 0 }),
-  statusBadge: (status) => ({ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#555" }),
-  contactRow: { display: "flex", gap: 20, marginTop: 10, flexWrap: "wrap" },
-  contactItem: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#555" },
-  actionBtns: { display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" },
-  btn: (primary) => ({ padding: "8px 14px", background: primary ? "#0C447C" : "#fff", color: primary ? "#fff" : "#1a1a1a", border: primary ? "none" : "1px solid #e8eaed", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" }),
-  btnDanger: { padding: "8px 14px", background: "#FDECEA", color: "#A32D2D", border: "1px solid #f5c6c6", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  tabs: { display: "flex", gap: 0, borderBottom: "2px solid #e8eaed", marginBottom: 20 },
-  tab: (active) => ({ padding: "10px 16px", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#0C447C" : "#888", cursor: "pointer", background: "none", border: "none", borderBottom: active ? "2px solid #0C447C" : "2px solid transparent", marginBottom: -2, fontFamily: "'Inter',sans-serif" }),
-  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 },
-  card: (span) => ({ background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, padding: "16px", gridColumn: span === 2 ? "span 2" : "span 1" }),
-  cardTitle: { fontSize: 12, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 },
-  infoRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f4f5f7" },
-  infoRowLast: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0" },
-  infoKey: { fontSize: 13, color: "#888" },
-  infoVal: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
-  td: { fontSize: 13, padding: "10px 14px", borderBottom: "1px solid #f8f9fa", color: "#1a1a1a" },
-  payBadge: (status) => ({ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: STATUS_CONFIG[status]?.bg || "#f4f5f7", color: STATUS_CONFIG[status]?.color || "#555" }),
-  notesArea: { width: "100%", minHeight: 120, padding: "10px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, resize: "vertical", fontFamily: "'Inter',sans-serif", color: "#1a1a1a", outline: "none", lineHeight: 1.6, boxSizing: "border-box" },
-  progressBar: { height: 6, background: "#f0f0f0", borderRadius: 3, overflow: "hidden", marginTop: 8 },
-  progressFill: (pct) => ({ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#185FA5,#0C447C)", borderRadius: 3 }),
-  emptyState: { textAlign: "center", padding: "30px", color: "#aaa", fontSize: 13 },
-};
+function Badge({ status }) {
+  const cfg = STATUS[status];
+  if (!cfg) return null;
+  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: cfg.bg, color: cfg.color, whiteSpace: "nowrap" }}>{cfg.label}</span>;
+}
 
-const AVATAR_COLORS = [
-  { color: "#185FA5", bg: "#E6F1FB" },
-  { color: "#3B6D11", bg: "#EAF3DE" },
-  { color: "#854F0B", bg: "#FAEEDA" },
-  { color: "#A32D2D", bg: "#FDECEA" },
-  { color: "#6B3FA0", bg: "#F3EEFB" },
-];
+function PrimaryBtn({ children, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold,
+      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
+      cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+      transition: "background 0.15s", opacity: disabled ? 0.6 : 1, whiteSpace: "nowrap",
+    }}
+      onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
+      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
+      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", whiteSpace: "nowrap",
+    }}
+      onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
+      onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
+    >{children}</button>
+  );
+}
+
+function DangerBtn({ children, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      background: "rgba(224,85,85,0.1)", border: `1px solid rgba(224,85,85,0.25)`,
+      color: C.red, fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
+      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap",
+    }}>{children}</button>
+  );
+}
+
+function InfoCard({ title, children }) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>{title}</div>
+      <div style={{ padding: "14px 16px" }}>{children}</div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, last, valueColor }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: last ? "none" : `1px solid ${C.border}` }}>
+      <span style={{ fontSize: 13, color: C.textSub }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: valueColor || C.text }}>{value}</span>
+    </div>
+  );
+}
+
+const TH = ({ children, right }) => (
+  <th style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 14px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>
+);
+const TD = ({ children, right, bold, color }) => (
+  <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: "11px 14px", borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", verticalAlign: "middle" }}>{children}</td>
+);
 
 export default function LandlordTenantDetail() {
-  const { id } = useParams();
+  const { id }   = useParams();
   const navigate = useNavigate();
+  const width    = useWindowWidth();
+  const isMobile = width < 768;
 
   const [tenant, setTenant]         = useState(null);
   const [unit, setUnit]             = useState(null);
@@ -100,17 +138,11 @@ export default function LandlordTenantDetail() {
     if (!tenantData) { setLoading(false); return; }
     setTenant(tenantData);
     setNotes(tenantData.notes || "");
-
-    const [
-      { data: unitData },
-      { data: paymentsData },
-      { data: maintData },
-    ] = await Promise.all([
+    const [{ data: unitData }, { data: paymentsData }, { data: maintData }] = await Promise.all([
       supabase.from("units").select("*, properties(*)").eq("id", tenantData.unit_id).single(),
       supabase.from("payments").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
       supabase.from("maintenance_requests").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
     ]);
-
     setUnit(unitData || null);
     setProperty(unitData?.properties || null);
     setPayments(paymentsData || []);
@@ -126,203 +158,150 @@ export default function LandlordTenantDetail() {
     setTimeout(() => setNoteSaved(false), 2000);
   }
 
-  if (loading) {
-    return (
-      <div style={{ ...s.app, alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#888", fontSize: 14 }}>Loading tenant…</div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Loading tenant…</div></LandlordLayout>
+  );
+  if (!tenant) return (
+    <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Tenant not found.</div></LandlordLayout>
+  );
 
-  if (!tenant) {
-    return (
-      <div style={{ ...s.app, alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#888", fontSize: 14 }}>Tenant not found.</div>
-      </div>
-    );
-  }
-
-  const initials = tenant.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const ac = AVATAR_COLORS[0];
-
+  const initials     = tenant.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const accentColor  = AVATAR_COLORS[0];
   const latestPayment = payments[0];
   let status = "current";
   if (latestPayment?.status === "failed") status = "late";
   else if (!latestPayment || latestPayment.status === "pending") status = "pending";
-
-  const balance = status !== "paid" && latestPayment?.status !== "paid" ? (unit?.rent_amount || 0) : 0;
-
+  const balance    = status !== "paid" && latestPayment?.status !== "paid" ? (unit?.rent_amount || 0) : 0;
   const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
   const leaseEnd   = tenant.lease_end   ? new Date(tenant.lease_end)   : null;
   const daysLeft   = leaseEnd ? Math.ceil((leaseEnd - new Date()) / (1000 * 60 * 60 * 24)) : null;
-  const progress   = leaseStart && leaseEnd
-    ? Math.min(100, Math.max(0, Math.round(((new Date() - leaseStart) / (leaseEnd - leaseStart)) * 100)))
-    : 0;
+  const progress   = leaseStart && leaseEnd ? Math.min(100, Math.max(0, Math.round(((new Date() - leaseStart) / (leaseEnd - leaseStart)) * 100))) : 0;
 
   return (
-    <div style={s.app}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; } ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }`}</style>
+    <LandlordLayout openMaintenance={0} unreadMessages={0}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+        .m-row:hover td { background: ${C.raised} !important; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+      `}</style>
 
-      {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sidebarLogo}>
-          <div style={s.logoText}>🏢 Polaris PM</div>
-          <div style={s.logoSub}>Property Management</div>
-        </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item.route} style={s.navItem(item.label === "Tenants")} onClick={() => navigate(item.route)}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}
-          </div>
-        ))}
-        <div style={s.sidebarFooter}>
-          <div style={s.sidebarUser}>
-            <div style={s.sidebarAvatar}>AW</div>
-            <div><div style={s.sidebarName}>Andrew Wagner</div><div style={s.sidebarRole}>Portfolio Owner</div></div>
-          </div>
-        </div>
-      </div>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
 
-      {/* Main */}
-      <div style={s.main}>
-        <button style={s.backBtn} onClick={() => navigate("/landlord/tenants")}>← Back to Tenants</button>
+        {/* Back */}
+        <button onClick={() => navigate("/landlord/tenants")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.goldDim, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 20, padding: 0, transition: "color 0.15s" }}
+          onMouseOver={e => e.currentTarget.style.color = C.gold}
+          onMouseOut={e => e.currentTarget.style.color = C.goldDim}
+        >← Back to Tenants</button>
 
-        {/* Header */}
-        <div style={s.headerCard}>
-          <div style={s.headerLeft}>
-            <div style={s.avatar(ac.color, ac.bg)}>{initials}</div>
+        {/* Header card */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: `${accentColor}22`, border: `1px solid ${accentColor}44`, color: accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{tenant.name}</div>
-              <div style={{ fontSize: 13, color: "#888", marginBottom: 3 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: C.text, marginBottom: 4 }}>{tenant.name}</div>
+              <div style={{ fontSize: 13, color: C.textSub, marginBottom: 8 }}>
                 {property?.name || "—"} · Unit {unit?.unit_number || "—"}
                 {property?.address && ` · ${property.address}, ${property.city} ${property.state}`}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                <span style={s.statusBadge(status)}>● {STATUS_CONFIG[status]?.label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Badge status={status} />
                 {daysLeft !== null && daysLeft < 60 && daysLeft > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 10, background: "#FAEEDA", color: "#854F0B" }}>⚠️ Lease expiring in {daysLeft}d</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber }}>⚠️ Lease expiring in {daysLeft}d</span>
                 )}
               </div>
-              <div style={s.contactRow}>
-                {tenant.email && <span style={s.contactItem}>📧 {tenant.email}</span>}
-                {tenant.phone && <span style={s.contactItem}>📞 {tenant.phone}</span>}
-                {tenant.lease_start && <span style={s.contactItem}>📅 Move-in: {new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>}
+              <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+                {tenant.email && <span style={{ fontSize: 12, color: C.textSub }}>✉ {tenant.email}</span>}
+                {tenant.phone && <span style={{ fontSize: 12, color: C.textSub }}>☎ {tenant.phone}</span>}
+                {tenant.lease_start && <span style={{ fontSize: 12, color: C.textSub }}>Move-in: {new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>}
               </div>
             </div>
           </div>
-          <div style={s.actionBtns}>
-            <button style={s.btn(true)} onClick={() => navigate("/landlord/messages")}>💬 Message</button>
-            <button style={s.btn(false)}>💰 Record payment</button>
-            {status === "late" && <button style={s.btnDanger}>⚠️ Send notice</button>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <PrimaryBtn onClick={() => navigate("/landlord/messages")}>Message</PrimaryBtn>
+            <GhostBtn>Record payment</GhostBtn>
+            {status === "late" && <DangerBtn>Send notice</DangerBtn>}
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={s.tabs}>
+        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
           {TABS.map(tab => (
-            <button key={tab} style={s.tab(activeTab === tab)} onClick={() => setActiveTab(tab)}>{tab}</button>
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: "10px 16px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
+              color: activeTab === tab ? C.gold : C.textSub,
+              background: "none", border: "none",
+              borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
+              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
+            }}>{tab}</button>
           ))}
         </div>
 
-        {/* Overview */}
+        {/* ── Overview ── */}
         {activeTab === "Overview" && (
-          <div style={s.grid}>
-            <div style={s.card(1)}>
-              <div style={s.cardTitle}>Balance</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: balance > 0 ? "#A32D2D" : "#3B6D11", marginBottom: 4 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+            <InfoCard title="Balance">
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: balance > 0 ? C.red : C.green, marginBottom: 4 }}>
                 {balance > 0 ? `-$${balance.toLocaleString()}` : "$0.00"}
               </div>
-              <div style={{ fontSize: 12, color: balance > 0 ? "#A32D2D" : "#3B6D11" }}>
+              <div style={{ fontSize: 12, color: balance > 0 ? C.red : C.green, marginBottom: balance > 0 ? 14 : 0 }}>
                 {balance > 0 ? "Amount overdue" : "Fully paid ✓"}
               </div>
-              {balance > 0 && (
-                <button style={{ ...s.btn(true), marginTop: 12, width: "100%", justifyContent: "center", display: "flex" }}>
-                  Send payment reminder
-                </button>
-              )}
-            </div>
+              {balance > 0 && <PrimaryBtn onClick={() => {}}>Send payment reminder</PrimaryBtn>}
+            </InfoCard>
 
-            <div style={s.card(1)}>
-              <div style={s.cardTitle}>Lease details</div>
-              {[
-                ["Monthly rent",  unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}` : "—"],
-                ["Lease start",   tenant.lease_start ? new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"],
-                ["Lease end",     tenant.lease_end   ? new Date(tenant.lease_end).toLocaleDateString("en-US",   { month: "short", day: "numeric", year: "numeric" }) : "—"],
-                ["Days remaining", daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} days` : "Expired") : "—"],
-              ].map(([k, v], i, arr) => (
-                <div key={k} style={i === arr.length - 1 ? s.infoRowLast : s.infoRow}>
-                  <span style={s.infoKey}>{k}</span>
-                  <span style={s.infoVal}>{v}</span>
-                </div>
-              ))}
+            <InfoCard title="Lease Details">
+              <InfoRow label="Monthly rent"  value={unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}` : "—"} />
+              <InfoRow label="Lease start"   value={tenant.lease_start ? new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"} />
+              <InfoRow label="Lease end"     value={tenant.lease_end   ? new Date(tenant.lease_end).toLocaleDateString("en-US",   { month: "short", day: "numeric", year: "numeric" }) : "—"} />
+              <InfoRow label="Days remaining" value={daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} days` : "Expired") : "—"} last />
               {leaseStart && leaseEnd && (
                 <>
-                  <div style={s.progressBar}><div style={s.progressFill(progress)} /></div>
-                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 4 }}>{progress}% through lease</div>
+                  <div style={{ height: 4, background: C.raised, borderRadius: 2, overflow: "hidden", marginTop: 12 }}>
+                    <div style={{ height: "100%", width: `${progress}%`, background: C.gold, borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>{progress}% through lease</div>
                 </>
               )}
-            </div>
+            </InfoCard>
 
-            <div style={s.card(1)}>
-              <div style={s.cardTitle}>Unit info</div>
-              {[
-                ["Property",   property?.name || "—"],
-                ["Unit",       unit?.unit_number || "—"],
-                ["Bedrooms",   unit?.bedrooms ?? "—"],
-                ["Bathrooms",  unit?.bathrooms ?? "—"],
-                ["Rent",       unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}/mo` : "—"],
-              ].map(([k, v], i, arr) => (
-                <div key={k} style={i === arr.length - 1 ? s.infoRowLast : s.infoRow}>
-                  <span style={s.infoKey}>{k}</span>
-                  <span style={s.infoVal}>{v}</span>
-                </div>
-              ))}
-            </div>
+            <InfoCard title="Unit Info">
+              <InfoRow label="Property"  value={property?.name || "—"} />
+              <InfoRow label="Unit"      value={unit?.unit_number || "—"} />
+              <InfoRow label="Bedrooms"  value={unit?.bedrooms ?? "—"} />
+              <InfoRow label="Bathrooms" value={unit?.bathrooms ?? "—"} />
+              <InfoRow label="Rent"      value={unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}/mo` : "—"} last />
+            </InfoCard>
 
-            <div style={s.card(1)}>
-              <div style={s.cardTitle}>Payment summary</div>
-              {[
-                ["Total payments",  payments.filter(p => p.status === "paid").length],
-                ["Last payment",    latestPayment?.paid_at ? new Date(latestPayment.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"],
-                ["Last amount",     latestPayment?.amount_cents ? `$${(latestPayment.amount_cents / 100).toLocaleString()}` : "—"],
-                ["Payment status",  latestPayment?.status || "No payments"],
-              ].map(([k, v], i, arr) => (
-                <div key={k} style={i === arr.length - 1 ? s.infoRowLast : s.infoRow}>
-                  <span style={s.infoKey}>{k}</span>
-                  <span style={s.infoVal}>{v}</span>
-                </div>
-              ))}
-            </div>
+            <InfoCard title="Payment Summary">
+              <InfoRow label="Total payments" value={payments.filter(p => p.status === "paid").length} />
+              <InfoRow label="Last payment"   value={latestPayment?.paid_at ? new Date(latestPayment.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"} />
+              <InfoRow label="Last amount"    value={latestPayment?.amount_cents ? `$${(latestPayment.amount_cents / 100).toLocaleString()}` : "—"} />
+              <InfoRow label="Payment status" value={latestPayment?.status || "No payments"} last />
+            </InfoCard>
           </div>
         )}
 
-        {/* Payments */}
+        {/* ── Payments ── */}
         {activeTab === "Payments" && (
-          <div style={s.card(2)}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #f0f0f0" }}>
-              <div>
-                <div style={s.cardTitle}>Payment history</div>
-                <div style={{ fontSize: 11, color: "#888", marginTop: -10 }}>{payments.length} payments recorded</div>
-              </div>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Payment history</div>
+              <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{payments.length} payments recorded</div>
             </div>
             {payments.length === 0 ? (
-              <div style={s.emptyState}>No payment history yet.</div>
+              <div style={{ textAlign: "center", padding: 32, color: C.textSub, fontSize: 13 }}>No payment history yet.</div>
             ) : (
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Date</th>
-                    <th style={{ ...s.th, textAlign: "right" }}>Amount</th>
-                    <th style={s.th}>Status</th>
-                    <th style={s.th}>Source</th>
-                  </tr>
-                </thead>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr><TH>Date</TH><TH right>Amount</TH><TH>Status</TH><TH>Source</TH></tr></thead>
                 <tbody>
                   {payments.map((p, i) => (
-                    <tr key={i}>
-                      <td style={s.td}>{new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
-                      <td style={{ ...s.td, textAlign: "right", fontWeight: 600 }}>${((p.amount_cents || 0) / 100).toLocaleString()}</td>
-                      <td style={s.td}><span style={s.payBadge(p.status)}>{STATUS_CONFIG[p.status]?.label || p.status}</span></td>
-                      <td style={{ ...s.td, fontSize: 12, color: "#888" }}>{p.source || "—"}</td>
+                    <tr key={i} className="m-row">
+                      <TD>{new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TD>
+                      <TD right bold>${((p.amount_cents || 0) / 100).toLocaleString()}</TD>
+                      <TD><Badge status={p.status} /></TD>
+                      <TD>{p.source || "—"}</TD>
                     </tr>
                   ))}
                 </tbody>
@@ -331,34 +310,26 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
-        {/* Maintenance */}
+        {/* ── Maintenance ── */}
         {activeTab === "Maintenance" && (
-          <div style={s.card(2)}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #f0f0f0" }}>
-              <div style={s.cardTitle}>Maintenance history</div>
-              <button style={s.btn(true)} onClick={() => navigate("/landlord/maintenance")}>View all</button>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Maintenance history</div>
+              <GhostBtn onClick={() => navigate("/landlord/maintenance")}>View all</GhostBtn>
             </div>
             {maintenance.length === 0 ? (
-              <div style={s.emptyState}>🎉 No maintenance requests for this tenant.</div>
+              <div style={{ textAlign: "center", padding: 32, color: C.green, fontSize: 13 }}>🎉 No maintenance requests for this tenant.</div>
             ) : (
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Date</th>
-                    <th style={s.th}>Issue</th>
-                    <th style={s.th}>Category</th>
-                    <th style={s.th}>Priority</th>
-                    <th style={s.th}>Status</th>
-                  </tr>
-                </thead>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr><TH>Date</TH><TH>Issue</TH><TH>Category</TH><TH>Priority</TH><TH>Status</TH></tr></thead>
                 <tbody>
                   {maintenance.map((m, i) => (
-                    <tr key={i}>
-                      <td style={s.td}>{new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
-                      <td style={s.td}>{m.title}</td>
-                      <td style={{ ...s.td, textTransform: "capitalize" }}>{m.category || "—"}</td>
-                      <td style={s.td}><span style={s.payBadge(m.priority === "high" || m.priority === "urgent" ? "late" : "upcoming")}>{m.priority}</span></td>
-                      <td style={s.td}><span style={s.payBadge(m.status)}>{STATUS_CONFIG[m.status]?.label}</span></td>
+                    <tr key={i} className="m-row">
+                      <TD>{new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TD>
+                      <TD bold>{m.title}</TD>
+                      <TD>{m.category || "—"}</TD>
+                      <TD><Badge status={m.priority === "high" || m.priority === "urgent" ? "late" : "upcoming"} /></TD>
+                      <TD><Badge status={m.status} /></TD>
                     </tr>
                   ))}
                 </tbody>
@@ -367,30 +338,30 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
-        {/* Notes */}
+        {/* ── Notes ── */}
         {activeTab === "Notes" && (
-          <div style={s.card(2)}>
-            <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #f0f0f0" }}>
-              <div style={s.cardTitle}>Private notes</div>
-              <div style={{ fontSize: 11, color: "#aaa", marginTop: -10 }}>Only visible to you — never shown to the tenant</div>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Private notes</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Only visible to you — never shown to the tenant</div>
             </div>
-            <div style={{ padding: "14px 16px" }}>
+            <div style={{ padding: "16px" }}>
               <textarea
-                style={s.notesArea}
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Add private notes about this tenant — payment behavior, communications, maintenance patterns, renewal intent…"
+                style={{ width: "100%", minHeight: 140, padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "vertical", fontFamily: "'DM Sans', sans-serif", color: C.text, background: C.raised, outline: "none", lineHeight: 1.6, boxSizing: "border-box" }}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-                <button style={{ padding: "8px 16px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }} onClick={saveNotes} disabled={savingNotes}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                <PrimaryBtn onClick={saveNotes} disabled={savingNotes}>
                   {noteSaved ? "✓ Saved!" : savingNotes ? "Saving…" : "Save notes"}
-                </button>
-                <span style={{ fontSize: 11, color: "#aaa" }}>{notes.length} characters</span>
+                </PrimaryBtn>
+                <span style={{ fontSize: 11, color: C.textMuted }}>{notes.length} characters</span>
               </div>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </LandlordLayout>
   );
 }

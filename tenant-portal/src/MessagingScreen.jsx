@@ -31,48 +31,34 @@ const s = {
 };
 
 export default function MessagingScreen() {
-  const navigate    = useNavigate();
-  const [messages, setMessages] = useState([]);
-  const [input, setInput]       = useState("");
-  const [loading, setLoading]   = useState(true);
-  const [tenantId, setTenantId] = useState(null);
+  const navigate        = useNavigate();
+  const [messages, setMessages]     = useState([]);
+  const [input, setInput]           = useState("");
+  const [loading, setLoading]       = useState(true);
+  const [tenantId, setTenantId]     = useState(null);
   const [landlordId, setLandlordId] = useState(null);
-  const [myUserId, setMyUserId] = useState(null);
-  const bottomRef   = useRef(null);
+  const [myUserId, setMyUserId]     = useState(null);
+  const bottomRef = useRef(null);
 
   useEffect(() => { init(); }, []);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
     setMyUserId(user.id);
 
-    // Find tenant record for this user
     const { data: tenantData } = await supabase
-      .from("tenants")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
+      .from("tenants").select("id").eq("user_id", user.id).single();
 
-    if (!tenantData) {
-      setLoading(false);
-      return;
-    }
+    if (!tenantData) { setLoading(false); return; }
     setTenantId(tenantData.id);
 
-    // Find landlord — get the sender of the first message to this tenant, or use profiles
+    // Find landlord id from existing messages or profiles
     const { data: firstMsg } = await supabase
-      .from("messages")
-      .select("sender_id, recipient_id")
-      .eq("tenant_id", tenantData.id)
-      .limit(1)
-      .single();
+      .from("messages").select("sender_id, recipient_id")
+      .eq("tenant_id", tenantData.id).limit(1).single();
 
-    // Landlord is whoever is NOT this user in that message
     const lId = firstMsg
       ? (firstMsg.sender_id !== user.id ? firstMsg.sender_id : firstMsg.recipient_id)
       : null;
@@ -80,64 +66,77 @@ export default function MessagingScreen() {
 
     await fetchMessages(tenantData.id);
 
-    // Mark messages as read
-    await supabase
-      .from("messages")
-      .update({ read: true })
-      .eq("tenant_id", tenantData.id)
-      .eq("recipient_id", user.id)
-      .eq("read", false);
+    // Mark as read
+    await supabase.from("messages").update({ read: true })
+      .eq("tenant_id", tenantData.id).eq("recipient_id", user.id).eq("read", false);
 
-    // Real-time subscription
-    supabase
-      .channel(`tenant-messages-${tenantData.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
-        if (payload.new.tenant_id === tenantData.id) {
-          setMessages(prev => [...prev, payload.new]);
-        }
-      })
+    // ── Real-time subscription ──
+    supabase.channel(`tenant-messages-${tenantData.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
+        payload => {
+          if (payload.new.tenant_id === tenantData.id) {
+            // Avoid duplicating optimistic messages
+            setMessages(prev => {
+              const alreadyExists = prev.some(m => m.id === payload.new.id);
+              if (alreadyExists) return prev;
+              // Replace matching optimistic temp message if present
+              const hasOptimistic = prev.some(m => m.id?.toString().startsWith("temp-") && m.body === payload.new.body && m.sender_id === payload.new.sender_id);
+              if (hasOptimistic) return prev.map(m => m.id?.toString().startsWith("temp-") && m.body === payload.new.body ? payload.new : m);
+              return [...prev, payload.new];
+            });
+          }
+        })
       .subscribe();
 
     setLoading(false);
   }
 
   async function fetchMessages(tId) {
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("tenant_id", tId)
-      .order("created_at", { ascending: true });
+    const { data } = await supabase.from("messages").select("*")
+      .eq("tenant_id", tId).order("created_at", { ascending: true });
     setMessages(data || []);
   }
 
   async function sendMessage(text) {
     if (!text.trim() || !myUserId || !tenantId) return;
 
-    // We need landlordId to send — get from profiles if not set
     let lId = landlordId;
     if (!lId) {
       const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("role", "landlord")
-        .limit(1)
-        .single();
+        .from("profiles").select("id").eq("role", "landlord").limit(1).single();
       lId = profiles?.id;
       setLandlordId(lId);
     }
-
     if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
-    await supabase.from("messages").insert({
+    // Optimistic update
+    const optimistic = {
+      id:           `temp-${Date.now()}`,
       sender_id:    myUserId,
       recipient_id: lId,
       tenant_id:    tenantId,
       body:         text.trim(),
-    });
+      created_at:   new Date().toISOString(),
+      read:         false,
+    };
+    setMessages(prev => [...prev, optimistic]);
     setInput("");
+
+    const { data, error } = await supabase.from("messages").insert({
+      sender_id:    myUserId,
+      recipient_id: lId,
+      tenant_id:    tenantId,
+      body:         text.trim(),
+    }).select().single();
+
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+    } else if (data) {
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
+    }
   }
 
-  // Group messages by date
+  // Group by date
   const grouped = [];
   let lastDate = null;
   messages.forEach(msg => {
@@ -152,10 +151,10 @@ export default function MessagingScreen() {
 
       <div style={s.header}>
         <button style={s.backBtn} onClick={() => navigate("/home")}>←</button>
-        <div style={s.headerAvatar}>PP</div>
+        <div style={s.headerAvatar}>M</div>
         <div style={s.headerInfo}>
-          <div style={s.headerName}>Polaris Properties</div>
-          <div style={s.headerSub}>Property management · Usually replies in a few hours</div>
+          <div style={s.headerName}>Modus Property Management</div>
+          <div style={s.headerSub}>Usually replies within a few hours</div>
         </div>
       </div>
 
@@ -177,7 +176,7 @@ export default function MessagingScreen() {
           return (
             <div key={item.id}>
               <div style={s.bubbleRow(fromProperty)}>
-                {fromProperty && <div style={s.bubbleAvatar}>PP</div>}
+                {fromProperty && <div style={s.bubbleAvatar}>M</div>}
                 <div style={s.bubble(fromProperty)}>{item.body}</div>
               </div>
               <div style={s.bubbleTime(fromProperty)}>
@@ -201,7 +200,7 @@ export default function MessagingScreen() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-          placeholder="Message Polaris Properties…"
+          placeholder="Message Modus Property Management…"
           rows={1}
         />
         <button style={s.sendBtn(input.trim().length > 0)} onClick={() => sendMessage(input)} disabled={!input.trim()}>➤</button>

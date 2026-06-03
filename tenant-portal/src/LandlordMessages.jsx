@@ -141,6 +141,7 @@ export default function LandlordMessages() {
   const isMobile  = width < 768;
 
   const [landlordId, setLandlordId]     = useState(null);
+  const landlordIdRef                   = useRef(null);
   const [tenants, setTenants]           = useState([]);
   const [properties, setProperties]     = useState([]);
   const [messages, setMessages]         = useState([]);
@@ -168,6 +169,7 @@ export default function LandlordMessages() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     setLandlordId(user?.id);
+    landlordIdRef.current = user?.id;
     const [{ data: tenantsData }, { data: propsData }] = await Promise.all([
       supabase.from("tenants").select("*, units(unit_number, property_id, properties(id, name))"),
       supabase.from("properties").select("*"),
@@ -205,13 +207,20 @@ export default function LandlordMessages() {
   useEffect(() => {
     if (!activeId || !landlordId) return;
     fetchMessages();
+    // Use activeId directly in closure — avoids stale tenants reference
     const channel = supabase.channel(`messages-${activeId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
         const msg = payload.new;
-        const at = tenants.find(t => t.id === activeId);
-        if (msg.tenant_id === activeId || (at?.user_id && (msg.sender_id === at.user_id || msg.recipient_id === at.user_id))) {
-          setMessages(prev => [...prev, msg]);
-        }
+        if (msg.tenant_id !== activeId) return;
+        setMessages(prev => {
+          // Ignore if already in list (real record replacing optimistic)
+          const alreadyExists = prev.some(m => m.id === msg.id);
+          if (alreadyExists) return prev;
+          // Replace optimistic temp message if body + sender match
+          const hasOptimistic = prev.some(m => m.id?.toString().startsWith("temp-") && m.body === msg.body && m.sender_id === msg.sender_id);
+          if (hasOptimistic) return prev.map(m => m.id?.toString().startsWith("temp-") && m.body === msg.body ? msg : m);
+          return [...prev, msg];
+        });
       }).subscribe();
     return () => supabase.removeChannel(channel);
   }, [activeId, landlordId]);
@@ -224,13 +233,21 @@ export default function LandlordMessages() {
   }
 
   async function sendMessage(text) {
-    if (!text.trim() || !landlordId || sending) return;
+    if (!text.trim() || !landlordIdRef.current || sending) return;
     const at = tenants.find(t => t.id === activeId);
     if (!at?.user_id) { alert("This tenant hasn't accepted their invite yet."); return; }
     setSending(true);
-    const { error } = await supabase.from("messages").insert({ sender_id: landlordId, recipient_id: at.user_id, tenant_id: activeId, body: text.trim() });
+    const lId = landlordIdRef.current;
+    const optimistic = { id: `temp-${Date.now()}`, sender_id: lId, recipient_id: at.user_id, tenant_id: activeId, body: text.trim(), created_at: new Date().toISOString(), read: false };
+    setMessages(prev => [...prev, optimistic]);
+    setInput("");
+    const { data, error } = await supabase.from("messages").insert({ sender_id: lId, recipient_id: at.user_id, tenant_id: activeId, body: text.trim() }).select().single();
     setSending(false);
-    if (!error) setInput("");
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+    } else if (data) {
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
+    }
   }
 
   const activeTenant = tenants.find(t => t.id === activeId);
@@ -379,7 +396,7 @@ export default function LandlordMessages() {
                 if (item.type === "date") return (
                   <div key={`d-${i}`} style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: "10px 0 6px", fontWeight: 500 }}>{item.label}</div>
                 );
-                const fromMe = item.sender_id === landlordId;
+                const fromMe = item.sender_id === (landlordIdRef.current || landlordId);
                 return (
                   <div key={item.id}>
                     <div style={{ display: "flex", justifyContent: fromMe ? "flex-end" : "flex-start", marginBottom: 2, alignItems: "flex-end", gap: 8 }}>
