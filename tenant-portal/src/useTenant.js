@@ -15,20 +15,19 @@ export function useTenant() {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser || !mounted) { setLoading(false); return; }
         setUser(authUser);
-        // Fetch user role
-const { data: profileData } = await supabase
-  .from("profiles")
-  .select("role")
-  .eq("id", authUser.id)
-  .maybeSingle();
 
-const role = profileData?.role || "tenant";
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        const role = profileData?.role || "tenant";
 
-        // Fetch tenant profile — simple query, no joins
+        // Fetch tenant record by user_id
         const { data: tenantData } = await supabase
           .from("tenants")
           .select("*")
-          .eq("id", authUser.id)
+          .eq("user_id", authUser.id)
           .maybeSingle();
 
         // Fetch unit if tenant has one
@@ -48,7 +47,7 @@ const role = profileData?.role || "tenant";
         const { data: payments } = await supabase
           .from("payments")
           .select("*")
-          .eq("tenant_id", authUser.id)
+          .eq("tenant_id", tenantData?.id || authUser.id)
           .order("paid_at", { ascending: false })
           .limit(6);
 
@@ -56,33 +55,30 @@ const role = profileData?.role || "tenant";
         const { data: maintenance } = await supabase
           .from("maintenance_requests")
           .select("*")
-          .eq("tenant_id", authUser.id)
+          .eq("tenant_id", tenantData?.id || authUser.id)
           .order("created_at", { ascending: false })
           .limit(5);
 
         if (!mounted) return;
 
         setTenant({
-          // Profile data
-          id:       authUser.id,
+          id:       tenantData?.id || authUser.id,   // ← tenant table UUID
+          user_id:  authUser.id,                      // ← auth UUID
+          unit_id:  tenantData?.unit_id || null,
           name:     tenantData?.name     || authUser.user_metadata?.full_name || "Tenant",
           email:    authUser.email,
           phone:    tenantData?.phone    || authUser.user_metadata?.phone || "—",
-          // Unit & property
           unit:     unitData?.unit_number || authUser.user_metadata?.unit_number || "—",
           property: propertyData?.name   || "—",
           address:  propertyData
             ? `${propertyData.address}, ${propertyData.city} ${propertyData.state}`
             : "—",
           rent:     unitData?.rent_amount || 0,
-          // Lease
           leaseStart: tenantData?.lease_start || null,
           leaseEnd:   tenantData?.lease_end   || null,
-          // Activity
           payments:    payments    || [],
           maintenance: maintenance || [],
-          // Raw data
-          raw: tenantData,
+          raw:  tenantData,
           role: role,
         });
       } catch (err) {
