@@ -81,7 +81,7 @@ export default function AccountScreen() {
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
-      <div style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",paddingBottom:80}}>
+      <div style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",paddingBottom:80,maxWidth:780,margin:"0 auto"}}>
 
         {/* Header */}
         <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"28px 20px 24px",textAlign:"center"}}>
@@ -96,7 +96,7 @@ export default function AccountScreen() {
         <div style={{padding:"16px 20px 0"}}>
 
           {/* Lease summary */}
-          <div style={{fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,marginTop:8}}>Lease summary</div>
+          <div style={{fontSize:12,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,marginTop:8}}>Lease summary</div>
           <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:20}}>
             {[
               ["Property",    tenant?.property || "Clifton Manor"],

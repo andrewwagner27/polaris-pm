@@ -1,7 +1,13 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, useStripe } from "@stripe/react-stripe-js";
+import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
+
+const STRIPE_PK = "pk_test_51TeL6HHoFqm9Llqhft5PbwOUKmYTDPIM9EJ3Cv3bfHmRPjgDpk4F52iMAhKNj4EMpYydvphFGHMtQccM2Rlpg2pf00i18TEBa1";
+const stripePromise = loadStripe(STRIPE_PK);
 
 const C = {
   bg:        "#0A0B0D",
@@ -13,172 +19,280 @@ const C = {
   textMuted: "#5C6270",
   gold:      "#C9A96E",
   goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
   green:     "#72B02A",
   red:       "#E05555",
   amber:     "#F0A430",
+  blue:      "#4A9AE8",
 };
 
-function formatCardNumber(val) { return val.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim(); }
-function formatExpiry(val) { const d=val.replace(/\D/g,"").slice(0,4); return d.length>=3?d.slice(0,2)+"/"+d.slice(2):d; }
-function detectBrand(num) { const n=num.replace(/\s/g,""); if(/^4/.test(n))return"visa"; if(/^5[1-5]/.test(n))return"mastercard"; if(/^3[47]/.test(n))return"amex"; return""; }
-const brandInfo = { visa:{label:"VISA",color:"#4A9AE8"}, mastercard:{label:"MC",color:"#E05555"}, amex:{label:"AMEX",color:"#4A9AE8"} };
-
-function Spinner() { return <span style={{width:16,height:16,border:"2px solid rgba(201,169,110,0.3)",borderTopColor:C.gold,borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>; }
-
-function FieldLabel({children}) { return <label style={{fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6}}>{children}</label>; }
-
-function Input({value,onChange,placeholder,maxLength,inputMode}) {
-  const [focused,setFocused]=useState(false);
-  return <input value={value} onChange={onChange} placeholder={placeholder} maxLength={maxLength} inputMode={inputMode}
-    onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-    style={{width:"100%",padding:"10px 12px",fontSize:14,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:8,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s"}}/>;
+function Spinner() {
+  return <span style={{ width:16, height:16, border:"2px solid rgba(201,169,110,0.3)", borderTopColor:C.gold, borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }}/>;
 }
 
-function CardForm({onSubmit,loading,amount}) {
-  const [num,setNum]=useState(""); const [expiry,setExpiry]=useState(""); const [cvc,setCvc]=useState(""); const [name,setName]=useState(""); const [errors,setErrors]=useState({});
-  const brand=detectBrand(num); const info=brandInfo[brand];
-  function validate(){const e={};if(num.replace(/\s/g,"").length<15)e.num="Enter a valid card number";if(expiry.length<5)e.expiry="Enter MM/YY";if(cvc.length<3)e.cvc="Enter CVC";if(!name.trim())e.name="Enter name on card";setErrors(e);return Object.keys(e).length===0;}
-  return (
-    <div>
-      <div style={{marginBottom:14}}>
-        <FieldLabel>Card number</FieldLabel>
-        <div style={{position:"relative"}}>
-          <Input value={num} onChange={e=>{setNum(formatCardNumber(e.target.value));setErrors(p=>({...p,num:""}));}} placeholder="1234 5678 9012 3456" maxLength={19} inputMode="numeric"/>
-          {info&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:10,fontWeight:700,color:info.color,border:`1px solid ${info.color}40`,borderRadius:3,padding:"2px 5px"}}>{info.label}</span>}
-        </div>
-        {errors.num&&<p style={{fontSize:11,color:C.red,marginTop:4,margin:0}}>{errors.num}</p>}
+function ACHForm({ tenant, user, rentAmount }) {
+  const stripe  = useStripe();
+  const navigate = useNavigate();
+
+  const [step, setStep]           = useState("idle"); // idle | linking | linked | paying | success | error
+  const [error, setError]         = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [customerId, setCustomerId]     = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [bankName, setBankName]         = useState("");
+  const [last4, setLast4]               = useState("");
+  const [savedMethod, setSavedMethod]   = useState(null);
+  const [loadingMethod, setLoadingMethod] = useState(true);
+
+  // Check for saved bank account
+  useEffect(() => {
+    async function checkSaved() {
+      if (!tenant?.id) { setLoadingMethod(false); return; }
+      const { data } = await supabase.from("tenant_payment_methods")
+        .select("*").eq("tenant_id", tenant.id).eq("status", "active").single();
+      if (data) setSavedMethod(data);
+      setLoadingMethod(false);
+    }
+    checkSaved();
+  }, [tenant?.id]);
+
+  async function linkBank() {
+    if (!stripe) return;
+    setStep("linking"); setError("");
+
+    const { data, error: fnError } = await supabase.functions.invoke("create-setup-intent", {
+      body: {
+        tenant_id:   tenant.id,
+        customer_email: user.email,
+        customer_name:  tenant.name,
+      }
+    });
+
+    if (fnError || data?.error) {
+      setError(fnError?.message || data?.error);
+      setStep("idle"); return;
+    }
+
+    setClientSecret(data.client_secret);
+    setCustomerId(data.customer_id);
+
+    // Confirm setup with bank account collection
+    const { setupIntent, error: stripeError } = await stripe.collectBankAccountForSetup({
+      clientSecret: data.client_secret,
+      params: {
+        payment_method_type: "us_bank_account",
+        payment_method_data: {
+          billing_details: { name: tenant.name, email: user.email },
+        },
+      },
+    });
+
+    if (stripeError) {
+      setError(stripeError.message);
+      setStep("idle"); return;
+    }
+
+    if (setupIntent?.status === "requires_confirmation") {
+      const { setupIntent: confirmed, error: confirmError } = await stripe.confirmUsBankAccountSetup(data.client_secret);
+      if (confirmError) { setError(confirmError.message); setStep("idle"); return; }
+
+      const pm = confirmed?.payment_method;
+      if (pm) {
+        const pmId   = typeof pm === "string" ? pm : pm.id;
+        const pmData = typeof pm === "object" ? pm : null;
+        setPaymentMethodId(pmId);
+        setBankName(pmData?.us_bank_account?.bank_name || "Bank account");
+        setLast4(pmData?.us_bank_account?.last4 || "****");
+
+        // Save to Supabase
+        await supabase.from("tenant_payment_methods").upsert({
+          tenant_id:         tenant.id,
+          stripe_customer_id: data.customer_id,
+          stripe_payment_method_id: pmId,
+          bank_name:  pmData?.us_bank_account?.bank_name || "Bank",
+          last4:      pmData?.us_bank_account?.last4 || "****",
+          status:     "active",
+        });
+
+        setStep("linked");
+      }
+    }
+  }
+
+  async function payNow() {
+    setStep("paying"); setError("");
+    const pmId  = paymentMethodId || savedMethod?.stripe_payment_method_id;
+    const custId = customerId    || savedMethod?.stripe_customer_id;
+
+    const { data, error: fnError } = await supabase.functions.invoke("create-payment-intent", {
+      body: {
+        tenant_id:         tenant.id,
+        unit_id:           tenant.unit_id,
+        amount_cents:      rentAmount * 100,
+        payment_method_id: pmId,
+        customer_id:       custId,
+      }
+    });
+
+    if (fnError || data?.error) {
+      setError(fnError?.message || data?.error);
+      setStep(savedMethod ? "idle" : "linked"); return;
+    }
+
+    setStep("success");
+  }
+
+  if (loadingMethod) return (
+    <div style={{ textAlign:"center", padding:"40px 0", color:C.textSub, fontSize:13 }}>Loading…</div>
+  );
+
+  // SUCCESS
+  if (step === "success") return (
+    <div style={{ textAlign:"center", padding:"32px 0" }}>
+      <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px", fontSize:26, color:C.green }}>✓</div>
+      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text, marginBottom:6 }}>Payment submitted</div>
+      <div style={{ fontSize:13, color:C.textSub, marginBottom:6 }}>
+        ${rentAmount.toLocaleString()} via ACH bank transfer
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-        <div><FieldLabel>Expiry</FieldLabel><Input value={expiry} onChange={e=>{setExpiry(formatExpiry(e.target.value));setErrors(p=>({...p,expiry:""}));}} placeholder="MM/YY" maxLength={5} inputMode="numeric"/>{errors.expiry&&<p style={{fontSize:11,color:C.red,marginTop:4,margin:0}}>{errors.expiry}</p>}</div>
-        <div><FieldLabel>CVC</FieldLabel><Input value={cvc} onChange={e=>{setCvc(e.target.value.replace(/\D/g,"").slice(0,4));setErrors(p=>({...p,cvc:""}));}} placeholder="123" maxLength={4} inputMode="numeric"/>{errors.cvc&&<p style={{fontSize:11,color:C.red,marginTop:4,margin:0}}>{errors.cvc}</p>}</div>
-      </div>
-      <div style={{marginBottom:20}}>
-        <FieldLabel>Name on card</FieldLabel>
-        <Input value={name} onChange={e=>{setName(e.target.value);setErrors(p=>({...p,name:""}));}} placeholder="Maria Rodriguez"/>
-        {errors.name&&<p style={{fontSize:11,color:C.red,marginTop:4,margin:0}}>{errors.name}</p>}
-      </div>
-      <button onClick={()=>{if(validate())onSubmit({number:num,expiry,cvc,name});}} disabled={loading} style={{width:"100%",padding:"13px",border:`1px solid ${C.goldDim}`,borderRadius:8,fontSize:14,fontWeight:500,background:loading?"rgba(201,169,110,0.07)":"transparent",color:C.gold,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:"'DM Sans',sans-serif",opacity:loading?0.7:1}}>
-        {loading?<><Spinner/> Processing…</>:`Pay $${amount?amount.toFixed(2):"1,150.00"} →`}
+      <div style={{ fontSize:12, color:C.textMuted, marginBottom:28 }}>ACH transfers take 2–3 business days to settle.</div>
+      <button onClick={() => navigate("/home")} style={{ padding:"11px 28px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+        ← Back to home
       </button>
     </div>
   );
-}
 
-function ACHForm() {
   return (
-    <div style={{textAlign:"center",padding:"24px 0"}}>
-      <div style={{width:52,height:52,borderRadius:"50%",background:`${C.blue}18`,border:`1px solid ${C.blue}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",fontSize:22,color:C.blue}}>🏦</div>
-      <p style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:6,margin:"0 0 6px"}}>Pay by bank transfer (ACH)</p>
-      <p style={{fontSize:13,color:C.textSub,lineHeight:1.6,marginBottom:20,margin:"0 0 20px"}}>Link your bank account via Plaid for free ACH payments. No fees — ideal for recurring monthly rent.</p>
-      <button style={{width:"100%",padding:"12px",border:`1px solid ${C.blue}44`,borderRadius:8,fontSize:14,fontWeight:500,background:"transparent",color:C.blue,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Connect bank via Plaid</button>
-      <p style={{fontSize:11,color:C.textMuted,marginTop:10,margin:"10px 0 0"}}>2–3 business days to process · $0 fee</p>
-    </div>
-  );
-}
+    <div>
+      {error && (
+        <div style={{ background:"rgba(224,85,85,0.1)", border:`1px solid rgba(224,85,85,0.2)`, borderRadius:8, padding:"10px 14px", marginBottom:16, fontSize:13, color:C.red }}>{error}</div>
+      )}
 
-function SuccessScreen({last4,onReset}) {
-  const conf="PAY-"+Math.random().toString(36).slice(2,9).toUpperCase();
-  const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-  return (
-    <div style={{textAlign:"center",padding:"32px 0 20px"}}>
-      <div style={{width:60,height:60,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24,color:C.green}}>✓</div>
-      <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6,margin:"0 0 6px"}}>Payment received</p>
-      <p style={{fontSize:14,color:C.textSub,marginBottom:24,margin:"0 0 24px"}}>$1,150.00 charged to card ending {last4}</p>
-      <div style={{background:C.raised,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",textAlign:"left",marginBottom:22}}>
-        {[["Payment","$1,150.00"],["Date",date],["Confirmation",conf]].map(([k,v],i,arr)=>(
-          <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none"}}>
-            <span style={{fontSize:13,color:C.textSub}}>{k}</span>
-            <span style={{fontSize:13,fontWeight:500,color:C.text}}>{v}</span>
+      {/* Saved method */}
+      {savedMethod && step === "idle" && (
+        <>
+          <div style={{ background:C.raised, border:`1px solid ${C.border}`, borderRadius:9, padding:"14px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:8, background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", color:C.green, fontSize:16 }}>🏦</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{savedMethod.bank_name}</div>
+              <div style={{ fontSize:11, color:C.textSub }}>Account ending ···· {savedMethod.last4}</div>
+            </div>
+            <span style={{ fontSize:10, fontWeight:600, padding:"3px 8px", background:`${C.green}15`, color:C.green, borderRadius:5 }}>Linked</span>
           </div>
-        ))}
+          <button onClick={payNow} style={{ width:"100%", padding:"13px", background:C.goldDim, border:"none", borderRadius:8, fontSize:14, fontWeight:500, color:C.text, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.02em", marginBottom:10 }}>
+            Pay ${rentAmount.toLocaleString()} →
+          </button>
+          <button onClick={() => { setSavedMethod(null); setStep("idle"); }} style={{ width:"100%", padding:"10px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+            Use a different bank account
+          </button>
+        </>
+      )}
+
+      {/* Link new bank */}
+      {!savedMethod && step === "idle" && (
+        <div style={{ textAlign:"center", padding:"16px 0" }}>
+          <div style={{ width:52, height:52, borderRadius:"50%", background:`${C.blue}18`, border:`1px solid ${C.blue}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:22 }}>🏦</div>
+          <div style={{ fontSize:14, fontWeight:500, color:C.text, marginBottom:8 }}>Link your bank account</div>
+          <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, marginBottom:24 }}>
+            Connect your bank via ACH for free transfers.<br/>No fees — funds arrive in 2–3 business days.
+          </div>
+          <button onClick={linkBank} style={{ width:"100%", padding:"13px", background:C.goldDim, border:"none", borderRadius:8, fontSize:14, fontWeight:500, color:C.text, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.02em" }}>
+            Link bank account →
+          </button>
+        </div>
+      )}
+
+      {/* Linking in progress */}
+      {step === "linking" && (
+        <div style={{ textAlign:"center", padding:"32px 0", color:C.textSub, fontSize:13, display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+          <Spinner/>
+          <div>Connecting to your bank…</div>
+        </div>
+      )}
+
+      {/* Bank linked, ready to pay */}
+      {step === "linked" && (
+        <>
+          <div style={{ background:`${C.green}0F`, border:`1px solid ${C.green}33`, borderRadius:9, padding:"14px 16px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ color:C.green, fontSize:18 }}>✓</div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{bankName} ···· {last4}</div>
+              <div style={{ fontSize:11, color:C.textSub }}>Bank account linked successfully</div>
+            </div>
+          </div>
+          <button onClick={payNow} style={{ width:"100%", padding:"13px", background:C.goldDim, border:"none", borderRadius:8, fontSize:14, fontWeight:500, color:C.text, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.02em" }}>
+            Pay ${rentAmount.toLocaleString()} →
+          </button>
+        </>
+      )}
+
+      {/* Paying */}
+      {step === "paying" && (
+        <div style={{ textAlign:"center", padding:"32px 0", color:C.textSub, fontSize:13, display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+          <Spinner/>
+          <div>Submitting payment…</div>
+        </div>
+      )}
+
+      <div style={{ fontSize:11, color:C.textMuted, textAlign:"center", marginTop:16 }}>
+        ACH payments are free · Secured by Stripe · PCI DSS compliant
       </div>
-      <button onClick={onReset} style={{width:"100%",padding:"12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:14,fontWeight:500,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>← Back to portal</button>
     </div>
   );
 }
 
 export default function RentPaymentScreen() {
-  const { tenant } = useTenant();
-  const [method,setMethod]=useState("card");
-  const [loading,setLoading]=useState(false);
-  const [paid,setPaid]=useState(false);
-  const [last4,setLast4]=useState("4242");
-  const [autopay,setAutopay]=useState(false);
-
-  async function handleSubmit(cardData) {
-    setLoading(true);
-    await new Promise(r=>setTimeout(r,2000));
-    setLast4(cardData.number.replace(/\s/g,"").slice(-4)||"4242");
-    setLoading(false);
-    setPaid(true);
-  }
+  const { tenant, user } = useTenant();
+  const rentAmount = tenant?.rent || 1150;
 
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        @keyframes spin{to{transform:rotate(360deg);}}
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};}
+        @keyframes spin { to { transform: rotate(360deg); } }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
       `}</style>
 
-      <div style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"24px 20px 48px",maxWidth:560,margin:"0 auto"}}>
+      <div style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"32px 20px 48px", maxWidth:580, margin:"0 auto" }}>
 
-        {/* Header */}
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4}}>Pay rent</div>
-        <div style={{fontSize:13,color:C.textSub,marginBottom:20}}>June 2026</div>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:4 }}>Pay rent</div>
+        <div style={{ fontSize:13, color:C.textSub, marginBottom:24 }}>
+          {new Date().toLocaleDateString("en-US", { month:"long", year:"numeric" })}
+        </div>
 
-        {/* Rent card */}
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px",marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+        {/* Amount summary */}
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"20px 22px", marginBottom:20 }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:16 }}>
             <div>
-              <div style={{fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Amount due</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:600,color:C.gold,lineHeight:1}}>$1,150.00</div>
-              <div style={{fontSize:12,color:C.textSub,marginTop:4}}>Unit 4B · Clifton Manor</div>
+              <div style={{ fontSize:10, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>Amount due</div>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:38, fontWeight:600, color:C.gold, lineHeight:1 }}>
+                ${rentAmount.toLocaleString()}
+              </div>
+              <div style={{ fontSize:12, color:C.textSub, marginTop:4 }}>
+                Unit {tenant?.unit || "—"} · {tenant?.property || "—"}
+              </div>
             </div>
-            <span style={{fontSize:10,fontWeight:600,padding:"4px 10px",background:"rgba(240,164,48,0.13)",color:C.amber,borderRadius:20}}>Due Jun 1</span>
+            <span style={{ fontSize:10, fontWeight:600, padding:"4px 10px", background:"rgba(240,164,48,0.13)", color:C.amber, borderRadius:20 }}>Due 1st</span>
           </div>
-          <div style={{background:C.raised,borderRadius:8,padding:"10px 12px"}}>
-            {[["Base rent","$1,100.00"],["Water / sewer","$50.00"]].map(([k,v])=>(
-              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"4px 0"}}>
-                <span style={{fontSize:12,color:C.textSub}}>{k}</span>
-                <span style={{fontSize:12,color:C.text}}>{v}</span>
+          <div style={{ background:C.raised, borderRadius:7, padding:"10px 12px" }}>
+            {[["Base rent", `$${(rentAmount - 50).toLocaleString()}`], ["Water / sewer", "$50.00"]].map(([k,v]) => (
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0" }}>
+                <span style={{ fontSize:12, color:C.textSub }}>{k}</span>
+                <span style={{ fontSize:12, color:C.text }}>{v}</span>
               </div>
             ))}
-            <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,marginTop:6,paddingTop:6}}>
-              <span style={{fontSize:12,fontWeight:600,color:C.text}}>Total</span>
-              <span style={{fontSize:12,fontWeight:600,color:C.text}}>$1,150.00</span>
+            <div style={{ display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.border}`, marginTop:6, paddingTop:6 }}>
+              <span style={{ fontSize:12, fontWeight:600, color:C.text }}>Total</span>
+              <span style={{ fontSize:12, fontWeight:600, color:C.text }}>${rentAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        {paid ? <SuccessScreen last4={last4} onReset={()=>setPaid(false)}/> : (
-          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"20px"}}>
-            {/* Method tabs */}
-            <div style={{display:"flex",gap:4,background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,padding:4,marginBottom:20}}>
-              {[["card","Card"],["ach","Bank (ACH)"]].map(([id,label])=>(
-                <button key={id} onClick={()=>setMethod(id)} style={{flex:1,padding:"9px 0",borderRadius:6,fontSize:13,fontWeight:method===id?600:400,background:method===id?C.surface:"transparent",border:`1px solid ${method===id?C.border:"transparent"}`,color:method===id?C.text:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s"}}>{label}</button>
-              ))}
-            </div>
-
-            {method==="card"?<CardForm onSubmit={handleSubmit} loading={loading} amount={1150}/>:<ACHForm/>}
-
-            {method==="card"&&(
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:16,padding:"12px 14px",background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,cursor:"pointer"}} onClick={()=>setAutopay(a=>!a)}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:2}}>Enable autopay</div>
-                  <div style={{fontSize:11,color:C.textSub}}>Auto-charge this card on the 1st of each month</div>
-                </div>
-                <div style={{width:36,height:20,borderRadius:10,background:autopay?C.goldDim:C.raised,border:`1px solid ${autopay?C.goldDim:C.border}`,position:"relative",transition:"all 0.2s",flexShrink:0}}>
-                  <div style={{width:14,height:14,borderRadius:"50%",background:autopay?C.gold:C.textMuted,position:"absolute",top:2,left:autopay?19:2,transition:"left 0.2s"}}/>
-                </div>
-              </div>
-            )}
-
-            <div style={{fontSize:11,color:C.textMuted,textAlign:"center",marginTop:14}}>Payments secured by Stripe · PCI DSS compliant</div>
-          </div>
-        )}
+        {/* Payment form */}
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"20px 22px" }}>
+          <Elements stripe={stripePromise}>
+            <ACHForm tenant={tenant} user={user} rentAmount={rentAmount} />
+          </Elements>
+        </div>
       </div>
     </TenantLayout>
   );
