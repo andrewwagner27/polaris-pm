@@ -1,22 +1,38 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const C = {
+  bg:       "#0A0B0D",
+  surface:  "#111316",
+  raised:   "#181C21",
+  border:   "#252930",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#7A5C2E",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
+};
+
 const FEATURES_LANDLORD = [
-  { icon: "💰", title: "Rent collection",     sub: "Stripe-powered payments, autopay, ACH" },
-  { icon: "📊", title: "Portfolio dashboard",  sub: "NOI, DSCR, occupancy at a glance" },
-  { icon: "🔧", title: "Maintenance tracking", sub: "Tickets, vendors, cost tracking" },
-  { icon: "📈", title: "Financial reports",    sub: "P&L, rent roll, delinquency, CSV export" },
-  { icon: "👥", title: "Tenant management",    sub: "Leases, ledgers, communication" },
-  { icon: "🏦", title: "Debt & DSCR",          sub: "Amortization, cap rate, lender-ready" },
+  { title: "Rent collection",     sub: "Stripe-powered payments, autopay, ACH" },
+  { title: "Portfolio dashboard",  sub: "NOI, DSCR, occupancy at a glance" },
+  { title: "Maintenance tracking", sub: "Tickets, vendors, cost tracking" },
+  { title: "Financial reports",    sub: "P&L, rent roll, delinquency, CSV export" },
+  { title: "Tenant management",    sub: "Leases, ledgers, communication" },
+  { title: "Debt & DSCR",          sub: "Amortization, cap rate, lender-ready" },
 ];
 
 const FEATURES_TENANT = [
-  { icon: "💳", title: "Pay rent online",      sub: "Card, ACH, autopay — no checks" },
-  { icon: "🔧", title: "Submit requests",       sub: "Photo uploads, status tracking" },
-  { icon: "💬", title: "Message your landlord", sub: "Secure in-app messaging" },
-  { icon: "📄", title: "Download your ledger",  sub: "Lender-ready payment history PDF" },
-  { icon: "🛡️", title: "Insurance tracking",   sub: "Policy status, expiry alerts" },
-  { icon: "📋", title: "Bulletin board",        sub: "Connect with neighbors securely" },
+  { title: "Pay rent online",      sub: "Card, ACH, autopay — no checks" },
+  { title: "Submit requests",       sub: "Photo uploads, status tracking" },
+  { title: "Message your landlord", sub: "Secure in-app messaging" },
+  { title: "Download your ledger",  sub: "Lender-ready payment history PDF" },
+  { title: "Insurance tracking",    sub: "Policy status, expiry alerts" },
+  { title: "Bulletin board",        sub: "Connect with neighbors securely" },
 ];
 
 const STATS = [
@@ -26,229 +42,265 @@ const STATS = [
   { value: "100%", label: "Yours to own" },
 ];
 
-const s = {
-  app: { fontFamily: "'Inter','Segoe UI',sans-serif", color: "#1a1a1a", background: "#fff", minHeight: "100vh" },
-  // Nav
-  nav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 40px", height: 64, borderBottom: "1px solid #f0f0f0", position: "sticky", top: 0, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", zIndex: 100 },
-  navLogo: { display: "flex", alignItems: "center", gap: 10 },
-  navLogoIcon: { width: 36, height: 36, borderRadius: 10, background: "#0C447C", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 },
-  navLogoText: { fontSize: 16, fontWeight: 700, color: "#0C447C" },
-  navLinks: { display: "flex", alignItems: "center", gap: 28 },
-  navLink: { fontSize: 13, color: "#555", cursor: "pointer", fontWeight: 500 },
-  navCta: { display: "flex", gap: 10 },
-  navBtnSecondary: { padding: "8px 16px", background: "transparent", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#1a1a1a", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  navBtnPrimary: { padding: "8px 16px", background: "#0C447C", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "'Inter',sans-serif" },
-  // Hero
-  hero: { background: "linear-gradient(135deg, #0C1F3F 0%, #0C447C 50%, #185FA5 100%)", padding: "80px 40px 100px", textAlign: "center", position: "relative", overflow: "hidden" },
-  heroEyebrow: { fontSize: 12, fontWeight: 600, color: "#85B7EB", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 },
-  heroEyebrowDot: { width: 6, height: 6, borderRadius: "50%", background: "#85B7EB" },
-  heroTitle: { fontSize: 52, fontWeight: 800, color: "#fff", lineHeight: 1.1, marginBottom: 20, maxWidth: 700, margin: "0 auto 20px" },
-  heroSub: { fontSize: 18, color: "#85B7EB", lineHeight: 1.6, maxWidth: 540, margin: "0 auto 40px" },
-  heroCtas: { display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" },
-  heroBtn: (primary) => ({ padding: "14px 28px", background: primary ? "#fff" : "rgba(255,255,255,0.12)", color: primary ? "#0C447C" : "#fff", border: primary ? "none" : "1px solid rgba(255,255,255,0.3)", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s" }),
-  // Stats bar
-  statsBar: { background: "#f8f9fa", borderBottom: "1px solid #e8eaed", padding: "20px 40px", display: "flex", justifyContent: "center", gap: 60 },
-  statItem: { textAlign: "center" },
-  statVal: { fontSize: 28, fontWeight: 800, color: "#0C447C" },
-  statLabel: { fontSize: 12, color: "#888", marginTop: 3 },
-  // Dual portal section
-  dualSection: { padding: "80px 40px", maxWidth: 1100, margin: "0 auto" },
-  dualTitle: { fontSize: 34, fontWeight: 800, textAlign: "center", marginBottom: 10 },
-  dualSub: { fontSize: 16, color: "#888", textAlign: "center", marginBottom: 50 },
-  dualGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
-  portalCard: (color, bg) => ({ background: bg, border: `2px solid ${color}20`, borderRadius: 20, padding: "36px 32px", position: "relative", overflow: "hidden" }),
-  portalCardAccent: (color) => ({ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: color }),
-  portalIcon: { fontSize: 44, marginBottom: 16 },
-  portalTitle: (color) => ({ fontSize: 24, fontWeight: 800, color, marginBottom: 8 }),
-  portalSub: { fontSize: 14, color: "#666", lineHeight: 1.6, marginBottom: 24 },
-  featureList: { display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 },
-  featureItem: { display: "flex", alignItems: "flex-start", gap: 12 },
-  featureIcon: (bg) => ({ width: 34, height: 34, borderRadius: 8, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }),
-  featureText: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  featureSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  portalBtn: (color) => ({ width: "100%", padding: "13px", background: color, color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }),
-  // How it works
-  howSection: { background: "#f8f9fa", padding: "80px 40px" },
-  howTitle: { fontSize: 34, fontWeight: 800, textAlign: "center", marginBottom: 10 },
-  howSub: { fontSize: 16, color: "#888", textAlign: "center", marginBottom: 50 },
-  howGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 24, maxWidth: 900, margin: "0 auto" },
-  howCard: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 14, padding: "28px 24px", textAlign: "center" },
-  howNum: { width: 44, height: 44, borderRadius: "50%", background: "#0C447C", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, margin: "0 auto 16px" },
-  howTitle2: { fontSize: 16, fontWeight: 700, marginBottom: 8 },
-  howText: { fontSize: 13, color: "#888", lineHeight: 1.6 },
-  // CTA section
-  ctaSection: { background: "linear-gradient(135deg, #0C1F3F, #0C447C)", padding: "80px 40px", textAlign: "center" },
-  ctaTitle: { fontSize: 38, fontWeight: 800, color: "#fff", marginBottom: 12 },
-  ctaSub: { fontSize: 16, color: "#85B7EB", marginBottom: 36 },
-  ctaBtns: { display: "flex", gap: 14, justifyContent: "center" },
-  // Footer
-  footer: { background: "#0C1F3F", padding: "32px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" },
-  footerLogo: { fontSize: 14, fontWeight: 700, color: "#fff" },
-  footerText: { fontSize: 12, color: "#5B7FA6" },
-};
+const HOW = [
+  { num: "01", title: "Add your properties", text: "Enter property details, units, and rent amounts. Import existing tenants or invite them to sign up." },
+  { num: "02", title: "Invite your tenants", text: "Tenants get a magic link to create their account. Pay rent, submit requests, and message you right away." },
+  { num: "03", title: "Run your portfolio", text: "Collect rent automatically, track maintenance, monitor NOI and DSCR, and grow your portfolio." },
+];
+
+function ModusMark({ size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <path d="M6 33V10L20 27L34 10V33" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 10L20 27L34 10" stroke={C.goldDim} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [hoveredPortal, setHoveredPortal] = useState(null);
+  const [hovered, setHovered] = useState(null);
 
   return (
-    <div style={s.app}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.text, background: C.bg, minHeight: "100vh" }}>
       <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; }
-        @keyframes fadeUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0A0B0D; }
+        @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .m-nav-btn:hover { background: rgba(201,169,110,0.07) !important; }
+        .m-nav-ghost:hover { border-color: #353A44 !important; color: #EDEAE2 !important; }
+        .m-feature:hover { border-color: #353A44 !important; background: #181C21 !important; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #252930; border-radius: 2px; }
       `}</style>
 
-      {/* Nav */}
-      <nav style={s.nav}>
-        <div style={s.navLogo}>
-          <div style={s.navLogoIcon}>🏢</div>
-          <span style={s.navLogoText}>Polaris PM</span>
+      {/* ── Nav ── */}
+      <nav style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 48px", height: 64,
+        borderBottom: `1px solid ${C.border}`,
+        position: "sticky", top: 0,
+        background: "rgba(10,11,13,0.92)", backdropFilter: "blur(12px)",
+        zIndex: 100,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ModusMark size={28} />
+          <div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
+            <div style={{ fontSize: 9, color: C.textMuted, letterSpacing: "0.16em" }}>PROPERTY MANAGEMENT</div>
+          </div>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink}>Features</span>
-          <span style={s.navLink}>Pricing</span>
-          <span style={s.navLink}>About</span>
-        </div>
-        <div style={s.navCta}>
-          <button style={s.navBtnSecondary} onClick={() => navigate("/login")}>Tenant login</button>
-          <button style={s.navBtnPrimary} onClick={() => navigate("/landlord/login")}>Landlord login</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button className="m-nav-ghost" onClick={() => navigate("/login")} style={{
+            padding: "7px 16px", background: "transparent", border: `1px solid ${C.border}`,
+            borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.textSub,
+            cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+          }}>Tenant login</button>
+          <button className="m-nav-btn" onClick={() => navigate("/landlord/login")} style={{
+            padding: "7px 16px", background: "transparent", border: `1px solid ${C.goldDim}`,
+            borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold,
+            cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s",
+          }}>Landlord login</button>
         </div>
       </nav>
 
-      {/* Hero */}
-      <div style={s.hero}>
-        {/* Background decoration */}
-        <div style={{ position: "absolute", top: -100, right: -100, width: 400, height: 400, borderRadius: "50%", background: "rgba(255,255,255,0.03)" }} />
-        <div style={{ position: "absolute", bottom: -80, left: -80, width: 300, height: 300, borderRadius: "50%", background: "rgba(255,255,255,0.03)" }} />
+      {/* ── Hero ── */}
+      <div style={{
+        padding: "100px 48px 120px", textAlign: "center",
+        position: "relative", overflow: "hidden",
+        borderBottom: `1px solid ${C.border}`,
+      }}>
+        {/* Subtle radial glow */}
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 400, background: "radial-gradient(ellipse, rgba(201,169,110,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-        <div style={{ position: "relative", animation: "fadeUp 0.5s ease" }}>
-          <div style={s.heroEyebrow}>
-            <div style={s.heroEyebrowDot} />
+        <div style={{ position: "relative", animation: "fadeUp 0.6s ease" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 500, color: C.gold, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 24, padding: "5px 14px", border: `1px solid ${C.goldDim}`, borderRadius: 20 }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.gold }} />
             Property management, reimagined
-            <div style={s.heroEyebrowDot} />
           </div>
-          <h1 style={s.heroTitle}>
-            One platform.<br />Landlords and tenants.
+
+          <h1 style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 72, fontWeight: 600, color: C.text,
+            lineHeight: 1.05, marginBottom: 24,
+            maxWidth: 720, margin: "0 auto 24px",
+            letterSpacing: "-0.01em",
+          }}>
+            One platform.<br />
+            <span style={{ color: C.gold }}>Landlords and tenants.</span>
           </h1>
-          <p style={s.heroSub}>
-            Collect rent, track maintenance, manage leases, and analyze your portfolio — all in one place. Built for the modern landlord.
+
+          <p style={{ fontSize: 18, color: C.textSub, lineHeight: 1.7, maxWidth: 520, margin: "0 auto 48px" }}>
+            Collect rent, track maintenance, manage leases, and analyze your portfolio — all in one place. Built for the sophisticated investor.
           </p>
-          <div style={s.heroCtas}>
-            <button style={s.heroBtn(true)} onClick={() => navigate("/landlord/login")}>
-              🏢 I'm a landlord →
-            </button>
-            <button style={s.heroBtn(false)} onClick={() => navigate("/login")}>
-              🏠 I'm a tenant →
-            </button>
+
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <button onClick={() => navigate("/landlord/login")} style={{
+              padding: "14px 32px", background: C.goldDim, color: C.text,
+              border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600,
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              letterSpacing: "0.02em", transition: "opacity 0.15s",
+            }}>Landlord dashboard →</button>
+            <button onClick={() => navigate("/login")} style={{
+              padding: "14px 32px", background: "transparent", color: C.textSub,
+              border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 15, fontWeight: 500,
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+            }}>Tenant portal →</button>
           </div>
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div style={s.statsBar}>
-        {STATS.map((stat, i) => (
-          <div key={i} style={s.statItem}>
-            <div style={s.statVal}>{stat.value}</div>
-            <div style={s.statLabel}>{stat.label}</div>
+      {/* ── Stats ── */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 0, borderBottom: `1px solid ${C.border}` }}>
+        {STATS.map((s, i) => (
+          <div key={i} style={{
+            textAlign: "center", padding: "32px 60px",
+            borderRight: i < STATS.length - 1 ? `1px solid ${C.border}` : "none",
+          }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 600, color: C.gold, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 12, color: C.textSub, marginTop: 6, letterSpacing: "0.06em" }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Dual portal cards */}
-      <div style={s.dualSection}>
-        <div style={s.dualTitle}>Two portals. One powerful platform.</div>
-        <div style={s.dualSub}>Everything landlords need to manage. Everything tenants need to live.</div>
+      {/* ── Dual portal cards ── */}
+      <div style={{ padding: "80px 48px", maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 600, color: C.text, marginBottom: 12 }}>Two portals. One powerful platform.</div>
+          <div style={{ fontSize: 16, color: C.textSub }}>Everything landlords need to manage. Everything tenants need to live.</div>
+        </div>
 
-        <div style={s.dualGrid}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* Landlord card */}
-          <div style={{ ...s.portalCard("#0C447C", "#F0F5FF"), transform: hoveredPortal === "landlord" ? "translateY(-4px)" : "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: hoveredPortal === "landlord" ? "0 12px 40px rgba(12,68,124,0.15)" : "none" }}
-            onMouseEnter={() => setHoveredPortal("landlord")}
-            onMouseLeave={() => setHoveredPortal(null)}>
-            <div style={s.portalCardAccent("#0C447C")} />
-            <div style={s.portalIcon}>🏢</div>
-            <div style={s.portalTitle("#0C447C")}>Landlord Portal</div>
-            <div style={s.portalSub}>Manage your entire portfolio from one dashboard. From single-family rentals to 100-unit multifamily.</div>
-            <div style={s.featureList}>
+          <div
+            style={{
+              background: C.surface, border: `1px solid ${hovered === "landlord" ? C.goldDim : C.border}`,
+              borderTop: `2px solid ${C.gold}`, borderRadius: 12, padding: "36px 32px",
+              transition: "border-color 0.2s, transform 0.2s",
+              transform: hovered === "landlord" ? "translateY(-3px)" : "none",
+              cursor: "default",
+            }}
+            onMouseEnter={() => setHovered("landlord")}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.gold, marginBottom: 8 }}>Landlord Portal</div>
+            <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.7, marginBottom: 28 }}>Manage your entire portfolio from one dashboard. From single-family rentals to 100-unit multifamily.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
               {FEATURES_LANDLORD.map((f, i) => (
-                <div key={i} style={s.featureItem}>
-                  <div style={s.featureIcon("#E6F1FB")}>{f.icon}</div>
+                <div key={i} className="m-feature" style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                  background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, transition: "all 0.15s",
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold, flexShrink: 0 }} />
                   <div>
-                    <div style={s.featureText}>{f.title}</div>
-                    <div style={s.featureSub}>{f.sub}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{f.title}</div>
+                    <div style={{ fontSize: 11, color: C.textSub, marginTop: 1 }}>{f.sub}</div>
                   </div>
                 </div>
               ))}
             </div>
-            <button style={s.portalBtn("#0C447C")} onClick={() => navigate("/landlord/login")}>
-              Go to landlord dashboard →
-            </button>
+            <button onClick={() => navigate("/landlord/login")} style={{
+              width: "100%", padding: "13px", background: "transparent",
+              border: `1px solid ${C.goldDim}`, borderRadius: 8, fontSize: 14, fontWeight: 500,
+              color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              transition: "background 0.15s", letterSpacing: "0.03em",
+            }}
+              onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
+              onMouseOut={e => e.currentTarget.style.background = "transparent"}
+            >Go to landlord dashboard →</button>
           </div>
 
           {/* Tenant card */}
-          <div style={{ ...s.portalCard("#3B6D11", "#F2FAF0"), transform: hoveredPortal === "tenant" ? "translateY(-4px)" : "none", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: hoveredPortal === "tenant" ? "0 12px 40px rgba(59,109,17,0.15)" : "none" }}
-            onMouseEnter={() => setHoveredPortal("tenant")}
-            onMouseLeave={() => setHoveredPortal(null)}>
-            <div style={s.portalCardAccent("#3B6D11")} />
-            <div style={s.portalIcon}>🏠</div>
-            <div style={s.portalTitle("#3B6D11")}>Tenant Portal</div>
-            <div style={s.portalSub}>Everything you need as a renter — pay rent, submit requests, and stay connected — all from your phone.</div>
-            <div style={s.featureList}>
+          <div
+            style={{
+              background: C.surface, border: `1px solid ${hovered === "tenant" ? "#353A44" : C.border}`,
+              borderTop: `2px solid ${C.blue}`, borderRadius: 12, padding: "36px 32px",
+              transition: "border-color 0.2s, transform 0.2s",
+              transform: hovered === "tenant" ? "translateY(-3px)" : "none",
+              cursor: "default",
+            }}
+            onMouseEnter={() => setHovered("tenant")}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.blue, marginBottom: 8 }}>Tenant Portal</div>
+            <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.7, marginBottom: 28 }}>Everything you need as a renter — pay rent, submit requests, and stay connected — all from your phone.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
               {FEATURES_TENANT.map((f, i) => (
-                <div key={i} style={s.featureItem}>
-                  <div style={s.featureIcon("#EAF3DE")}>{f.icon}</div>
+                <div key={i} className="m-feature" style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                  background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, transition: "all 0.15s",
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.blue, flexShrink: 0 }} />
                   <div>
-                    <div style={s.featureText}>{f.title}</div>
-                    <div style={s.featureSub}>{f.sub}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{f.title}</div>
+                    <div style={{ fontSize: 11, color: C.textSub, marginTop: 1 }}>{f.sub}</div>
                   </div>
                 </div>
               ))}
             </div>
-            <button style={s.portalBtn("#3B6D11")} onClick={() => navigate("/login")}>
-              Go to tenant portal →
-            </button>
+            <button onClick={() => navigate("/login")} style={{
+              width: "100%", padding: "13px", background: "transparent",
+              border: `1px solid ${C.blue}44`, borderRadius: 8, fontSize: 14, fontWeight: 500,
+              color: C.blue, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              transition: "background 0.15s", letterSpacing: "0.03em",
+            }}
+              onMouseOver={e => e.currentTarget.style.background = "rgba(74,154,232,0.07)"}
+              onMouseOut={e => e.currentTarget.style.background = "transparent"}
+            >Go to tenant portal →</button>
           </div>
         </div>
       </div>
 
-      {/* How it works */}
-      <div style={s.howSection}>
-        <div style={s.howTitle}>Get started in minutes</div>
-        <div style={s.howSub}>No lengthy onboarding. No sales calls. Just log in and go.</div>
-        <div style={s.howGrid}>
-          {[
-            { num: "1", title: "Add your properties", text: "Enter your property details, units, and rent amounts. Import existing tenants or invite them to sign up." },
-            { num: "2", title: "Invite your tenants", text: "Tenants get a link to create their account. They can pay rent, submit requests, and message you right away." },
-            { num: "3", title: "Run your portfolio", text: "Collect rent automatically, track maintenance, monitor your NOI and DSCR, and grow your portfolio." },
-          ].map((step, i) => (
-            <div key={i} style={s.howCard}>
-              <div style={s.howNum}>{step.num}</div>
-              <div style={s.howTitle2}>{step.title}</div>
-              <div style={s.howText}>{step.text}</div>
+      {/* ── How it works ── */}
+      <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "80px 48px" }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 600, color: C.text, marginBottom: 12 }}>Get started in minutes</div>
+          <div style={{ fontSize: 16, color: C.textSub }}>No lengthy onboarding. No sales calls. Just log in and go.</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, maxWidth: 900, margin: "0 auto" }}>
+          {HOW.map((step, i) => (
+            <div key={i} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "28px 24px" }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 600, color: C.gold, marginBottom: 16, lineHeight: 1 }}>{step.num}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 10 }}>{step.title}</div>
+              <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.7 }}>{step.text}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* CTA */}
-      <div style={s.ctaSection}>
-        <div style={s.ctaTitle}>Ready to take control of your portfolio?</div>
-        <div style={s.ctaSub}>Join landlords who've ditched expensive SaaS tools and built their own.</div>
-        <div style={s.ctaBtns}>
-          <button style={s.heroBtn(true)} onClick={() => navigate("/landlord/login")}>
-            🏢 Landlord dashboard →
-          </button>
-          <button style={s.heroBtn(false)} onClick={() => navigate("/login")}>
-            🏠 Tenant portal →
-          </button>
+      {/* ── CTA ── */}
+      <div style={{ padding: "100px 48px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 500, height: 300, background: "radial-gradient(ellipse, rgba(201,169,110,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "relative" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 52, fontWeight: 600, color: C.text, marginBottom: 16, lineHeight: 1.1 }}>
+            Ready to take control<br />of your portfolio?
+          </div>
+          <div style={{ fontSize: 16, color: C.textSub, marginBottom: 44 }}>
+            Join landlords who've built their own premium management platform.
+          </div>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>
+            <button onClick={() => navigate("/landlord/login")} style={{
+              padding: "14px 32px", background: C.goldDim, color: C.text,
+              border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600,
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+            }}>Landlord dashboard →</button>
+            <button onClick={() => navigate("/login")} style={{
+              padding: "14px 32px", background: "transparent", color: C.textSub,
+              border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 15, fontWeight: 500,
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+            }}>Tenant portal →</button>
+          </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={s.footer}>
-        <div style={s.footerLogo}>🏢 Polaris PM</div>
-        <div style={s.footerText}>Built by Polaris Property Solutions LLC · Columbus, OH</div>
-        <div style={s.footerText}>© {new Date().getFullYear()} All rights reserved</div>
+      {/* ── Footer ── */}
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: "28px 48px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ModusMark size={22} />
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: "0.08em" }}>MODUS</div>
+        </div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>Built by Polaris Property Solutions LLC · Columbus, OH</div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>© {new Date().getFullYear()} All rights reserved</div>
       </div>
     </div>
   );
