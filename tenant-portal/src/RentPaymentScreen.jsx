@@ -45,16 +45,15 @@ function ACHForm({ tenant, user, rentAmount }) {
 
   // Check for saved bank account
   useEffect(() => {
- async function checkSaved() {
-  console.log("tenant:", tenant);
-  console.log("tenant.id:", tenant?.id);
-  if (!tenant?.id) { setLoadingMethod(false); return; }
-  const { data } = await supabase.from("tenant_payment_methods")
-    .select("*").eq("tenant_id", tenant.id).eq("status", "active").single();
-  if (data) setSavedMethod(data);
-  setLoadingMethod(false);
-}
-checkSaved();
+    async function checkSaved() {
+      if (!tenant?.id) { setLoadingMethod(false); return; }
+      const { data } = await supabase.from("tenant_payment_methods")
+        .select("*").eq("tenant_id", tenant.id).eq("status", "active").single();
+      if (data) setSavedMethod(data);
+      setLoadingMethod(false);
+    }
+    checkSaved();
+  }, [tenant?.id]);
 
   async function linkBank() {
     if (!stripe) return;
