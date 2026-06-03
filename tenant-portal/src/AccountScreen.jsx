@@ -1,281 +1,157 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "./supabase";
+import TenantLayout from "./TenantLayout";
+import { useTenant } from "./useTenant";
 
-const s = {
-  app: {
-    width: "100%",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    fontSize: 14,
-    color: "#1a1a1a",
-    background: "#f4f5f7",
-    minHeight: "100vh",
-    paddingBottom: 80,
-  },
-  header: {
-    background: "linear-gradient(160deg, #0C447C 0%, #185FA5 100%)",
-    padding: "28px 20px 32px",
-    textAlign: "center",
-  },
-  avatarWrap: {
-    position: "relative",
-    width: 72, height: 72,
-    margin: "0 auto 12px",
-  },
-  avatar: {
-    width: 72, height: 72, borderRadius: "50%",
-    background: "rgba(255,255,255,0.2)",
-    border: "3px solid rgba(255,255,255,0.4)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 24, fontWeight: 700, color: "#fff",
-  },
-  avatarEdit: {
-    position: "absolute", bottom: 0, right: 0,
-    width: 22, height: 22, borderRadius: "50%",
-    background: "#fff", border: "2px solid #185FA5",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 10, cursor: "pointer",
-  },
-  tenantName: { fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 3 },
-  tenantSub: { fontSize: 12, color: "#85B7EB", marginBottom: 14 },
-  leaseBadge: {
-    display: "inline-flex", alignItems: "center", gap: 6,
-    background: "rgba(255,255,255,0.15)",
-    border: "1px solid rgba(255,255,255,0.25)",
-    borderRadius: 20, padding: "5px 14px",
-    fontSize: 12, color: "#E6F1FB",
-  },
-  body: { padding: "16px 16px 0" },
-  sectionTitle: {
-    fontSize: 11, fontWeight: 600, color: "#555",
-    letterSpacing: "0.07em", textTransform: "uppercase",
-    marginBottom: 10, marginTop: 20,
-  },
-  menuCard: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 14,
-    overflow: "hidden",
-    marginBottom: 16,
-  },
-  menuItem: (last) => ({
-    display: "flex", alignItems: "center",
-    padding: "14px 16px",
-    borderBottom: last ? "none" : "1px solid #f4f5f7",
-    cursor: "pointer",
-    gap: 14,
-    transition: "background 0.1s",
-  }),
-  menuIconWrap: (bg) => ({
-    width: 38, height: 38, borderRadius: 10,
-    background: bg,
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 18, flexShrink: 0,
-  }),
-  menuLabel: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  menuSub: { fontSize: 11, color: "#888", marginTop: 2 },
-  menuRight: {
-    marginLeft: "auto", display: "flex",
-    alignItems: "center", gap: 8,
-  },
-  menuBadge: (color, bg) => ({
-    fontSize: 10, fontWeight: 600,
-    padding: "2px 8px", borderRadius: 10,
-    background: bg, color,
-  }),
-  menuArrow: { fontSize: 16, color: "#ccc" },
-  leaseCard: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 14,
-    padding: "16px",
-    marginBottom: 16,
-  },
-  leaseRow: {
-    display: "flex", justifyContent: "space-between",
-    alignItems: "center", padding: "7px 0",
-    borderBottom: "1px solid #f4f5f7",
-  },
-  leaseRowLast: {
-    display: "flex", justifyContent: "space-between",
-    alignItems: "center", padding: "7px 0",
-  },
-  leaseKey: { fontSize: 13, color: "#888" },
-  leaseVal: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
-  progressWrap: { marginTop: 14 },
-  progressLabel: {
-    display: "flex", justifyContent: "space-between",
-    fontSize: 11, color: "#888", marginBottom: 6,
-  },
-  progressTrack: {
-    height: 6, background: "#f0f0f0",
-    borderRadius: 3, overflow: "hidden",
-  },
-  progressFill: (pct) => ({
-    height: "100%", width: `${pct}%`,
-    background: "linear-gradient(90deg, #185FA5, #0C447C)",
-    borderRadius: 3, transition: "width 0.3s",
-  }),
-  signOutBtn: {
-    width: "100%", padding: "13px",
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderRadius: 12, fontSize: 14,
-    fontWeight: 600, color: "#A32D2D",
-    cursor: "pointer",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    marginBottom: 12,
-  },
-  versionText: {
-    fontSize: 11, color: "#ccc",
-    textAlign: "center", paddingBottom: 8,
-  },
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
 };
 
 const MENU_ITEMS = [
-  {
-    section: "Payments",
-    items: [
-      { icon: "📄", bg: "#EAF3DE", label: "Payment Ledger", sub: "Download official PDF", route: null, action: "ledger", badge: null },
-      { icon: "💳", bg: "#E6F1FB", label: "Pay Rent",       sub: "June · $1,150 due Jun 1", route: "/pay", badge: { label: "Due", color: "#854F0B", bg: "#FAEEDA" } },
-      { icon: "🔄", bg: "#F3EEFB", label: "Autopay",        sub: "Currently off",           route: null, action: "autopay", badge: null },
-    ]
-  },
-  {
-    section: "Compliance",
-    items: [
-      { icon: "🛡️", bg: "#EAF3DE", label: "Renters Insurance", sub: "Verified · Expires Dec 31, 2026", route: "/insurance", badge: { label: "Verified", color: "#3B6D11", bg: "#EAF3DE" } },
-      { icon: "📋", bg: "#E6F1FB", label: "Documents",          sub: "8 files · 2 new",               route: "/documents", badge: { label: "2 new", color: "#185FA5", bg: "#E6F1FB" } },
-    ]
-  },
-  {
-    section: "Community",
-    items: [
-      { icon: "📌", bg: "#FAEEDA", label: "Bulletin Board", sub: "4 posts from neighbors", route: "/bulletin", badge: null },
-      { icon: "💬", bg: "#F3EEFB", label: "Messages",       sub: "1 unread message",       route: "/messages", badge: { label: "1", color: "#fff", bg: "#185FA5" } },
-    ]
-  },
-  {
-    section: "Settings",
-    items: [
-      { icon: "👤", bg: "#f4f5f7", label: "Profile",       sub: "Name, email, phone",      route: null, action: "profile", badge: null },
-      { icon: "🔔", bg: "#f4f5f7", label: "Notifications", sub: "Rent reminders, alerts",  route: null, action: "notifs",  badge: null },
-      { icon: "🔒", bg: "#f4f5f7", label: "Password",      sub: "Change your password",    route: null, action: "password", badge: null },
-    ]
-  },
+  { section: "Payments", items: [
+    { label: "Payment Ledger",  sub: "Download official PDF",        action: "ledger",   color: C.green },
+    { label: "Pay Rent",        sub: "June · $1,150 due Jun 1",      route: "/pay",      color: C.gold,  badge: { label: "Due", color: C.amber } },
+    { label: "Autopay",         sub: "Currently off",                action: "autopay",  color: C.blue },
+  ]},
+  { section: "Compliance", items: [
+    { label: "Renters Insurance", sub: "Verified · Expires Dec 31, 2026", route: "/insurance", color: C.green, badge: { label: "Verified", color: C.green } },
+    { label: "Documents",         sub: "8 files · 2 new",               route: "/documents", color: C.blue,  badge: { label: "2 new",   color: C.blue  } },
+  ]},
+  { section: "Community", items: [
+    { label: "Bulletin Board", sub: "4 posts from neighbors", route: "/bulletin",  color: C.amber },
+    { label: "Messages",       sub: "1 unread message",       route: "/messages",  color: C.blue, badge: { label: "1", color: C.blue } },
+  ]},
+  { section: "Settings", items: [
+    { label: "Profile",       sub: "Name, email, phone",     action: "profile",   color: C.textSub },
+    { label: "Notifications", sub: "Rent reminders, alerts", action: "notifs",    color: C.textSub },
+    { label: "Password",      sub: "Change your password",   action: "password",  color: C.textSub },
+  ]},
 ];
 
-// Lease progress calculation
 function leaseProgress() {
-  const start = new Date("2026-01-01");
-  const end   = new Date("2026-12-31");
-  const today = new Date();
-  const total = end - start;
-  const elapsed = today - start;
-  return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+  const start=new Date("2026-01-01"), end=new Date("2026-12-31"), today=new Date();
+  return Math.min(100,Math.max(0,Math.round(((today-start)/(end-start))*100)));
 }
 
 export default function AccountScreen() {
   const navigate = useNavigate();
+  const { tenant } = useTenant();
   const [downloading, setDownloading] = useState(false);
+  const progress = leaseProgress();
+
+  const name    = tenant?.name || "Tenant";
+  const initials = name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
   async function handleLedger() {
     setDownloading(true);
-    // TODO: trigger TenantLedgerPDF generate function
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r=>setTimeout(r,800));
     setDownloading(false);
-    navigate("/home"); // replace with actual PDF trigger
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate("/login");
   }
 
   function handleItem(item) {
     if (item.route) { navigate(item.route); return; }
-    if (item.action === "ledger") { handleLedger(); return; }
-    // other actions handled later
+    if (item.action==="ledger") { handleLedger(); return; }
   }
 
-  const progress = leaseProgress();
-
   return (
-    <div style={s.app}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; }`}</style>
+    <TenantLayout tenantName={name}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{background:${C.bg};}
+        .t-menu-item:hover{background:${C.raised}!important;}
+        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
+      `}</style>
 
-      {/* ── Header ── */}
-      <div style={s.header}>
-        <div style={s.avatarWrap}>
-          <div style={s.avatar}>MR</div>
-          <div style={s.avatarEdit}>✏️</div>
+      <div style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",paddingBottom:80}}>
+
+        {/* Header */}
+        <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"28px 20px 24px",textAlign:"center"}}>
+          <div style={{width:68,height:68,borderRadius:"50%",background:`${C.gold}22`,border:`2px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:700,margin:"0 auto 14px"}}>{initials}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:4}}>{name}</div>
+          <div style={{fontSize:12,color:C.textSub,marginBottom:12}}>{tenant?.email || "—"}</div>
+          <span style={{display:"inline-flex",alignItems:"center",gap:6,background:`${C.green}15`,border:`1px solid ${C.green}33`,borderRadius:20,padding:"5px 14px",fontSize:12,color:C.green}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:C.green}}/> Active tenant · Unit {tenant?.unit || "—"}
+          </span>
         </div>
-        <div style={s.tenantName}>Maria Rodriguez</div>
-        <div style={s.tenantSub}>maria@email.com · (614) 555-0192</div>
-        <div style={s.leaseBadge}>
-          <span style={{ color: "#4CAF50" }}>●</span> Active tenant · Unit 4B
-        </div>
-      </div>
 
-      <div style={s.body}>
+        <div style={{padding:"16px 20px 0"}}>
 
-        {/* ── Lease progress card ── */}
-        <div style={{ ...s.sectionTitle, marginTop: 16 }}>Lease summary</div>
-        <div style={s.leaseCard}>
-          {[
-            ["Property",    "Clifton Manor"],
-            ["Address",     "12009 Clifton Blvd, Lakewood OH"],
-            ["Lease start", "January 1, 2026"],
-            ["Lease end",   "December 31, 2026"],
-            ["Monthly rent","$1,150.00"],
-          ].map(([k, v], i, arr) => (
-            <div key={k} style={i === arr.length - 1 ? s.leaseRowLast : s.leaseRow}>
-              <span style={s.leaseKey}>{k}</span>
-              <span style={s.leaseVal}>{v}</span>
+          {/* Lease summary */}
+          <div style={{fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,marginTop:8}}>Lease summary</div>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:20}}>
+            {[
+              ["Property",    tenant?.property || "Clifton Manor"],
+              ["Lease start", "January 1, 2026"],
+              ["Lease end",   "December 31, 2026"],
+              ["Monthly rent",`$${(tenant?.rent||1150).toLocaleString()}`],
+            ].map(([k,v],i,arr)=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none"}}>
+                <span style={{fontSize:13,color:C.textSub}}>{k}</span>
+                <span style={{fontSize:13,fontWeight:500,color:C.text}}>{v}</span>
+              </div>
+            ))}
+            <div style={{marginTop:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.textSub,marginBottom:6}}>
+                <span>Lease progress</span><span>{progress}% complete</span>
+              </div>
+              <div style={{height:4,background:C.raised,borderRadius:2,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${progress}%`,background:C.gold,borderRadius:2,transition:"width 0.3s"}}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Menu sections */}
+          {MENU_ITEMS.map(section=>(
+            <div key={section.section} style={{marginBottom:20}}>
+              <div style={{fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>{section.section}</div>
+              <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
+                {section.items.map((item,i)=>(
+                  <div key={item.label} className="t-menu-item"
+                    onClick={()=>handleItem(item)}
+                    style={{display:"flex",alignItems:"center",padding:"13px 16px",borderBottom:i<section.items.length-1?`1px solid ${C.border}`:"none",cursor:"pointer",gap:14,transition:"background 0.12s"}}>
+                    <div style={{width:36,height:36,borderRadius:8,background:`${item.color}18`,border:`1px solid ${item.color}33`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:item.color}}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:2}}>{item.action==="ledger"&&downloading?"Generating PDF…":item.label}</div>
+                      <div style={{fontSize:11,color:C.textSub}}>{item.sub}</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                      {item.badge&&<span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:5,background:`${item.badge.color}18`,color:item.badge.color}}>{item.badge.label}</span>}
+                      <span style={{fontSize:16,color:C.textMuted}}>›</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
-          <div style={s.progressWrap}>
-            <div style={s.progressLabel}>
-              <span>Lease progress</span>
-              <span>{progress}% complete</span>
-            </div>
-            <div style={s.progressTrack}>
-              <div style={s.progressFill(progress)} />
-            </div>
-          </div>
+
+          {/* Sign out */}
+          <button onClick={handleSignOut} style={{width:"100%",padding:"12px",background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.2)`,borderRadius:8,fontSize:14,fontWeight:500,color:C.red,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:12}}>
+            Sign out
+          </button>
+          <div style={{fontSize:11,color:C.textMuted,textAlign:"center",paddingBottom:8}}>Modus PM · Built in Columbus, OH</div>
         </div>
-
-        {/* ── Menu sections ── */}
-        {MENU_ITEMS.map(section => (
-          <div key={section.section}>
-            <div style={s.sectionTitle}>{section.section}</div>
-            <div style={s.menuCard}>
-              {section.items.map((item, i) => (
-                <div
-                  key={item.label}
-                  style={s.menuItem(i === section.items.length - 1)}
-                  onClick={() => handleItem(item)}
-                >
-                  <div style={s.menuIconWrap(item.bg)}>{item.icon}</div>
-                  <div>
-                    <div style={s.menuLabel}>{item.label}</div>
-                    <div style={s.menuSub}>{item.action === "ledger" && downloading ? "Generating PDF…" : item.sub}</div>
-                  </div>
-                  <div style={s.menuRight}>
-                    {item.badge && (
-                      <span style={s.menuBadge(item.badge.color, item.badge.bg)}>
-                        {item.badge.label}
-                      </span>
-                    )}
-                    <span style={s.menuArrow}>›</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* ── Sign out ── */}
-        <button style={s.signOutBtn} onClick={() => navigate("/login")}>
-          Sign out
-        </button>
-        <div style={s.versionText}>Polaris Tenant v1.0 · Built with ♥ in Columbus, OH</div>
-
       </div>
-    </div>
+    </TenantLayout>
   );
 }

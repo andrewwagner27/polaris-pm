@@ -27,65 +27,6 @@ import ResetPassword from './ResetPassword';
 import TenantMaintenanceList from './TenantMaintenanceList';
 import TenantMaintenanceDetail from './TenantMaintenanceDetail';
 
-function BottomNav() {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-
-  // Hide on these routes entirely
-  if (
-    pathname === '/onboarding' ||
-    pathname === '/' ||
-    pathname === '/login' ||
-    pathname === '/forgot-password' ||
-    pathname === '/reset-password' ||
-    pathname === '/auth/callback' ||
-    pathname.startsWith('/landlord') ||
-    pathname.startsWith('/maintenance') // TenantLayout handles its own nav
-  ) return null;
-
-  // Hide on desktop — TenantLayout provides sidebar there
-  if (window.innerWidth >= 768) return null;
-
-  const items = [
-    { icon: "🏠", label: "Home",     path: "/home" },
-    { icon: "💳", label: "Pay",      path: "/pay" },
-    { icon: "🔧", label: "Requests", path: "/maintenance" },
-    { icon: "💬", label: "Messages", path: "/messages" },
-    { icon: "👤", label: "Account",  path: "/account" },
-  ];
-
-  return (
-    <div style={{
-      position: "fixed", bottom: 0, left: "50%",
-      transform: "translateX(-50%)",
-      width: "100%", maxWidth: 460,
-      background: "#fff", borderTop: "1px solid #e8eaed",
-      display: "flex", zIndex: 100,
-    }}>
-      {items.map(item => {
-        const active = pathname === item.path;
-        return (
-          <button key={item.path} onClick={() => navigate(item.path)} style={{
-            flex: 1, padding: "10px 0 8px",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", gap: 3,
-            background: "none", border: "none",
-            cursor: "pointer",
-            fontFamily: "'Inter', 'Segoe UI', sans-serif",
-          }}>
-            <span style={{ fontSize: 20 }}>{item.icon}</span>
-            <span style={{
-              fontSize: 10,
-              fontWeight: active ? 600 : 400,
-              color: active ? "#0C447C" : "#aaa",
-            }}>{item.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function Login() {
   const navigate = useNavigate();
   return <LoginScreen onSuccess={(user) => {
@@ -106,36 +47,35 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"                    element={<LandingPage />} />
-        <Route path="/login"               element={<Login />} />
-        <Route path="/forgot-password"     element={<ForgotPassword />} />
-        <Route path="/reset-password"      element={<ResetPassword />} />
-        <Route path="/home"                element={<Home />} />
-        <Route path="/pay"                 element={<RentPaymentScreen />} />
-        <Route path="/maintenance"         element={<TenantMaintenanceList />} />
-        <Route path="/maintenance/new"     element={<MaintenanceRequestForm />} />
-        <Route path="/maintenance/:id"     element={<TenantMaintenanceDetail />} />
-        <Route path="/messages"            element={<MessagingScreen />} />
-        <Route path="/documents"           element={<DocumentsScreen />} />
-        <Route path="/bulletin"            element={<BulletinBoard />} />
-        <Route path="/account"             element={<AccountScreen />} />
-        <Route path="/insurance"           element={<InsuranceValidator />} />
-        <Route path="/onboarding"          element={<TenantOnboarding />} />
-        <Route path="/auth/callback"       element={<AuthCallback />} />
-        <Route path="/landlord/login"      element={<LandlordLogin />} />
-        <Route path="/landlord"            element={<ProtectedLandlordRoute><LandlordDashboard /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/tenants"    element={<ProtectedLandlordRoute><LandlordTenants /></ProtectedLandlordRoute>} />
+        <Route path="/"                     element={<LandingPage />} />
+        <Route path="/login"                element={<Login />} />
+        <Route path="/forgot-password"      element={<ForgotPassword />} />
+        <Route path="/reset-password"       element={<ResetPassword />} />
+        <Route path="/home"                 element={<Home />} />
+        <Route path="/pay"                  element={<RentPaymentScreen />} />
+        <Route path="/maintenance"          element={<TenantMaintenanceList />} />
+        <Route path="/maintenance/new"      element={<MaintenanceRequestForm />} />
+        <Route path="/maintenance/:id"      element={<TenantMaintenanceDetail />} />
+        <Route path="/messages"             element={<MessagingScreen />} />
+        <Route path="/documents"            element={<DocumentsScreen />} />
+        <Route path="/bulletin"             element={<BulletinBoard />} />
+        <Route path="/account"              element={<AccountScreen />} />
+        <Route path="/insurance"            element={<InsuranceValidator />} />
+        <Route path="/onboarding"           element={<TenantOnboarding />} />
+        <Route path="/auth/callback"        element={<AuthCallback />} />
+        <Route path="/landlord/login"       element={<LandlordLogin />} />
+        <Route path="/landlord"             element={<ProtectedLandlordRoute><LandlordDashboard /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/tenants"     element={<ProtectedLandlordRoute><LandlordTenants /></ProtectedLandlordRoute>} />
         <Route path="/landlord/tenants/:id" element={<ProtectedLandlordRoute><LandlordTenantDetail /></ProtectedLandlordRoute>} />
         <Route path="/landlord/maintenance" element={<ProtectedLandlordRoute><LandlordMaintenance /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/financials" element={<ProtectedLandlordRoute><LandlordFinancials /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/messages"   element={<ProtectedLandlordRoute><LandlordMessages /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/properties" element={<ProtectedLandlordRoute><LandlordProperties /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/rentroll"   element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/reports"    element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
-        <Route path="/landlord/settings"   element={<ProtectedLandlordRoute><LandlordSettings /></ProtectedLandlordRoute>} />
-        <Route path="*"                    element={<Login />} />
+        <Route path="/landlord/financials"  element={<ProtectedLandlordRoute><LandlordFinancials /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/messages"    element={<ProtectedLandlordRoute><LandlordMessages /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/properties"  element={<ProtectedLandlordRoute><LandlordProperties /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/rentroll"    element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/reports"     element={<ProtectedLandlordRoute><LandlordReports /></ProtectedLandlordRoute>} />
+        <Route path="/landlord/settings"    element={<ProtectedLandlordRoute><LandlordSettings /></ProtectedLandlordRoute>} />
+        <Route path="*"                     element={<Login />} />
       </Routes>
-      <BottomNav />
     </BrowserRouter>
   );
 }
