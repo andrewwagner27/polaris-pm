@@ -2,26 +2,32 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 
-const s = {
-  app: { width: "100%", fontFamily: "'Inter','Segoe UI',sans-serif", fontSize: 14, color: "#1a1a1a", background: "#0C1F3F", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 },
-  card: { background: "#fff", borderRadius: 16, padding: "36px 32px", width: "100%", maxWidth: 400, boxSizing: "border-box", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" },
-  logoWrap: { width: 52, height: 52, borderRadius: 14, background: "#E6F1FB", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 },
-  title: { fontSize: 22, fontWeight: 800, color: "#0C447C", textAlign: "center", marginBottom: 4 },
-  sub: { fontSize: 13, color: "#888", textAlign: "center", marginBottom: 28 },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 5 },
-  input: { width: "100%", padding: "11px 14px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "'Inter',sans-serif" },
-  passwordWrap: { position: "relative" },
-  eyeBtn: { position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#888", padding: 0 },
-  submitBtn: (loading) => ({ width: "100%", padding: 13, border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, background: loading ? "#378ADD" : "#0C447C", color: "#fff", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif", marginTop: 8 }),
-  errorBanner: { background: "#FDECEA", border: "1px solid #f5c6c6", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#A32D2D" },
-  successBanner: { background: "#EAF3DE", border: "1px solid #c3e6cb", borderRadius: 8, padding: "16px 14px", marginBottom: 16, fontSize: 13, color: "#3B6D11", textAlign: "center", lineHeight: 1.6 },
-  strengthBar: (strength) => ({ height: 4, borderRadius: 2, marginTop: 6, background: strength === 0 ? "#f0f0f0" : strength === 1 ? "#E24B4A" : strength === 2 ? "#854F0B" : "#3B6D11", width: strength === 0 ? "0%" : strength === 1 ? "33%" : strength === 2 ? "66%" : "100%", transition: "all 0.3s" }),
-  strengthLabel: (strength) => ({ fontSize: 11, color: strength === 1 ? "#E24B4A" : strength === 2 ? "#854F0B" : "#3B6D11", marginTop: 3 }),
+const C = {
+  bg:       "#0A0B0D",
+  surface:  "#111316",
+  raised:   "#181C21",
+  border:   "#252930",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#7A5C2E",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
+function ModusMark({ size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <path d="M6 33V10L20 27L34 10V33" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 10L20 27L34 10" stroke={C.goldDim} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 function Spinner() {
-  return <span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.35)", borderTopColor: "#fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />;
+  return <span style={{ width: 16, height: 16, border: "2px solid rgba(201,169,110,0.3)", borderTopColor: C.gold, borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />;
 }
 
 function getStrength(pw) {
@@ -33,32 +39,26 @@ function getStrength(pw) {
   return score;
 }
 
+const STRENGTH_COLORS = ["", C.red, C.amber, C.green];
+const STRENGTH_LABELS = ["", "Weak", "Fair", "Strong"];
+
 export default function ResetPassword() {
-  const navigate    = useNavigate();
-  const [password, setPassword]     = useState("");
-  const [confirm, setConfirm]       = useState("");
-  const [showPw, setShowPw]         = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState("");
-  const [done, setDone]             = useState(false);
-  const [validSession, setValidSession] = useState(false);
-  const [checking, setChecking]     = useState(true);
+  const navigate = useNavigate();
+  const [password, setPassword]   = useState("");
+  const [confirm, setConfirm]     = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+  const [done, setDone]           = useState(false);
+  const [checking, setChecking]   = useState(true);
 
   useEffect(() => {
-    // Supabase puts the access token in the URL hash when redirecting from email
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setValidSession(true);
-        setChecking(false);
-      }
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setChecking(false);
     });
-
-    // Also check if we already have a session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setValidSession(true);
-      }
-      setChecking(false);
+      if (session) setChecking(false);
+      else setChecking(false);
     });
   }, []);
 
@@ -66,87 +66,99 @@ export default function ResetPassword() {
     if (!password) { setError("Please enter a new password."); return; }
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
-
-    setLoading(true);
-    setError("");
-
+    setLoading(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
-
     if (error) { setError(error.message); return; }
     setDone(true);
-
-    // Redirect after 2 seconds
     setTimeout(() => navigate("/login"), 2500);
   }
 
   const strength = getStrength(password);
-  const strengthLabels = ["", "Weak", "Fair", "Strong"];
+
+  function InputField({ value, onChange, placeholder, hasError }) {
+    const [focused, setFocused] = useState(false);
+    const borderColor = hasError ? C.red : focused ? C.gold : C.border;
+    return (
+      <div style={{ position: "relative" }}>
+        <input type={showPw ? "text" : "password"} value={value} onChange={onChange} placeholder={placeholder}
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          onKeyDown={e => e.key === "Enter" && handleReset()}
+          style={{ width: "100%", padding: "11px 44px 11px 14px", fontSize: 14, border: `1px solid ${borderColor}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+        />
+        <button onClick={() => setShowPw(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.textMuted, padding: 0 }}>
+          {showPw ? "○" : "●"}
+        </button>
+      </div>
+    );
+  }
 
   if (checking) {
     return (
-      <div style={s.app}>
-        <style>{`* { box-sizing: border-box; } body { margin: 0; background: #0C1F3F; }`}</style>
-        <div style={{ color: "#fff", fontSize: 14 }}>Verifying reset link…</div>
+      <div style={{ width: "100%", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { background: #0A0B0D; }`}</style>
+        <div style={{ color: C.textSub, fontSize: 14 }}>Verifying reset link…</div>
       </div>
     );
   }
 
   return (
-    <div style={s.app}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; } body { margin: 0; background: #0C1F3F; }`}</style>
-      <div style={s.card}>
-        <div style={s.logoWrap}>🔒</div>
-        <div style={s.title}>Set new password</div>
-        <div style={s.sub}>Choose a strong password for your account.</div>
+    <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0A0B0D; }
+      `}</style>
 
-        {error && <div style={s.errorBanner}>⚠️ {error}</div>}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "40px 36px", width: "100%", maxWidth: 400 }}>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28 }}>
+          <ModusMark size={36} />
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, letterSpacing: "0.08em", marginTop: 12 }}>Set new password</div>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 6 }}>Choose a strong password for your account.</div>
+        </div>
+
+        {error && (
+          <div style={{ background: "rgba(224,85,85,0.1)", border: `1px solid rgba(224,85,85,0.2)`, borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13, color: C.red }}>{error}</div>
+        )}
 
         {done ? (
-          <div style={s.successBanner}>
-            ✅ Password updated successfully!<br />
-            Redirecting you to login…
+          <div style={{ background: "rgba(114,176,42,0.1)", border: `1px solid rgba(114,176,42,0.2)`, borderRadius: 8, padding: "16px 14px", fontSize: 13, color: C.green, textAlign: "center", lineHeight: 1.7 }}>
+            ✓ Password updated successfully!<br />
+            <span style={{ color: C.textSub }}>Redirecting you to login…</span>
           </div>
         ) : (
           <>
-            <div style={s.fieldWrap}>
-              <label style={s.fieldLabel}>New password</label>
-              <div style={s.passwordWrap}>
-                <input
-                  style={{ ...s.input, paddingRight: 40 }}
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError(""); }}
-                  placeholder="Min. 8 characters"
-                />
-                <button style={s.eyeBtn} onClick={() => setShowPw(v => !v)}>
-                  {showPw ? "🙈" : "👁️"}
-                </button>
-              </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>New password</label>
+              <InputField value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="Min. 8 characters" />
               {password && (
                 <>
-                  <div style={s.strengthBar(strength)} />
-                  <div style={s.strengthLabel(strength)}>{strengthLabels[strength]}</div>
+                  <div style={{ height: 3, borderRadius: 2, marginTop: 8, background: STRENGTH_COLORS[strength] || C.border, width: strength === 0 ? "0%" : strength === 1 ? "33%" : strength === 2 ? "66%" : "100%", transition: "all 0.3s" }} />
+                  <div style={{ fontSize: 11, color: STRENGTH_COLORS[strength], marginTop: 3 }}>{STRENGTH_LABELS[strength]}</div>
                 </>
               )}
             </div>
 
-            <div style={s.fieldWrap}>
-              <label style={s.fieldLabel}>Confirm password</label>
-              <input
-                style={{ ...s.input, borderColor: confirm && confirm !== password ? "#E24B4A" : "#d1d5db" }}
-                type={showPw ? "text" : "password"}
-                value={confirm}
-                onChange={e => { setConfirm(e.target.value); setError(""); }}
-                placeholder="Repeat your new password"
-                onKeyDown={e => e.key === "Enter" && handleReset()}
-              />
+            <div style={{ marginBottom: 22 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Confirm password</label>
+              <InputField value={confirm} onChange={e => { setConfirm(e.target.value); setError(""); }} placeholder="Repeat your new password" hasError={confirm && confirm !== password} />
               {confirm && confirm !== password && (
-                <div style={{ fontSize: 11, color: "#E24B4A", marginTop: 4 }}>Passwords don't match</div>
+                <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Passwords don't match</div>
               )}
             </div>
 
-            <button style={s.submitBtn(loading)} onClick={handleReset} disabled={loading}>
+            <button onClick={handleReset} disabled={loading} style={{
+              width: "100%", padding: "12px", border: `1px solid ${C.goldDim}`, borderRadius: 8,
+              fontSize: 14, fontWeight: 500, background: loading ? "rgba(201,169,110,0.07)" : "transparent",
+              color: C.gold, cursor: loading ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              fontFamily: "'DM Sans', sans-serif", opacity: loading ? 0.7 : 1,
+            }}
+              onMouseOver={e => !loading && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
+              onMouseOut={e => !loading && (e.currentTarget.style.background = "transparent")}
+            >
               {loading ? <><Spinner /> Saving…</> : "Save new password →"}
             </button>
           </>
