@@ -1,358 +1,73 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from "react";
 import { supabase } from "./supabase";
-import { notifyNewMaintenanceTicket } from "./notifications";
 import { useTenant } from "./useTenant";
+import { notifyNewMaintenanceTicket } from "./notifications";
+import TenantLayout from "./TenantLayout";
+
+const C = {
+  bg:        "#0A0B0D",
+  surface:   "#111316",
+  raised:    "#181C21",
+  border:    "#252930",
+  text:      "#EDEAE2",
+  textSub:   "#9095A0",
+  textMuted: "#5C6270",
+  gold:      "#C9A96E",
+  goldDim:   "#7A5C2E",
+  blue:      "#4A9AE8",
+  green:     "#72B02A",
+  red:       "#E05555",
+  amber:     "#F0A430",
+};
 
 const CATEGORIES = [
-  { id: "plumbing",    label: "Plumbing",     icon: "🚿" },
-  { id: "electrical",  label: "Electrical",   icon: "⚡" },
-  { id: "hvac",        label: "Heat / AC",    icon: "🌡️" },
-  { id: "appliance",   label: "Appliance",    icon: "🍳" },
-  { id: "pest",        label: "Pest",         icon: "🐛" },
-  { id: "other",       label: "Other",        icon: "🔧" },
+  { id: "plumbing",   label: "Plumbing",  icon: "🚿" },
+  { id: "electrical", label: "Electrical",icon: "⚡" },
+  { id: "hvac",       label: "Heat / AC", icon: "🌡️" },
+  { id: "appliance",  label: "Appliance", icon: "🍳" },
+  { id: "pest",       label: "Pest",      icon: "🐛" },
+  { id: "other",      label: "Other",     icon: "🔧" },
 ];
 
 const PRIORITIES = [
-  { id: "low",    label: "Low",    sub: "Not urgent",          color: "#639922", bg: "#EAF3DE" },
-  { id: "normal", label: "Normal", sub: "Within a few days",   color: "#185FA5", bg: "#E6F1FB" },
-  { id: "high",   label: "High",   sub: "ASAP",                color: "#854F0B", bg: "#FAEEDA" },
-  { id: "urgent", label: "Urgent", sub: "Safety issue",        color: "#A32D2D", bg: "#FDECEA" },
+  { id: "low",    label: "Low",    sub: "Not urgent",        color: C.green },
+  { id: "normal", label: "Normal", sub: "Within a few days", color: C.blue  },
+  { id: "high",   label: "High",   sub: "ASAP",              color: C.amber },
+  { id: "urgent", label: "Urgent", sub: "Safety issue",      color: C.red   },
 ];
 
-const s = {
-  app: {
-    width: "100%",
-    maxWidth: "100%",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    fontSize: 14,
-    color: "#1a1a1a",
-    background: "#f4f5f7",
-    minHeight: "100vh",
-    padding: "0 0 80px",
-  },
-  header: {
-    background: "#0C447C",
-    borderRadius: "12px 12px 0 0",
-    padding: "18px 20px 22px",
-  },
-  headerTop: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 4,
-  },
-  backBtn: {
-    background: "rgba(255,255,255,0.15)",
-    border: "none",
-    borderRadius: 8,
-    width: 32,
-    height: 32,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#E6F1FB",
-    fontSize: 16,
-    flexShrink: 0,
-  },
-  headerTitle: { fontSize: 15, fontWeight: 600, color: "#E6F1FB" },
-  headerSub: { fontSize: 12, color: "#85B7EB", marginTop: 2, paddingLeft: 42 },
-  body: {
-    background: "#fff",
-    border: "1px solid #e8eaed",
-    borderTop: "none",
-    borderRadius: "0 0 12px 12px",
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#555",
-    letterSpacing: "0.07em",
-    textTransform: "uppercase",
-    marginBottom: 10,
-    marginTop: 20,
-  },
-  categoryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 8,
-    marginBottom: 4,
-  },
-  categoryBtn: (active) => ({
-    padding: "10px 6px",
-    border: active ? "2px solid #185FA5" : "1px solid #e8eaed",
-    borderRadius: 10,
-    background: active ? "#E6F1FB" : "#f8f9fa",
-    cursor: "pointer",
-    textAlign: "center",
-    transition: "all 0.15s",
-  }),
-  categoryIcon: { fontSize: 22, marginBottom: 4 },
-  categoryLabel: (active) => ({
-    fontSize: 12,
-    fontWeight: active ? 600 : 400,
-    color: active ? "#185FA5" : "#555",
-  }),
-  priorityList: { display: "flex", flexDirection: "column", gap: 8 },
-  priorityBtn: (active, color, bg) => ({
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 14px",
-    border: active ? `2px solid ${color}` : "1px solid #e8eaed",
-    borderRadius: 10,
-    background: active ? bg : "#f8f9fa",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  }),
-  priorityLeft: { display: "flex", alignItems: "center", gap: 10 },
-  priorityDot: (color) => ({
-    width: 10,
-    height: 10,
-    borderRadius: "50%",
-    background: color,
-    flexShrink: 0,
-  }),
-  priorityLabel: (active, color) => ({
-    fontSize: 13,
-    fontWeight: active ? 600 : 400,
-    color: active ? color : "#1a1a1a",
-  }),
-  prioritySub: { fontSize: 11, color: "#888" },
-  priorityCheck: (active, color) => ({
-    width: 20,
-    height: 20,
-    borderRadius: "50%",
-    border: active ? `2px solid ${color}` : "2px solid #d1d5db",
-    background: active ? color : "transparent",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    fontSize: 11,
-    color: "#fff",
-  }),
-  fieldWrap: { marginBottom: 14 },
-  input: {
-    width: "100%",
-    padding: "10px 12px",
-    fontSize: 14,
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    background: "#fff",
-    color: "#1a1a1a",
-    outline: "none",
-    boxSizing: "border-box",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-  },
-  textarea: {
-    width: "100%",
-    padding: "10px 12px",
-    fontSize: 14,
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    background: "#fff",
-    color: "#1a1a1a",
-    outline: "none",
-    boxSizing: "border-box",
-    resize: "vertical",
-    minHeight: 90,
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    lineHeight: 1.5,
-  },
-  fieldErr: { fontSize: 11, color: "#c0392b", marginTop: 4 },
-  photoZone: (dragging) => ({
-    border: `2px dashed ${dragging ? "#185FA5" : "#d1d5db"}`,
-    borderRadius: 10,
-    padding: "20px 16px",
-    textAlign: "center",
-    background: dragging ? "#E6F1FB" : "#f8f9fa",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  }),
-  photoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 8,
-    marginBottom: 10,
-  },
-  photoThumb: {
-    aspectRatio: "1",
-    borderRadius: 8,
-    objectFit: "cover",
-    width: "100%",
-    border: "1px solid #e8eaed",
-  },
-  photoRemove: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: "50%",
-    background: "rgba(0,0,0,0.6)",
-    border: "none",
-    color: "#fff",
-    fontSize: 12,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    lineHeight: 1,
-  },
-  submitBtn: {
-    width: "100%",
-    padding: 13,
-    border: "none",
-    borderRadius: 8,
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 8,
-    transition: "background 0.15s",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-  },
-  successWrap: { textAlign: "center", padding: "36px 20px 28px" },
-  successIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: "50%",
-    background: "#e8f5e9",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 18px",
-    fontSize: 30,
-  },
-  ticketBox: {
-    background: "#f8f9fa",
-    border: "1px solid #e8eaed",
-    borderRadius: 10,
-    padding: "14px 16px",
-    textAlign: "left",
-    marginBottom: 22,
-  },
-  ticketRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: "6px 0",
-    borderBottom: "1px solid #e8eaed",
-  },
-  ticketRowLast: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: "6px 0",
-  },
-  ticketKey: { fontSize: 13, color: "#666", flexShrink: 0, marginRight: 12 },
-  ticketVal: { fontSize: 13, fontWeight: 600, color: "#1a1a1a", textAlign: "right" },
-  backBtn2: {
-    width: "100%",
-    padding: 12,
-    background: "transparent",
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#1a1a1a",
-    cursor: "pointer",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-  },
-};
-
-function FocusInput({ style, ...props }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <input
-      {...props}
-      style={{ ...style, borderColor: focused ? "#185FA5" : "#d1d5db", boxShadow: focused ? "0 0 0 3px rgba(24,95,165,0.1)" : "none" }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-    />
-  );
-}
-
-function FocusTextarea({ style, ...props }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <textarea
-      {...props}
-      style={{ ...style, borderColor: focused ? "#185FA5" : "#d1d5db", boxShadow: focused ? "0 0 0 3px rgba(24,95,165,0.1)" : "none" }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-    />
-  );
-}
-
 function Spinner() {
-  return (
-    <span style={{
-      width: 16, height: 16,
-      border: "2px solid rgba(255,255,255,0.35)",
-      borderTopColor: "#fff",
-      borderRadius: "50%",
-      display: "inline-block",
-      animation: "spin 0.7s linear infinite",
-    }} />
-  );
+  return <span style={{ width:16, height:16, border:"2px solid rgba(201,169,110,0.3)", borderTopColor:C.gold, borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }}/>;
 }
 
-function SuccessScreen({ ticket, category, title, priority, onReset }) {
-  const cat = CATEGORIES.find(c => c.id === category);
-  const pri = PRIORITIES.find(p => p.id === priority);
-  const date = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+function SectionLabel({ children, optional }) {
   return (
-    <div style={s.successWrap}>
-      <div style={s.successIcon}>✅</div>
-      <p style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Request submitted</p>
-      <p style={{ fontSize: 15, color: "#666", marginBottom: 24 }}>
-        We'll be in touch shortly to schedule a time.
-      </p>
-      <div style={s.ticketBox}>
-        {[
-          ["Ticket #", ticket],
-          ["Category", `${cat?.icon} ${cat?.label}`],
-          ["Issue", title],
-          ["Priority", pri?.label],
-          ["Submitted", date],
-        ].map(([k, v], i, arr) => (
-          <div key={k} style={i === arr.length - 1 ? s.ticketRowLast : s.ticketRow}>
-            <span style={s.ticketKey}>{k}</span>
-            <span style={s.ticketVal}>{v}</span>
-          </div>
-        ))}
-      </div>
-      <button style={s.backBtn2} onClick={onReset}>← Back to portal</button>
+    <div style={{ fontSize:10, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10, marginTop:20 }}>
+      {children}{optional && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:C.textMuted, fontSize:11, marginLeft:6 }}>(optional)</span>}
     </div>
   );
 }
 
 export default function MaintenanceRequestForm() {
   const navigate = useNavigate();
+  const { tenant, user } = useTenant();
   const [category, setCategory]   = useState("");
   const [title, setTitle]         = useState("");
   const [description, setDesc]    = useState("");
   const [priority, setPriority]   = useState("normal");
-  const [photos, setPhotos]       = useState([]); // { file, previewUrl }
+  const [photos, setPhotos]       = useState([]);
   const [errors, setErrors]       = useState({});
   const [loading, setLoading]     = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [ticket, setTicket]       = useState("");
   const [dragging, setDragging]   = useState(false);
-  const { tenant } = useTenant();
   const fileRef = useRef();
 
   function validate() {
     const e = {};
-    if (!category)      e.category = "Please select a category";
-    if (!title.trim())  e.title    = "Please describe the issue briefly";
+    if (!category)     e.category = "Please select a category";
+    if (!title.trim()) e.title    = "Please describe the issue briefly";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -361,8 +76,7 @@ export default function MaintenanceRequestForm() {
     const newPhotos = [];
     Array.from(files).slice(0, 6 - photos.length).forEach(file => {
       if (!file.type.startsWith("image/")) return;
-      const previewUrl = URL.createObjectURL(file);
-      newPhotos.push({ file, previewUrl });
+      newPhotos.push({ file, previewUrl: URL.createObjectURL(file) });
     });
     setPhotos(p => [...p, ...newPhotos].slice(0, 6));
   }
@@ -370,15 +84,11 @@ export default function MaintenanceRequestForm() {
   async function uploadPhotos(requestId) {
     const urls = [];
     for (const photo of photos) {
-      const ext = photo.file.name.split(".").pop();
+      const ext  = photo.file.name.split(".").pop();
       const path = `${requestId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("maintenance-photos")
-        .upload(path, photo.file, { contentType: photo.file.type });
+      const { error } = await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
       if (!error) {
-        const { data } = supabase.storage
-          .from("maintenance-photos")
-          .getPublicUrl(path);
+        const { data } = supabase.storage.from("maintenance-photos").getPublicUrl(path);
         urls.push(data.publicUrl);
       }
     }
@@ -389,36 +99,20 @@ export default function MaintenanceRequestForm() {
     if (!validate()) return;
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const tenantId = tenant?.id || authUser.id;
 
-    // Insert the request first to get the ID
-    const { data, error } = await supabase
-      .from("maintenance_requests")
-      .insert({
-        tenant_id: tenant?.id || user.id,
-        category,
-        title,
-        description,
-        priority,
-        status: "open",
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("maintenance_requests").insert({
+      tenant_id: tenantId,
+      category, title, description, priority, status: "open",
+    }).select().single();
 
-    if (error) {
-      setLoading(false);
-      alert("Failed to submit request. Please try again.");
-      return;
-    }
+    if (error) { setLoading(false); alert("Failed to submit. Please try again."); return; }
 
-    // Upload photos if any, then save URLs back to the row
     if (photos.length > 0) {
       const photoUrls = await uploadPhotos(data.id);
       if (photoUrls.length > 0) {
-        await supabase
-          .from("maintenance_requests")
-          .update({ photos: photoUrls[0] }) // saves first photo URL; extend to array if needed
-          .eq("id", data.id);
+        await supabase.from("maintenance_requests").update({ photos: photoUrls }).eq("id", data.id);
       }
     }
 
@@ -426,191 +120,130 @@ export default function MaintenanceRequestForm() {
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
 
-    // Send email notification to landlord
-    const { data: tenantData } = await supabase.from("tenants").select("name, units(unit_number, properties(name))").eq("user_id", user.id).maybeSingle();
+    const { data: tenantData } = await supabase.from("tenants").select("name, units(unit_number, properties(name))").eq("id", tenantId).maybeSingle();
     notifyNewMaintenanceTicket({
-      tenantName: tenantData?.name || user.email,
-      title,
+      tenantName: tenantData?.name || authUser.email,
+      title, priority,
       unit:     tenantData?.units?.unit_number || "—",
       property: tenantData?.units?.properties?.name || "—",
       ticketId: data.id,
     });
   }
 
-  function handleReset() {
-    setSubmitted(false);
-    setCategory("");
-    setTitle("");
-    setDesc("");
-    setPriority("normal");
-    setPhotos([]);
-    setErrors({});
-  }
-
-  if (submitted) {
-    return (
-      <div style={s.app}>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; }`}</style>
-        <div style={s.header}>
-          <div style={s.headerTop}>
-            <span style={s.headerTitle}>Maintenance request</span>
+  if (submitted) return (
+    <TenantLayout tenantName={tenant?.name}>
+      <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", padding:20 }}>
+        <div style={{ width:"100%", maxWidth:420, textAlign:"center" }}>
+          <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:26, color:C.green }}>✓</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
+          <div style={{ fontSize:14, color:C.textSub, marginBottom:28 }}>We'll be in touch shortly to schedule a time.</div>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px", marginBottom:24, textAlign:"left" }}>
+            {[["Ticket #", ticket], ["Category", CATEGORIES.find(c=>c.id===category)?.label], ["Issue", title], ["Priority", PRIORITIES.find(p=>p.id===priority)?.label]].map(([k,v],i,arr)=>(
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
+                <span style={{ fontSize:13, color:C.textSub }}>{k}</span>
+                <span style={{ fontSize:13, fontWeight:500, color:C.text }}>{v}</span>
+              </div>
+            ))}
           </div>
-        </div>
-        <div style={s.body}>
-          <SuccessScreen
-            ticket={ticket}
-            category={category}
-            title={title}
-            priority={priority}
-            onReset={handleReset}
-          />
+          <button onClick={() => navigate("/maintenance")} style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to requests</button>
         </div>
       </div>
-    );
-  }
+    </TenantLayout>
+  );
 
   return (
-    <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; } body { margin: 0; background: #f4f5f7; }`}</style>
-      <div style={s.app}>
+    <TenantLayout tenantName={tenant?.name}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.bg}; }
+      `}</style>
 
-        {/* Header */}
-        <div style={s.header}>
-          <div style={s.headerTop}>
-            <button style={s.backBtn} onClick={() => navigate('/home')}>←</button>
-            <span style={s.headerTitle}>Maintenance request</span>
-          </div>
-          <div style={s.headerSub}>Unit 4B · Clifton Manor</div>
+      <div style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"24px 20px 80px", maxWidth:680, margin:"0 auto" }}>
+
+        <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:4 }}>New request</div>
+        <div style={{ fontSize:13, color:C.textSub, marginBottom:24 }}>Unit {tenant?.unit || "—"} · {tenant?.property || "—"}</div>
+
+        {/* Category */}
+        <SectionLabel>What's the issue?</SectionLabel>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:4 }}>
+          {CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => { setCategory(cat.id); setErrors(e=>({...e,category:""})); }}
+              style={{ padding:"14px 8px", border:`1px solid ${category===cat.id ? C.goldDim : C.border}`, borderRadius:10, background:category===cat.id ? `${C.gold}0F` : C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"'DM Sans',sans-serif" }}>
+              <div style={{ fontSize:22, marginBottom:6 }}>{cat.icon}</div>
+              <div style={{ fontSize:12, fontWeight:category===cat.id?600:400, color:category===cat.id?C.gold:C.textSub }}>{cat.label}</div>
+            </button>
+          ))}
+        </div>
+        {errors.category && <p style={{ fontSize:11, color:C.red, marginTop:6, marginBottom:0 }}>{errors.category}</p>}
+
+        {/* Title */}
+        <SectionLabel>Brief description</SectionLabel>
+        <input value={title} onChange={e=>{setTitle(e.target.value);setErrors(p=>({...p,title:""}));}}
+          placeholder="e.g. Kitchen faucet is dripping constantly" maxLength={80}
+          style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${errors.title?C.red:C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+        {errors.title && <p style={{ fontSize:11, color:C.red, marginTop:4, marginBottom:0 }}>{errors.title}</p>}
+
+        {/* Description */}
+        <SectionLabel optional>More details</SectionLabel>
+        <div style={{ position:"relative" }}>
+          <textarea value={description} onChange={e=>setDesc(e.target.value)} maxLength={500}
+            placeholder="When did it start? How often does it happen? Anything else we should know?" rows={4}
+            style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", minHeight:90, fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}/>
+          <span style={{ position:"absolute", bottom:10, right:12, fontSize:10, color:C.textMuted }}>{description.length}/500</span>
         </div>
 
-        {/* Body */}
-        <div style={s.body}>
-
-          {/* Category */}
-          <div style={{ ...s.sectionTitle, marginTop: 0 }}>What's the issue?</div>
-          <div style={s.categoryGrid}>
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                style={s.categoryBtn(category === cat.id)}
-                onClick={() => { setCategory(cat.id); setErrors(e => ({ ...e, category: "" })); }}
-              >
-                <div style={s.categoryIcon}>{cat.icon}</div>
-                <div style={s.categoryLabel(category === cat.id)}>{cat.label}</div>
-              </button>
-            ))}
-          </div>
-          {errors.category && <p style={{ ...s.fieldErr, marginTop: 6 }}>{errors.category}</p>}
-
-          {/* Title */}
-          <div style={s.sectionTitle}>Brief description</div>
-          <div style={s.fieldWrap}>
-            <FocusInput
-              style={s.input}
-              value={title}
-              onChange={e => { setTitle(e.target.value); setErrors(p => ({ ...p, title: "" })); }}
-              placeholder="e.g. Kitchen faucet is dripping constantly"
-              maxLength={80}
-            />
-            {errors.title && <p style={s.fieldErr}>{errors.title}</p>}
-          </div>
-
-          {/* Details */}
-          <div style={s.sectionTitle}>More details <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#aaa", fontSize: 11 }}>(optional)</span></div>
-          <div style={s.fieldWrap}>
-            <FocusTextarea
-              style={s.textarea}
-              value={description}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="When did it start? How often does it happen? Anything else we should know?"
-              maxLength={500}
-            />
-            <p style={{ fontSize: 11, color: "#aaa", textAlign: "right", marginTop: 3 }}>{description.length}/500</p>
-          </div>
-
-          {/* Priority */}
-          <div style={s.sectionTitle}>Priority</div>
-          <div style={s.priorityList}>
-            {PRIORITIES.map(p => (
-              <button
-                key={p.id}
-                style={s.priorityBtn(priority === p.id, p.color, p.bg)}
-                onClick={() => setPriority(p.id)}
-              >
-                <div style={s.priorityLeft}>
-                  <div style={s.priorityDot(p.color)} />
-                  <div>
-                    <div style={s.priorityLabel(priority === p.id, p.color)}>{p.label}</div>
-                    <div style={s.prioritySub}>{p.sub}</div>
-                  </div>
+        {/* Priority */}
+        <SectionLabel>Priority</SectionLabel>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {PRIORITIES.map(p => (
+            <button key={p.id} onClick={() => setPriority(p.id)}
+              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", border:`1px solid ${priority===p.id?p.color+"66":C.border}`, borderRadius:10, background:priority===p.id?`${p.color}0F`:C.surface, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background:p.color }}/>
+                <div style={{ textAlign:"left" }}>
+                  <div style={{ fontSize:13, fontWeight:priority===p.id?600:400, color:priority===p.id?p.color:C.text }}>{p.label}</div>
+                  <div style={{ fontSize:11, color:C.textSub }}>{p.sub}</div>
                 </div>
-                <div style={s.priorityCheck(priority === p.id, p.color)}>
-                  {priority === p.id && "✓"}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Photo upload */}
-          <div style={s.sectionTitle}>
-            Photos <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#aaa", fontSize: 11 }}>(optional, up to 6)</span>
-          </div>
-
-          {photos.length > 0 && (
-            <div style={s.photoGrid}>
-              {photos.map((p, i) => (
-                <div key={i} style={{ position: "relative" }}>
-                  <img src={p.previewUrl} alt={`photo-${i}`} style={s.photoThumb} />
-                  <button
-                    style={s.photoRemove}
-                    onClick={() => setPhotos(ph => ph.filter((_, j) => j !== i))}
-                  >✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {photos.length < 6 && (
-            <div
-              style={s.photoZone(dragging)}
-              onClick={() => fileRef.current.click()}
-              onDragOver={e => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
-            >
-              <div style={{ fontSize: 28, marginBottom: 6 }}>📷</div>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "#555", marginBottom: 3 }}>
-                Tap to add photos
-              </p>
-              <p style={{ fontSize: 11, color: "#aaa" }}>or drag and drop · JPG, PNG up to 10MB each</p>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: "none" }}
-                onChange={e => handleFiles(e.target.files)}
-              />
-            </div>
-          )}
-
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{
-              ...s.submitBtn,
-              background: loading ? "#378ADD" : "#0C447C",
-              color: "#fff",
-              opacity: loading ? 0.85 : 1,
-              marginTop: 20,
-            }}
-          >
-            {loading ? <><Spinner /> Submitting…</> : <>🔧 Submit request</>}
-          </button>
-
+              </div>
+              <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${priority===p.id?p.color:C.border}`, background:priority===p.id?p.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>
+                {priority===p.id && "✓"}
+              </div>
+            </button>
+          ))}
         </div>
+
+        {/* Photos */}
+        <SectionLabel optional>Photos (up to 6)</SectionLabel>
+        {photos.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+            {photos.map((p,i) => (
+              <div key={i} style={{ position:"relative" }}>
+                <img src={p.previewUrl} alt={`photo-${i}`} style={{ aspectRatio:"1", borderRadius:8, objectFit:"cover", width:"100%", border:`1px solid ${C.border}` }}/>
+                <button onClick={() => setPhotos(ph=>ph.filter((_,j)=>j!==i))} style={{ position:"absolute", top:4, right:4, width:20, height:20, borderRadius:"50%", background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {photos.length < 6 && (
+          <div onClick={() => fileRef.current.click()}
+            onDragOver={e=>{e.preventDefault();setDragging(true);}}
+            onDragLeave={()=>setDragging(false)}
+            onDrop={e=>{e.preventDefault();setDragging(false);handleFiles(e.dataTransfer.files);}}
+            style={{ border:`2px dashed ${dragging?C.goldDim:C.border}`, borderRadius:10, padding:"20px 16px", textAlign:"center", background:dragging?`${C.gold}08`:C.raised, cursor:"pointer", transition:"all 0.15s" }}>
+            <div style={{ fontSize:24, marginBottom:6 }}>📷</div>
+            <div style={{ fontSize:13, fontWeight:500, color:C.textSub, marginBottom:3 }}>Tap to add photos</div>
+            <div style={{ fontSize:11, color:C.textMuted }}>or drag and drop · JPG, PNG up to 10MB</div>
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e=>handleFiles(e.target.files)}/>
+          </div>
+        )}
+
+        {/* Submit */}
+        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:C.gold, cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
+          {loading ? <><Spinner/> Submitting…</> : "Submit request →"}
+        </button>
       </div>
-    </>
+    </TenantLayout>
   );
 }
