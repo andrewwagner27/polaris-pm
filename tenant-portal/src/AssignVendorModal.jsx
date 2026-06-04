@@ -48,6 +48,7 @@ export default function AssignVendorModal({ requestId, requestTitle, onClose, on
     });
 
     setSaving(false);
+    console.log("invoke result:", { data, fnError });
     if (fnError || data?.error) { setError(fnError?.message || data?.error); return; }
 
     setResult({
