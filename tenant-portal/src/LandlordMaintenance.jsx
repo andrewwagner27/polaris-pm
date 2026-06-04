@@ -135,7 +135,7 @@ export default function LandlordMaintenance() {
     setLoading(true); setFetchError(null);
     const { data, error } = await supabase
       .from("maintenance_requests")
-      .select("*, units(unit_number, property_id, properties(name)), tenants(name)")
+      .select("*, units(unit_number, property_id, properties(name, address, city, state)), tenants(name)")
       .order("created_at", { ascending: false });
     if (error) setFetchError(error.message);
     else setTickets(data || []);
