@@ -145,9 +145,13 @@ export default function MaintenanceRequestForm() {
       access_notes:  accessNotes,
     };
 
+    // Get unit_id directly from tenant record
+    const { data: tenantRecord } = await supabase.from("tenants").select("unit_id").eq("id", tenantId).single();
+    const unitId = tenantRecord?.unit_id || null;
+
     const { data, error } = await supabase.from("maintenance_requests").insert({
       tenant_id: tenantId,
-      unit_id:   tenant?.unit_id || null,
+      unit_id:   unitId,
       category, title, description, priority, status: "open",
       availability,
     }).select().single();
