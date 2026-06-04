@@ -557,6 +557,8 @@ export default function LandlordMaintenance() {
           requestTitle={field(vendorTicket, "title")}
           requestCategory={field(vendorTicket, "category")}
           propertyId={vendorTicket.units?.property_id || null}
+          propertyAddress={vendorTicket.units?.properties?.address ? `${vendorTicket.units.properties.address}, ${vendorTicket.units.properties.city} ${vendorTicket.units.properties.state}` : ""}
+          unitId={vendorTicket.unit_id || null}
           onClose={() => setVendorTicket(null)}
           onAssigned={() => { fetchTickets(); }}
         />

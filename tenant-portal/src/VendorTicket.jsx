@@ -181,6 +181,20 @@ export default function VendorTicket() {
             {ticket.priority && <span style={{ fontSize:11, color:C.textSub }}>Priority: <strong style={{ color:C.text }}>{ticket.priority}</strong></span>}
             <span style={{ fontSize:11, color:C.textSub }}>Submitted: <strong style={{ color:C.text }}>{new Date(ticket.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}</strong></span>
           </div>
+          {(ticket.scheduled_date || ticket.scheduled_time) && (
+            <div style={{ marginTop:12, padding:"10px 14px", background:`${C.gold}0A`, border:`1px solid ${C.goldDim}`, borderRadius:8, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:14 }}>📅</span>
+              <span style={{ fontSize:13, fontWeight:500, color:C.gold }}>
+                Scheduled: {ticket.scheduled_date}{ticket.scheduled_time ? ` · ${ticket.scheduled_time}` : ""}
+              </span>
+            </div>
+          )}
+          {ticket.entry_instructions && (
+            <div style={{ marginTop:8, padding:"10px 14px", background:`${C.blue}0A`, border:`1px solid ${C.blue}33`, borderRadius:8 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:C.blue, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Entry instructions</div>
+              <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{ticket.entry_instructions}</div>
+            </div>
+          )}
         </div>
 
         {/* Photos */}

@@ -36,32 +36,44 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-export default function AssignVendorModal({ requestId, requestTitle, requestCategory, propertyId, onClose, onAssigned }) {
+export default function AssignVendorModal({ requestId, requestTitle, requestCategory, propertyId, propertyAddress, unitId, onClose, onAssigned }) {
   const [vendors, setVendors]         = useState([]);
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [selectedVendor, setSelectedVendor] = useState(null);
-  const [vendorName, setVendorName]   = useState("");
-  const [vendorPhone, setVendorPhone] = useState("");
-  const [saving, setSaving]           = useState(false);
-  const [error, setError]             = useState("");
-  const [result, setResult]           = useState(null);
-  const [useCustom, setUseCustom]     = useState(false);
+  const [vendorName, setVendorName]         = useState("");
+  const [vendorPhone, setVendorPhone]       = useState("");
+  const [scheduledDate, setScheduledDate]   = useState("");
+  const [scheduledTime, setScheduledTime]   = useState("");
+  const [entryInstructions, setEntryInstructions] = useState("");
+  const [saving, setSaving]                 = useState(false);
+  const [error, setError]                   = useState("");
+  const [result, setResult]                 = useState(null);
+  const [useCustom, setUseCustom]           = useState(false);
+  const [showPlaces, setShowPlaces]         = useState(false);
+  const [placesResults, setPlacesResults]   = useState([]);
+  const [placesLoading, setPlacesLoading]   = useState(false);
+  const [placesQuery, setPlacesQuery]       = useState("");
 
   const BASE_URL = window.location.origin;
 
   useEffect(() => {
-    async function fetchVendors() {
+    async function fetchData() {
       setLoadingVendors(true);
+      // Fetch vendors
       let query = supabase.from("vendors").select("*").eq("active", true);
       if (propertyId) query = query.eq("property_id", propertyId);
-      const { data } = await query.order("name");
-      // Filter by category if we have one, but show all if no matches
-      const catMatch = (data || []).filter(v => v.category === requestCategory);
-      setVendors(catMatch.length > 0 ? catMatch : (data || []));
+      const { data: vendorData } = await query.order("name");
+      const catMatch = (vendorData || []).filter(v => v.category === requestCategory);
+      setVendors(catMatch.length > 0 ? catMatch : (vendorData || []));
+      // Fetch unit entry instructions
+      if (unitId) {
+        const { data: unitData } = await supabase.from("units").select("entry_instructions").eq("id", unitId).single();
+        if (unitData?.entry_instructions) setEntryInstructions(unitData.entry_instructions);
+      }
       setLoadingVendors(false);
     }
-    fetchVendors();
-  }, [propertyId, requestCategory]);
+    fetchData();
+  }, [propertyId, requestCategory, unitId]);
 
   function selectVendor(v) {
     setSelectedVendor(v);
@@ -70,11 +82,29 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
     setUseCustom(false);
   }
 
+  async function searchPlaces() {
+    if (!propertyAddress) { setError("No property address on file for this property."); return; }
+    setPlacesLoading(true);
+    setPlacesResults([]);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("search-vendors", {
+        body: { category: requestCategory || "general", address: propertyAddress }
+      });
+      if (fnError || data?.error) throw new Error(fnError?.message || data?.error);
+      setPlacesResults(data.results || []);
+    } catch (e) {
+      setError("Vendor search failed: " + e.message);
+    }
+    setPlacesLoading(false);
+  }
+
   async function assign() {
     const name  = vendorName.trim();
     const phone = vendorPhone.trim();
     if (!name) { setError("Vendor name is required."); return; }
     setSaving(true); setError("");
+
+    if (!scheduledDate) { setError("Please select a scheduled date."); setSaving(false); return; }
 
     const { data, error: fnError } = await supabase.functions.invoke("generate-vendor-token", {
       body: { request_id: requestId, vendor_name: name, vendor_phone: phone || null }
@@ -83,10 +113,15 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
     setSaving(false);
     if (fnError || data?.error) { setError(fnError?.message || data?.error); return; }
 
-    // Update status to in_progress
-    await supabase.from("maintenance_requests").update({ status: "in_progress" }).eq("id", requestId);
+    // Update status, scheduled date, and entry instructions
+    await supabase.from("maintenance_requests").update({
+      status: "in_progress",
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      entry_instructions: entryInstructions,
+    }).eq("id", requestId);
 
-    setResult({ token: data.token, pin: data.pin, link: `${BASE_URL}/vendor/${data.token}`, vendorName: name, vendorPhone: phone });
+    setResult({ token: data.token, pin: data.pin, link: `${BASE_URL}/vendor/${data.token}`, vendorName: name, vendorPhone: phone, scheduledDate, scheduledTime });
     onAssigned?.();
   }
 
@@ -138,6 +173,10 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                       style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 8, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s" }}>
                       + Use a different vendor
                     </button>
+                    <button onClick={() => { setShowPlaces(true); searchPlaces(); }}
+                      style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.blue}44`, borderRadius: 8, fontSize: 12, color: C.blue, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s" }}>
+                      🔍 Find local vendors on Google
+                    </button>
                   </div>
                 </div>
               )}
@@ -163,6 +202,69 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                 </div>
               )}
 
+              {/* Google Places results */}
+              {showPlaces && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                      Local vendors — {requestCategory}
+                    </label>
+                    <button onClick={() => setShowPlaces(false)} style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer" }}>✕ Close</button>
+                  </div>
+                  {placesLoading && <div style={{ fontSize:13, color:C.textSub, padding:"12px 0" }}>Searching Google Maps…</div>}
+                  {!placesLoading && placesResults.length === 0 && <div style={{ fontSize:13, color:C.textSub }}>No results found.</div>}
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {placesResults.map((place, i) => (
+                      <div key={i} onClick={() => {
+                        setVendorName(place.name);
+                        setVendorPhone(place.formatted_phone_number || "");
+                        setUseCustom(true);
+                        setShowPlaces(false);
+                        setSelectedVendor(null);
+                      }} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 14px", border:`1px solid ${C.border}`, borderRadius:8, cursor:"pointer", background:C.raised, transition:"all 0.12s" }}
+                        onMouseOver={e => e.currentTarget.style.borderColor = C.blue}
+                        onMouseOut={e => e.currentTarget.style.borderColor = C.border}
+                      >
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{place.name}</div>
+                          <div style={{ fontSize:11, color:C.textSub, marginTop:2 }}>{place.formatted_address}</div>
+                          {place.rating && (
+                            <div style={{ fontSize:11, color:C.amber, marginTop:2 }}>
+                              {"★".repeat(Math.round(place.rating))} {place.rating} ({place.user_ratings_total} reviews)
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ fontSize:11, color:C.blue, whiteSpace:"nowrap" }}>Select →</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Scheduled date/time */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Scheduled date *</label>
+                <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Scheduled time</label>
+                <select value={scheduledTime} onChange={e => setScheduledTime(e.target.value)}
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", cursor:"pointer" }}>
+                  <option value="">Select time window…</option>
+                  <option value="Morning (8am–12pm)">Morning (8am–12pm)</option>
+                  <option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option>
+                  <option value="Evening (5pm–8pm)">Evening (5pm–8pm)</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Entry instructions</label>
+                <textarea value={entryInstructions} onChange={e => setEntryInstructions(e.target.value)}
+                  placeholder="e.g. Lockbox code 1234 on front door. Park in lot B." rows={3}
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
+                <div style={{ fontSize:11, color:C.textMuted, marginTop:4 }}>Pre-filled from unit record. Edit as needed.</div>
+              </div>
+
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button onClick={onClose} style={{ padding: "9px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
                 <button onClick={assign} disabled={saving || (!vendorName.trim() && !selectedVendor)} style={{ padding: "9px 18px", background: "transparent", border: `1px solid ${C.goldDim}`, borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.7 : 1 }}>
@@ -176,7 +278,8 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
               <div style={{ textAlign: "center", marginBottom: 24 }}>
                 <div style={{ width: 52, height: 52, borderRadius: "50%", background: `${C.green}18`, border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 22, color: C.green }}>✓</div>
                 <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: C.text, marginBottom: 4 }}>Access link generated</div>
-                <div style={{ fontSize: 13, color: C.textSub }}>Share with {result.vendorName}</div>
+                <div style={{ fontSize: 13, color: C.textSub, marginBottom: 4 }}>Share with {result.vendorName}</div>
+                {result.scheduledDate && <div style={{ fontSize: 12, color: C.gold }}>📅 Scheduled: {result.scheduledDate}{result.scheduledTime ? ` · ${result.scheduledTime}` : ""}</div>}
               </div>
 
               <div style={{ marginBottom: 14 }}>

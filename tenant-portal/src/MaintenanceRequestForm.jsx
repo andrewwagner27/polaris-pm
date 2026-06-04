@@ -37,14 +37,31 @@ const PRIORITIES = [
   { id: "urgent", label: "Urgent", sub: "Safety issue",      color: C.red   },
 ];
 
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const TIME_SLOTS = ["Morning (8am–12pm)", "Afternoon (12pm–5pm)", "Evening (5pm–8pm)"];
+
 function Spinner() {
   return <span style={{ width:16, height:16, border:"2px solid rgba(201,169,110,0.3)", borderTopColor:C.gold, borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }}/>;
 }
 
 function SectionLabel({ children, optional }) {
   return (
-    <div style={{ fontSize:10, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10, marginTop:20 }}>
+    <div style={{ fontSize:10, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10, marginTop:24 }}>
       {children}{optional && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:C.textMuted, fontSize:11, marginLeft:6 }}>(optional)</span>}
+    </div>
+  );
+}
+
+function Checkbox({ checked, onChange, label, sub }) {
+  return (
+    <div onClick={onChange} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", background:checked?`${C.gold}08`:C.raised, border:`1px solid ${checked?C.goldDim:C.border}`, borderRadius:8, cursor:"pointer", transition:"all 0.12s" }}>
+      <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${checked?C.gold:C.border}`, background:checked?C.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1, transition:"all 0.12s" }}>
+        {checked && <span style={{ fontSize:10, color:C.bg, fontWeight:700 }}>✓</span>}
+      </div>
+      <div>
+        <div style={{ fontSize:13, color:checked?C.text:C.textSub, fontWeight:checked?500:400 }}>{label}</div>
+        {sub && <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{sub}</div>}
+      </div>
     </div>
   );
 }
@@ -64,10 +81,27 @@ export default function MaintenanceRequestForm() {
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
 
+  // Availability
+  const [availDays, setAvailDays]   = useState([]);
+  const [availTimes, setAvailTimes] = useState([]);
+  const [entryAllowed, setEntryAllowed] = useState(false);
+  const [hasPets, setHasPets]       = useState(false);
+  const [petDetails, setPetDetails] = useState("");
+  const [accessNotes, setAccessNotes] = useState("");
+
+  function toggleDay(day) {
+    setAvailDays(d => d.includes(day) ? d.filter(x => x !== day) : [...d, day]);
+  }
+  function toggleTime(time) {
+    setAvailTimes(t => t.includes(time) ? t.filter(x => x !== time) : [...t, time]);
+  }
+
   function validate() {
     const e = {};
-    if (!category)     e.category = "Please select a category";
-    if (!title.trim()) e.title    = "Please describe the issue briefly";
+    if (!category)          e.category = "Please select a category";
+    if (!title.trim())      e.title    = "Please describe the issue briefly";
+    if (priority !== "urgent" && availDays.length === 0)  e.avail = "Please select at least one available day";
+    if (priority !== "urgent" && availTimes.length === 0) e.avail = (e.avail || "") + " and time";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -102,9 +136,19 @@ export default function MaintenanceRequestForm() {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const tenantId = tenant?.id || authUser.id;
 
+    const availability = {
+      days:          availDays,
+      times:         availTimes,
+      entry_allowed: entryAllowed,
+      has_pets:      hasPets,
+      pet_details:   petDetails,
+      access_notes:  accessNotes,
+    };
+
     const { data, error } = await supabase.from("maintenance_requests").insert({
       tenant_id: tenantId,
       category, title, description, priority, status: "open",
+      availability,
     }).select().single();
 
     if (error) { setLoading(false); alert("Failed to submit. Please try again."); return; }
@@ -124,9 +168,10 @@ export default function MaintenanceRequestForm() {
     notifyNewMaintenanceTicket({
       tenantName: tenantData?.name || authUser.email,
       title, priority,
-      unit:     tenantData?.units?.unit_number || "—",
-      property: tenantData?.units?.properties?.name || "—",
-      ticketId: data.id,
+      unit:         tenantData?.units?.unit_number || "—",
+      property:     tenantData?.units?.properties?.name || "—",
+      ticketId:     data.id,
+      availability,
     });
   }
 
@@ -136,7 +181,7 @@ export default function MaintenanceRequestForm() {
         <div style={{ width:"100%", maxWidth:420, textAlign:"center" }}>
           <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:26, color:C.green }}>✓</div>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
-          <div style={{ fontSize:14, color:C.textSub, marginBottom:28 }}>We'll be in touch shortly to schedule a time.</div>
+          <div style={{ fontSize:14, color:C.textSub, marginBottom:28 }}>We'll be in touch shortly to confirm a time.</div>
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px", marginBottom:24, textAlign:"left" }}>
             {[["Ticket #", ticket], ["Category", CATEGORIES.find(c=>c.id===category)?.label], ["Issue", title], ["Priority", PRIORITIES.find(p=>p.id===priority)?.label]].map(([k,v],i,arr)=>(
               <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
@@ -170,7 +215,7 @@ export default function MaintenanceRequestForm() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:4 }}>
           {CATEGORIES.map(cat => (
             <button key={cat.id} onClick={() => { setCategory(cat.id); setErrors(e=>({...e,category:""})); }}
-              style={{ padding:"14px 8px", border:`1px solid ${category===cat.id ? C.goldDim : C.border}`, borderRadius:10, background:category===cat.id ? `${C.gold}0F` : C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"'DM Sans',sans-serif" }}>
+              style={{ padding:"14px 8px", border:`1px solid ${category===cat.id?C.goldDim:C.border}`, borderRadius:10, background:category===cat.id?`${C.gold}0F`:C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"'DM Sans',sans-serif" }}>
               <div style={{ fontSize:22, marginBottom:6 }}>{cat.icon}</div>
               <div style={{ fontSize:12, fontWeight:category===cat.id?600:400, color:category===cat.id?C.gold:C.textSub }}>{cat.label}</div>
             </button>
@@ -212,6 +257,67 @@ export default function MaintenanceRequestForm() {
               </div>
             </button>
           ))}
+        </div>
+
+        {/* Availability */}
+        <SectionLabel>{priority === "urgent" ? "Availability" : "Your availability next week *"}</SectionLabel>
+
+        {priority === "urgent" && (
+          <div style={{ background:`${C.red}0F`, border:`1px solid ${C.red}33`, borderRadius:8, padding:"12px 14px", marginBottom:12, fontSize:13, color:C.amber }}>
+            ⚠ For urgent/safety issues we may need emergency access including weekends. We will contact you immediately to coordinate.
+          </div>
+        )}
+
+        <div style={{ marginBottom:12 }}>
+          <div style={{ fontSize:11, color:C.textSub, marginBottom:8, fontWeight:500 }}>Which days work for you?</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6 }}>
+            {DAYS.map(day => (
+              <Checkbox key={day} checked={availDays.includes(day)} onChange={() => toggleDay(day)} label={day}
+                sub={day === "Saturday" || day === "Sunday" ? "Weekend — emergencies only" : null}/>
+            ))}
+          </div>
+          {errors.avail && <p style={{ fontSize:11, color:C.red, marginTop:6, marginBottom:0 }}>{errors.avail}</p>}
+        </div>
+
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:11, color:C.textSub, marginBottom:8, fontWeight:500 }}>What times work?</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {TIME_SLOTS.map(time => (
+              <Checkbox key={time} checked={availTimes.includes(time)} onChange={() => toggleTime(time)} label={time}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Entry & access */}
+        <SectionLabel>Entry & access</SectionLabel>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+          <Checkbox
+            checked={entryAllowed}
+            onChange={() => setEntryAllowed(v => !v)}
+            label="Vendor may enter when I am not home"
+            sub="We will use the unit entry instructions on file"
+          />
+          <Checkbox
+            checked={hasPets}
+            onChange={() => setHasPets(v => !v)}
+            label="I have pets"
+            sub="Please provide details so the vendor is prepared"
+          />
+        </div>
+
+        {hasPets && (
+          <div style={{ marginBottom:16 }}>
+            <input value={petDetails} onChange={e => setPetDetails(e.target.value)}
+              placeholder="e.g. Large dog, friendly but will bark. Please keep door closed."
+              style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+          </div>
+        )}
+
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:11, color:C.textSub, marginBottom:6, fontWeight:500 }}>Any other access notes?</div>
+          <textarea value={accessNotes} onChange={e => setAccessNotes(e.target.value)}
+            placeholder="e.g. Ring the doorbell first, park in the lot behind the building…" rows={2}
+            style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}/>
         </div>
 
         {/* Photos */}
