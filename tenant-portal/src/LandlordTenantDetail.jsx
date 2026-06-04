@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
-// ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:        "#0A0B0D",
   surface:   "#111316",
@@ -53,12 +52,7 @@ function Badge({ status }) {
 
 function PrimaryBtn({ children, onClick, disabled }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold,
-      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
-      cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
-      transition: "background 0.15s", opacity: disabled ? 0.6 : 1, whiteSpace: "nowrap",
-    }}
+    <button onClick={onClick} disabled={disabled} style={{ background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold, fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7, cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s", opacity: disabled ? 0.6 : 1, whiteSpace: "nowrap" }}
       onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
       onMouseOut={e => e.currentTarget.style.background = "transparent"}
     >{children}</button>
@@ -67,11 +61,7 @@ function PrimaryBtn({ children, onClick, disabled }) {
 
 function GhostBtn({ children, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
-      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
-      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", whiteSpace: "nowrap",
-    }}
+    <button onClick={onClick} style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textSub, fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", whiteSpace: "nowrap" }}
       onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
       onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
     >{children}</button>
@@ -80,11 +70,7 @@ function GhostBtn({ children, onClick }) {
 
 function DangerBtn({ children, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      background: "rgba(224,85,85,0.1)", border: `1px solid rgba(224,85,85,0.25)`,
-      color: C.red, fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
-      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap",
-    }}>{children}</button>
+    <button onClick={onClick} style={{ background: "rgba(224,85,85,0.1)", border: `1px solid rgba(224,85,85,0.25)`, color: C.red, fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>{children}</button>
   );
 }
 
@@ -113,25 +99,45 @@ const TD = ({ children, right, bold, color }) => (
   <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: "11px 14px", borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", verticalAlign: "middle" }}>{children}</td>
 );
 
+// ─── Archive Confirm Modal ─────────────────────────────────────────────────
+function ArchiveModal({ tenantName, onConfirm, onCancel, archiving }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 400, padding: "28px 28px 24px" }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, marginBottom: 10 }}>Archive tenant?</div>
+        <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, marginBottom: 24 }}>
+          <strong style={{ color: C.text }}>{tenantName}</strong> will be removed from your active tenant list. Their payment history and maintenance records will be preserved. You can view archived tenants from the Tenants page.
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <GhostBtn onClick={onCancel}>Cancel</GhostBtn>
+          <DangerBtn onClick={onConfirm}>{archiving ? "Archiving…" : "Archive tenant"}</DangerBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandlordTenantDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
   const width    = useWindowWidth();
   const isMobile = width < 768;
 
-  const [tenant, setTenant]         = useState(null);
-  const [unit, setUnit]             = useState(null);
-  const [property, setProperty]     = useState(null);
-  const [payments, setPayments]     = useState([]);
+  const [tenant, setTenant]           = useState(null);
+  const [unit, setUnit]               = useState(null);
+  const [property, setProperty]       = useState(null);
+  const [payments, setPayments]       = useState([]);
   const [maintenance, setMaintenance] = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [activeTab, setActiveTab]   = useState("Overview");
-  const [notes, setNotes]           = useState("");
-  const [noteSaved, setNoteSaved]   = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [activeTab, setActiveTab]     = useState("Overview");
+  const [notes, setNotes]             = useState("");
+  const [noteSaved, setNoteSaved]     = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
-  const [inviting, setInviting]     = useState(false);
-  const [inviteSent, setInviteSent] = useState(false);
+  const [inviting, setInviting]       = useState(false);
+  const [inviteSent, setInviteSent]   = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiving, setArchiving]     = useState(false);
 
   useEffect(() => { fetchAll(); }, [id]);
 
@@ -157,18 +163,18 @@ export default function LandlordTenantDetail() {
     if (!tenant.email) { setInviteError("No email on tenant record."); return; }
     setInviting(true); setInviteError("");
     const { error } = await supabase.functions.invoke("invite-tenant", {
-      body: {
-        tenant_id:     tenant.id,
-        tenant_name:   tenant.name,
-        tenant_email:  tenant.email,
-        unit_number:   unit?.unit_number || "—",
-        property_name: property?.name || "—",
-        landlord_name: "Andrew Wagner",
-      }
+      body: { tenant_id: tenant.id, tenant_name: tenant.name, tenant_email: tenant.email, unit_number: unit?.unit_number || "—", property_name: property?.name || "—", landlord_name: "Andrew Wagner" }
     });
     setInviting(false);
     if (error) { setInviteError(error.message); return; }
     setInviteSent(true);
+  }
+
+  async function archiveTenant() {
+    setArchiving(true);
+    await supabase.from("tenants").update({ archived: true }).eq("id", id);
+    setArchiving(false);
+    navigate("/landlord/tenants");
   }
 
   async function saveNotes() {
@@ -179,15 +185,11 @@ export default function LandlordTenantDetail() {
     setTimeout(() => setNoteSaved(false), 2000);
   }
 
-  if (loading) return (
-    <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Loading tenant…</div></LandlordLayout>
-  );
-  if (!tenant) return (
-    <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Tenant not found.</div></LandlordLayout>
-  );
+  if (loading) return <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Loading tenant…</div></LandlordLayout>;
+  if (!tenant) return <LandlordLayout><div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.textSub, fontSize: 14 }}>Tenant not found.</div></LandlordLayout>;
 
-  const initials     = tenant.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const accentColor  = AVATAR_COLORS[0];
+  const initials      = tenant.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const accentColor   = AVATAR_COLORS[0];
   const latestPayment = payments[0];
   let status = "current";
   if (latestPayment?.status === "failed") status = "late";
@@ -216,6 +218,14 @@ export default function LandlordTenantDetail() {
           onMouseOut={e => e.currentTarget.style.color = C.goldDim}
         >← Back to Tenants</button>
 
+        {/* Archived banner */}
+        {tenant.archived && (
+          <div style={{ background: "rgba(240,164,48,0.1)", border: `1px solid rgba(240,164,48,0.25)`, borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 13, color: C.amber, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>⚠ This tenant is archived and not in your active list.</span>
+            <button onClick={async () => { await supabase.from("tenants").update({ archived: false }).eq("id", id); fetchAll(); }} style={{ background: "none", border: "none", color: C.amber, cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif", textDecoration: "underline" }}>Unarchive</button>
+          </div>
+        )}
+
         {/* Header card */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -229,7 +239,7 @@ export default function LandlordTenantDetail() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <Badge status={status} />
                 {daysLeft !== null && daysLeft < 60 && daysLeft > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber }}>⚠️ Lease expiring in {daysLeft}d</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber }}>⚠ Lease expiring in {daysLeft}d</span>
                 )}
               </div>
               <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
@@ -239,29 +249,24 @@ export default function LandlordTenantDetail() {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "flex-start" }}>
             <PrimaryBtn onClick={() => navigate("/landlord/messages")}>Message</PrimaryBtn>
             {!tenant.user_id && (
               inviteSent
-                ? <span style={{ fontSize: 12, color: "#72B02A", fontWeight: 500 }}>✓ Invite sent</span>
+                ? <span style={{ fontSize: 12, color: C.green, fontWeight: 500, padding: "7px 0" }}>✓ Invite sent</span>
                 : <GhostBtn onClick={sendInvite} disabled={inviting}>{inviting ? "Sending…" : "Send invite"}</GhostBtn>
             )}
             <GhostBtn>Record payment</GhostBtn>
             {status === "late" && <DangerBtn>Send notice</DangerBtn>}
-            {inviteError && <div style={{ fontSize: 11, color: "#E05555", marginTop: 4 }}>{inviteError}</div>}
+            {!tenant.archived && <DangerBtn onClick={() => setShowArchive(true)}>Archive</DangerBtn>}
+            {inviteError && <div style={{ fontSize: 11, color: C.red, width: "100%", marginTop: 2 }}>{inviteError}</div>}
           </div>
         </div>
 
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
           {TABS.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: "10px 16px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
-              color: activeTab === tab ? C.gold : C.textSub,
-              background: "none", border: "none",
-              borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
-              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
-            }}>{tab}</button>
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: "10px 16px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400, color: activeTab === tab ? C.gold : C.textSub, background: "none", border: "none", borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent", marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}>{tab}</button>
           ))}
         </div>
 
@@ -272,16 +277,14 @@ export default function LandlordTenantDetail() {
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: balance > 0 ? C.red : C.green, marginBottom: 4 }}>
                 {balance > 0 ? `-$${balance.toLocaleString()}` : "$0.00"}
               </div>
-              <div style={{ fontSize: 12, color: balance > 0 ? C.red : C.green, marginBottom: balance > 0 ? 14 : 0 }}>
-                {balance > 0 ? "Amount overdue" : "Fully paid ✓"}
-              </div>
+              <div style={{ fontSize: 12, color: balance > 0 ? C.red : C.green, marginBottom: balance > 0 ? 14 : 0 }}>{balance > 0 ? "Amount overdue" : "Fully paid ✓"}</div>
               {balance > 0 && <PrimaryBtn onClick={() => {}}>Send payment reminder</PrimaryBtn>}
             </InfoCard>
 
             <InfoCard title="Lease Details">
-              <InfoRow label="Monthly rent"  value={unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}` : "—"} />
-              <InfoRow label="Lease start"   value={tenant.lease_start ? new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"} />
-              <InfoRow label="Lease end"     value={tenant.lease_end   ? new Date(tenant.lease_end).toLocaleDateString("en-US",   { month: "short", day: "numeric", year: "numeric" }) : "—"} />
+              <InfoRow label="Monthly rent"   value={unit?.rent_amount ? `$${unit.rent_amount.toLocaleString()}` : "—"} />
+              <InfoRow label="Lease start"    value={tenant.lease_start ? new Date(tenant.lease_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"} />
+              <InfoRow label="Lease end"      value={tenant.lease_end   ? new Date(tenant.lease_end).toLocaleDateString("en-US",   { month: "short", day: "numeric", year: "numeric" }) : "—"} />
               <InfoRow label="Days remaining" value={daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} days` : "Expired") : "—"} last />
               {leaseStart && leaseEnd && (
                 <>
@@ -345,7 +348,7 @@ export default function LandlordTenantDetail() {
               <GhostBtn onClick={() => navigate("/landlord/maintenance")}>View all</GhostBtn>
             </div>
             {maintenance.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 32, color: C.green, fontSize: 13 }}>🎉 No maintenance requests for this tenant.</div>
+              <div style={{ textAlign: "center", padding: 32, color: C.green, fontSize: 13 }}>No maintenance requests for this tenant.</div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead><tr><TH>Date</TH><TH>Issue</TH><TH>Category</TH><TH>Priority</TH><TH>Status</TH></tr></thead>
@@ -373,22 +376,28 @@ export default function LandlordTenantDetail() {
               <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Only visible to you — never shown to the tenant</div>
             </div>
             <div style={{ padding: "16px" }}>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
+              <textarea value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="Add private notes about this tenant — payment behavior, communications, maintenance patterns, renewal intent…"
                 style={{ width: "100%", minHeight: 140, padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "vertical", fontFamily: "'DM Sans', sans-serif", color: C.text, background: C.raised, outline: "none", lineHeight: 1.6, boxSizing: "border-box" }}
               />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-                <PrimaryBtn onClick={saveNotes} disabled={savingNotes}>
-                  {noteSaved ? "✓ Saved!" : savingNotes ? "Saving…" : "Save notes"}
-                </PrimaryBtn>
+                <PrimaryBtn onClick={saveNotes} disabled={savingNotes}>{noteSaved ? "✓ Saved!" : savingNotes ? "Saving…" : "Save notes"}</PrimaryBtn>
                 <span style={{ fontSize: 11, color: C.textMuted }}>{notes.length} characters</span>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Archive confirm modal */}
+      {showArchive && (
+        <ArchiveModal
+          tenantName={tenant.name}
+          onConfirm={archiveTenant}
+          onCancel={() => setShowArchive(false)}
+          archiving={archiving}
+        />
+      )}
     </LandlordLayout>
   );
 }
