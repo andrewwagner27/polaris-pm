@@ -129,6 +129,9 @@ export default function LandlordTenantDetail() {
   const [notes, setNotes]           = useState("");
   const [noteSaved, setNoteSaved]   = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [inviting, setInviting]     = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   useEffect(() => { fetchAll(); }, [id]);
 
@@ -148,6 +151,24 @@ export default function LandlordTenantDetail() {
     setPayments(paymentsData || []);
     setMaintenance(maintData || []);
     setLoading(false);
+  }
+
+  async function sendInvite() {
+    if (!tenant.email) { setInviteError("No email on tenant record."); return; }
+    setInviting(true); setInviteError("");
+    const { error } = await supabase.functions.invoke("invite-tenant", {
+      body: {
+        tenant_id:     tenant.id,
+        tenant_name:   tenant.name,
+        tenant_email:  tenant.email,
+        unit_number:   unit?.unit_number || "—",
+        property_name: property?.name || "—",
+        landlord_name: "Andrew Wagner",
+      }
+    });
+    setInviting(false);
+    if (error) { setInviteError(error.message); return; }
+    setInviteSent(true);
   }
 
   async function saveNotes() {
@@ -220,8 +241,14 @@ export default function LandlordTenantDetail() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <PrimaryBtn onClick={() => navigate("/landlord/messages")}>Message</PrimaryBtn>
+            {!tenant.user_id && (
+              inviteSent
+                ? <span style={{ fontSize: 12, color: "#72B02A", fontWeight: 500 }}>✓ Invite sent</span>
+                : <GhostBtn onClick={sendInvite} disabled={inviting}>{inviting ? "Sending…" : "Send invite"}</GhostBtn>
+            )}
             <GhostBtn>Record payment</GhostBtn>
             {status === "late" && <DangerBtn>Send notice</DangerBtn>}
+            {inviteError && <div style={{ fontSize: 11, color: "#E05555", marginTop: 4 }}>{inviteError}</div>}
           </div>
         </div>
 
