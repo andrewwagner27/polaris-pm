@@ -82,21 +82,23 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
     setUseCustom(false);
   }
 
-  async function searchPlaces() {
-    if (!propertyAddress) { setError("No property address on file for this property."); return; }
-    setPlacesLoading(true);
-    setPlacesResults([]);
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke("search-vendors", {
-        body: { category: requestCategory || "general", address: propertyAddress }
-      });
-      if (fnError || data?.error) throw new Error(fnError?.message || data?.error);
-      setPlacesResults(data.results || []);
-    } catch (e) {
-      setError("Vendor search failed: " + e.message);
-    }
-    setPlacesLoading(false);
+async function searchPlaces() {
+  console.log("propertyAddress:", propertyAddress);
+  console.log("requestCategory:", requestCategory);
+  if (!propertyAddress) { setError("No property address on file for this property."); return; }
+  setPlacesLoading(true);
+  setPlacesResults([]);
+  try {
+    const { data, error: fnError } = await supabase.functions.invoke("search-vendors", {
+      body: { category: requestCategory || "general", address: propertyAddress }
+    });
+    if (fnError || data?.error) throw new Error(fnError?.message || data?.error);
+    setPlacesResults(data.results || []);
+  } catch (e) {
+    setError("Vendor search failed: " + e.message);
   }
+  setPlacesLoading(false);
+}
 
   async function assign() {
     const name  = vendorName.trim();
