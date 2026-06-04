@@ -147,6 +147,7 @@ export default function MaintenanceRequestForm() {
 
     const { data, error } = await supabase.from("maintenance_requests").insert({
       tenant_id: tenantId,
+      unit_id:   tenant?.unit_id || null,
       category, title, description, priority, status: "open",
       availability,
     }).select().single();
