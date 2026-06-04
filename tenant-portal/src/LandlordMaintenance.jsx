@@ -556,7 +556,7 @@ export default function LandlordMaintenance() {
           requestId={vendorTicket.id}
           requestTitle={field(vendorTicket, "title")}
           onClose={() => setVendorTicket(null)}
-          onAssigned={() => { fetchTickets(); setVendorTicket(null); }}
+          onAssigned={() => { fetchTickets(); }}
         />
       )}
     </LandlordLayout>
