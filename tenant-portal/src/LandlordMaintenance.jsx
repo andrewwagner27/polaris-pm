@@ -555,6 +555,8 @@ export default function LandlordMaintenance() {
         <AssignVendorModal
           requestId={vendorTicket.id}
           requestTitle={field(vendorTicket, "title")}
+          requestCategory={field(vendorTicket, "category")}
+          propertyId={vendorTicket.units?.property_id || null}
           onClose={() => setVendorTicket(null)}
           onAssigned={() => { fetchTickets(); }}
         />

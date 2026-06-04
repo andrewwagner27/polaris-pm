@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
-// ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:        "#0A0B0D",
   surface:   "#111316",
@@ -19,6 +19,16 @@ const C = {
   amber:     "#F0A430",
 };
 
+const TRADE_CATEGORIES = [
+  { id: "plumbing",   label: "Plumbing",   icon: "🚿" },
+  { id: "electrical", label: "Electrical", icon: "⚡" },
+  { id: "hvac",       label: "HVAC",       icon: "🌡️" },
+  { id: "appliance",  label: "Appliance",  icon: "🍳" },
+  { id: "pest",       label: "Pest",       icon: "🐛" },
+  { id: "general",    label: "General",    icon: "🔧" },
+  { id: "other",      label: "Other",      icon: "📋" },
+];
+
 const NOTIFICATION_SETTINGS = [
   { id: "rent_received",   label: "Rent payment received",     sub: "When a tenant pays rent",             email: true,  sms: true  },
   { id: "rent_late",       label: "Rent payment overdue",      sub: "When rent is 1+ days past due",       email: true,  sms: true  },
@@ -32,13 +42,13 @@ const NOTIFICATION_SETTINGS = [
 const SETTING_SECTIONS = [
   { id: "profile",       label: "Profile" },
   { id: "company",       label: "Company" },
+  { id: "vendors",       label: "Vendors" },
   { id: "notifications", label: "Notifications" },
   { id: "team",          label: "Team & Access" },
   { id: "integrations",  label: "Integrations" },
   { id: "billing",       label: "Billing & Plan" },
 ];
 
-// ─── Shared ────────────────────────────────────────────────────────────────
 function FieldLabel({ children }) {
   return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.07em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{children}</label>;
 }
@@ -53,10 +63,18 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-function PrimaryBtn({ children, onClick }) {
+function Select({ value, onChange, children }) {
   return (
-    <button onClick={onClick} style={{ background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s" }}
-      onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
+    <select value={value} onChange={onChange} style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+      {children}
+    </select>
+  );
+}
+
+function PrimaryBtn({ children, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s", opacity: disabled ? 0.6 : 1 }}
+      onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
       onMouseOut={e => e.currentTarget.style.background = "transparent"}
     >{children}</button>
   );
@@ -97,13 +115,210 @@ function Toggle({ on, onToggle }) {
   );
 }
 
+// ── Vendor Modal ──────────────────────────────────────────────────────────
+function VendorModal({ vendor, properties, onClose, onSaved }) {
+  const isEdit = !!vendor;
+  const [form, setForm] = useState({
+    name:        vendor?.name        || "",
+    phone:       vendor?.phone       || "",
+    email:       vendor?.email       || "",
+    category:    vendor?.category    || "",
+    property_id: vendor?.property_id || "",
+    notes:       vendor?.notes       || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  async function save() {
+    if (!form.name.trim())    { setError("Vendor name is required."); return; }
+    if (!form.property_id)    { setError("Please select a property."); return; }
+    if (!form.category)       { setError("Please select a trade category."); return; }
+    setSaving(true); setError("");
+
+    if (isEdit) {
+      const { error: err } = await supabase.from("vendors").update(form).eq("id", vendor.id);
+      if (err) { setError(err.message); setSaving(false); return; }
+    } else {
+      const { error: err } = await supabase.from("vendors").insert({ ...form, active: true });
+      if (err) { setError(err.message); setSaving(false); return; }
+    }
+    setSaving(false);
+    onSaved();
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 480, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "18px 22px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{isEdit ? "Edit vendor" : "Add vendor"}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: C.textSub }}>✕</button>
+        </div>
+        <div style={{ padding: "20px 22px" }}>
+          {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+
+          <div style={{ marginBottom: 14 }}><FieldLabel>Vendor / company name *</FieldLabel><Input value={form.name} onChange={e => update("name", e.target.value)} placeholder="e.g. Mike's Plumbing" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>Phone</FieldLabel><Input value={form.phone} onChange={e => update("phone", e.target.value)} placeholder="(614) 555-0101" /></div>
+            <div><FieldLabel>Email</FieldLabel><Input type="email" value={form.email} onChange={e => update("email", e.target.value)} placeholder="mike@plumbing.com" /></div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Property *</FieldLabel>
+            <Select value={form.property_id} onChange={e => update("property_id", e.target.value)}>
+              <option value="">Select property…</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Trade category *</FieldLabel>
+            <Select value={form.category} onChange={e => update("category", e.target.value)}>
+              <option value="">Select category…</option>
+              {TRADE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+            </Select>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <FieldLabel>Notes</FieldLabel>
+            <textarea value={form.notes} onChange={e => update("notes", e.target.value)} placeholder="Reliable, good pricing, available weekends…" rows={3}
+              style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", resize: "none", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5, boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : "Add vendor"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Vendors Section ───────────────────────────────────────────────────────
+function VendorsSection() {
+  const [vendors, setVendors]       = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showModal, setShowModal]   = useState(false);
+  const [editVendor, setEditVendor] = useState(null);
+  const [filter, setFilter]         = useState("all");
+  const [propFilter, setPropFilter] = useState("all");
+
+  useEffect(() => { fetchAll(); }, []);
+
+  async function fetchAll() {
+    setLoading(true);
+    const [{ data: v }, { data: p }] = await Promise.all([
+      supabase.from("vendors").select("*, properties(name)").order("name"),
+      supabase.from("properties").select("id, name"),
+    ]);
+    setVendors(v || []);
+    setProperties(p || []);
+    setLoading(false);
+  }
+
+  async function toggleActive(vendor) {
+    await supabase.from("vendors").update({ active: !vendor.active }).eq("id", vendor.id);
+    fetchAll();
+  }
+
+  async function deleteVendor(id) {
+    if (!confirm("Delete this vendor? This cannot be undone.")) return;
+    await supabase.from("vendors").delete().eq("id", id);
+    fetchAll();
+  }
+
+  const filtered = vendors.filter(v => {
+    const matchCat  = filter === "all" || v.category === filter;
+    const matchProp = propFilter === "all" || v.property_id === propFilter;
+    return matchCat && matchProp;
+  });
+
+  const activeCnt   = vendors.filter(v => v.active).length;
+  const inactiveCnt = vendors.filter(v => !v.active).length;
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 2 }}>Vendor directory</div>
+          <div style={{ fontSize: 12, color: C.textSub }}>{activeCnt} active vendor{activeCnt !== 1 ? "s" : ""} across {properties.length} properties</div>
+        </div>
+        <PrimaryBtn onClick={() => { setEditVendor(null); setShowModal(true); }}>+ Add vendor</PrimaryBtn>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+          <option value="all">All properties</option>
+          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+          <option value="all">All trades</option>
+          {TRADE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+        </select>
+      </div>
+
+      {loading && <div style={{ padding: 24, textAlign: "center", color: C.textSub, fontSize: 13 }}>Loading vendors…</div>}
+
+      {!loading && filtered.length === 0 && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 32, textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🔧</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>No vendors yet</div>
+          <div style={{ fontSize: 13, color: C.textSub, marginBottom: 16 }}>Add your go-to contractors for each trade and property.</div>
+          <PrimaryBtn onClick={() => { setEditVendor(null); setShowModal(true); }}>+ Add first vendor</PrimaryBtn>
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          {filtered.map((v, i) => {
+            const cat  = TRADE_CATEGORIES.find(c => c.id === v.category);
+            return (
+              <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", opacity: v.active ? 1 : 0.5 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 9, background: `${C.gold}18`, border: `1px solid ${C.goldDim}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                  {cat?.icon || "🔧"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{v.name}</div>
+                    {!v.active && <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(92,98,112,0.2)", color: C.textMuted }}>Inactive</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textSub, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <span>{cat?.label || v.category}</span>
+                    {v.properties?.name && <span>· {v.properties.name}</span>}
+                    {v.phone && <span>· {v.phone}</span>}
+                  </div>
+                  {v.notes && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.notes}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <GhostBtn small onClick={() => { setEditVendor(v); setShowModal(true); }}>Edit</GhostBtn>
+                  <GhostBtn small onClick={() => toggleActive(v)}>{v.active ? "Deactivate" : "Activate"}</GhostBtn>
+                  <GhostBtn small danger onClick={() => deleteVendor(v.id)}>Delete</GhostBtn>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showModal && (
+        <VendorModal
+          vendor={editVendor}
+          properties={properties}
+          onClose={() => { setShowModal(false); setEditVendor(null); }}
+          onSaved={() => { setShowModal(false); setEditVendor(null); fetchAll(); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordSettings() {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection]   = useState("profile");
-  const [saved, setSaved]                   = useState(false);
-  const [notifs, setNotifs]                 = useState(NOTIFICATION_SETTINGS);
-  const [profile, setProfile]               = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrewwagner27@gmail.com", phone: "(614) 555-0100" });
-  const [company, setCompany]               = useState({ name: "Modus Property Management", address: "Columbus, OH", ein: "**-*******", website: "moduspm.com" });
+  const [activeSection, setActiveSection] = useState("profile");
+  const [saved, setSaved]                 = useState(false);
+  const [notifs, setNotifs]               = useState(NOTIFICATION_SETTINGS);
+  const [profile, setProfile]             = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrewwagner27@gmail.com", phone: "(614) 555-0100" });
+  const [company, setCompany]             = useState({ name: "Modus Property Management", address: "Columbus, OH", ein: "**-*******", website: "moduspm.com" });
 
   function save() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
   function toggleNotif(id, type) { setNotifs(prev => prev.map(n => n.id === id ? { ...n, [type]: !n[type] } : n)); }
@@ -120,7 +335,6 @@ export default function LandlordSettings() {
 
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "28px 32px 48px" }}>
 
-        {/* Top bar */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>Settings</div>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Manage your account, notifications, and integrations</div>
@@ -128,17 +342,11 @@ export default function LandlordSettings() {
 
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 20 }}>
 
-          {/* Settings nav */}
+          {/* Nav */}
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {SETTING_SECTIONS.map(section => (
               <div key={section.id} className="m-setting-nav-item"
-                style={{
-                  padding: "9px 14px", borderRadius: 7, fontSize: 13, fontWeight: activeSection === section.id ? 500 : 400,
-                  color: activeSection === section.id ? C.gold : C.textSub,
-                  background: activeSection === section.id ? `rgba(201,169,110,0.07)` : "transparent",
-                  borderLeft: `2px solid ${activeSection === section.id ? C.gold : "transparent"}`,
-                  cursor: "pointer", transition: "all 0.12s",
-                }}
+                style={{ padding: "9px 14px", borderRadius: 7, fontSize: 13, fontWeight: activeSection === section.id ? 500 : 400, color: activeSection === section.id ? C.gold : C.textSub, background: activeSection === section.id ? `rgba(201,169,110,0.07)` : "transparent", borderLeft: `2px solid ${activeSection === section.id ? C.gold : "transparent"}`, cursor: "pointer", transition: "all 0.12s" }}
                 onClick={() => setActiveSection(section.id)}
               >{section.label}</div>
             ))}
@@ -149,7 +357,6 @@ export default function LandlordSettings() {
           {/* Content */}
           <div>
 
-            {/* ── Profile ── */}
             {activeSection === "profile" && (
               <>
                 <Card>
@@ -179,7 +386,6 @@ export default function LandlordSettings() {
               </>
             )}
 
-            {/* ── Company ── */}
             {activeSection === "company" && (
               <Card>
                 <CardHeader title="Company information" sub="Shown on leases, receipts, and PDF reports" action={saved && <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>✓ Saved!</span>} />
@@ -195,7 +401,8 @@ export default function LandlordSettings() {
               </Card>
             )}
 
-            {/* ── Notifications ── */}
+            {activeSection === "vendors" && <VendorsSection />}
+
             {activeSection === "notifications" && (
               <Card>
                 <CardHeader title="Notification preferences" sub="Choose how you receive alerts for each event" />
@@ -218,7 +425,6 @@ export default function LandlordSettings() {
               </Card>
             )}
 
-            {/* ── Team ── */}
             {activeSection === "team" && (
               <Card>
                 <CardHeader title="Team members" sub="Invite property managers or maintenance staff" action={<PrimaryBtn onClick={() => {}}>+ Invite member</PrimaryBtn>} />
@@ -236,16 +442,15 @@ export default function LandlordSettings() {
               </Card>
             )}
 
-            {/* ── Integrations ── */}
             {activeSection === "integrations" && (
               <Card>
                 <CardHeader title="Connected integrations" />
                 {[
-                  { name: "Stripe",      sub: "Payment processing for rent collection",     connected: false, color: C.blue },
-                  { name: "Plaid",       sub: "Bank account verification for ACH payments", connected: false, color: C.green },
-                  { name: "Resend",      sub: "Email notifications and receipts",           connected: true,  color: C.gold },
-                  { name: "Twilio",      sub: "SMS notifications to tenants",               connected: false, color: C.amber },
-                  { name: "QuickBooks",  sub: "Sync income and expenses to QBO",            connected: false, color: C.textSub },
+                  { name: "Stripe",     sub: "Payment processing for rent collection",     connected: false, color: C.blue  },
+                  { name: "Plaid",      sub: "Bank account verification for ACH payments", connected: false, color: C.green },
+                  { name: "Resend",     sub: "Email notifications and receipts",           connected: true,  color: C.gold  },
+                  { name: "Twilio",     sub: "SMS notifications to tenants",               connected: false, color: C.amber },
+                  { name: "QuickBooks", sub: "Sync income and expenses to QBO",            connected: false, color: C.textSub },
                 ].map((integ, i, arr) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${C.border}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -266,13 +471,10 @@ export default function LandlordSettings() {
               </Card>
             )}
 
-            {/* ── Billing ── */}
             {activeSection === "billing" && (
               <>
                 <Card>
-                  <CardHeader title="Current plan" sub="Modus PM — Self-hosted"
-                    action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", background: `${C.green}15`, color: C.green, borderRadius: 20 }}>Active</span>}
-                  />
+                  <CardHeader title="Current plan" sub="Modus PM — Self-hosted" action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", background: `${C.green}15`, color: C.green, borderRadius: 20 }}>Active</span>} />
                   <div style={{ padding: "20px" }}>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: C.gold, marginBottom: 6 }}>$0<span style={{ fontSize: 14, fontWeight: 400, color: C.textSub }}>/month</span></div>
                     <div style={{ fontSize: 13, color: C.textSub, marginBottom: 18 }}>You built this. No subscription fees.</div>
@@ -283,7 +485,6 @@ export default function LandlordSettings() {
                     ))}
                   </div>
                 </Card>
-
                 <div style={{ background: "rgba(224,85,85,0.06)", border: `1px solid rgba(224,85,85,0.2)`, borderRadius: 10, padding: "18px 20px" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.red, marginBottom: 6 }}>Danger zone</div>
                   <div style={{ fontSize: 12, color: C.textSub, marginBottom: 14 }}>These actions are irreversible. Proceed with caution.</div>
