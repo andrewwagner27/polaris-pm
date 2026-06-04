@@ -16,6 +16,8 @@ serve(async (req) => {
   try {
     const { to, subject, html } = await req.json();
 
+    console.log("Sending email to:", to, "subject:", subject);
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -26,11 +28,14 @@ serve(async (req) => {
     });
 
     const data = await res.json();
+    console.log("Resend response:", JSON.stringify(data));
+
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: res.ok ? 200 : 400,
     });
   } catch (err) {
+    console.error("send-email error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

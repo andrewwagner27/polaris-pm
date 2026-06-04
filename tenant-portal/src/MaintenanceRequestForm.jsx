@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from "react";
 import { supabase } from "./supabase";
 import { notifyNewMaintenanceTicket } from "./notifications";
+import { useTenant } from "./useTenant";
 
 const CATEGORIES = [
   { id: "plumbing",    label: "Plumbing",     icon: "🚿" },
@@ -345,6 +346,7 @@ export default function MaintenanceRequestForm() {
   const [submitted, setSubmitted] = useState(false);
   const [ticket, setTicket]       = useState("");
   const [dragging, setDragging]   = useState(false);
+  const { tenant } = useTenant();
   const fileRef = useRef();
 
   function validate() {
@@ -393,7 +395,7 @@ export default function MaintenanceRequestForm() {
     const { data, error } = await supabase
       .from("maintenance_requests")
       .insert({
-        tenant_id: user.id,
+        tenant_id: tenant?.id || user.id,
         category,
         title,
         description,
