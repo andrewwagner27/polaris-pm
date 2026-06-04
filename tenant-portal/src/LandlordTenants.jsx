@@ -158,7 +158,7 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
             {inviteStatus === "failed"  && <div style={{ fontSize: 13, color: C.amber,   marginBottom: 20 }}>⚠ Tenant added but invite failed — you can resend from their profile.</div>}
             {inviteStatus === "skipped" && <div style={{ fontSize: 13, color: C.textSub, marginBottom: 20 }}>No invite sent — you can send one from their profile.</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <GhostBtn onClick={onClose}>Done</GhostBtn>
+              <GhostBtn onClick={onSaved}>Done</GhostBtn>
               <PrimaryBtn onClick={() => { setForm({ name:"",email:"",phone:"",property_id:"",unit_id:"",lease_start:"",lease_end:"" }); setStep("form"); setInviteStatus(""); }}>Add another</PrimaryBtn>
             </div>
           </div>

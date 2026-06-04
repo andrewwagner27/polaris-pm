@@ -31,13 +31,13 @@ serve(async (req) => {
       }
     });
 
-    if (inviteError) throw new Error(inviteError.message);
+    if (inviteError) { console.error("generateLink error:", inviteError.message); throw new Error(inviteError.message); }
     const inviteLink = inviteData?.properties?.action_link;
-    if (!inviteLink) throw new Error("Failed to generate invite link");
+    if (!inviteLink) { console.error("No invite link generated, inviteData:", JSON.stringify(inviteData)); throw new Error("Failed to generate invite link"); }
 
     // Send via Resend
     const resendKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendKey) throw new Error("RESEND_API_KEY not set");
+    if (!resendKey) { console.error("RESEND_API_KEY not set"); throw new Error("RESEND_API_KEY not set"); }
 
     const emailRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -77,7 +77,7 @@ serve(async (req) => {
 
     if (!emailRes.ok) {
       const emailErr = await emailRes.json();
-      throw new Error(`Resend error: ${emailErr.message}`);
+      console.error("Resend error:", JSON.stringify(emailErr)); throw new Error(`Resend error: ${emailErr.message}`);
     }
 
     // Mark tenant as invited
@@ -90,6 +90,7 @@ serve(async (req) => {
     });
 
   } catch (err) {
+    console.error("invite-tenant error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import AssignVendorModal from "./AssignVendorModal";
 import { notifyTicketStatusUpdate, notifyTenantNewComment } from "./notifications";
 
-// ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:        "#0A0B0D",
   surface:   "#111316",
@@ -59,12 +59,12 @@ function PrimaryBtn({ children, onClick, disabled, color }) {
   const bg = color || C.goldDim;
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      background: "transparent", border: `1px solid ${bg}`,
-      color: color ? "#fff" : C.gold, fontSize: 13, fontWeight: 500,
-      padding: "8px 16px", borderRadius: 7, cursor: disabled ? "default" : "pointer",
-      fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s",
-      opacity: disabled ? 0.5 : 1,
-      ...(color ? { background: color, color: "#fff", border: "none" } : {}),
+      background: color ? color : "transparent",
+      border: color ? "none" : `1px solid ${bg}`,
+      color: color ? "#fff" : C.gold,
+      fontSize: 13, fontWeight: 500, padding: "8px 16px", borderRadius: 7,
+      cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+      transition: "background 0.15s", opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap",
     }}
       onMouseOver={e => !disabled && !color && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
       onMouseOut={e => !color && (e.currentTarget.style.background = "transparent")}
@@ -126,6 +126,7 @@ export default function LandlordMaintenance() {
   const [visibility, setVisibility]     = useState("hidden");
   const [posting, setPosting]           = useState(false);
   const [showConfirm, setShowConfirm]   = useState(false);
+  const [vendorTicket, setVendorTicket] = useState(null);
 
   useEffect(() => { fetchTickets(); }, []);
   useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
@@ -199,10 +200,10 @@ export default function LandlordMaintenance() {
   });
 
   const stats = [
-    { label: "Open",            value: loading ? "—" : openCount,       sub: "awaiting action",  accent: C.amber },
-    { label: "In Progress",     value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: C.blue },
-    { label: "Resolved (MTD)",  value: loading ? "—" : resolvedCount,   sub: "this month",       accent: C.green },
-    { label: "Maintenance Cost",value: loading ? "—" : `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: C.gold },
+    { label: "Open",             value: loading ? "—" : openCount,       sub: "awaiting action",  accent: C.amber },
+    { label: "In Progress",      value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: C.blue },
+    { label: "Resolved (MTD)",   value: loading ? "—" : resolvedCount,   sub: "this month",       accent: C.green },
+    { label: "Maintenance Cost", value: loading ? "—" : `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: C.gold },
   ];
 
   return (
@@ -214,8 +215,7 @@ export default function LandlordMaintenance() {
         .m-ticket:hover { border-color: #353A44 !important; }
         .m-row:hover td { background: ${C.raised} !important; }
         .m-filter:hover { color: ${C.text} !important; border-color: #353A44 !important; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
       `}</style>
 
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
@@ -256,11 +256,9 @@ export default function LandlordMaintenance() {
           {["Requests", "Cost Tracker"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: "10px 18px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
-              color: activeTab === tab ? C.gold : C.textSub,
-              background: "none", border: "none",
+              color: activeTab === tab ? C.gold : C.textSub, background: "none", border: "none",
               borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
-              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-              transition: "color 0.15s",
+              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
             }}>{tab}</button>
           ))}
         </div>
@@ -268,7 +266,6 @@ export default function LandlordMaintenance() {
         {/* ── Requests tab ── */}
         {activeTab === "Requests" && (
           <>
-            {/* Filters */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 12px", flex: 1, maxWidth: 260 }}>
                 <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
@@ -281,18 +278,13 @@ export default function LandlordMaintenance() {
                   background: statusFilter === f ? C.goldDim : "transparent",
                   color: statusFilter === f ? C.text : C.textSub,
                   border: `1px solid ${statusFilter === f ? C.goldDim : C.border}`,
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                  textTransform: "capitalize", transition: "all 0.12s",
+                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif", textTransform: "capitalize", transition: "all 0.12s",
                 }}>
                   {f === "all" ? `All (${tickets.length})` : f === "in_progress" ? `In Progress (${inProgressCount})` : `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t=>t.status===f).length})`}
                 </button>
               ))}
               {!isMobile && (
-                <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{
-                  padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 6,
-                  fontSize: 12, background: C.surface, color: C.textSub,
-                  outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
-                }}>
+                <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
                   <option value="all">All properties</option>
                   <option value="clifton">Clifton Manor</option>
                   <option value="stpete">944 18th Ave S</option>
@@ -312,12 +304,7 @@ export default function LandlordMaintenance() {
               const status   = field(ticket, "status");
               return (
                 <div key={ticket.id} className="m-ticket"
-                  style={{
-                    background: C.surface, border: `1px solid ${C.border}`,
-                    borderLeft: `3px solid ${PRIORITY[priority]?.color || C.border}`,
-                    borderRadius: 10, padding: "14px 16px", marginBottom: 8,
-                    cursor: "pointer", transition: "border-color 0.15s",
-                  }}
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${PRIORITY[priority]?.color || C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, cursor: "pointer", transition: "border-color 0.15s" }}
                   onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}
                 >
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
@@ -341,11 +328,11 @@ export default function LandlordMaintenance() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 11, color: C.textMuted }}>📅 {field(ticket, "submittedAt")}</span>
-                      {!isMobile && field(ticket, "vendor") && <span style={{ fontSize: 11, color: C.textMuted }}>🔧 {field(ticket, "vendor")}</span>}
+                      {!isMobile && field(ticket, "vendor") && <span style={{ fontSize: 11, color: C.blue }}>🔧 {field(ticket, "vendor")}</span>}
                       {!isMobile && field(ticket, "cost") && <span style={{ fontSize: 11, color: C.textMuted }}>💰 ${field(ticket, "cost")}</span>}
                     </div>
                     <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-                      {status === "open"        && <PrimaryBtn onClick={() => updateStatus(ticket.id, "in_progress")}>{isMobile ? "→" : "Assign vendor"}</PrimaryBtn>}
+                      {status === "open"        && <PrimaryBtn onClick={() => setVendorTicket(ticket)}>{isMobile ? "→" : "Assign vendor"}</PrimaryBtn>}
                       {status === "in_progress" && <PrimaryBtn color={C.green} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</PrimaryBtn>}
                       {status === "resolved"    && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Resolved</span>}
                       <GhostBtn small onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>View</GhostBtn>
@@ -406,7 +393,6 @@ export default function LandlordMaintenance() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={() => setSelected(null)}>
           <div style={{ width: "min(520px,100vw)", background: C.surface, height: "100vh", overflowY: "auto", borderLeft: `1px solid ${C.border}` }} onClick={e => e.stopPropagation()}>
 
-            {/* Panel header */}
             <div style={{ background: C.raised, borderBottom: `1px solid ${C.border}`, padding: "20px 20px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
@@ -418,12 +404,12 @@ export default function LandlordMaintenance() {
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <Badge type="priority" value={field(selected, "priority")} />
                 <Badge type="status" value={field(selected, "status")} />
+                {field(selected, "vendor") && <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>🔧 {field(selected, "vendor")}</span>}
               </div>
             </div>
 
             <div style={{ padding: "20px" }}>
 
-              {/* Description */}
               {field(selected, "description") && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Description</div>
@@ -431,21 +417,18 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
-              {/* Photos */}
               {selected.photos?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Photos ({selected.photos.length})</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {selected.photos.map((url, i) => (
-                      <img key={i} src={url} alt={`photo-${i}`}
-                        onClick={() => setLightbox({ urls: selected.photos, index: i })}
+                      <img key={i} src={url} alt={`photo-${i}`} onClick={() => setLightbox({ urls: selected.photos, index: i })}
                         style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, border: `1px solid ${C.border}`, cursor: "pointer" }} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Details */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Details</div>
                 {[
@@ -463,13 +446,15 @@ export default function LandlordMaintenance() {
                 ))}
               </div>
 
-              {/* Update status */}
               {field(selected, "status") !== "resolved" && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Update Status</div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Actions</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {field(selected, "status") === "open" && (
-                      <PrimaryBtn onClick={() => updateStatus(selected.id, "in_progress")}>→ In Progress</PrimaryBtn>
+                      <PrimaryBtn onClick={() => setVendorTicket(selected)}>Assign vendor</PrimaryBtn>
+                    )}
+                    {field(selected, "status") === "open" && (
+                      <GhostBtn onClick={() => updateStatus(selected.id, "in_progress")}>→ In Progress</GhostBtn>
                     )}
                     {field(selected, "status") === "in_progress" && (
                       <PrimaryBtn color={C.green} onClick={() => updateStatus(selected.id, "resolved")}>✓ Mark Resolved</PrimaryBtn>
@@ -478,13 +463,10 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
-              {/* Comments */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Comments</div>
                 <div style={{ maxHeight: 260, overflowY: "auto", marginBottom: 12 }}>
-                  {comments.length === 0 && (
-                    <div style={{ textAlign: "center", padding: "16px 0", color: C.textMuted, fontSize: 13 }}>No comments yet.</div>
-                  )}
+                  {comments.length === 0 && <div style={{ textAlign: "center", padding: "16px 0", color: C.textMuted, fontSize: 13 }}>No comments yet.</div>}
                   {comments.map(c => {
                     const isMe = c.author_name === "Property Manager";
                     const displayName = isMe ? "Property Manager" : (c.author_name || "Tenant");
@@ -493,22 +475,19 @@ export default function LandlordMaintenance() {
                     return (
                       <div key={c.id} style={{ marginBottom: 14, display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexDirection: isMe ? "row-reverse" : "row" }}>
-                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                            {initials}
-                          </div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
                           <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub }}>{displayName}</span>
                           {!c.visible_to_tenant && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber, fontWeight: 600 }}>🔒 Internal</span>}
                           {c.visible_to_tenant  && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(114,176,42,0.13)", color: C.green, fontWeight: 600 }}>👁 Visible</span>}
                           <span style={{ fontSize: 10, color: C.textMuted }}>{date}</span>
                         </div>
-                        <div style={{ maxWidth: "82%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.goldDim : C.border}`, borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", padding: "10px 14px", opacity: !c.visible_to_tenant ? 0.85 : 1 }}>
+                        <div style={{ maxWidth: "82%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.goldDim : C.border}`, borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", padding: "10px 14px" }}>
                           <p style={{ fontSize: 13, color: isMe ? C.text : C.textSub, lineHeight: 1.5, margin: 0 }}>{c.body}</p>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-
                 <textarea value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment…" rows={3}
                   style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "none", fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box", color: C.text, background: C.raised, lineHeight: 1.5, marginBottom: 8 }} />
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -516,21 +495,17 @@ export default function LandlordMaintenance() {
                     <option value="hidden">🔒 Internal only</option>
                     <option value="visible">👁 Visible to tenant</option>
                   </select>
-                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{
-                    padding: "8px 16px", background: newComment.trim() ? C.goldDim : C.raised,
-                    color: newComment.trim() ? C.text : C.textMuted, border: `1px solid ${newComment.trim() ? C.goldDim : C.border}`,
-                    borderRadius: 7, fontSize: 12, fontWeight: 600,
-                    cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap",
-                  }}>{posting ? "Posting…" : "Post"}</button>
+                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{ padding: "8px 16px", background: newComment.trim() ? C.goldDim : C.raised, color: newComment.trim() ? C.text : C.textMuted, border: `1px solid ${newComment.trim() ? C.goldDim : C.border}`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
+                    {posting ? "Posting…" : "Post"}
+                  </button>
                 </div>
               </div>
 
-              {/* Timeline */}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Timeline</div>
                 {[
                   { color: C.amber, text: `Submitted by ${field(selected, "tenant")}`, time: field(selected, "submittedAt") },
-                  field(selected, "vendor")    && { color: C.blue,  text: `Assigned to ${field(selected, "vendor")}`,    time: field(selected, "updatedAt") },
+                  field(selected, "vendor")    && { color: C.blue,  text: `Assigned to ${field(selected, "vendor")}`, time: field(selected, "updatedAt") },
                   field(selected, "scheduled") && { color: C.blue,  text: `Scheduled for ${field(selected, "scheduled")}`, time: field(selected, "updatedAt") },
                   field(selected, "status") === "resolved" && { color: C.green, text: "Ticket resolved", time: field(selected, "updatedAt") },
                 ].filter(Boolean).map((item, i) => (
@@ -559,15 +534,12 @@ export default function LandlordMaintenance() {
         </div>
       )}
 
-      {/* Confirmation popup */}
+      {/* Confirm comment */}
       {showConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, width: "100%", maxWidth: 400, padding: "32px 28px", textAlign: "center" }}>
-            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(240,164,48,0.13)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>⚠️</div>
             <div style={{ fontSize: 17, fontWeight: 600, color: C.text, marginBottom: 10 }}>Your tenant will see this message.</div>
-            <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, marginBottom: 20 }}>Please review before sending.</div>
             <div style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", marginBottom: 24, textAlign: "left" }}>
-              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Message preview</div>
               <p style={{ fontSize: 13, color: C.text, margin: 0, lineHeight: 1.5 }}>{newComment}</p>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
@@ -576,6 +548,16 @@ export default function LandlordMaintenance() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Assign vendor modal */}
+      {vendorTicket && (
+        <AssignVendorModal
+          requestId={vendorTicket.id}
+          requestTitle={field(vendorTicket, "title")}
+          onClose={() => setVendorTicket(null)}
+          onAssigned={() => { fetchTickets(); setVendorTicket(null); }}
+        />
       )}
     </LandlordLayout>
   );
