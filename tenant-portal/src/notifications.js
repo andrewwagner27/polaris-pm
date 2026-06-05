@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-const LANDLORD_EMAIL = "andrewwagner27@gmail.com";
+const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
 const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {
@@ -145,6 +145,39 @@ export async function notifyLandlordTenantComment({ tenantName, title, commentBo
                 <p style="font-size:14px;color:#EDEAE2;margin:0;line-height:1.6;">${commentBody}</p>
               </div>
               <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">View ticket →</a>
+            </td></tr>
+            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
+              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      </body></html>
+    `,
+  });
+}
+
+// ── Notify PM: vendor marked ticket complete ──
+export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId }) {
+  return sendEmail({
+    to: LANDLORD_EMAIL,
+    subject: `✅ ${vendorName} completed: ${ticketTitle}`,
+    html: `
+      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
+        <tr><td align="center">
+          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
+            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
+              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
+              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Work Complete</h2>
+            </td></tr>
+            <tr><td style="padding:24px 32px;">
+              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${vendorName}</strong> has marked the following ticket as complete and is awaiting your review.</p>
+              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
+                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Ticket</div>
+                <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
+              </div>
+              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Review & approve →</a>
             </td></tr>
             <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
               <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
