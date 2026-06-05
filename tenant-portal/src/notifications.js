@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-const LANDLORD_EMAIL = "andrewwagner27@gmail.com";
+const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
 const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {
@@ -158,7 +158,7 @@ export async function notifyLandlordTenantComment({ tenantName, title, commentBo
 }
 
 // ── Notify PM: vendor marked ticket complete ──
-export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId }) {
+export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId, hasInvoice, invoiceNotes }) {
   return sendEmail({
     to: LANDLORD_EMAIL,
     subject: `✅ ${vendorName} completed: ${ticketTitle}`,
@@ -172,12 +172,14 @@ export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId }
               <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Work Complete</h2>
             </td></tr>
             <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${vendorName}</strong> has marked the following ticket as complete and is awaiting your review.</p>
+              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${vendorName}</strong> has submitted work for review on the following ticket.</p>
+              ${hasInvoice ? `<div style="background:#181C21;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#4A9AE8;">📄 Invoice attached — review in Modus</div>` : ""}
+              ${invoiceNotes ? `<div style="background:#181C21;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#EDEAE2;">${invoiceNotes}</div>` : ""}
               <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
                 <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Ticket</div>
                 <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
               </div>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Review & approve →</a>
+              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#72B02A;color:#fff;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">✓ Review & approve →</a>
             </td></tr>
             <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
               <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>

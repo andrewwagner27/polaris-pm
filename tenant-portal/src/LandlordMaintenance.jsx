@@ -29,9 +29,10 @@ const PRIORITY = {
 };
 
 const STATUS = {
-  open:        { label: "Open",        color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  in_progress: { label: "In Progress", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  resolved:    { label: "Resolved",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  open:           { label: "Open",           color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  in_progress:    { label: "In Progress",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
+  pending_review: { label: "Pending Review", color: "#C9A96E", bg: "rgba(201,169,110,0.13)" },
+  resolved:       { label: "Resolved",       color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
 };
 
 const CATEGORY_ICONS = {
@@ -147,6 +148,11 @@ export default function LandlordMaintenance() {
     setComments(data || []);
   }
 
+  async function approveTicket(ticket) {
+    await updateStatus(ticket.id, "resolved");
+    if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "resolved" }));
+  }
+
   async function updateStatus(id, newStatus) {
     const { error } = await supabase.from("maintenance_requests").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", id);
     if (!error) {
@@ -184,6 +190,7 @@ export default function LandlordMaintenance() {
   }
 
   const openCount       = tickets.filter(t => t.status === "open").length;
+  const pendingReviewCount = tickets.filter(t => t.status === "pending_review").length;
   const inProgressCount = tickets.filter(t => t.status === "in_progress").length;
   const resolvedCount   = tickets.filter(t => t.status === "resolved").length;
   const totalCost       = tickets.reduce((sum, t) => sum + (t.cost || 0), 0);
@@ -202,6 +209,7 @@ export default function LandlordMaintenance() {
   const stats = [
     { label: "Open",             value: loading ? "—" : openCount,       sub: "awaiting action",  accent: C.amber },
     { label: "In Progress",      value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: C.blue },
+    { label: "Pending Review",     value: loading ? "—" : pendingReviewCount, sub: "awaiting approval", accent: C.gold },
     { label: "Resolved (MTD)",   value: loading ? "—" : resolvedCount,   sub: "this month",       accent: C.green },
     { label: "Maintenance Cost", value: loading ? "—" : `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: C.gold },
   ];
@@ -238,7 +246,7 @@ export default function LandlordMaintenance() {
         )}
 
         {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 10, marginBottom: 24 }}>
           {stats.map((s, i) => (
             <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
@@ -272,7 +280,7 @@ export default function LandlordMaintenance() {
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…"
                   style={{ flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
               </div>
-              {["all","open","in_progress","resolved"].map(f => (
+              {["all","open","in_progress","pending_review","resolved"].map(f => (
                 <button key={f} className="m-filter" onClick={() => setStatusFilter(f)} style={{
                   padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
                   background: statusFilter === f ? C.goldDim : "transparent",
@@ -334,6 +342,7 @@ export default function LandlordMaintenance() {
                     <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
                       {status === "open"        && <PrimaryBtn onClick={() => setVendorTicket(ticket)}>{isMobile ? "→" : "Assign vendor"}</PrimaryBtn>}
                       {status === "in_progress" && <PrimaryBtn color={C.green} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</PrimaryBtn>}
+                      {status === "pending_review" && <PrimaryBtn color={C.green} onClick={() => approveTicket(ticket)}>{isMobile ? "✓" : "Approve & close"}</PrimaryBtn>}
                       {status === "resolved"    && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Resolved</span>}
                       <GhostBtn small onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>View</GhostBtn>
                     </div>
@@ -458,6 +467,21 @@ export default function LandlordMaintenance() {
                     )}
                     {field(selected, "status") === "in_progress" && (
                       <PrimaryBtn color={C.green} onClick={() => updateStatus(selected.id, "resolved")}>✓ Mark Resolved</PrimaryBtn>
+                    )}
+                    {field(selected, "status") === "pending_review" && (
+                      <div style={{ width:"100%" }}>
+                        {selected.invoice_url && (
+                          <a href={selected.invoice_url} target="_blank" rel="noreferrer" style={{ display:"block", marginBottom:8, padding:"8px 14px", background:`${C.blue}0F`, border:`1px solid ${C.blue}33`, borderRadius:7, fontSize:12, color:C.blue, textDecoration:"none" }}>
+                            📄 View invoice →
+                          </a>
+                        )}
+                        {selected.invoice_notes && (
+                          <div style={{ marginBottom:8, padding:"8px 14px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, color:C.textSub }}>
+                            {selected.invoice_notes}
+                          </div>
+                        )}
+                        <PrimaryBtn color={C.green} onClick={() => approveTicket(selected)}>✓ Approve & close</PrimaryBtn>
+                      </div>
                     )}
                   </div>
                 </div>
