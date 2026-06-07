@@ -5,12 +5,8 @@ const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: { to, subject, html },
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (error) console.error("Edge Function error:", error);
     return data;
