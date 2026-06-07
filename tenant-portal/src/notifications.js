@@ -3,15 +3,28 @@ import { supabase } from "./supabase";
 const LANDLORD_EMAIL = "andrewwagner27@gmail.com";
 const APP_URL = "https://polaris-pm.vercel.app";
 
+const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
+
 async function sendEmail({ to, subject, html }) {
   try {
-    const { data, error } = await supabase.functions.invoke("send-email", {
-      body: { to, subject, html },
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Modus Property Management <onboarding@resend.dev>',
+        to,
+        subject,
+        html,
+      }),
     });
-    if (error) console.error("Edge Function error:", error);
+    const data = await response.json();
+    if (!response.ok) console.error('Resend error:', data);
     return data;
   } catch (err) {
-    console.error("Failed to send email:", err);
+    console.error('Failed to send email:', err);
   }
 }
 
