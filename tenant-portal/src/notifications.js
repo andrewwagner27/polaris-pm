@@ -7,21 +7,13 @@ const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
 
 async function sendEmail({ to, subject, html }) {
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('/api/send-email', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Modus Property Management <onboarding@resend.dev>',
-        to,
-        subject,
-        html,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, html }),
     });
     const data = await response.json();
-    if (!response.ok) console.error('Resend error:', data);
+    if (!response.ok) console.error('Email error:', data);
     return data;
   } catch (err) {
     console.error('Failed to send email:', err);
