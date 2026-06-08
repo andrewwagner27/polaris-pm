@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Modus Property Management <onboarding@resend.dev>',
+      from: 'Modus Property Management <noreply@getmodusam.com>',
       to,
       subject,
       html,
