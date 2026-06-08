@@ -20,28 +20,22 @@ const C = {
 
 const STEPS = ["Your info", "Find your unit", "Emergency contact", "Move-in checklist", "All set"];
 
-const PROPERTY_CODES = {
-  "CLIFTON": { property: "Clifton Manor",  address: "12009 Clifton Blvd, Lakewood OH" },
-  "STPETE":  { property: "944 18th Ave S", address: "St. Petersburg, FL 33705" },
-};
-
 const ROOMS = [
-  { id: "living_room",  label: "Living Room" },
-  { id: "kitchen",      label: "Kitchen" },
-  { id: "bedroom",      label: "Bedroom" },
-  { id: "bathroom",     label: "Bathroom" },
-  { id: "exterior",     label: "Exterior / Entry" },
+  { id:"living_room", label:"Living Room" },
+  { id:"kitchen",     label:"Kitchen" },
+  { id:"bedroom",     label:"Bedroom" },
+  { id:"bathroom",    label:"Bathroom" },
+  { id:"exterior",    label:"Exterior / Entry" },
 ];
 
-const CONDITIONS = ["Good", "Fair", "Needs attention"];
-
+const CONDITIONS   = ["Good", "Fair", "Needs attention"];
 const RELATIONSHIPS = ["Spouse / Partner", "Parent", "Sibling", "Friend", "Other"];
 
 function Spinner() {
   return <span style={{ width:16,height:16,border:"2px solid rgba(201,169,110,0.3)",borderTopColor:C.gold,borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite" }}/>;
 }
 
-function ModusMark({ size = 32 }) {
+function ModusMark({ size=32 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
       <path d="M6 33V10L20 27L34 10V33" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -62,12 +56,12 @@ function ContinueBtn({ onClick, loading, label="Continue →" }) {
 export default function TenantOnboarding() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [step, setStep]                     = useState(0);
-  const [invitedTenantId, setInvitedTenantId] = useState(searchParams.get("tenant_id") || null);
+  const [step,            setStep]            = useState(0);
+  const [invitedTenantId, setInvitedTenantId] = useState(searchParams.get("tenant_id")||null);
   const [linkedTenantId,  setLinkedTenantId]  = useState(null);
-  const [autoLinked, setAutoLinked]           = useState(false);
-  const [loading,  setLoading]               = useState(false);
-  const [error,    setError]                 = useState("");
+  const [autoLinked,      setAutoLinked]      = useState(false);
+  const [loading,         setLoading]         = useState(false);
+  const [error,           setError]           = useState("");
 
   // Step 0
   const [fullName, setFullName] = useState("");
@@ -78,88 +72,109 @@ export default function TenantOnboarding() {
   const [unitNum,       setUnitNum]       = useState("");
   const [foundProperty, setFoundProperty] = useState(null);
 
-  // Step 2 — emergency contact
+  // Step 2
   const [ecName,         setEcName]         = useState("");
   const [ecPhone,        setEcPhone]        = useState("");
   const [ecRelationship, setEcRelationship] = useState("");
 
-  // Step 3 — move-in checklist
+  // Step 3
   const [checklist, setChecklist] = useState(
-    ROOMS.map(r => ({ room: r.id, condition: "", notes: "", completed: false }))
+    ROOMS.map(r => ({ room:r.id, condition:"", notes:"", completed:false }))
   );
 
   useEffect(() => {
     async function autoLink() {
-      if (!invitedTenantId || autoLinked) return;
-      const { data: { user } } = await supabase.auth.getUser();
+      if (!invitedTenantId||autoLinked) return;
+      const { data:{ user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { error } = await supabase.from("tenants")
-        .update({ user_id: user.id })
-        .eq("id", invitedTenantId)
-        .is("user_id", null);
+      const { error } = await supabase.from("tenants").update({ user_id:user.id }).eq("id",invitedTenantId).is("user_id",null);
       if (!error) {
         setAutoLinked(true);
         setLinkedTenantId(invitedTenantId);
-        const { data: t } = await supabase.from("tenants").select("name").eq("id", invitedTenantId).single();
+        const { data:t } = await supabase.from("tenants").select("name").eq("id",invitedTenantId).single();
         if (t?.name) setFullName(t.name);
       }
     }
     autoLink();
   }, [invitedTenantId]);
 
-  const progress = (step / (STEPS.length - 1)) * 100;
+  const progress = (step/(STEPS.length-1))*100;
 
-  // ── Step 0: personal info ──
   async function handlePersonalInfo() {
-    if (!fullName.trim() || !phone.trim()) { setError("Please fill in both fields."); return; }
+    if (!fullName.trim()||!phone.trim()) { setError("Please fill in both fields."); return; }
     setLoading(true); setError("");
-    try { await supabase.auth.updateUser({ data: { full_name: fullName, phone } }); } catch(e) {}
+    try { await supabase.auth.updateUser({ data:{ full_name:fullName, phone } }); } catch(e) {}
     setLoading(false);
     setStep(1);
   }
 
-  // ── Step 1: find unit ──
   async function handlePropertyCode() {
-    if (!code.trim())   { setError("Please enter your property code."); return; }
+    if (!code.trim())    { setError("Please enter your property code."); return; }
     if (!unitNum.trim()) { setError("Please enter your unit number."); return; }
     setError(""); setLoading(true);
-    try {
-      const upperCode    = code.toUpperCase().trim();
-      const propertyInfo = PROPERTY_CODES[upperCode];
-      if (!propertyInfo) { setError("Property code not found. Check with your landlord and try again."); setLoading(false); return; }
 
-      const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data:{ user } } = await supabase.auth.getUser();
       if (!user) { setError("Session expired. Please log in again."); setLoading(false); return; }
 
-      const { data: propertyData } = await supabase.from("properties").select("id, name, address").ilike("name", `%${propertyInfo.property.split(" ")[0]}%`).limit(1).single();
+      // Look up property by code from DB
+      const { data:propertyData, error:propErr } = await supabase
+        .from("properties")
+        .select("id, name, address, city, state")
+        .eq("property_code", code.toUpperCase().trim())
+        .single();
 
-      if (!propertyData) {
-        setFoundProperty({ ...propertyInfo, unit: unitNum });
-        await supabase.auth.updateUser({ data: { onboarding_complete: true, full_name: fullName, phone } });
-        setLoading(false); setStep(2); return;
+      if (propErr||!propertyData) {
+        setError("Property code not found. Check with your landlord and try again.");
+        setLoading(false); return;
       }
 
-      const { data: unitData } = await supabase.from("units").select("id, unit_number").eq("property_id", propertyData.id).ilike("unit_number", unitNum.trim()).limit(1).single();
-      if (!unitData) { setError(`Unit ${unitNum} not found at ${propertyInfo.property}.`); setLoading(false); return; }
+      // Find the unit
+      const { data:unitData, error:unitErr } = await supabase
+        .from("units")
+        .select("id, unit_number")
+        .eq("property_id", propertyData.id)
+        .ilike("unit_number", unitNum.trim())
+        .limit(1)
+        .single();
 
-      const { data: tenantData } = await supabase.from("tenants").select("id, name, user_id").eq("unit_id", unitData.id).limit(1).single();
-      if (!tenantData) { setError(`No tenant record found for Unit ${unitNum}. Ask your landlord to add you first.`); setLoading(false); return; }
-      if (tenantData.user_id && tenantData.user_id !== user.id) { setError("This unit is already claimed by another account."); setLoading(false); return; }
+      if (unitErr||!unitData) {
+        setError(`Unit ${unitNum} not found at ${propertyData.name}. Check your unit number.`);
+        setLoading(false); return;
+      }
 
-      await supabase.from("tenants").update({ user_id: user.id, name: fullName || tenantData.name, phone }).eq("id", tenantData.id);
+      // Find tenant record
+      const { data:tenantData, error:tenantErr } = await supabase
+        .from("tenants")
+        .select("id, name, user_id")
+        .eq("unit_id", unitData.id)
+        .limit(1)
+        .single();
+
+      if (tenantErr||!tenantData) {
+        setError(`No tenant record found for Unit ${unitNum}. Ask your landlord to add you first.`);
+        setLoading(false); return;
+      }
+
+      if (tenantData.user_id&&tenantData.user_id!==user.id) {
+        setError("This unit is already claimed by another account. Contact your landlord.");
+        setLoading(false); return;
+      }
+
+      await supabase.from("tenants").update({ user_id:user.id, name:fullName||tenantData.name, phone }).eq("id",tenantData.id);
       setLinkedTenantId(tenantData.id);
-      setFoundProperty({ property: propertyData.name, address: propertyData.address || propertyInfo.address, unit: unitData.unit_number });
-      await supabase.auth.updateUser({ data: { onboarding_complete: true, full_name: fullName, phone } });
-      setLoading(false); setStep(2);
+      setFoundProperty({ property:propertyData.name, address:`${propertyData.address}, ${propertyData.city} ${propertyData.state}`, unit:unitData.unit_number });
+      await supabase.auth.updateUser({ data:{ onboarding_complete:true, full_name:fullName, phone } });
+      setLoading(false);
+      setStep(2);
     } catch(e) {
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   }
 
-  // ── Step 2: emergency contact ──
   async function handleEmergencyContact() {
-    if (!ecName.trim() || !ecPhone.trim()) { setError("Please fill in name and phone."); return; }
+    if (!ecName.trim()||!ecPhone.trim()) { setError("Please fill in name and phone."); return; }
     setLoading(true); setError("");
     try {
       if (linkedTenantId) {
@@ -174,19 +189,17 @@ export default function TenantOnboarding() {
     setStep(3);
   }
 
-  // ── Step 3: move-in checklist ──
   async function handleChecklist() {
     setLoading(true);
     try {
       if (linkedTenantId) {
-        const rows = checklist.map(item => ({
+        const rows = checklist.map(item=>({
           tenant_id: linkedTenantId,
           room:      item.room,
-          condition: item.condition || "Good",
+          condition: item.condition||"Good",
           notes:     item.notes,
-          completed: item.condition !== "",
+          completed: item.condition!=="",
         }));
-        // Delete any existing rows first, then insert
         await supabase.from("move_in_checklist").delete().eq("tenant_id", linkedTenantId);
         await supabase.from("move_in_checklist").insert(rows);
       }
@@ -196,17 +209,16 @@ export default function TenantOnboarding() {
   }
 
   function updateChecklist(index, field, value) {
-    setChecklist(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    setChecklist(prev=>prev.map((item,i)=>i===index?{ ...item, [field]:value }:item));
   }
 
-  // ── Step 4: finish ──
   async function handleFinish() {
     setLoading(true);
-    await supabase.auth.updateUser({ data: { onboarding_complete: true } });
+    await supabase.auth.updateUser({ data:{ onboarding_complete:true } });
     navigate("/home");
   }
 
-  const completedRooms = checklist.filter(r => r.condition !== "").length;
+  const completedRooms = checklist.filter(r=>r.condition!=="").length;
 
   return (
     <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",flexDirection:"column" }}>
@@ -214,16 +226,14 @@ export default function TenantOnboarding() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${C.bg}; }
-        .rel-btn:hover { border-color: ${C.goldDim} !important; color: ${C.text} !important; }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{background:${C.bg};}
+        .rel-btn:hover{border-color:${C.goldDim}!important;color:${C.text}!important;}
       `}</style>
 
       {/* Header */}
       <div style={{ background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"28px 24px 24px",textAlign:"center" }}>
-        <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}>
-          <ModusMark size={36}/>
-        </div>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><ModusMark size={36}/></div>
         <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,letterSpacing:"0.1em" }}>MODUS</div>
         <div style={{ fontSize:9,color:C.textMuted,letterSpacing:"0.18em",marginTop:2,marginBottom:12 }}>PROPERTY MANAGEMENT</div>
         <div style={{ fontSize:13,color:C.textSub }}>Let's get your account set up — takes about 3 minutes</div>
@@ -244,7 +254,7 @@ export default function TenantOnboarding() {
       {/* Card */}
       <div style={{ flex:1,padding:"28px 24px 48px",width:"100%",maxWidth:520,margin:"0 auto",boxSizing:"border-box" }}>
 
-        {/* ── Step 0: Personal info ── */}
+        {/* Step 0 */}
         {step===0&&(
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Your information</div>
@@ -264,7 +274,7 @@ export default function TenantOnboarding() {
           </>
         )}
 
-        {/* ── Step 1: Find unit ── */}
+        {/* Step 1 */}
         {step===1&&(
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Find your unit</div>
@@ -285,7 +295,7 @@ export default function TenantOnboarding() {
               <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>Property code</label>
               <input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setError("");setFoundProperty(null);}} placeholder="e.g. CLIFTON" maxLength={10}
                 style={{ width:"100%",padding:"14px",fontSize:22,fontWeight:700,border:`1px solid ${C.border}`,borderRadius:8,textAlign:"center",letterSpacing:"0.15em",outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",color:C.gold,background:C.raised }}/>
-              <div style={{ fontSize:11,color:C.textMuted,textAlign:"center",marginTop:8 }}>Your landlord provided this when you were added as a tenant.</div>
+              <div style={{ fontSize:11,color:C.textMuted,textAlign:"center",marginTop:8 }}>Your landlord provided this code when you were added as a tenant.</div>
             </div>
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>Unit number</label>
@@ -299,25 +309,22 @@ export default function TenantOnboarding() {
           </>
         )}
 
-        {/* ── Step 2: Emergency contact ── */}
+        {/* Step 2 */}
         {step===2&&(
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Emergency contact</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Who should your property manager contact in case of an emergency?</div>
             {error&&<div style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.2)`,borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.red }}>{error}</div>}
-
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>Full name</label>
               <input value={ecName} onChange={e=>{setEcName(e.target.value);setError("");}} placeholder="Jane Rodriguez"
                 style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${C.border}`,borderRadius:8,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif" }}/>
             </div>
-
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>Phone number</label>
               <input value={ecPhone} onChange={e=>{setEcPhone(e.target.value);setError("");}} placeholder="(614) 555-0100" type="tel"
                 style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${C.border}`,borderRadius:8,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif" }}/>
             </div>
-
             <div style={{ marginBottom:24 }}>
               <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:8 }}>Relationship</label>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
@@ -329,7 +336,6 @@ export default function TenantOnboarding() {
                 ))}
               </div>
             </div>
-
             <ContinueBtn onClick={handleEmergencyContact} loading={loading}/>
             <button onClick={()=>setStep(3)} style={{ width:"100%",padding:"10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:500,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:10 }}>
               Skip for now
@@ -337,17 +343,14 @@ export default function TenantOnboarding() {
           </>
         )}
 
-        {/* ── Step 3: Move-in checklist ── */}
+        {/* Step 3 */}
         {step===3&&(
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Move-in checklist</div>
-            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:8 }}>
-              Document the condition of each area when you move in. This protects your deposit.
-            </div>
+            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:8 }}>Document the condition of each area when you move in. This protects your deposit.</div>
             <div style={{ fontSize:12,color:C.textMuted,marginBottom:24 }}>{completedRooms} of {ROOMS.length} areas completed</div>
-
             <div style={{ display:"flex",flexDirection:"column",gap:12,marginBottom:24 }}>
-              {ROOMS.map((room, i) => {
+              {ROOMS.map((room,i)=>{
                 const item = checklist[i];
                 return (
                   <div key={room.id} style={{ background:C.surface,border:`1px solid ${item.condition?C.goldDim:C.border}`,borderRadius:10,padding:"14px 16px",transition:"border-color 0.15s" }}>
@@ -355,8 +358,6 @@ export default function TenantOnboarding() {
                       <div style={{ fontSize:14,fontWeight:500,color:C.text }}>{room.label}</div>
                       {item.condition&&<div style={{ width:8,height:8,borderRadius:"50%",background:C.green }}/>}
                     </div>
-
-                    {/* Condition buttons */}
                     <div style={{ display:"flex",gap:8,marginBottom:item.condition?10:0 }}>
                       {CONDITIONS.map(c=>(
                         <button key={c} onClick={()=>updateChecklist(i,"condition",c)}
@@ -369,8 +370,6 @@ export default function TenantOnboarding() {
                         </button>
                       ))}
                     </div>
-
-                    {/* Notes */}
                     {item.condition&&(
                       <input value={item.notes} onChange={e=>updateChecklist(i,"notes",e.target.value)}
                         placeholder="Add notes (optional)…"
@@ -380,12 +379,11 @@ export default function TenantOnboarding() {
                 );
               })}
             </div>
-
             <ContinueBtn onClick={handleChecklist} loading={loading} label={completedRooms===0?"Skip checklist →":"Save & continue →"}/>
           </>
         )}
 
-        {/* ── Step 4: All set ── */}
+        {/* Step 4 */}
         {step===4&&(
           <>
             <div style={{ width:72,height:72,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:28,color:C.green,animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>✓</div>
