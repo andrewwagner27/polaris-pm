@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 
 const C = {
   bg:        "#0A0B0D",
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { label: "Pay",       route: "/pay" },
   { label: "Requests",  route: "/maintenance" },
   { label: "Messages",  route: "/messages" },
+  { label: "Bulletin",  route: "/bulletin" },
 ];
 
 function useWindowWidth() {
@@ -93,7 +94,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
                     <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? C.gold : C.textMuted }} />
                   </div>
                 </div>
-                <span style={{ fontSize: 11, color: active ? C.gold : C.textMuted, marginTop: 4, fontWeight: active ? 600 : 400 }}>{item.label}</span>
+                <span style={{ fontSize: 10, color: active ? C.gold : C.textMuted, marginTop: 4, fontWeight: active ? 600 : 400 }}>{item.label}</span>
               </button>
             );
           })}
@@ -113,7 +114,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
       `}</style>
 
-      {/* Sidebar — wider, bigger everything */}
+      {/* Sidebar */}
       <div style={{ width: 280, background: C.bg, borderRight: `1px solid ${C.border}`, minHeight: "100vh", display: "flex", flexDirection: "column", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
 
         {/* Logo */}
