@@ -69,9 +69,8 @@ export default function TenantOnboarding() {
   const [invitedTenantId, setInvitedTenantId] = useState(searchParams.get("tenant_id")||null);
   const isInvited = !!invitedTenantId;
 
-  // Steps differ based on whether tenant was invited (needs to set password) or self-signed up
   const STEPS = isInvited
-    ? ["Your info", "Set password", "Find your unit", "Emergency contact", "Move-in checklist", "All set"]
+    ? ["Your info", "Set password", "Your unit", "Emergency contact", "Move-in checklist", "All set"]
     : ["Your info", "Find your unit", "Emergency contact", "Move-in checklist", "All set"];
 
   const [step,           setStep]           = useState(0);
@@ -80,17 +79,19 @@ export default function TenantOnboarding() {
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState("");
 
-  // Step 0 — personal info
+  // Step 0
   const [fullName, setFullName] = useState("");
   const [phone,    setPhone]    = useState("");
 
-  // Step 1 (invited only) — set password
+  // Set password (invited only)
   const [password,        setPassword]        = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Find unit step
-  const [code,          setCode]          = useState("");
-  const [unitNum,       setUnitNum]       = useState("");
+  // Find unit (self-signup only)
+  const [code,    setCode]    = useState("");
+  const [unitNum, setUnitNum] = useState("");
+
+  // Shared — found property info
   const [foundProperty, setFoundProperty] = useState(null);
 
   // Emergency contact
@@ -103,39 +104,61 @@ export default function TenantOnboarding() {
     ROOMS.map(r=>({ room:r.id, condition:"", notes:"", completed:false }))
   );
 
+  // Auto-link invited tenant and pre-load unit info
   useEffect(() => {
     async function autoLink() {
       if (!invitedTenantId||autoLinked) return;
       const { data:{ user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { error } = await supabase.from("tenants").update({ user_id:user.id }).eq("id",invitedTenantId).is("user_id",null);
+
+      const { error } = await supabase.from("tenants")
+        .update({ user_id:user.id })
+        .eq("id", invitedTenantId)
+        .is("user_id", null);
+
       if (!error) {
         setAutoLinked(true);
         setLinkedTenantId(invitedTenantId);
-        const { data:t } = await supabase.from("tenants").select("name").eq("id",invitedTenantId).single();
+
+        // Pre-load name and unit info
+        const { data:t } = await supabase
+          .from("tenants")
+          .select("name, units(unit_number, properties(name, address, city, state))")
+          .eq("id", invitedTenantId)
+          .single();
+
         if (t?.name) setFullName(t.name);
+        if (t?.units) {
+          setFoundProperty({
+            property: t.units.properties?.name || "—",
+            address:  `${t.units.properties?.address||""}, ${t.units.properties?.city||""} ${t.units.properties?.state||""}`,
+            unit:     t.units.unit_number || "—",
+          });
+        }
       }
     }
     autoLink();
   }, [invitedTenantId]);
 
   const progress = (step/(STEPS.length-1))*100;
-
-  // Helper — which logical step name is current
-  function currentStepName() { return STEPS[step]; }
+  const stepName = STEPS[step];
 
   async function handlePersonalInfo() {
     if (!fullName.trim()||!phone.trim()) { setError("Please fill in both fields."); return; }
     setLoading(true); setError("");
     try { await supabase.auth.updateUser({ data:{ full_name:fullName, phone } }); } catch(e) {}
+    // Also update tenant record with phone if linked
+    if (linkedTenantId) {
+      await supabase.from("tenants").update({ name:fullName.trim(), phone:phone.trim() }).eq("id", linkedTenantId);
+    }
     setLoading(false);
     setStep(s=>s+1);
   }
 
   async function handleSetPassword() {
     if (!password) { setError("Please enter a password."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (password !== confirmPassword) { setError("Passwords don't match."); return; }
+    if (password.length<8) { setError("Password must be at least 8 characters."); return; }
+    if (password!==confirmPassword) { setError("Passwords don't match."); return; }
     setLoading(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
@@ -144,9 +167,13 @@ export default function TenantOnboarding() {
   }
 
   async function handlePropertyCode() {
+    // Invited tenants already linked — just advance
+    if (linkedTenantId) { setStep(s=>s+1); return; }
+
     if (!code.trim())    { setError("Please enter your property code."); return; }
     if (!unitNum.trim()) { setError("Please enter your unit number."); return; }
     setError(""); setLoading(true);
+
     try {
       const { data:{ user } } = await supabase.auth.getUser();
       if (!user) { setError("Session expired. Please log in again."); setLoading(false); return; }
@@ -154,18 +181,15 @@ export default function TenantOnboarding() {
       const { data:propertyData, error:propErr } = await supabase
         .from("properties").select("id,name,address,city,state")
         .eq("property_code", code.toUpperCase().trim()).single();
-
       if (propErr||!propertyData) { setError("Property code not found. Check with your landlord."); setLoading(false); return; }
 
       const { data:unitData, error:unitErr } = await supabase
         .from("units").select("id,unit_number")
         .eq("property_id", propertyData.id).ilike("unit_number", unitNum.trim()).limit(1).single();
-
       if (unitErr||!unitData) { setError(`Unit ${unitNum} not found at ${propertyData.name}.`); setLoading(false); return; }
 
       const { data:tenantData, error:tenantErr } = await supabase
         .from("tenants").select("id,name,user_id").eq("unit_id", unitData.id).limit(1).single();
-
       if (tenantErr||!tenantData) { setError(`No tenant record found for Unit ${unitNum}. Ask your landlord to add you first.`); setLoading(false); return; }
       if (tenantData.user_id&&tenantData.user_id!==user.id) { setError("This unit is already claimed by another account."); setLoading(false); return; }
 
@@ -221,7 +245,6 @@ export default function TenantOnboarding() {
   }
 
   const completedRooms = checklist.filter(r=>r.condition!=="").length;
-  const stepName = currentStepName();
 
   return (
     <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",flexDirection:"column" }}>
@@ -263,8 +286,8 @@ export default function TenantOnboarding() {
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Your information</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>This is how your landlord will identify you and how we'll address your receipts and documents.</div>
-            <InputField label="Full name"     value={fullName} onChange={v=>{setFullName(v);setError("");}} placeholder="Maria Rodriguez"/>
-            <InputField label="Phone number"  value={phone}    onChange={v=>{setPhone(v);setError("");}}    placeholder="(614) 555-0192" type="tel"/>
+            <InputField label="Full name"    value={fullName} onChange={v=>{setFullName(v);setError("");}} placeholder="Maria Rodriguez"/>
+            <InputField label="Phone number" value={phone}    onChange={v=>{setPhone(v);setError("");}}    placeholder="(614) 555-0192" type="tel"/>
             <ContinueBtn onClick={handlePersonalInfo} loading={loading}/>
           </>
         )}
@@ -279,8 +302,8 @@ export default function TenantOnboarding() {
             <div style={{ marginBottom:20 }}>
               <div style={{ height:4,background:C.raised,borderRadius:2,overflow:"hidden" }}>
                 <div style={{ height:"100%",borderRadius:2,transition:"width 0.3s, background 0.3s",
-                  width: password.length===0?"0%":password.length<6?"30%":password.length<8?"60%":"100%",
-                  background: password.length<6?C.red:password.length<8?C.amber:C.green
+                  width:password.length===0?"0%":password.length<6?"30%":password.length<8?"60%":"100%",
+                  background:password.length<6?C.red:password.length<8?C.amber:C.green
                 }}/>
               </div>
               <div style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>
@@ -291,7 +314,34 @@ export default function TenantOnboarding() {
           </>
         )}
 
-        {/* ── Find your unit ── */}
+        {/* ── Your unit (invited — read only) ── */}
+        {stepName==="Your unit"&&(
+          <>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Your unit</div>
+            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Your unit has already been linked to your account via your invite.</div>
+            {foundProperty?(
+              <div style={{ background:`${C.green}0F`,border:`1px solid ${C.green}33`,borderRadius:10,padding:"20px",marginBottom:24 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:44,height:44,borderRadius:10,background:`${C.green}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                    <div style={{ width:12,height:12,borderRadius:"50%",background:C.green }}/>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:15,fontWeight:600,color:C.green,marginBottom:2 }}>✓ {foundProperty.property}</div>
+                    <div style={{ fontSize:13,color:C.text }}>Unit {foundProperty.unit}</div>
+                    <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>{foundProperty.address}</div>
+                  </div>
+                </div>
+              </div>
+            ):(
+              <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px",marginBottom:24,fontSize:13,color:C.textSub }}>
+                Loading your unit info…
+              </div>
+            )}
+            <ContinueBtn onClick={()=>setStep(s=>s+1)} loading={false} label="Continue →"/>
+          </>
+        )}
+
+        {/* ── Find your unit (self-signup only) ── */}
         {stepName==="Find your unit"&&(
           <>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Find your unit</div>
@@ -390,12 +440,12 @@ export default function TenantOnboarding() {
           <>
             <div style={{ width:72,height:72,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:28,color:C.green,animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>✓</div>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,textAlign:"center",marginBottom:6 }}>You're all set!</div>
-            <div style={{ fontSize:14,color:C.textSub,textAlign:"center",marginBottom:24 }}>Your account is ready. Here's a summary of what we set up:</div>
+            <div style={{ fontSize:14,color:C.textSub,textAlign:"center",marginBottom:24 }}>Your account is ready. Here's what we set up:</div>
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:24 }}>
               {[
                 ["Name",              fullName||"—"],
                 ["Phone",             phone||"—"],
-                ["Password",          isInvited?"✓ Set":"—"],
+                ...(isInvited ? [["Password", "✓ Set"]] : []),
                 ["Property",          foundProperty?.property||"Not linked yet"],
                 ["Unit",              foundProperty?.unit||"—"],
                 ["Emergency contact", ecName||"Not provided"],
