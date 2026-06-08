@@ -35,10 +35,15 @@ function Badge({ status }) {
   return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>{s.label}</span>;
 }
 
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
+}
+
 export default function HomeDashboard({ onNavigate }) {
   const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
-  const [messages, setMessages]       = useState([]);
+  const [messages,    setMessages]    = useState([]);
   const [msgsLoading, setMsgsLoading] = useState(true);
   const nav = onNavigate || navigate;
 
@@ -64,9 +69,19 @@ export default function HomeDashboard({ onNavigate }) {
   const payments    = tenant?.payments || [];
   const maintenance = tenant?.maintenance || [];
   const unreadCount = messages.filter(m => !m.read && m.recipient_id === user?.id).length;
-  const openTickets = maintenance.filter(m => m.status !== "resolved").length;
   const hour        = new Date().getHours();
   const timeOfDay   = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  // Alert logic
+  const insDaysLeft   = daysUntil(tenant?.insurance_expires);
+  const leaseDaysLeft = daysUntil(tenant?.lease_end);
+  const insStatus = !tenant?.insurance_url ? "missing"
+    : insDaysLeft === null                 ? null
+    : insDaysLeft < 0                      ? "expired"
+    : insDaysLeft < 30                     ? "expiring"
+    : null;
+
+  const showLeaseAlert = leaseDaysLeft !== null && leaseDaysLeft < 60 && leaseDaysLeft >= 0;
 
   return (
     <TenantLayout tenantName={tenant?.name || "Tenant"} unreadMessages={unreadCount}>
@@ -81,15 +96,62 @@ export default function HomeDashboard({ onNavigate }) {
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "40px 48px 80px", maxWidth: 1000, margin: "0 auto" }}>
 
         {/* Greeting */}
-        <div style={{ marginBottom: 36 }}>
+        <div style={{ marginBottom: insStatus || showLeaseAlert ? 20 : 36 }}>
           <div style={{ fontSize: 13, color: C.textSub, marginBottom: 4 }}>Good {timeOfDay}</div>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 40, fontWeight: 600, color: C.text, lineHeight: 1 }}>{firstName}</div>
         </div>
 
-        {/* Top row — rent + stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
+        {/* Alert banners */}
+        {(insStatus || showLeaseAlert) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
 
-          {/* Rent card */}
+            {insStatus === "missing" && (
+              <div onClick={() => nav("/account")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: `${C.red}10`, border: `1px solid ${C.red}30`, borderRadius: 9, cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>Renters insurance required</span>
+                  <span style={{ fontSize: 12, color: C.textSub }}>— Upload your policy to stay compliant</span>
+                </div>
+                <span style={{ fontSize: 12, color: C.red, flexShrink: 0 }}>Upload →</span>
+              </div>
+            )}
+
+            {insStatus === "expired" && (
+              <div onClick={() => nav("/account")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: `${C.red}10`, border: `1px solid ${C.red}30`, borderRadius: 9, cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>Renters insurance expired</span>
+                  <span style={{ fontSize: 12, color: C.textSub }}>— Please upload a new policy</span>
+                </div>
+                <span style={{ fontSize: 12, color: C.red, flexShrink: 0 }}>Update →</span>
+              </div>
+            )}
+
+            {insStatus === "expiring" && (
+              <div onClick={() => nav("/account")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: `${C.amber}10`, border: `1px solid ${C.amber}30`, borderRadius: 9, cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.amber, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>Insurance expires in {insDaysLeft} days</span>
+                  <span style={{ fontSize: 12, color: C.textSub }}>— Renew your policy soon</span>
+                </div>
+                <span style={{ fontSize: 12, color: C.amber, flexShrink: 0 }}>Update →</span>
+              </div>
+            )}
+
+            {showLeaseAlert && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: `${C.amber}10`, border: `1px solid ${C.amber}30`, borderRadius: 9 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.amber, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>Lease expires in {leaseDaysLeft} days</span>
+                  <span style={{ fontSize: 12, color: C.textSub }}>— Contact your property manager about renewal</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rent card */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "24px 28px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>Rent due</div>
@@ -112,7 +174,6 @@ export default function HomeDashboard({ onNavigate }) {
               </div>
             </div>
           </div>
-
         </div>
 
         {/* Bottom row */}
