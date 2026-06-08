@@ -16,30 +16,67 @@ export default function AuthCallback() {
 
       const user = session.user;
 
-      // Check if this user came from a tenant invite
+      // Check if this user came from a tenant invite (via metadata)
       const tenantId = user?.user_metadata?.tenant_id;
 
       if (tenantId) {
-        // Link this auth account to the tenant record
+        // Link by tenant_id from metadata
         const { error: linkError } = await supabase
           .from("tenants")
           .update({ user_id: user.id })
-          .eq("id", tenantId);
+          .eq("id", tenantId)
+          .is("user_id", null); // only if not already linked
 
-        if (linkError) {
-          console.error("Failed to link tenant:", linkError.message);
-        }
+        if (linkError) console.error("Failed to link tenant by id:", linkError.message);
 
-        // Mark onboarding needed
         await supabase.auth.updateUser({
           data: { onboarding_complete: false, role: "tenant" }
         });
 
-        navigate("/onboarding");
+        navigate("/onboarding?tenant_id=" + tenantId);
         return;
       }
 
-      // Check profile role for existing users
+      // Fallback — try to find tenant by email
+      // This handles cases where the Edge Function timed out and tenant_id
+      // wasn't embedded in the magic link metadata
+      if (user?.email) {
+        const { data: tenantByEmail } = await supabase
+          .from("tenants")
+          .select("id, user_id")
+          .eq("email", user.email)
+          .maybeSingle();
+
+        if (tenantByEmail && !tenantByEmail.user_id) {
+          // Found unlinked tenant with matching email — link it
+          const { error: linkError } = await supabase
+            .from("tenants")
+            .update({ user_id: user.id })
+            .eq("id", tenantByEmail.id);
+
+          if (linkError) {
+            console.error("Failed to link tenant by email:", linkError.message);
+          } else {
+            await supabase.auth.updateUser({
+              data: { onboarding_complete: false, role: "tenant" }
+            });
+            navigate("/onboarding?tenant_id=" + tenantByEmail.id);
+            return;
+          }
+        }
+
+        if (tenantByEmail?.user_id === user.id) {
+          // Already linked — check if onboarding complete
+          if (user?.user_metadata?.onboarding_complete) {
+            navigate("/home");
+          } else {
+            navigate("/onboarding?tenant_id=" + tenantByEmail.id);
+          }
+          return;
+        }
+      }
+
+      // Check profile role for existing landlord users
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -65,12 +102,15 @@ export default function AuthCallback() {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh", fontFamily: "'Inter',sans-serif",
-      flexDirection: "column", gap: 12, color: "#555",
+      minHeight: "100vh", fontFamily: "'DM Sans', sans-serif",
+      flexDirection: "column", gap: 12, color: "#9095A0",
+      background: "#0A0B0D",
     }}>
       <div style={{
-        width: 36, height: 36, border: "3px solid #E6F1FB",
-        borderTopColor: "#0C447C", borderRadius: "50%",
+        width: 36, height: 36,
+        border: "3px solid rgba(201,169,110,0.2)",
+        borderTopColor: "#C9A96E",
+        borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
       }} />
       <div style={{ fontSize: 14 }}>Signing you in…</div>
