@@ -31,8 +31,16 @@ const STATUS = {
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
 };
 
-const TABS = ["Overview", "Payments", "Maintenance", "Notes"];
+const TABS = ["Overview", "Payments", "Maintenance", "Move-in", "Notes"];
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
+
+const ROOM_LABELS = {
+  living_room: "Living Room",
+  kitchen:     "Kitchen",
+  bedroom:     "Bedroom",
+  bathroom:    "Bathroom",
+  exterior:    "Exterior / Entry",
+};
 
 function useWindowWidth() {
   const [w, setW] = useState(window.innerWidth);
@@ -74,9 +82,9 @@ function DangerBtn({ children, onClick }) {
   );
 }
 
-function InfoCard({ title, children }) {
+function InfoCard({ title, children, borderColor }) {
   return (
-    <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
+    <div style={{ background:C.surface,border:`1px solid ${borderColor||C.border}`,borderRadius:10,overflow:"hidden" }}>
       <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>{title}</div>
       <div style={{ padding:"14px 16px" }}>{children}</div>
     </div>
@@ -105,7 +113,7 @@ function ArchiveModal({ tenantName, onConfirm, onCancel, archiving }) {
       <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:400,padding:"28px 28px 24px" }}>
         <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:10 }}>Archive tenant?</div>
         <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>
-          <strong style={{ color:C.text }}>{tenantName}</strong> will be removed from your active tenant list. Their payment history and maintenance records will be preserved.
+          <strong style={{ color:C.text }}>{tenantName}</strong> will be removed from your active tenant list. Their records will be preserved.
         </div>
         <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
           <GhostBtn onClick={onCancel}>Cancel</GhostBtn>
@@ -125,55 +133,39 @@ function InsuranceCard({ tenant }) {
   const url     = tenant?.insurance_url;
   const expires = tenant?.insurance_expires;
   const days    = insuranceDaysLeft(expires);
-
-  const status = !url       ? "missing"
-    : days===null           ? "unknown"
-    : days < 0              ? "expired"
-    : days < 30             ? "expiring"
-    : "verified";
-
+  const status  = !url?"missing":days===null?"unknown":days<0?"expired":days<30?"expiring":"verified";
   const CFG = {
-    missing:  { label:"Not uploaded",          color:C.red,   bg:`${C.red}15`,   icon:"✕" },
-    expired:  { label:"Expired",               color:C.red,   bg:`${C.red}15`,   icon:"✕" },
-    expiring: { label:`Expires in ${days}d`,   color:C.amber, bg:`${C.amber}15`, icon:"⚠" },
-    verified: { label:"Verified",              color:C.green, bg:`${C.green}15`, icon:"✓" },
-    unknown:  { label:"On file",               color:C.blue,  bg:`${C.blue}15`,  icon:"📄" },
+    missing:  { label:"Not uploaded",        color:C.red,   bg:`${C.red}15`,   icon:"✕" },
+    expired:  { label:"Expired",             color:C.red,   bg:`${C.red}15`,   icon:"✕" },
+    expiring: { label:`Expires in ${days}d`, color:C.amber, bg:`${C.amber}15`, icon:"⚠" },
+    verified: { label:"Verified",            color:C.green, bg:`${C.green}15`, icon:"✓" },
+    unknown:  { label:"On file",             color:C.blue,  bg:`${C.blue}15`,  icon:"📄" },
   };
   const cfg = CFG[status];
-
   return (
     <div style={{ background:C.surface,border:`1px solid ${status==="verified"?C.green:status==="missing"||status==="expired"?C.red:C.border}`,borderRadius:10,overflow:"hidden" }}>
       <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Renters Insurance</div>
       <div style={{ padding:"14px 16px" }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
           <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-            <div style={{ width:36,height:36,borderRadius:8,background:cfg.bg,border:`1px solid ${cfg.color}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>
-              {cfg.icon}
-            </div>
+            <div style={{ width:36,height:36,borderRadius:8,background:cfg.bg,border:`1px solid ${cfg.color}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>{cfg.icon}</div>
             <div>
-              <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>
-                {status==="missing"?"No policy on file":"Policy on file"}
-              </div>
+              <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>{status==="missing"?"No policy on file":"Policy on file"}</div>
               <div style={{ fontSize:11,color:C.textSub }}>
-                {status==="missing"   ? "Tenant has not uploaded insurance" :
-                 status==="expired"   ? `Expired ${expires ? new Date(expires).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : ""}` :
-                 status==="expiring"  ? `Expires in ${days} days — remind tenant` :
-                 expires              ? `Expires ${new Date(expires).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}` : "Expiry date not set"}
+                {status==="missing"  ?"Tenant has not uploaded insurance":
+                 status==="expired"  ?`Expired ${expires?new Date(expires).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):""}`:
+                 status==="expiring" ?`Expires in ${days} days — remind tenant`:
+                 expires             ?`Expires ${new Date(expires).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}`:"Expiry date not set"}
               </div>
             </div>
           </div>
           <span style={{ fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:5,background:cfg.bg,color:cfg.color,flexShrink:0 }}>{cfg.label}</span>
         </div>
-        {url && (
-          <a href={url} target="_blank" rel="noreferrer"
-            style={{ display:"inline-block",marginTop:12,fontSize:12,color:C.blue,textDecoration:"none" }}>
-            View policy document →
-          </a>
-        )}
-        {(status==="missing"||status==="expired"||status==="expiring") && (
+        {url&&<a href={url} target="_blank" rel="noreferrer" style={{ display:"inline-block",marginTop:12,fontSize:12,color:C.blue,textDecoration:"none" }}>View policy document →</a>}
+        {(status==="missing"||status==="expired"||status==="expiring")&&(
           <div style={{ marginTop:12,padding:"10px 12px",background:`${cfg.color}10`,border:`1px solid ${cfg.color}25`,borderRadius:8,fontSize:12,color:cfg.color }}>
-            {status==="missing"  ? "⚠ Renters insurance is required. Tenant has not uploaded a policy." :
-             status==="expired"  ? "⚠ Tenant's renters insurance policy has expired. Request an updated policy." :
+            {status==="missing"?"⚠ Renters insurance is required. Tenant has not uploaded a policy.":
+             status==="expired"?"⚠ Policy has expired. Request an updated policy from the tenant.":
              `⚠ Policy expires in ${days} days. Consider sending a renewal reminder.`}
           </div>
         )}
@@ -193,6 +185,7 @@ export default function LandlordTenantDetail() {
   const [property,    setProperty]    = useState(null);
   const [payments,    setPayments]    = useState([]);
   const [maintenance, setMaintenance] = useState([]);
+  const [checklist,   setChecklist]   = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [activeTab,   setActiveTab]   = useState("Overview");
   const [notes,       setNotes]       = useState("");
@@ -212,15 +205,17 @@ export default function LandlordTenantDetail() {
     if (!tenantData) { setLoading(false); return; }
     setTenant(tenantData);
     setNotes(tenantData.notes || "");
-    const [{ data: unitData }, { data: paymentsData }, { data: maintData }] = await Promise.all([
+    const [{ data: unitData }, { data: paymentsData }, { data: maintData }, { data: checklistData }] = await Promise.all([
       supabase.from("units").select("*, properties(*)").eq("id", tenantData.unit_id).single(),
       supabase.from("payments").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
       supabase.from("maintenance_requests").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
+      supabase.from("move_in_checklist").select("*").eq("tenant_id", id).order("created_at", { ascending: true }),
     ]);
     setUnit(unitData || null);
     setProperty(unitData?.properties || null);
     setPayments(paymentsData || []);
     setMaintenance(maintData || []);
+    setChecklist(checklistData || []);
     setLoading(false);
   }
 
@@ -228,7 +223,7 @@ export default function LandlordTenantDetail() {
     if (!tenant.email) { setInviteError("No email on tenant record."); return; }
     setInviting(true); setInviteError("");
     const { error } = await supabase.functions.invoke("invite-tenant", {
-      body: { tenant_id: tenant.id, tenant_name: tenant.name, tenant_email: tenant.email, unit_number: unit?.unit_number || "—", property_name: property?.name || "—", landlord_name: "Andrew Wagner" }
+      body: { tenant_id: tenant.id, tenant_name: tenant.name, tenant_email: tenant.email, unit_number: unit?.unit_number||"—", property_name: property?.name||"—", landlord_name: "Andrew Wagner" }
     });
     setInviting(false);
     if (error) { setInviteError(error.message); return; }
@@ -259,11 +254,13 @@ export default function LandlordTenantDetail() {
   let status = "current";
   if (latestPayment?.status==="failed") status = "late";
   else if (!latestPayment||latestPayment.status==="pending") status = "pending";
-  const balance    = status!=="paid"&&latestPayment?.status!=="paid" ? (unit?.rent_amount||0) : 0;
+  const balance    = status!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0;
   const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
   const leaseEnd   = tenant.lease_end   ? new Date(tenant.lease_end)   : null;
   const daysLeft   = leaseEnd ? Math.ceil((leaseEnd-new Date())/(1000*60*60*24)) : null;
   const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((new Date()-leaseStart)/(leaseEnd-leaseStart))*100))) : 0;
+  const completedChecklist = checklist.filter(r=>r.completed).length;
+  const insDays = insuranceDaysLeft(tenant.insurance_expires);
 
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
@@ -277,19 +274,19 @@ export default function LandlordTenantDetail() {
 
       <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
 
-        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:20,padding:0,transition:"color 0.15s" }}
+        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:20,padding:0 }}
           onMouseOver={e=>e.currentTarget.style.color=C.gold}
           onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
         >← Back to Tenants</button>
 
-        {tenant.archived && (
+        {tenant.archived&&(
           <div style={{ background:"rgba(240,164,48,0.1)",border:`1px solid rgba(240,164,48,0.25)`,borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:13,color:C.amber,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-            <span>⚠ This tenant is archived and not in your active list.</span>
+            <span>⚠ This tenant is archived.</span>
             <button onClick={async()=>{ await supabase.from("tenants").update({archived:false}).eq("id",id); fetchAll(); }} style={{ background:"none",border:"none",color:C.amber,cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",textDecoration:"underline" }}>Unarchive</button>
           </div>
         )}
 
-        {/* Header card */}
+        {/* Header */}
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap" }}>
           <div style={{ display:"flex",alignItems:"flex-start",gap:16 }}>
             <div style={{ width:56,height:56,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,flexShrink:0 }}>{initials}</div>
@@ -304,11 +301,10 @@ export default function LandlordTenantDetail() {
                 {daysLeft!==null&&daysLeft<60&&daysLeft>0&&(
                   <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(240,164,48,0.13)",color:C.amber }}>⚠ Lease expiring in {daysLeft}d</span>
                 )}
-                {/* Insurance badge in header */}
-                {!tenant.insurance_url && (
+                {!tenant.insurance_url&&(
                   <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.red}15`,color:C.red }}>No insurance on file</span>
                 )}
-                {tenant.insurance_url && insuranceDaysLeft(tenant.insurance_expires) !== null && insuranceDaysLeft(tenant.insurance_expires) < 30 && (
+                {tenant.insurance_url&&insDays!==null&&insDays<30&&(
                   <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.amber}15`,color:C.amber }}>Insurance expiring soon</span>
                 )}
               </div>
@@ -374,14 +370,22 @@ export default function LandlordTenantDetail() {
               <InfoRow label="Rent"      value={unit?.rent_amount?`$${unit.rent_amount.toLocaleString()}/mo`:"—"} last/>
             </InfoCard>
 
-            <InfoCard title="Payment Summary">
-              <InfoRow label="Total payments" value={payments.filter(p=>p.status==="paid").length}/>
-              <InfoRow label="Last payment"   value={latestPayment?.paid_at?new Date(latestPayment.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
-              <InfoRow label="Last amount"    value={latestPayment?.amount_cents?`$${(latestPayment.amount_cents/100).toLocaleString()}`:"—"}/>
-              <InfoRow label="Payment status" value={latestPayment?.status||"No payments"} last/>
+            {/* Emergency contact */}
+            <InfoCard title="Emergency Contact" borderColor={tenant.emergency_contact_name?C.border:C.border}>
+              {tenant.emergency_contact_name ? (
+                <>
+                  <InfoRow label="Name"         value={tenant.emergency_contact_name}/>
+                  <InfoRow label="Phone"        value={tenant.emergency_contact_phone||"—"}/>
+                  <InfoRow label="Relationship" value={tenant.emergency_contact_relationship||"—"} last/>
+                </>
+              ) : (
+                <div style={{ fontSize:13,color:C.textMuted,textAlign:"center",padding:"8px 0" }}>
+                  No emergency contact provided
+                </div>
+              )}
             </InfoCard>
 
-            {/* Insurance card — full width */}
+            {/* Insurance — full width */}
             <div style={{ gridColumn:isMobile?"1":"1 / -1" }}>
               <InsuranceCard tenant={tenant}/>
             </div>
@@ -439,6 +443,58 @@ export default function LandlordTenantDetail() {
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {/* ── Move-in ── */}
+        {activeTab==="Move-in"&&(
+          <div>
+            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:2 }}>Move-in checklist</div>
+                <div style={{ fontSize:12,color:C.textSub }}>
+                  {checklist.length===0?"Tenant has not completed the move-in checklist yet.":`${completedChecklist} of ${checklist.length} areas documented`}
+                </div>
+              </div>
+              {checklist.length>0&&(
+                <span style={{ fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:5,background:completedChecklist===checklist.length?`${C.green}15`:`${C.amber}15`,color:completedChecklist===checklist.length?C.green:C.amber }}>
+                  {completedChecklist===checklist.length?"Complete":"In progress"}
+                </span>
+              )}
+            </div>
+
+            {checklist.length===0?(
+              <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"40px",textAlign:"center" }}>
+                <div style={{ fontSize:32,marginBottom:12 }}>📋</div>
+                <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No checklist submitted yet</div>
+                <div style={{ fontSize:13,color:C.textSub }}>The tenant will complete this during onboarding.</div>
+              </div>
+            ):(
+              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                {checklist.map(item=>{
+                  const condColor = item.condition==="Good"?C.green:item.condition==="Fair"?C.amber:C.red;
+                  return (
+                    <div key={item.id} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px" }}>
+                      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:item.notes?8:0 }}>
+                        <div style={{ fontSize:14,fontWeight:500,color:C.text }}>{ROOM_LABELS[item.room]||item.room}</div>
+                        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                          {item.condition&&(
+                            <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:5,background:`${condColor}18`,color:condColor }}>{item.condition}</span>
+                          )}
+                          {!item.completed&&<span style={{ fontSize:11,color:C.textMuted }}>Not documented</span>}
+                        </div>
+                      </div>
+                      {item.notes&&(
+                        <div style={{ fontSize:12,color:C.textSub,marginTop:6,padding:"8px 10px",background:C.raised,borderRadius:7 }}>{item.notes}</div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div style={{ fontSize:11,color:C.textMuted,textAlign:"right",marginTop:4 }}>
+                  Submitted {checklist[0]?.created_at?new Date(checklist[0].created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"—"}
+                </div>
+              </div>
             )}
           </div>
         )}
