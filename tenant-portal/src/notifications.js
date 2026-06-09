@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
-const APP_URL = "https://polaris-pm.vercel.app";
+const APP_URL = "https://getmodusam.com";
 
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
 
