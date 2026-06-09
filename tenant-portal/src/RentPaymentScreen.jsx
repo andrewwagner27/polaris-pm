@@ -30,13 +30,11 @@ function Spinner() {
 }
 
 function ACHForm({ tenant, user, rentAmount }) {
-  console.log("ACHForm rendered", { tenantId: tenant?.id, unitId: tenant?.unit_id, rent: rentAmount });
   const stripe   = useStripe();
   const navigate = useNavigate();
 
   const [step,            setStep]            = useState("idle");
   const [error,           setError]           = useState("");
-  const [clientSecret,    setClientSecret]    = useState("");
   const [customerId,      setCustomerId]      = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [bankName,        setBankName]        = useState("");
@@ -63,12 +61,8 @@ function ACHForm({ tenant, user, rentAmount }) {
       body: { tenant_id: tenant.id, customer_email: user.email, customer_name: tenant.name }
     });
 
-    if (fnError || data?.error) {
-      setError(fnError?.message || data?.error);
-      setStep("idle"); return;
-    }
+    if (fnError || data?.error) { setError(fnError?.message || data?.error); setStep("idle"); return; }
 
-    setClientSecret(data.client_secret);
     setCustomerId(data.customer_id);
 
     const { setupIntent, error: stripeError } = await stripe.collectBankAccountForSetup({
@@ -110,7 +104,6 @@ function ACHForm({ tenant, user, rentAmount }) {
   async function payNow() {
     const pmId   = paymentMethodId || savedMethod?.stripe_payment_method_id;
     const custId = customerId      || savedMethod?.stripe_customer_id;
-    console.log("payNow called", { tenantId: tenant?.id, unitId: tenant?.unit_id, pmId, custId, rentAmount });
     setStep("paying"); setError("");
 
     const { data, error: fnError } = await supabase.functions.invoke("create-payment-intent", {
@@ -122,8 +115,6 @@ function ACHForm({ tenant, user, rentAmount }) {
         customer_id:       custId,
       }
     });
-
-    console.log("create-payment-intent response", { data, fnError });
 
     if (fnError || data?.error) {
       setError(fnError?.message || data?.error);
@@ -223,7 +214,7 @@ function ACHForm({ tenant, user, rentAmount }) {
 
 export default function RentPaymentScreen() {
   const { tenant, user } = useTenant();
-  const rentAmount = tenant?.rent || 1150;
+  const rentAmount = tenant?.rent || 0;
 
   return (
     <TenantLayout tenantName={tenant?.name}>
@@ -241,33 +232,23 @@ export default function RentPaymentScreen() {
           {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}
         </div>
 
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 22px",marginBottom:20 }}>
-          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16 }}>
+        {/* Amount summary — clean, no breakdown */}
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"24px 22px",marginBottom:20 }}>
+          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Amount due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:600,color:C.gold,lineHeight:1 }}>
-                ${rentAmount.toLocaleString()}
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:600,color:C.gold,lineHeight:1 }}>
+                {rentAmount>0?`$${rentAmount.toLocaleString()}`:"—"}
               </div>
-              <div style={{ fontSize:12,color:C.textSub,marginTop:4 }}>
+              <div style={{ fontSize:12,color:C.textSub,marginTop:6 }}>
                 Unit {tenant?.unit||"—"} · {tenant?.property||"—"}
               </div>
             </div>
             <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:"rgba(240,164,48,0.13)",color:C.amber,borderRadius:20 }}>Due 1st</span>
           </div>
-          <div style={{ background:C.raised,borderRadius:7,padding:"10px 12px" }}>
-            {[["Base rent",`$${(rentAmount-50).toLocaleString()}`],["Water / sewer","$50.00"]].map(([k,v])=>(
-              <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"4px 0" }}>
-                <span style={{ fontSize:12,color:C.textSub }}>{k}</span>
-                <span style={{ fontSize:12,color:C.text }}>{v}</span>
-              </div>
-            ))}
-            <div style={{ display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,marginTop:6,paddingTop:6 }}>
-              <span style={{ fontSize:12,fontWeight:600,color:C.text }}>Total</span>
-              <span style={{ fontSize:12,fontWeight:600,color:C.text }}>${rentAmount.toLocaleString()}</span>
-            </div>
-          </div>
         </div>
 
+        {/* Payment form */}
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 22px" }}>
           <Elements stripe={stripePromise}>
             <ACHForm tenant={tenant} user={user} rentAmount={rentAmount}/>
