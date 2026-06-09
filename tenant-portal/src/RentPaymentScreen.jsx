@@ -6,7 +6,7 @@ import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 
-const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K58bFR0ys4gCdjTCxnMsAExjdp7LtwsINYkqq500qtDctcti;
+const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K58bFR0ys4gCdjTCxnMsAExjdp7LtwsINYkqq500qtDctcti";
 const stripePromise = loadStripe(STRIPE_PK);
 
 const C = {
