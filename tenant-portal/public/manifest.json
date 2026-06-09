@@ -2,7 +2,7 @@
   "name": "Modus Property Management",
   "short_name": "Modus",
   "description": "Your tenant portal — pay rent, submit requests, and more.",
-  "start_url": "/home",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0B0D",
   "theme_color": "#0A0B0D",
