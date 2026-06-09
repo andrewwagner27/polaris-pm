@@ -119,24 +119,28 @@ function ACHForm({ tenant, user, rentAmount }) {
   }
 
   async function payNow() {
-    setStep("paying"); setError("");
-    const pmId  = paymentMethodId || savedMethod?.stripe_payment_method_id;
-    const custId = customerId    || savedMethod?.stripe_customer_id;
+  console.log("payNow called", { tenantId: tenant?.id, unitId: tenant?.unit_id, pmId: paymentMethodId || savedMethod?.stripe_payment_method_id, custId: customerId || savedMethod?.stripe_customer_id });
+  setStep("paying"); setError("");
+  const pmId  = paymentMethodId || savedMethod?.stripe_payment_method_id;
+  const custId = customerId    || savedMethod?.stripe_customer_id;
 
-    const { data, error: fnError } = await supabase.functions.invoke("create-payment-intent", {
-      body: {
-        tenant_id:         tenant.id,
-        unit_id:           tenant.unit_id,
-        amount_cents:      rentAmount * 100,
-        payment_method_id: pmId,
-        customer_id:       custId,
-      }
-    });
-
-    if (fnError || data?.error) {
-      setError(fnError?.message || data?.error);
-      setStep(savedMethod ? "idle" : "linked"); return;
+  const { data, error: fnError } = await supabase.functions.invoke("create-payment-intent", {
+    body: {
+      tenant_id:         tenant.id,
+      unit_id:           tenant.unit_id,
+      amount_cents:      rentAmount * 100,
+      payment_method_id: pmId,
+      customer_id:       custId,
     }
+  });
+
+  if (fnError || data?.error) {
+    setError(fnError?.message || data?.error);
+    setStep(savedMethod ? "idle" : "linked"); return;
+  }
+
+  setStep("success");
+}
 
     setStep("success");
   }
