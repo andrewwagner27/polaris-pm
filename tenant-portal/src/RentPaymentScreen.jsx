@@ -30,6 +30,7 @@ function Spinner() {
 }
 
 function ACHForm({ tenant, user, rentAmount }) {
+  console.log("ACHForm rendered", { tenant, user, rentAmount });
   const stripe  = useStripe();
   const navigate = useNavigate();
 
