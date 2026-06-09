@@ -3,9 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 
 const LANDLORD_EMAILS = [
-  "andrewwagner27@gmail.com",
-  "polarispropertysolutions@gmail.com",
-  "capitalpathwaysapw@gmail.com"
+  "moduspropmgmt@gmail.com",
 ];
 
 const C = {
