@@ -49,7 +49,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"                        element={<LandingPage />} />
+ <Route path="/" element={<Login />} />
         <Route path="/login"                   element={<Login />} />
         <Route path="/forgot-password"         element={<ForgotPassword />} />
         <Route path="/reset-password"          element={<ResetPassword />} />
