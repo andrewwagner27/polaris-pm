@@ -90,11 +90,9 @@ export default function MessagingScreen() {
     if (!text.trim() || !myUserId || !tenantId) return;
     let lId = landlordId;
     if (!lId) {
-      const { data: profiles } = await supabase
-        .from("profiles").select("id").eq("role", "landlord").limit(1).single();
-      lId = profiles?.id;
-      setLandlordId(lId);
-    }
+  lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
+  setLandlordId(lId);
+}
     if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
     const optimistic = { id: `temp-${Date.now()}`, sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(), created_at: new Date().toISOString(), read: false };
