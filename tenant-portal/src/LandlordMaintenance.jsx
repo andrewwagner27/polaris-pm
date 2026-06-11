@@ -30,6 +30,7 @@ const PRIORITY = {
 
 const STATUS = {
   open:           { label: "Open",           color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
+  quote_submitted: { label: "Quote In",       color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
   in_progress:    { label: "In Progress",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
   pending_review: { label: "Pending Review", color: "#C9A96E", bg: "rgba(201,169,110,0.13)" },
   resolved:       { label: "Resolved",       color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
@@ -149,6 +150,18 @@ export default function LandlordMaintenance() {
   async function fetchComments(requestId) {
     const { data } = await supabase.from("maintenance_comments").select("*").eq("request_id", requestId).order("created_at", { ascending: true });
     setComments(data || []);
+  }
+
+  async function approveQuote(ticket) {
+    await supabase.from("maintenance_requests").update({
+      status: "in_progress",
+      quote_approved_at: new Date().toISOString(),
+      quote_approved_by: "Property Manager",
+      nte_amount: ticket.quote_amount,
+    }).eq("id", ticket.id);
+    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: "in_progress", quote_approved_at: new Date().toISOString(), nte_amount: ticket.quote_amount } : t));
+    if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "in_progress", quote_approved_at: new Date().toISOString() }));
+    // TODO: notify vendor via email when vendor email is available
   }
 
   async function approveTicket(ticket) {
@@ -321,7 +334,7 @@ export default function LandlordMaintenance() {
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…"
                   style={{ flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
               </div>
-              {["all","open","in_progress","pending_review","resolved"].map(f => (
+              {["all","open","in_progress","quote_submitted","pending_review","resolved"].map(f => (
                 <button key={f} className="m-filter" onClick={() => setStatusFilter(f)} style={{
                   padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
                   background: statusFilter === f ? C.goldDim : "transparent",
@@ -510,6 +523,19 @@ export default function LandlordMaintenance() {
                     )}
                     {field(selected, "status") === "open" && (
                       <GhostBtn onClick={() => updateStatus(selected.id, "in_progress")}>→ In Progress</GhostBtn>
+                    )}
+                    {selected.status === "quote_submitted" && (
+                      <div style={{ width:"100%" }}>
+                        <div style={{ padding:"12px 14px", background:`${C.amber}0A`, border:`1px solid ${C.amber}33`, borderRadius:8, marginBottom:10 }}>
+                          <div style={{ fontSize:11, fontWeight:600, color:C.amber, marginBottom:4 }}>Quote received</div>
+                          <div style={{ fontSize:20, fontWeight:600, color:C.text, fontFamily:"'Cormorant Garamond',serif" }}>${selected.quote_amount?.toLocaleString()}</div>
+                          {selected.quote_notes && <div style={{ fontSize:12, color:C.textSub, marginTop:4 }}>{selected.quote_notes}</div>}
+                        </div>
+                        <div style={{ display:"flex", gap:8 }}>
+                          <PrimaryBtn color={C.green} onClick={() => approveQuote(selected)}>✓ Approve quote</PrimaryBtn>
+                          <GhostBtn onClick={() => updateStatus(selected.id, "in_progress")}>✗ Decline</GhostBtn>
+                        </div>
+                      </div>
                     )}
                     {field(selected, "status") === "in_progress" && (
                       <PrimaryBtn color={C.green} onClick={() => updateStatus(selected.id, "resolved")}>✓ Mark Resolved</PrimaryBtn>

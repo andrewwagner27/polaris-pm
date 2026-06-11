@@ -22,6 +22,7 @@ const C = {
 const STATUS_COLORS = {
   open:           { color: C.amber, bg: "rgba(240,164,48,0.13)" },
   in_progress:    { color: C.blue,  bg: "rgba(74,154,232,0.13)" },
+  quote_submitted: { color: C.amber, bg: "rgba(240,164,48,0.13)" },
   pending_review: { color: C.gold,  bg: "rgba(201,169,110,0.13)" },
   resolved:       { color: C.green, bg: "rgba(114,176,42,0.13)" },
 };
@@ -59,6 +60,10 @@ export default function VendorTicket() {
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const [showCompleteForm, setShowCompleteForm] = useState(false);
+  const [showQuoteForm, setShowQuoteForm]       = useState(false);
+  const [quoteAmount, setQuoteAmount]           = useState("");
+  const [quoteNotes, setQuoteNotes]             = useState("");
+  const [submittingQuote, setSubmittingQuote]   = useState(false);
 
   useEffect(() => {
     const savedToken = localStorage.getItem("vendor_token");
@@ -124,6 +129,27 @@ export default function VendorTicket() {
     setUploading(false);
   }
 
+  async function submitQuote() {
+    if (!quoteAmount || !ticket) return;
+    setSubmittingQuote(true);
+    await supabase.from("maintenance_requests").update({
+      quote_amount:      parseFloat(quoteAmount),
+      quote_notes:       quoteNotes,
+      quote_submitted_at: new Date().toISOString(),
+      status:            "quote_submitted",
+    }).eq("id", ticket.id);
+    await supabase.from("maintenance_comments").insert({
+      request_id:        ticket.id,
+      body:              `Quote submitted: $${quoteAmount}${quoteNotes ? `. Notes: ${quoteNotes}` : ""}`,
+      author_type:       "vendor",
+      author_name:       vendorName,
+      visible_to_tenant: false,
+    });
+    await fetchTicket();
+    setSubmittingQuote(false);
+    setShowQuoteForm(false);
+  }
+
   async function markComplete() {
     if (!ticket) return;
     setCompleting(true);
@@ -181,7 +207,9 @@ export default function VendorTicket() {
   if (!ticket) return null;
 
   const statusCfg  = STATUS_COLORS[ticket.status] || STATUS_COLORS.open;
-  const isResolved = ticket.status === "resolved" || ticket.status === "pending_review";
+  const isResolved  = ticket.status === "resolved" || ticket.status === "pending_review";
+  const isQuoted    = ticket.status === "quote_submitted";
+  const quoteApproved = ticket.quote_approved_at;
   const isPending  = ticket.status === "pending_review";
 
   return (
@@ -294,8 +322,54 @@ export default function VendorTicket() {
           )}
         </div>
 
+        {/* Quote submission */}
+        {!isResolved && !isQuoted && !quoteApproved && !showQuoteForm && (
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px 20px", marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:4 }}>Submit a quote</div>
+            <div style={{ fontSize:12, color:C.textSub, marginBottom:12 }}>After assessing the job, submit your quote for approval before starting work.</div>
+            <button onClick={() => setShowQuoteForm(true)} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:7, fontSize:13, fontWeight:500, color:C.gold, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              Submit quote →
+            </button>
+          </div>
+        )}
+
+        {showQuoteForm && !isResolved && (
+          <div style={{ background:C.surface, border:`1px solid ${C.goldDim}`, borderRadius:10, padding:"20px", marginBottom:16 }}>
+            <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:16 }}>Submit quote</div>
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Total amount ($) *</label>
+              <input type="number" value={quoteAmount} onChange={e => setQuoteAmount(e.target.value)} placeholder="e.g. 350"
+                style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Notes (optional)</label>
+              <textarea value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)}
+                placeholder="e.g. Includes parts and labor. Will need 2 hours on site."
+                rows={3} style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowQuoteForm(false)} style={{ padding:"9px 16px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+              <button onClick={submitQuote} disabled={submittingQuote || !quoteAmount} style={{ flex:1, padding:"10px", background:C.goldDim, border:"none", borderRadius:7, fontSize:13, fontWeight:500, color:C.text, cursor:quoteAmount?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
+                {submittingQuote ? "Submitting…" : "Submit quote"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isQuoted && (
+          <div style={{ textAlign:"center", padding:"16px", background:`${C.amber}08`, border:`1px solid ${C.amber}33`, borderRadius:8, marginBottom:16, fontSize:13, color:C.amber }}>
+            ⏳ Quote submitted for ${ticket.quote_amount} — awaiting approval from property manager.
+          </div>
+        )}
+
+        {quoteApproved && !isResolved && (
+          <div style={{ padding:"12px 16px", background:`${C.green}08`, border:`1px solid ${C.green}33`, borderRadius:8, marginBottom:16, fontSize:13, color:C.green }}>
+            ✓ Quote approved for ${ticket.quote_amount}. You may now proceed with the work.
+          </div>
+        )}
+
         {/* Mark complete */}
-        {!isResolved && !showCompleteForm && (
+        {quoteApproved && !isResolved && !showCompleteForm && (
           <button onClick={() => setShowCompleteForm(true)} style={{ width:"100%", padding:"13px", background:"rgba(114,176,42,0.08)", border:`1px solid rgba(114,176,42,0.25)`, borderRadius:8, fontSize:14, fontWeight:500, color:C.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             ✓ Mark work as complete
           </button>
