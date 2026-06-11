@@ -1,22 +1,17 @@
 import { supabase } from "./supabase";
 
-const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
-const APP_URL = "https://getmodusam.com";
-
-const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
+const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
+const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, html }),
+    const { data, error } = await supabase.functions.invoke("send-email", {
+      body: { to, subject, html },
     });
-    const data = await response.json();
-    if (!response.ok) console.error('Email error:', data);
+    if (error) console.error("Edge Function error:", error);
     return data;
   } catch (err) {
-    console.error('Failed to send email:', err);
+    console.error("Failed to send email:", err);
   }
 }
 
@@ -185,6 +180,78 @@ export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId, 
                 <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
               </div>
               <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#72B02A;color:#fff;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">✓ Review & approve →</a>
+            </td></tr>
+            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
+              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      </body></html>
+    `,
+  });
+}
+
+// ── Notify vendor: work approved ──
+export async function notifyVendorApproved({ vendorEmail, vendorName, ticketTitle, propertyName }) {
+  if (!vendorEmail) return;
+  return sendEmail({
+    to: vendorEmail,
+    subject: `✅ Work approved: ${ticketTitle}`,
+    html: `
+      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
+        <tr><td align="center">
+          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
+            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
+              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
+              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Work Approved</h2>
+            </td></tr>
+            <tr><td style="padding:24px 32px;">
+              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${vendorName}, your work has been reviewed and approved.</p>
+              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
+                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Job</div>
+                <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
+                ${propertyName ? `<div style="font-size:12px;color:#5C6270;margin-top:8px;">Property: <span style="color:#9095A0;">${propertyName}</span></div>` : ""}
+              </div>
+              <div style="background:rgba(114,176,42,0.08);border:1px solid rgba(114,176,42,0.2);border-radius:8px;padding:14px 16px;font-size:13px;color:#72B02A;">
+                ✓ Payment will be processed per your work order terms.
+              </div>
+            </td></tr>
+            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
+              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      </body></html>
+    `,
+  });
+}
+
+// ── Notify vendor: more work requested ──
+export async function notifyVendorMoreWork({ vendorEmail, vendorName, ticketTitle, pmNotes, vendorLink }) {
+  if (!vendorEmail) return;
+  return sendEmail({
+    to: vendorEmail,
+    subject: `↩ Additional work needed: ${ticketTitle}`,
+    html: `
+      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
+        <tr><td align="center">
+          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
+            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
+              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
+              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Additional Work Needed</h2>
+            </td></tr>
+            <tr><td style="padding:24px 32px;">
+              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${vendorName}, the property manager has reviewed your submission on <strong style="color:#EDEAE2;">${ticketTitle}</strong> and is requesting additional work.</p>
+              ${pmNotes ? `
+              <div style="background:#181C21;border-left:3px solid #F0A430;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:24px;">
+                <div style="font-size:11px;color:#F0A430;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">PM Notes</div>
+                <p style="font-size:13px;color:#EDEAE2;margin:0;line-height:1.6;">${pmNotes}</p>
+              </div>` : ""}
+              <a href="${vendorLink}" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Return to ticket →</a>
             </td></tr>
             <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
               <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>

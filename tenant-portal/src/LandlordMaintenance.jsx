@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import AssignVendorModal from "./AssignVendorModal";
-import { notifyTicketStatusUpdate, notifyTenantNewComment } from "./notifications";
+import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
 
 const C = {
   bg:        "#0A0B0D",
@@ -127,7 +127,10 @@ export default function LandlordMaintenance() {
   const [visibility, setVisibility]     = useState("hidden");
   const [posting, setPosting]           = useState(false);
   const [showConfirm, setShowConfirm]   = useState(false);
-  const [vendorTicket, setVendorTicket] = useState(null);
+  const [vendorTicket, setVendorTicket]   = useState(null);
+  const [rejectTicket, setRejectTicket]   = useState(null);
+  const [rejectNotes, setRejectNotes]     = useState("");
+  const [rejecting, setRejecting]         = useState(false);
 
   useEffect(() => { fetchTickets(); }, []);
   useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
@@ -151,6 +154,44 @@ export default function LandlordMaintenance() {
   async function approveTicket(ticket) {
     await updateStatus(ticket.id, "resolved");
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "resolved" }));
+    // Notify vendor if they have an email saved
+    const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", ticket.vendor_name).maybeSingle();
+    if (vendorData?.email) {
+      notifyVendorApproved({
+        vendorEmail:  vendorData.email,
+        vendorName:   ticket.vendor_name,
+        ticketTitle:  field(ticket, "title"),
+        propertyName: field(ticket, "property"),
+      });
+    }
+  }
+
+  async function submitRejection() {
+    if (!rejectTicket) return;
+    setRejecting(true);
+    await supabase.from("maintenance_requests").update({ status: "in_progress" }).eq("id", rejectTicket.id);
+    await supabase.from("maintenance_comments").insert({
+      request_id:        rejectTicket.id,
+      body:              `PM requested more work: ${rejectNotes}`,
+      author_name:       "Property Manager",
+      visible_to_tenant: false,
+    });
+    setTickets(prev => prev.map(t => t.id === rejectTicket.id ? { ...t, status: "in_progress" } : t));
+    // Notify vendor
+    const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", rejectTicket.vendor_name).maybeSingle();
+    if (vendorData?.email) {
+      notifyVendorMoreWork({
+        vendorEmail:  vendorData.email,
+        vendorName:   rejectTicket.vendor_name,
+        ticketTitle:  field(rejectTicket, "title"),
+        pmNotes:      rejectNotes,
+        vendorLink:   `${window.location.origin}/vendor/${rejectTicket.vendor_token}`,
+      });
+    }
+    setRejecting(false);
+    setRejectTicket(null);
+    setRejectNotes("");
+    if (selected?.id === rejectTicket.id) setSelected(prev => ({ ...prev, status: "in_progress" }));
   }
 
   async function updateStatus(id, newStatus) {
@@ -342,7 +383,12 @@ export default function LandlordMaintenance() {
                     <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
                       {status === "open"        && <PrimaryBtn onClick={() => setVendorTicket(ticket)}>{isMobile ? "→" : "Assign vendor"}</PrimaryBtn>}
                       {status === "in_progress" && <PrimaryBtn color={C.green} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</PrimaryBtn>}
-                      {status === "pending_review" && <PrimaryBtn color={C.green} onClick={() => approveTicket(ticket)}>{isMobile ? "✓" : "Approve & close"}</PrimaryBtn>}
+                      {status === "pending_review" && (
+                        <>
+                          <PrimaryBtn color={C.green} onClick={() => approveTicket(ticket)}>{isMobile ? "✓" : "Approve"}</PrimaryBtn>
+                          <GhostBtn small onClick={() => { setRejectTicket(ticket); setRejectNotes(""); }}>↩ More work</GhostBtn>
+                        </>
+                      )}
                       {status === "resolved"    && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Resolved</span>}
                       <GhostBtn small onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>View</GhostBtn>
                     </div>
@@ -480,7 +526,10 @@ export default function LandlordMaintenance() {
                             {selected.invoice_notes}
                           </div>
                         )}
-                        <PrimaryBtn color={C.green} onClick={() => approveTicket(selected)}>✓ Approve & close</PrimaryBtn>
+                        <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                          <PrimaryBtn color={C.green} onClick={() => approveTicket(selected)}>✓ Approve & close</PrimaryBtn>
+                          <GhostBtn onClick={() => { setRejectTicket(selected); setRejectNotes(""); }}>↩ Request more work</GhostBtn>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -575,6 +624,25 @@ export default function LandlordMaintenance() {
       )}
 
       {/* Assign vendor modal */}
+      {/* Rejection modal */}
+      {rejectTicket && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ background:"#111316", border:"1px solid #252930", borderRadius:12, width:"100%", maxWidth:440, padding:"28px 24px" }}>
+            <div style={{ fontSize:15, fontWeight:600, color:"#EDEAE2", marginBottom:6 }}>Request more work</div>
+            <div style={{ fontSize:13, color:"#9095A0", marginBottom:16 }}>Tell the vendor what still needs to be done. They'll be notified via email.</div>
+            <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
+              placeholder="e.g. The leak is still present under the sink. Please return to complete the repair."
+              rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:"1px solid #252930", borderRadius:8, background:"#181C21", color:"#EDEAE2", outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:"1px solid #252930", borderRadius:7, fontSize:13, color:"#9095A0", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+              <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A96E", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif", opacity:rejectNotes.trim()?1:0.5 }}>
+                {rejecting ? "Sending…" : "↩ Send to vendor"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {vendorTicket && (
         <AssignVendorModal
           requestId={vendorTicket.id}
