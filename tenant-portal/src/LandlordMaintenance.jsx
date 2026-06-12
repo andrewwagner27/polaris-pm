@@ -161,14 +161,15 @@ export default function LandlordMaintenance() {
     }).eq("id", ticket.id);
     setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: "in_progress", quote_approved_at: new Date().toISOString(), nte_amount: ticket.quote_amount } : t));
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "in_progress", quote_approved_at: new Date().toISOString() }));
-    // Notify vendor
-    const vendorEmail = ticket.vendor_email;
+    // Re-fetch fresh ticket for vendor email
+    const { data: freshQuoteTicket } = await supabase.from("maintenance_requests").select("vendor_email, vendor_name, title, units(properties(name))").eq("id", ticket.id).single();
+    const vendorEmail = freshQuoteTicket?.vendor_email;
     if (vendorEmail) {
       notifyVendorApproved({
         vendorEmail,
-        vendorName:   ticket.vendor_name,
-        ticketTitle:  field(ticket, "title"),
-        propertyName: field(ticket, "property"),
+        vendorName:   freshQuoteTicket.vendor_name,
+        ticketTitle:  freshQuoteTicket.title,
+        propertyName: freshQuoteTicket.units?.properties?.name || "",
       });
     }
   }
@@ -177,38 +178,45 @@ export default function LandlordMaintenance() {
     await updateStatus(ticket.id, "resolved");
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "resolved" }));
 
-    // Auto-log expense if invoice amount exists
-    const invoiceAmount = ticket.invoice_notes ? parseFloat(ticket.invoice_notes) : (ticket.invoice_amount || ticket.quote_amount || null);
-    if (invoiceAmount && ticket.units?.property_id) {
+    // Re-fetch ticket fresh to get latest vendor_email and invoice data
+    const { data: freshTicket } = await supabase
+      .from("maintenance_requests")
+      .select("*, units(property_id, properties(name))")
+      .eq("id", ticket.id)
+      .single();
+
+    // Auto-log expense
+    const invoiceAmount = freshTicket?.invoice_notes ? parseFloat(freshTicket.invoice_notes) : (freshTicket?.invoice_amount || freshTicket?.quote_amount || null);
+    if (invoiceAmount && freshTicket?.units?.property_id) {
       await supabase.from("expenses").insert({
-        property_id:              ticket.units.property_id,
-        unit_id:                  ticket.unit_id,
-        maintenance_request_id:   ticket.id,
-        category:                 "maintenance",
-        description:              field(ticket, "title"),
-        amount:                   invoiceAmount,
-        vendor_name:              ticket.vendor_name,
-        date:                     new Date().toISOString().split("T")[0],
+        property_id:            freshTicket.units.property_id,
+        unit_id:                freshTicket.unit_id,
+        maintenance_request_id: freshTicket.id,
+        category:               "maintenance",
+        description:            freshTicket.title,
+        amount:                 invoiceAmount,
+        vendor_name:            freshTicket.vendor_name,
+        date:                   new Date().toISOString().split("T")[0],
       });
     }
 
-    // Notify vendor
-    const vendorEmail = ticket.vendor_email;
+    // Notify vendor - use fresh ticket data
+    const vendorEmail = freshTicket?.vendor_email;
     if (vendorEmail) {
       notifyVendorApproved({
         vendorEmail,
-        vendorName:   ticket.vendor_name,
-        ticketTitle:  field(ticket, "title"),
-        propertyName: field(ticket, "property"),
+        vendorName:   freshTicket.vendor_name,
+        ticketTitle:  freshTicket.title,
+        propertyName: freshTicket.units?.properties?.name || "",
       });
-    } else {
-      const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", ticket.vendor_name).maybeSingle();
+    } else if (freshTicket?.vendor_name) {
+      const { data: vendorData } = await supabase.from("vendors").select("email").eq("name", freshTicket.vendor_name).maybeSingle();
       if (vendorData?.email) {
         notifyVendorApproved({
           vendorEmail:  vendorData.email,
-          vendorName:   ticket.vendor_name,
-          ticketTitle:  field(ticket, "title"),
-          propertyName: field(ticket, "property"),
+          vendorName:   freshTicket.vendor_name,
+          ticketTitle:  freshTicket.title,
+          propertyName: freshTicket.units?.properties?.name || "",
         });
       }
     }
