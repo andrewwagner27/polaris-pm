@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
+const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
 const APP_URL = "https://polaris-pm.vercel.app";
 
 async function sendEmail({ to, subject, html }) {

@@ -184,6 +184,7 @@ export default function LandlordMaintenance() {
       .select("*, units(property_id, properties(name))")
       .eq("id", ticket.id)
       .single();
+console.log("freshTicket vendor_email:", freshTicket?.vendor_email);
 
     // Auto-log expense
     const invoiceAmount = freshTicket?.invoice_notes ? parseFloat(freshTicket.invoice_notes) : (freshTicket?.invoice_amount || freshTicket?.quote_amount || null);
