@@ -64,6 +64,8 @@ export default function VendorTicket() {
   const [quoteAmount, setQuoteAmount]           = useState("");
   const [quoteNotes, setQuoteNotes]             = useState("");
   const [submittingQuote, setSubmittingQuote]   = useState(false);
+  const [quotePhotos, setQuotePhotos]           = useState([]);
+  const quotePhotoRef                           = useRef(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem("vendor_token");
@@ -132,12 +134,21 @@ export default function VendorTicket() {
   async function submitQuote() {
     if (!quoteAmount || !ticket) return;
     setSubmittingQuote(true);
+
+    // Upload quote photos
+    for (const photo of quotePhotos) {
+      const ext  = photo.file.name.split(".").pop();
+      const path = `${ticket.id}/quote-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
+    }
+
     await supabase.from("maintenance_requests").update({
-      quote_amount:      parseFloat(quoteAmount),
-      quote_notes:       quoteNotes,
+      quote_amount:       parseFloat(quoteAmount),
+      quote_notes:        quoteNotes,
       quote_submitted_at: new Date().toISOString(),
-      status:            "quote_submitted",
+      status:             "quote_submitted",
     }).eq("id", ticket.id);
+
     await supabase.from("maintenance_comments").insert({
       request_id:        ticket.id,
       body:              `Quote submitted: $${quoteAmount}${quoteNotes ? `. Notes: ${quoteNotes}` : ""}`,
@@ -145,9 +156,11 @@ export default function VendorTicket() {
       author_name:       vendorName,
       visible_to_tenant: false,
     });
+
     await fetchTicket();
     setSubmittingQuote(false);
     setShowQuoteForm(false);
+    setQuotePhotos([]);
   }
 
   async function markComplete() {
@@ -336,20 +349,48 @@ export default function VendorTicket() {
         {showQuoteForm && !isResolved && (
           <div style={{ background:C.surface, border:`1px solid ${C.goldDim}`, borderRadius:10, padding:"20px", marginBottom:16 }}>
             <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:16 }}>Submit quote</div>
+
+            {/* Amount */}
             <div style={{ marginBottom:12 }}>
               <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Total amount ($) *</label>
               <input type="number" value={quoteAmount} onChange={e => setQuoteAmount(e.target.value)} placeholder="e.g. 350"
-                style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+                style={{ width:"100%", padding:"11px 14px", fontSize:18, fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'Cormorant Garamond',serif", boxSizing:"border-box" }}/>
             </div>
-            <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Notes (optional)</label>
+
+            {/* Notes */}
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Notes <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
               <textarea value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)}
-                placeholder="e.g. Includes parts and labor. Will need 2 hours on site."
-                rows={3} style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
+                placeholder="Parts + labor breakdown, timeline, anything relevant…"
+                rows={2} style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
             </div>
+
+            {/* Photos */}
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Photos <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
+              {quotePhotos.length > 0 && (
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+                  {quotePhotos.map((p,i) => (
+                    <div key={i} style={{ position:"relative" }}>
+                      <img src={p.preview} alt="" style={{ width:70, height:70, objectFit:"cover", borderRadius:7, border:`1px solid ${C.border}` }}/>
+                      <button onClick={() => setQuotePhotos(prev => prev.filter((_,j)=>j!==i))} style={{ position:"absolute", top:2, right:2, width:18, height:18, borderRadius:"50%", background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => quotePhotoRef.current?.click()} style={{ padding:"8px 14px", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:7, fontSize:12, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                📷 Add photos
+              </button>
+              <input ref={quotePhotoRef} type="file" accept="image/*" multiple
+                onChange={e => {
+                  const files = Array.from(e.target.files || []);
+                  setQuotePhotos(prev => [...prev, ...files.map(f => ({ file:f, preview:URL.createObjectURL(f) }))].slice(0,6));
+                }} style={{ display:"none" }}/>
+            </div>
+
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setShowQuoteForm(false)} style={{ padding:"9px 16px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-              <button onClick={submitQuote} disabled={submittingQuote || !quoteAmount} style={{ flex:1, padding:"10px", background:C.goldDim, border:"none", borderRadius:7, fontSize:13, fontWeight:500, color:C.text, cursor:quoteAmount?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
+              <button onClick={() => { setShowQuoteForm(false); setQuotePhotos([]); }} style={{ padding:"9px 16px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+              <button onClick={submitQuote} disabled={submittingQuote || !quoteAmount} style={{ flex:1, padding:"10px", background:quoteAmount?C.goldDim:C.raised, border:`1px solid ${quoteAmount?C.goldDim:C.border}`, borderRadius:7, fontSize:13, fontWeight:500, color:quoteAmount?C.text:C.textMuted, cursor:quoteAmount?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
                 {submittingQuote ? "Submitting…" : "Submit quote"}
               </button>
             </div>
