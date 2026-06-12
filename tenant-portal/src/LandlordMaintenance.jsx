@@ -368,7 +368,11 @@ export default function LandlordMaintenance() {
                   border: `1px solid ${statusFilter === f ? C.goldDim : C.border}`,
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif", textTransform: "capitalize", transition: "all 0.12s",
                 }}>
-                  {f === "all" ? `All (${tickets.length})` : f === "in_progress" ? `In Progress (${inProgressCount})` : `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t=>t.status===f).length})`}
+                  {f === "all" ? `All (${tickets.length})` :
+                f === "in_progress" ? `In Progress (${inProgressCount})` :
+                f === "quote_submitted" ? `Quote In (${tickets.filter(t=>t.status==="quote_submitted").length})` :
+                f === "pending_review" ? `Pending Review (${tickets.filter(t=>t.status==="pending_review").length})` :
+                `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t=>t.status===f).length})`}
                 </button>
               ))}
               {!isMobile && (
