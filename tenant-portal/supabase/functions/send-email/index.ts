@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = "Polaris PM <onboarding@resend.dev>";
+const FROM_EMAIL = "Modus PM <notifications@getmodusam.com>";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
