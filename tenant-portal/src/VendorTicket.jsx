@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
-import { notifyVendorComplete } from "./notifications";
+import { notifyVendorComplete, notifyQuoteReceived } from "./notifications";
 
 const C = {
   bg:        "#0A0B0D",
@@ -155,6 +155,15 @@ export default function VendorTicket() {
       author_type:       "vendor",
       author_name:       vendorName,
       visible_to_tenant: false,
+    });
+
+    // Notify PM
+    notifyQuoteReceived({
+      vendorName,
+      ticketTitle:  ticket.title,
+      quoteAmount,
+      quoteNotes,
+      propertyName: "",
     });
 
     await fetchTicket();

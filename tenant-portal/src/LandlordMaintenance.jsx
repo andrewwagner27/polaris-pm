@@ -184,7 +184,6 @@ export default function LandlordMaintenance() {
       .select("*, units(property_id, properties(name))")
       .eq("id", ticket.id)
       .single();
-console.log("freshTicket vendor_email:", freshTicket?.vendor_email);
 
     // Auto-log expense
     const invoiceAmount = freshTicket?.invoice_notes ? parseFloat(freshTicket.invoice_notes) : (freshTicket?.invoice_amount || freshTicket?.quote_amount || null);
@@ -522,6 +521,14 @@ console.log("freshTicket vendor_email:", freshTicket?.vendor_email);
                 <Badge type="status" value={field(selected, "status")} />
                 {field(selected, "vendor") && <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>🔧 {field(selected, "vendor")}</span>}
               </div>
+              {selected.vendor_token && (
+                <div style={{ marginTop: 12, padding: "10px 14px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, fontSize: 11, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    🔗 {window.location.origin}/vendor/{selected.vendor_token} · PIN: <strong style={{ color: C.gold }}>{selected.vendor_pin}</strong>
+                  </div>
+                  <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vendor/${selected.vendor_token}`)} style={{ fontSize: 11, padding: "4px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>Copy link</button>
+                </div>
+              )}
             </div>
 
             <div style={{ padding: "20px" }}>
