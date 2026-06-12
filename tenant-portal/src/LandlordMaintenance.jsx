@@ -161,7 +161,16 @@ export default function LandlordMaintenance() {
     }).eq("id", ticket.id);
     setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: "in_progress", quote_approved_at: new Date().toISOString(), nte_amount: ticket.quote_amount } : t));
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "in_progress", quote_approved_at: new Date().toISOString() }));
-    // TODO: notify vendor via email when vendor email is available
+    // Notify vendor
+    const vendorEmail = ticket.vendor_email;
+    if (vendorEmail) {
+      notifyVendorApproved({
+        vendorEmail,
+        vendorName:   ticket.vendor_name,
+        ticketTitle:  field(ticket, "title"),
+        propertyName: field(ticket, "property"),
+      });
+    }
   }
 
   async function approveTicket(ticket) {

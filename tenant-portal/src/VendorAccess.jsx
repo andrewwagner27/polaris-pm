@@ -141,7 +141,6 @@ function WorkOrderScreen({ ticket, vendorName, onAccept }) {
                   ["Payment terms", "Net 30 days from invoice approval date."],
                   ["Quote requirement", "Contractor must submit a quote for approval before commencing work. No work may begin until quote is approved by Modus Property Management."],
                   ["Budget authorization", "Contractor may not exceed the approved quote amount without prior written authorization. Unauthorized overages will not be compensated."],
-                  ["Material receipts", "Receipts required for all material purchases. Submit with invoice for reimbursement."],
                   ["Change orders", "Any scope changes requiring additional cost must be submitted via the Modus vendor portal and approved before additional work commences."],
                   ["Workmanship", "Contractor warrants all work for 90 days. Defective work will be corrected at no additional charge."],
                   ["Insurance", "Contractor represents they maintain adequate liability insurance and workers compensation coverage."],
