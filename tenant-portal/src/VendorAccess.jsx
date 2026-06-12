@@ -35,6 +35,7 @@ function Spinner() {
 function WorkOrderScreen({ ticket, vendorName, onAccept }) {
   const [sigName, setSigName]   = useState("");
   const [signing, setSigning]   = useState(false);
+  const [vendorEmail, setVendorEmail] = useState("");
   const [agreed, setAgreed]     = useState(false);
   const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
 
@@ -46,6 +47,7 @@ function WorkOrderScreen({ ticket, vendorName, onAccept }) {
     await supabase.from("maintenance_requests").update({
       work_order_accepted_at: new Date().toISOString(),
       work_order_accepted_by: sigName.trim(),
+      vendor_email: vendorEmail.trim() || null,
     }).eq("id", ticket.id);
 
     // Log as comment
@@ -183,7 +185,7 @@ function WorkOrderScreen({ ticket, vendorName, onAccept }) {
             </div>
           </div>
 
-          <div style={{ marginBottom:16 }}>
+          <div style={{ marginBottom:12 }}>
             <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>
               Full name (typed signature) *
             </label>
@@ -191,6 +193,14 @@ function WorkOrderScreen({ ticket, vendorName, onAccept }) {
               placeholder="Type your full legal name"
               style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'Cormorant Garamond',serif", fontStyle:"italic", letterSpacing:"0.04em", boxSizing:"border-box" }}/>
             {sigName && <div style={{ fontSize:11, color:C.textSub, marginTop:4 }}>Signed: {today}</div>}
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>
+              Email address <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(for job updates)</span>
+            </label>
+            <input type="email" value={vendorEmail} onChange={e => setVendorEmail(e.target.value)}
+              placeholder="your@email.com"
+              style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
           </div>
 
           <button onClick={handleAccept} disabled={signing || !sigName.trim() || !agreed}

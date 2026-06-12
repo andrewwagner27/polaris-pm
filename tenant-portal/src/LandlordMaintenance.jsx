@@ -167,15 +167,41 @@ export default function LandlordMaintenance() {
   async function approveTicket(ticket) {
     await updateStatus(ticket.id, "resolved");
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "resolved" }));
-    // Notify vendor if they have an email saved
-    const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", ticket.vendor_name).maybeSingle();
-    if (vendorData?.email) {
+
+    // Auto-log expense if invoice amount exists
+    const invoiceAmount = ticket.invoice_notes ? parseFloat(ticket.invoice_notes) : (ticket.invoice_amount || ticket.quote_amount || null);
+    if (invoiceAmount && ticket.units?.property_id) {
+      await supabase.from("expenses").insert({
+        property_id:              ticket.units.property_id,
+        unit_id:                  ticket.unit_id,
+        maintenance_request_id:   ticket.id,
+        category:                 "maintenance",
+        description:              field(ticket, "title"),
+        amount:                   invoiceAmount,
+        vendor_name:              ticket.vendor_name,
+        date:                     new Date().toISOString().split("T")[0],
+      });
+    }
+
+    // Notify vendor
+    const vendorEmail = ticket.vendor_email;
+    if (vendorEmail) {
       notifyVendorApproved({
-        vendorEmail:  vendorData.email,
+        vendorEmail,
         vendorName:   ticket.vendor_name,
         ticketTitle:  field(ticket, "title"),
         propertyName: field(ticket, "property"),
       });
+    } else {
+      const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", ticket.vendor_name).maybeSingle();
+      if (vendorData?.email) {
+        notifyVendorApproved({
+          vendorEmail:  vendorData.email,
+          vendorName:   ticket.vendor_name,
+          ticketTitle:  field(ticket, "title"),
+          propertyName: field(ticket, "property"),
+        });
+      }
     }
   }
 

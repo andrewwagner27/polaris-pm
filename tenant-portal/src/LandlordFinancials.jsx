@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 import { useNavigate } from "react-router-dom";
 import DebtDSCR from './DebtDSCR';
 import LandlordLayout from "./LandlordLayout";
@@ -172,7 +173,44 @@ export default function LandlordFinancials() {
   const [activeTab, setActiveTab]     = useState("Overview");
   const [chartView, setChartView]     = useState("both");
   const [expenseProp, setExpenseProp] = useState("all");
-  const [expenseCat, setExpenseCat]   = useState("all");
+  const [expenseCat, setExpenseCat]     = useState("all");
+  const [realExpenses, setRealExpenses] = useState([]);
+  const [expensesLoading, setExpensesLoading] = useState(true);
+  const [properties, setProperties]     = useState([]);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [addForm, setAddForm]           = useState({ description:"", amount:"", vendor_name:"", category:"Maintenance", property_id:"", date: new Date().toISOString().split("T")[0] });
+  const [addSaving, setAddSaving]       = useState(false);
+
+  useEffect(() => { fetchExpenses(); fetchProperties(); }, []);
+
+  async function fetchExpenses() {
+    setExpensesLoading(true);
+    const { data } = await supabase
+      .from("expenses")
+      .select("*, properties(name), units(unit_number)")
+      .order("date", { ascending: false });
+    setRealExpenses(data || []);
+    setExpensesLoading(false);
+  }
+
+  async function fetchProperties() {
+    const { data } = await supabase.from("properties").select("id, name");
+    setProperties(data || []);
+  }
+
+  async function saveExpense() {
+    if (!addForm.description || !addForm.amount) return;
+    setAddSaving(true);
+    await supabase.from("expenses").insert({
+      ...addForm,
+      amount: parseFloat(addForm.amount),
+      property_id: addForm.property_id || null,
+    });
+    setAddSaving(false);
+    setShowAddExpense(false);
+    setAddForm({ description:"", amount:"", vendor_name:"", category:"Maintenance", property_id:"", date: new Date().toISOString().split("T")[0] });
+    fetchExpenses();
+  }
 
   const ytdIncome   = MONTHLY_DATA.reduce((s, d) => s + d.income, 0);
   const ytdExpenses = MONTHLY_DATA.reduce((s, d) => s + d.expenses, 0);
@@ -375,39 +413,109 @@ export default function LandlordFinancials() {
             <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
               <select value={expenseProp} onChange={e => setExpenseProp(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
                 <option value="all">All properties</option>
-                <option value="Clifton Manor">Clifton Manor</option>
-                <option value="944 18th Ave S">944 18th Ave S</option>
+                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <select value={expenseCat} onChange={e => setExpenseCat(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
                 <option value="all">All categories</option>
-                {["Mortgage","Maintenance","Taxes","Insurance","Utilities","Landscaping"].map(c => <option key={c}>{c}</option>)}
+                {["Maintenance","Mortgage","Taxes","Insurance","Utilities","Landscaping","Management","Other"].map(c => <option key={c}>{c}</option>)}
               </select>
-              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: C.red }}>{filteredExpenses.length} expenses · ${totalFilteredExpenses.toLocaleString()}</span>
+              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: C.red }}>
+                {expensesLoading ? "Loading…" : `${realExpenses.filter(e => (expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).length} expenses · $${realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).reduce((s,e)=>s+(e.amount||0),0).toLocaleString()}`}
+              </span>
             </div>
             <Card>
-              <CardHeader title="Expense ledger" action={<GhostBtn small>⬇ Export</GhostBtn>} />
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead><tr><TH>Date</TH><TH>Property</TH><TH>Category</TH><TH>Description</TH><TH>Vendor</TH><TH right>Amount</TH></tr></thead>
-                  <tbody>
-                    {filteredExpenses.map(row => (
-                      <tr key={row.id} className="m-row">
-                        <TD>{row.date}</TD>
-                        <TD><PropBadge prop={row.property} /></TD>
-                        <TD><CatBadge cat={row.category} /></TD>
-                        <TD>{row.description}</TD>
-                        <TD>{row.vendor}</TD>
-                        <TD right bold color={C.red}>${row.amount.toLocaleString()}</TD>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CardHeader title="Expense ledger" action={
+                <div style={{ display:"flex", gap:8 }}>
+                  <GhostBtn small onClick={() => setShowAddExpense(true)}>+ Add expense</GhostBtn>
+                  <GhostBtn small>⬇ Export</GhostBtn>
+                </div>
+              }/>
+              {expensesLoading ? (
+                <div style={{ padding:24, textAlign:"center", color:C.textSub, fontSize:13 }}>Loading expenses…</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead><tr><TH>Date</TH><TH>Property</TH><TH>Category</TH><TH>Description</TH><TH>Vendor</TH><TH right>Amount</TH></tr></thead>
+                    <tbody>
+                      {realExpenses
+                        .filter(e => (expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat))
+                        .map(row => (
+                          <tr key={row.id} className="m-row">
+                            <TD>{row.date}</TD>
+                            <TD>{row.properties?.name ? <PropBadge prop={row.properties.name} /> : "—"}</TD>
+                            <TD><CatBadge cat={row.category || "Other"} /></TD>
+                            <TD>{row.description}</TD>
+                            <TD>{row.vendor_name || "—"}</TD>
+                            <TD right bold color={C.red}>${(row.amount||0).toLocaleString()}</TD>
+                          </tr>
+                        ))
+                      }
+                      {realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).length === 0 && (
+                        <tr><td colSpan={6} style={{ padding:24, textAlign:"center", color:C.textSub, fontSize:13 }}>No expenses yet. Approved maintenance invoices will appear here automatically.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 18px", background: C.raised, borderTop: `1px solid ${C.border}` }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Total expenses</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: C.red }}>${totalFilteredExpenses.toLocaleString()}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: C.red }}>${realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).reduce((s,e)=>s+(e.amount||0),0).toLocaleString()}</span>
               </div>
             </Card>
+
+            {/* Add expense modal */}
+            {showAddExpense && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={() => setShowAddExpense(false)}>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, width:460, padding:"24px" }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontSize:15, fontWeight:600, color:C.text, marginBottom:20 }}>Add expense</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Description *</label>
+                      <input value={addForm.description} onChange={e => setAddForm(f=>({...f,description:e.target.value}))} placeholder="e.g. Plumbing repair Unit 2B"
+                        style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Amount ($) *</label>
+                        <input type="number" value={addForm.amount} onChange={e => setAddForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"
+                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Date</label>
+                        <input type="date" value={addForm.date} onChange={e => setAddForm(f=>({...f,date:e.target.value}))}
+                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Category</label>
+                        <select value={addForm.category} onChange={e => setAddForm(f=>({...f,category:e.target.value}))}
+                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}>
+                          {["Maintenance","Mortgage","Taxes","Insurance","Utilities","Landscaping","Management","Other"].map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Property</label>
+                        <select value={addForm.property_id} onChange={e => setAddForm(f=>({...f,property_id:e.target.value}))}
+                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}>
+                          <option value="">All / General</option>
+                          {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Vendor</label>
+                      <input value={addForm.vendor_name} onChange={e => setAddForm(f=>({...f,vendor_name:e.target.value}))} placeholder="e.g. Mike's Plumbing"
+                        style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:10, marginTop:20, justifyContent:"flex-end" }}>
+                    <GhostBtn onClick={() => setShowAddExpense(false)}>Cancel</GhostBtn>
+                    <PrimaryBtn onClick={saveExpense}>{addSaving ? "Saving…" : "Add expense"}</PrimaryBtn>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 

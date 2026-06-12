@@ -381,9 +381,17 @@ export default function VendorTicket() {
             <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:4 }}>Submit completed work</div>
             <div style={{ fontSize:12, color:C.textSub, marginBottom:20 }}>Please upload your invoice and any final notes before submitting. The property manager will review and approve.</div>
 
-            {/* Invoice upload */}
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Invoice</div>
+            {/* Invoice amount */}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Invoice amount ($) *</div>
+              <input type="number" value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)}
+                placeholder="e.g. 165"
+                style={{ width:"100%", padding:"11px 14px", fontSize:18, fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'Cormorant Garamond',serif", boxSizing:"border-box" }}/>
+            </div>
+
+            {/* Optional photo */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Invoice photo <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></div>
               {invoiceFile ? (
                 <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:C.raised, border:`1px solid ${C.green}44`, borderRadius:8 }}>
                   <span style={{ fontSize:13, color:C.green }}>📄</span>
@@ -391,21 +399,11 @@ export default function VendorTicket() {
                   <button onClick={() => setInvoiceFile(null)} style={{ fontSize:11, color:C.red, background:"none", border:"none", cursor:"pointer" }}>Remove</button>
                 </div>
               ) : (
-                <button onClick={() => invoiceRef.current?.click()} style={{ width:"100%", padding:"14px", background:"transparent", border:`2px dashed ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
-                  📎 Upload invoice (PDF or photo)
+                <button onClick={() => invoiceRef.current?.click()} style={{ width:"100%", padding:"12px", background:"transparent", border:`2px dashed ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                  📷 Take photo of invoice
                 </button>
               )}
-              <input ref={invoiceRef} type="file" accept="image/*,.pdf" onChange={e => setInvoiceFile(e.target.files?.[0] || null)} style={{ display:"none" }}/>
-            </div>
-
-            {/* Invoice notes */}
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Notes / invoice amount</div>
-              <textarea value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)}
-                placeholder="e.g. Replaced faucet cartridge. Parts: $45, Labor: $120. Total: $165."
-                rows={3}
-                style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}
-              />
+              <input ref={invoiceRef} type="file" accept="image/*" capture="environment" onChange={e => setInvoiceFile(e.target.files?.[0] || null)} style={{ display:"none" }}/>
             </div>
 
             <div style={{ display:"flex", gap:10 }}>
