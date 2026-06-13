@@ -36,7 +36,7 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-export default function AssignVendorModal({ requestId, requestTitle, requestCategory, propertyId, propertyAddress, unitId, onClose, onAssigned }) {
+export default function AssignVendorModal({ requestId, requestTitle, requestCategory, propertyId, propertyAddress, unitId, availability, onClose, onAssigned }) {
   const [vendors, setVendors]         = useState([]);
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -82,23 +82,21 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
     setUseCustom(false);
   }
 
-async function searchPlaces() {
-  console.log("propertyAddress:", propertyAddress);
-  console.log("requestCategory:", requestCategory);
-  if (!propertyAddress) { setError("No property address on file for this property."); return; }
-  setPlacesLoading(true);
-  setPlacesResults([]);
-  try {
-    const { data, error: fnError } = await supabase.functions.invoke("search-vendors", {
-      body: { category: requestCategory || "general", address: propertyAddress }
-    });
-    if (fnError || data?.error) throw new Error(fnError?.message || data?.error);
-    setPlacesResults(data.results || []);
-  } catch (e) {
-    setError("Vendor search failed: " + e.message);
+  async function searchPlaces() {
+    if (!propertyAddress) { setError("No property address on file for this property."); return; }
+    setPlacesLoading(true);
+    setPlacesResults([]);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("search-vendors", {
+        body: { category: requestCategory || "general", address: propertyAddress }
+      });
+      if (fnError || data?.error) throw new Error(fnError?.message || data?.error);
+      setPlacesResults(data.results || []);
+    } catch (e) {
+      setError("Vendor search failed: " + e.message);
+    }
+    setPlacesLoading(false);
   }
-  setPlacesLoading(false);
-}
 
   async function assign() {
     const name  = vendorName.trim();
@@ -240,6 +238,25 @@ async function searchPlaces() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Tenant availability */}
+              {availability && (availability.days?.length > 0 || availability.times?.length > 0) && (
+                <div style={{ marginBottom: 14, padding: "12px 14px", background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.blue, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Tenant availability</div>
+                  {availability.days?.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                      {availability.days.map(d => <span key={d} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: `${C.blue}18`, color: C.blue, fontWeight: 600 }}>{d}</span>)}
+                    </div>
+                  )}
+                  {availability.times?.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                      {availability.times.map(t => <span key={t} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: `${C.blue}18`, color: C.blue }}>{t}</span>)}
+                    </div>
+                  )}
+                  {availability.entry_allowed && <div style={{ fontSize: 11, color: C.green, marginTop: 4 }}>✓ May enter when tenant not home</div>}
+                  {availability.has_pets && <div style={{ fontSize: 11, color: C.amber, marginTop: 4 }}>🐾 {availability.pet_details || "Pets on premises"}</div>}
                 </div>
               )}
 

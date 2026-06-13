@@ -540,6 +540,41 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
+              {selected.availability && (selected.availability.days?.length > 0 || selected.availability.times?.length > 0) && (
+                <div style={{ marginBottom: 20, background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Tenant availability</div>
+                  {selected.availability.days?.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: C.textSub, marginBottom: 5 }}>Available days</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {selected.availability.days.map(d => (
+                          <span key={d} style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>{d}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selected.availability.times?.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: C.textSub, marginBottom: 5 }}>Available times</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {selected.availability.times.map(t => (
+                          <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selected.availability.entry_allowed && (
+                    <div style={{ fontSize: 11, color: C.green, marginTop: 4 }}>✓ Vendor may enter when tenant is not home</div>
+                  )}
+                  {selected.availability.has_pets && (
+                    <div style={{ fontSize: 11, color: C.amber, marginTop: 4 }}>🐾 Pets on premises{selected.availability.pet_details ? `: ${selected.availability.pet_details}` : ""}</div>
+                  )}
+                  {selected.availability.access_notes && (
+                    <div style={{ fontSize: 11, color: C.textSub, marginTop: 4 }}>📝 {selected.availability.access_notes}</div>
+                  )}
+                </div>
+              )}
+
               {selected.photos?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Photos ({selected.photos.length})</div>
@@ -732,6 +767,7 @@ export default function LandlordMaintenance() {
           propertyId={vendorTicket.units?.property_id || null}
           propertyAddress={vendorTicket.units?.properties?.address ? `${vendorTicket.units.properties.address}, ${vendorTicket.units.properties.city} ${vendorTicket.units.properties.state}` : ""}
           unitId={vendorTicket.unit_id || null}
+          availability={vendorTicket.availability || null}
           onClose={() => setVendorTicket(null)}
           onAssigned={() => { fetchTickets(); }}
         />
