@@ -587,6 +587,24 @@ export default function LandlordMaintenance() {
                 </div>
               )}
 
+              {/* Invoice */}
+              {(selected.invoice_url || selected.invoice_notes) && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Invoice</div>
+                  {selected.invoice_notes && (
+                    <div style={{ padding: "10px 14px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: C.textSub, marginBottom: 2 }}>Amount</div>
+                      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 600, color: C.gold }}>${parseFloat(selected.invoice_notes).toLocaleString()}</div>
+                    </div>
+                  )}
+                  {selected.invoice_url && (
+                    <a href={selected.invoice_url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8, fontSize: 13, color: C.blue, textDecoration: "none" }}>
+                      📄 View invoice photo →
+                    </a>
+                  )}
+                </div>
+              )}
+
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Details</div>
                 {[
