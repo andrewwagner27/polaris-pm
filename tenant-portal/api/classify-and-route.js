@@ -49,14 +49,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ── 1. Load active routing rules from DB (for keyword pre-check) ──
+    // ── 1. Load active routing rules from DB ────────────────────────
     const { data: rules } = await supabase
       .from("ai_routing_rules")
       .select("*")
       .eq("is_active", true)
       .order("priority", { ascending: true });
 
-    // ── 2. Quick keyword pre-check (cheap, no API call) ─────────────
+    // ── 2. Quick keyword pre-check ──────────────────────────────────
     const lowerMsg = message.toLowerCase();
     let keywordMatch = null;
     for (const rule of rules || []) {
@@ -86,12 +86,10 @@ export default async function handler(req, res) {
 
       rawResponse = completion;
       const raw = completion.choices[0]?.message?.content?.trim();
-      // Strip markdown code fences if present
       const jsonStr = raw?.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "").trim();
       classification = JSON.parse(jsonStr);
     } catch (parseErr) {
       console.error("OpenAI parse error:", parseErr);
-      // Fall back to keyword match if AI fails
       if (keywordMatch) {
         classification = {
           category: keywordMatch.category,
@@ -113,26 +111,24 @@ export default async function handler(req, res) {
       }
     }
 
-    // Merge keyword match data if confidence is low
     const finalRule = rules?.find((r) => r.category === classification.category);
     const effectiveAction =
       classification.confidence >= (finalRule?.confidence_threshold || 0.6)
         ? classification.escalation_level
-        : "ESCALATE_LANDLORD"; // if unsure, always escalate
+        : "ESCALATE_LANDLORD";
 
-    // ── 4. Execute the routing action ────────────────────────────────
-    let autoReplySent = false;
-    let ticketCreatedId = null;
-
-    // Load tenant info for context
+    // ── 4. Load tenant info ──────────────────────────────────────────
     const { data: tenant } = await supabase
       .from("tenants")
       .select("id, name, unit_id, user_id, units(unit_number, properties(name))")
       .eq("id", tenant_id)
       .single();
 
+    let autoReplySent = false;
+    let ticketCreatedId = null;
+
     // ─────────────────────────────────────────────────────────────────
-    // A) AUTO_REPLY — send template message back to tenant, no landlord alert
+    // A) AUTO_REPLY
     // ─────────────────────────────────────────────────────────────────
     if (effectiveAction === "AUTO_REPLY") {
       const replyText =
@@ -140,23 +136,26 @@ export default async function handler(req, res) {
         finalRule?.auto_reply_template ||
         "Thank you for reaching out. Your property manager will follow up within 1 business day.";
 
-      if (message_id) {
-        await supabase.from("messages").insert({
-          sender_id: null,
-          recipient_id: tenant?.user_id || null,
-          tenant_id: tenant_id,
-          body: replyText,
-          parent_message_id: message_id,
-        });
+      const { error: insertErr } = await supabase.from("messages").insert({
+        sender_id: null,
+        recipient_id: tenant?.user_id || null,
+        tenant_id: tenant_id,
+        body: replyText,
+        read: false,
+      });
+
+      if (insertErr) {
+        console.error("AUTO_REPLY insert error:", insertErr);
+      } else {
+        autoReplySent = true;
       }
-      autoReplySent = true;
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // B) CREATE_TICKET — create maintenance request + dispatch vendor
+    // B) CREATE_TICKET
     // ─────────────────────────────────────────────────────────────────
     if (effectiveAction === "CREATE_TICKET") {
-      const { data: ticket } = await supabase
+      const { data: ticket, error: ticketErr } = await supabase
         .from("maintenance_requests")
         .insert({
           tenant_id: tenant_id,
@@ -173,17 +172,22 @@ export default async function handler(req, res) {
         .select()
         .single();
 
+      if (ticketErr) {
+        console.error("CREATE_TICKET insert error:", ticketErr);
+      }
+
       if (ticket) {
         ticketCreatedId = ticket.id;
 
-        if (message_id && tenant?.user_id) {
-          await supabase.from("messages").insert({
+        if (tenant?.user_id) {
+          const { error: confirmErr } = await supabase.from("messages").insert({
             sender_id: null,
             recipient_id: tenant.user_id,
             tenant_id: tenant_id,
             body: `We've opened a maintenance ticket for your request (#${ticket.id.slice(0, 8).toUpperCase()}). A team member or vendor will reach out to schedule access. You can track the status in the Maintenance section of your portal.`,
-            parent_message_id: message_id,
+            read: false,
           });
+          if (confirmErr) console.error("Ticket confirmation message error:", confirmErr);
         }
 
         try {
@@ -206,10 +210,10 @@ export default async function handler(req, res) {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // C) ESCALATE_LANDLORD — create urgent alert + notify landlord
+    // C) ESCALATE_LANDLORD
     // ─────────────────────────────────────────────────────────────────
     if (effectiveAction === "ESCALATE_LANDLORD") {
-      await supabase.from("landlord_alerts").insert({
+      const { error: alertErr } = await supabase.from("landlord_alerts").insert({
         type: "ai_escalation",
         category: classification.category,
         tenant_id: tenant_id,
@@ -219,10 +223,11 @@ export default async function handler(req, res) {
         raw_message: message,
         is_read: false,
       });
+      if (alertErr) console.error("ESCALATE_LANDLORD insert error:", alertErr);
     }
 
     // ── 5. Log the routing decision ──────────────────────────────────
-    const { data: logEntry } = await supabase
+    const { data: logEntry, error: logErr } = await supabase
       .from("ai_routing_logs")
       .insert({
         message_id: message_id || null,
@@ -244,6 +249,8 @@ export default async function handler(req, res) {
       })
       .select()
       .single();
+
+    if (logErr) console.error("Routing log insert error:", logErr);
 
     // ── 6. Return result ─────────────────────────────────────────────
     return res.status(200).json({
