@@ -72,11 +72,11 @@ export default function MessagingScreen() {
 
         setMessages(prev => {
           // If this is the confirmed version of an optimistic message, replace it
-          const optimisticIndex = prev.findIndex(
-            m => m.id?.toString().startsWith("temp-") &&
-                 m.sender_id === payload.new.sender_id &&
-                 m.body === payload.new.body
-          );
+       const optimisticIndex = payload.new.sender_id === null ? -1 : prev.findIndex(
+  m => m.id?.toString().startsWith("temp-") &&
+       m.sender_id === payload.new.sender_id &&
+       m.body === payload.new.body
+);
           if (optimisticIndex !== -1) {
             const next = [...prev];
             next[optimisticIndex] = payload.new;
