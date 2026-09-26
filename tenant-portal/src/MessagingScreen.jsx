@@ -20,13 +20,6 @@ const C = {
   amber:     "#F0A430",
 };
 
-const QUICK_REPLIES = [
-  "Is parking available?",
-  "When is maintenance coming?",
-  "Can I renew my lease?",
-  "I need a rent receipt",
-];
-
 export default function MessagingScreen() {
   const navigate        = useNavigate();
   const { tenant }      = useTenant();
@@ -36,7 +29,8 @@ export default function MessagingScreen() {
   const [tenantId, setTenantId]     = useState(null);
   const [landlordId, setLandlordId] = useState(null);
   const [myUserId, setMyUserId]     = useState(null);
-  const bottomRef = useRef(null);
+  const myUserIdRef = useRef(null);
+  const bottomRef   = useRef(null);
 
   useEffect(() => { init(); }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -45,6 +39,7 @@ export default function MessagingScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
     setMyUserId(user.id);
+    myUserIdRef.current = user.id;
 
     const { data: tenantData } = await supabase
       .from("tenants").select("id").eq("user_id", user.id).single();
@@ -67,10 +62,20 @@ export default function MessagingScreen() {
     supabase.channel(`tenant-messages-${tenantData.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
         if (payload.new.tenant_id !== tenantData.id) return;
+
         setMessages(prev => {
-          // Already have this exact confirmed message — skip
+          // If message ID is already in state, drop duplicate
           if (prev.some(m => m.id === payload.new.id)) return prev;
-          // Append everything else (tenant messages, AI replies, management messages)
+
+          // If this is the DB confirmation of the tenant's optimistic message
+          if (payload.new.sender_id === myUserIdRef.current) {
+            const hasTemp = prev.some(m => m.id?.toString().startsWith("temp-") && m.body === payload.new.body);
+            if (hasTemp) {
+              return prev.map(m => (m.id?.toString().startsWith("temp-") && m.body === payload.new.body) ? payload.new : m);
+            }
+          }
+
+          // Otherwise (AI response or incoming management message), append
           return [...prev, payload.new];
         });
       }).subscribe();
@@ -86,12 +91,7 @@ export default function MessagingScreen() {
 
   async function sendMessage(text) {
     if (!text.trim() || !myUserId || !tenantId) return;
-    let lId = landlordId;
-    if (!lId) {
-      lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
-      setLandlordId(lId);
-    }
-    if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
+    let lId = landlordId || "858462c7-d86a-498f-8cc1-3fc1eecb1888";
 
     const optimisticId = `temp-${Date.now()}`;
     const optimistic = {
@@ -103,21 +103,23 @@ export default function MessagingScreen() {
       created_at: new Date().toISOString(),
       read: false,
     };
+
     setMessages(prev => [...prev, optimistic]);
     setInput("");
 
     const { data, error } = await supabase.from("messages").insert({
-      sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(),
+      sender_id: myUserId,
+      recipient_id: lId,
+      tenant_id: tenantId,
+      body: text.trim(),
     }).select().single();
 
     if (error) {
-      // Insert failed — remove optimistic
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
     } else if (data) {
-      // Remove optimistic — realtime will append the confirmed record cleanly
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
+      setMessages(prev => prev.map(m => m.id === optimisticId ? data : m));
 
-      // 🤖 Fire AI routing — non-blocking
+      // Trigger AI reasoning
       fetch("/api/classify-and-route", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,23 +146,22 @@ export default function MessagingScreen() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
-        .t-quick:hover{border-color:${C.goldDim}!important;color:${C.gold}!important;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
         ::-webkit-scrollbar:horizontal{height:0;}
       `}</style>
 
       <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
 
-        {/* Chat header */}
+        {/* Header */}
         <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <div style={{ width:36, height:36, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, flexShrink:0 }}>M</div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:14, fontWeight:600, color:C.text }}>Modus Property Management</div>
-            <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>Usually replies within a few hours</div>
+            <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>Autonomous PM Engine Active</div>
           </div>
         </div>
 
-        {/* Messages */}
+        {/* Message Thread */}
         <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px", display:"flex", flexDirection:"column", gap:4 }}>
           {loading && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Loading messages…</div>}
           {!loading && !tenantId && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Your account isn't linked to a unit yet. Contact your property manager.</div>}
@@ -171,8 +172,8 @@ export default function MessagingScreen() {
               <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>{item.label}</div>
             );
 
-            // sender_id === null means AI/management reply — always show on left
-            const fromProperty = item.sender_id === null || item.sender_id !== myUserId;
+            // True Management/AI = sender_id is null
+            const fromProperty = item.sender_id === null;
 
             return (
               <div key={item.id}>
@@ -193,17 +194,7 @@ export default function MessagingScreen() {
           <div ref={bottomRef}/>
         </div>
 
-        {/* Quick replies */}
-        <div style={{ padding:"8px 16px 4px", display:"flex", gap:8, overflowX:"auto", flexShrink:0, background:C.surface, borderTop:`1px solid ${C.border}` }}>
-          {QUICK_REPLIES.map((q, i) => (
-            <button key={i} className="t-quick" onClick={() => sendMessage(q)}
-              style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:14, fontSize:11, color:C.textSub, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:500, transition:"all 0.12s", flexShrink:0 }}>
-              {q}
-            </button>
-          ))}
-        </div>
-
-        {/* Input */}
+        {/* Input Bar */}
         <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"flex-end", gap:10, flexShrink:0 }}>
           <textarea value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage(input);} }}
