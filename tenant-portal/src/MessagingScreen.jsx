@@ -66,15 +66,32 @@ export default function MessagingScreen() {
 
     supabase.channel(`tenant-messages-${tenantData.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
-        if (payload.new.tenant_id === tenantData.id) {
-          setMessages(prev => {
-            const alreadyExists = prev.some(m => m.id === payload.new.id);
-            if (alreadyExists) return prev;
-            const hasOptimistic = prev.some(m => m.id?.toString().startsWith("temp-") && m.body === payload.new.body && m.sender_id === payload.new.sender_id);
-            if (hasOptimistic) return prev.map(m => m.id?.toString().startsWith("temp-") && m.body === payload.new.body ? payload.new : m);
-            return [...prev, payload.new];
-          });
-        }
+        if (payload.new.tenant_id !== tenantData.id) return;
+
+        setMessages(prev => {
+          // Already in state (exact ID match)
+          if (prev.some(m => m.id === payload.new.id)) return prev;
+
+          // Only replace an optimistic message if it was sent by the same user
+          // (prevents AI replies from being swallowed by the optimistic tenant message)
+          if (payload.new.sender_id !== null) {
+            const hasOptimistic = prev.some(
+              m => m.id?.toString().startsWith("temp-") &&
+                   m.body === payload.new.body &&
+                   m.sender_id === payload.new.sender_id
+            );
+            if (hasOptimistic) {
+              return prev.map(m =>
+                m.id?.toString().startsWith("temp-") && m.body === payload.new.body
+                  ? payload.new
+                  : m
+              );
+            }
+          }
+
+          // New message (including AI replies with sender_id: null) — always append
+          return [...prev, payload.new];
+        });
       }).subscribe();
 
     setLoading(false);
@@ -87,39 +104,48 @@ export default function MessagingScreen() {
   }
 
   async function sendMessage(text) {
-  if (!text.trim() || !myUserId || !tenantId) return;
-  let lId = landlordId;
-  if (!lId) {
-    lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
-    setLandlordId(lId);
+    if (!text.trim() || !myUserId || !tenantId) return;
+    let lId = landlordId;
+    if (!lId) {
+      lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
+      setLandlordId(lId);
+    }
+    if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
+
+    const optimistic = {
+      id: `temp-${Date.now()}`,
+      sender_id: myUserId,
+      recipient_id: lId,
+      tenant_id: tenantId,
+      body: text.trim(),
+      created_at: new Date().toISOString(),
+      read: false,
+    };
+    setMessages(prev => [...prev, optimistic]);
+    setInput("");
+
+    const { data, error } = await supabase.from("messages").insert({
+      sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(),
+    }).select().single();
+
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+    } else if (data) {
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
+
+      // 🤖 Fire AI routing — non-blocking
+      fetch("/api/classify-and-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text.trim(),
+          tenant_id: tenantId,
+          message_id: data.id,
+        }),
+      }).catch(() => {});
+    }
   }
-  if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
-  const optimistic = { id: `temp-${Date.now()}`, sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(), created_at: new Date().toISOString(), read: false };
-  setMessages(prev => [...prev, optimistic]);
-  setInput("");
-
-  const { data, error } = await supabase.from("messages").insert({
-    sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(),
-  }).select().single();
-
-  if (error) {
-    setMessages(prev => prev.filter(m => m.id !== optimistic.id));
-  } else if (data) {
-    setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
-
-    // 🤖 Fire AI routing — non-blocking, won't affect the message send
-    fetch("/api/classify-and-route", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text.trim(),
-        tenant_id: tenantId,
-        message_id: data.id,
-      }),
-    }).catch(() => {}); // silent fail — never block the user
-  }
-}
   const grouped = [];
   let lastDate = null;
   messages.forEach(msg => {
@@ -160,7 +186,10 @@ export default function MessagingScreen() {
             if (item.type === "date") return (
               <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>{item.label}</div>
             );
-            const fromProperty = item.sender_id !== myUserId;
+
+            // sender_id === null means AI/management reply — always show on left
+            const fromProperty = item.sender_id === null || item.sender_id !== myUserId;
+
             return (
               <div key={item.id}>
                 <div style={{ display:"flex", justifyContent:fromProperty?"flex-start":"flex-end", marginBottom:2, alignItems:"flex-end", gap:6 }}>
