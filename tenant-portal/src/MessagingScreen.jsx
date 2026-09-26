@@ -67,29 +67,10 @@ export default function MessagingScreen() {
     supabase.channel(`tenant-messages-${tenantData.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
         if (payload.new.tenant_id !== tenantData.id) return;
-
         setMessages(prev => {
-          // Already in state (exact ID match)
+          // Already have this exact confirmed message — skip
           if (prev.some(m => m.id === payload.new.id)) return prev;
-
-          // Only replace an optimistic message if it was sent by the same user
-          // (prevents AI replies from being swallowed by the optimistic tenant message)
-          if (payload.new.sender_id !== null) {
-            const hasOptimistic = prev.some(
-              m => m.id?.toString().startsWith("temp-") &&
-                   m.body === payload.new.body &&
-                   m.sender_id === payload.new.sender_id
-            );
-            if (hasOptimistic) {
-              return prev.map(m =>
-                m.id?.toString().startsWith("temp-") && m.body === payload.new.body
-                  ? payload.new
-                  : m
-              );
-            }
-          }
-
-          // New message (including AI replies with sender_id: null) — always append
+          // Append everything else (tenant messages, AI replies, management messages)
           return [...prev, payload.new];
         });
       }).subscribe();
@@ -112,8 +93,9 @@ export default function MessagingScreen() {
     }
     if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
+    const optimisticId = `temp-${Date.now()}`;
     const optimistic = {
-      id: `temp-${Date.now()}`,
+      id: optimisticId,
       sender_id: myUserId,
       recipient_id: lId,
       tenant_id: tenantId,
@@ -129,9 +111,11 @@ export default function MessagingScreen() {
     }).select().single();
 
     if (error) {
-      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      // Insert failed — remove optimistic
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
     } else if (data) {
-      setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
+      // Remove optimistic — realtime will append the confirmed record cleanly
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
 
       // 🤖 Fire AI routing — non-blocking
       fetch("/api/classify-and-route", {
