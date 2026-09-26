@@ -141,13 +141,11 @@ export default async function handler(req, res) {
         "Thank you for reaching out. Your property manager will follow up within 1 business day.";
 
       if (message_id) {
-        // Insert the auto-reply as a new message from "system"
         await supabase.from("messages").insert({
-          sender_id: null,            // system message
-          recipient_user_id: tenant?.user_id || null,
+          sender_id: null,
+          recipient_id: tenant?.user_id || null,
           tenant_id: tenant_id,
-          content: replyText,
-          is_ai_generated: true,
+          body: replyText,
           parent_message_id: message_id,
         });
       }
@@ -158,7 +156,6 @@ export default async function handler(req, res) {
     // B) CREATE_TICKET — create maintenance request + dispatch vendor
     // ─────────────────────────────────────────────────────────────────
     if (effectiveAction === "CREATE_TICKET") {
-      // Insert maintenance request
       const { data: ticket } = await supabase
         .from("maintenance_requests")
         .insert({
@@ -179,19 +176,16 @@ export default async function handler(req, res) {
       if (ticket) {
         ticketCreatedId = ticket.id;
 
-        // Send tenant a confirmation message
         if (message_id && tenant?.user_id) {
           await supabase.from("messages").insert({
             sender_id: null,
-            recipient_user_id: tenant.user_id,
+            recipient_id: tenant.user_id,
             tenant_id: tenant_id,
-            content: `We've opened a maintenance ticket for your request (#${ticket.id.slice(0, 8).toUpperCase()}). A team member or vendor will reach out to schedule access. You can track the status in the Maintenance section of your portal.`,
-            is_ai_generated: true,
+            body: `We've opened a maintenance ticket for your request (#${ticket.id.slice(0, 8).toUpperCase()}). A team member or vendor will reach out to schedule access. You can track the status in the Maintenance section of your portal.`,
             parent_message_id: message_id,
           });
         }
 
-        // Trigger vendor dispatch
         try {
           await fetch(`${process.env.VERCEL_URL || "https://getmodusam.com"}/api/dispatch-vendor`, {
             method: "POST",
