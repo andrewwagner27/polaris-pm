@@ -87,26 +87,39 @@ export default function MessagingScreen() {
   }
 
   async function sendMessage(text) {
-    if (!text.trim() || !myUserId || !tenantId) return;
-    let lId = landlordId;
-    if (!lId) {
-  lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
-  setLandlordId(lId);
-}
-    if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
-
-    const optimistic = { id: `temp-${Date.now()}`, sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(), created_at: new Date().toISOString(), read: false };
-    setMessages(prev => [...prev, optimistic]);
-    setInput("");
-
-    const { data, error } = await supabase.from("messages").insert({
-      sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(),
-    }).select().single();
-
-    if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); }
-    else if (data) { setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m)); }
+  if (!text.trim() || !myUserId || !tenantId) return;
+  let lId = landlordId;
+  if (!lId) {
+    lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
+    setLandlordId(lId);
   }
+  if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
+  const optimistic = { id: `temp-${Date.now()}`, sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(), created_at: new Date().toISOString(), read: false };
+  setMessages(prev => [...prev, optimistic]);
+  setInput("");
+
+  const { data, error } = await supabase.from("messages").insert({
+    sender_id: myUserId, recipient_id: lId, tenant_id: tenantId, body: text.trim(),
+  }).select().single();
+
+  if (error) {
+    setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+  } else if (data) {
+    setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
+
+    // 🤖 Fire AI routing — non-blocking, won't affect the message send
+    fetch("/api/classify-and-route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: text.trim(),
+        tenant_id: tenantId,
+        message_id: data.id,
+      }),
+    }).catch(() => {}); // silent fail — never block the user
+  }
+}
   const grouped = [];
   let lastDate = null;
   messages.forEach(msg => {
