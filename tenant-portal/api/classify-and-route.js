@@ -1,13 +1,14 @@
 // /api/classify-and-route.js
 // Modus PM — Autonomous Property Manager Reasoning Engine v2
 // 4-Tier Escalation: EMERGENCY | TENANT_DAMAGE | MAINTENANCE | DISPUTE
+// Accepts: POST { message: string, tenant_id: string, message_id?: string }
 
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { Resend } from "resend";
 
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
@@ -17,6 +18,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
 const FROM_EMAIL = "noreply@getmodusam.com";
 
+// ── Structured Output Schema ────────────────────────────────
 const CLASSIFICATION_SCHEMA = {
   name: "property_triage",
   strict: true,
@@ -26,33 +28,72 @@ const CLASSIFICATION_SCHEMA = {
       tier: {
         type: "string",
         enum: ["TIER1_EMERGENCY", "TIER2_TENANT_DAMAGE", "TIER3_MAINTENANCE", "TIER4_DISPUTE"],
+        description: "Escalation tier based on issue type and severity"
       },
       category: {
         type: "string",
         enum: ["EMERGENCY", "HABITABILITY", "TENANT_DAMAGE", "APPLIANCE", "PLUMBING", "HVAC", "ELECTRICAL", "PEST", "LOCK", "NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TRASH", "GENERAL_INQUIRY", "PAYMENT", "LEASE_LEGAL"],
+        description: "Specific issue category"
       },
-      confidence: { type: "number" },
-      urgency: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "EMERGENCY"] },
-      intent_summary: { type: "string" },
-      tenant_reply: { type: "string", description: "Your professional reply TO the tenant FROM management. This must be a complete, helpful response written by you — NOT the tenant's own message repeated back. Write in first person plural as Modus Property Management." },
-      missing_info: { type: "array", items: { type: "string" } },
-      billable_to_tenant: { type: "boolean" },
-      create_maintenance_ticket: { type: "boolean" },
-      create_incident_log: { type: "boolean" },
-      send_violation_notice: { type: "boolean" },
-      offending_unit_hint: { type: "string" },
-      dispatch_vendor: { type: "boolean" },
-      escalate_to_landlord: { type: "boolean" },
+      confidence: {
+        type: "number",
+        description: "Classification confidence 0.0-1.0"
+      },
+      urgency: {
+        type: "string",
+        enum: ["LOW", "MEDIUM", "HIGH", "EMERGENCY"]
+      },
+      intent_summary: {
+        type: "string",
+        description: "One sentence summary of what the tenant needs"
+      },
+      tenant_reply: {
+        type: "string",
+        description: "Authoritative reply to send to tenant on behalf of Modus Property Management. Professional tone. Never mention a specific landlord's name. First person plural ('We', 'Management'). If asking for more information, ask exactly what is missing (unit number, time of incident, type of disturbance, photos, etc.)."
+      },
+      missing_info: {
+        type: "array",
+        items: { type: "string" },
+        description: "List of information still needed before full resolution (e.g. 'offending unit number', 'photo of damage', 'approximate time of noise'). Empty array if nothing missing."
+      },
+      billable_to_tenant: {
+        type: "boolean",
+        description: "True if damage or issue was caused by tenant (e.g. clogged drain, pet damage, broken window from inside)"
+      },
+      create_maintenance_ticket: {
+        type: "boolean",
+        description: "True if a maintenance_requests record should be created"
+      },
+      create_incident_log: {
+        type: "boolean",
+        description: "True if an incident_logs record should be created (disputes, violations, tenant damage)"
+      },
+      send_violation_notice: {
+        type: "boolean",
+        description: "True only if the offending unit is clearly identified and a formal notice should be sent to them"
+      },
+      offending_unit_hint: {
+        type: "string",
+        description: "Unit number or identifier of the offending party if mentioned by tenant, otherwise empty string"
+      },
+      dispatch_vendor: {
+        type: "boolean",
+        description: "True if this maintenance issue should be dispatched to the vendor queue"
+      },
+      escalate_to_landlord: {
+        type: "boolean",
+        description: "True if this requires human landlord involvement (payment disputes, legal threats, true emergencies)"
+      }
     },
     required: [
       "tier", "category", "confidence", "urgency", "intent_summary",
       "tenant_reply", "missing_info", "billable_to_tenant",
       "create_maintenance_ticket", "create_incident_log",
       "send_violation_notice", "offending_unit_hint",
-      "dispatch_vendor", "escalate_to_landlord",
+      "dispatch_vendor", "escalate_to_landlord"
     ],
-    additionalProperties: false,
-  },
+    additionalProperties: false
+  }
 };
 
 const SYSTEM_PROMPT = `You are the Autonomous Property Manager AI for Modus Property Management — a premium residential property management company. You handle all tenant communications with authority, professionalism, and efficiency on behalf of management.
@@ -67,10 +108,10 @@ TIER 1 — EMERGENCY & HABITABILITY RISK:
 Triggers: no heat in winter, active water leak/flooding, gas smell, fire risk, no hot water (extended), structural damage, security breach, broken exterior locks
 → escalate_to_landlord: true, urgency: EMERGENCY
 → Reply must include immediate safety instructions (turn off main water, evacuate if gas, etc.)
-→ create_maintenance_ticket: true
+→ Create maintenance ticket with is_emergency: true
 
 TIER 2 — TENANT-CAUSED DAMAGE:
-Triggers: pet damage (urine, scratching), tenant broke window/door, clogged drain (hair, grease), self-caused appliance damage
+Triggers: pet damage (urine, scratching), tenant broke window/door, clogged drain (hair, grease), self-caused appliance damage, hoarding issues
 → billable_to_tenant: true
 → Remind tenant of lease responsibility clause firmly but professionally
 → Request photos and details
@@ -79,21 +120,23 @@ Triggers: pet damage (urine, scratching), tenant broke window/door, clogged drai
 TIER 3 — STANDARD PROPERTY MAINTENANCE:
 Triggers: appliance failure (not tenant-caused), leaking faucet, HVAC issues, pest intrusion, lock malfunction
 → Ask 1-2 targeted troubleshooting questions first (check breaker? clean lint trap? tried reset?)
-→ create_maintenance_ticket: true, dispatch_vendor: true
+→ create_maintenance_ticket: true, dispatch_vendor: true (if troubleshooting insufficient or already tried)
 
 TIER 4 — NEIGHBOR DISPUTES & LEASE VIOLATIONS:
-Triggers: noise complaints, parking disputes, trash violations, smoking violations
-→ Open with: "Management has opened an official incident record..."
+Triggers: noise complaints, parking disputes, trash violations, smoking violations, unauthorized pets/guests
+→ "Management has opened an official incident record..."
 → If offending unit unknown: ask for unit number, time, nature of disturbance, any evidence
 → create_incident_log: true
-→ send_violation_notice: true ONLY if offending unit is clearly identified in the message
+→ send_violation_notice: true ONLY if offending unit is clearly identified
 
 PAYMENT & LEGAL:
-→ Always escalate_to_landlord: true, never negotiate or make legal statements
+→ Always escalate_to_landlord: true
+→ Never negotiate payment terms or make legal statements in the tenant reply
 
 GENERAL INQUIRY:
 → Answer helpfully, no ticket needed`;
 
+// ── Main handler ───────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -104,11 +147,6 @@ export default async function handler(req, res) {
   if (!message || !tenant_id) {
     return res.status(400).json({ error: "message and tenant_id are required" });
   }
-
-  // ── Build base URL from request headers for internal calls ──
-  const protocol = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host || "getmodusam.com";
-  const BASE_URL = `${protocol}://${host}`;
 
   try {
     // ── 1. Load tenant info ──────────────────────────────────
@@ -130,7 +168,10 @@ export default async function handler(req, res) {
 
     const threadContext = (threadMessages || [])
       .reverse()
-      .map((m) => `[${m.sender_id === null ? "Management" : "Tenant"}]: ${m.body}`)
+      .map((m) => {
+        const role = m.sender_id === null ? "Management" : "Tenant";
+        return `[${role}]: ${m.body}`;
+      })
       .join("\n");
 
     // ── 3. Call OpenAI with structured output ────────────────
@@ -159,18 +200,16 @@ ${threadContext || "(no prior messages)"}
 New tenant message:
 "${message}"
 
-Classify and determine the correct autonomous action. In tenant_reply, write YOUR response to the tenant — a professional reply FROM management. Do not repeat the tenant's message.`,
+Classify this message and determine the correct autonomous action.`,
           },
         ],
       });
 
-      const rawContent = completion.choices[0]?.message?.content?.trim();
-      console.log("OpenAI raw output:", rawContent);
-      console.log("OpenAI usage:", JSON.stringify(completion.usage));
-      classification = JSON.parse(rawContent);
-      console.log("Parsed tenant_reply:", classification?.tenant_reply);
+      const raw = completion.choices[0]?.message?.content?.trim();
+      classification = JSON.parse(raw);
     } catch (aiErr) {
       console.error("OpenAI error:", aiErr);
+      // Safe fallback — escalate to landlord if AI fails
       classification = {
         tier: "TIER4_DISPUTE",
         category: "GENERAL_INQUIRY",
@@ -190,53 +229,47 @@ Classify and determine the correct autonomous action. In tenant_reply, write YOU
     }
 
     // ── 4. Send tenant reply ─────────────────────────────────
-    // Safe fallback — never echo the tenant's own message back
-    const finalReply =
-      classification?.tenant_reply &&
-      classification.tenant_reply.trim().length > 0 &&
-      classification.tenant_reply.trim() !== message.trim()
-        ? classification.tenant_reply.trim()
-        : "Thank you for your message. Property Management has received this and will review it shortly.";
-
-    console.log("Final reply being inserted:", finalReply);
-
     const { error: replyErr } = await supabase.from("messages").insert({
       sender_id: null,
       recipient_id: tenant?.user_id || null,
       tenant_id: tenant_id,
-      body: finalReply,
+      body: classification.tenant_reply,
       read: false,
     });
 
     if (replyErr) console.error("Tenant reply insert error:", replyErr);
 
-    // ── 5. Create maintenance ticket + dispatch ──────────────
+    // ── 5. Create maintenance ticket ─────────────────────────
     let ticketId = null;
 
     if (classification.create_maintenance_ticket) {
       const { data: ticket, error: ticketErr } = await supabase
         .from("maintenance_requests")
         .insert({
+          title: classification.intent_summary,
           tenant_id: tenant_id,
           unit_id: tenant?.unit_id || null,
           description: message,
           status: "open",
           priority: classification.urgency === "EMERGENCY" || classification.urgency === "HIGH" ? "urgent" : "normal",
+          ai_generated: true,
+          ai_intent_summary: classification.intent_summary,
           billable_to_tenant: classification.billable_to_tenant,
           is_emergency: classification.tier === "TIER1_EMERGENCY",
         })
         .select()
         .single();
 
-      if (ticketErr) console.error("Maintenance ticket error:", ticketErr);
-      else ticketId = ticket?.id;
+      if (ticketErr) {
+        console.error("Maintenance ticket error:", ticketErr);
+      } else {
+        ticketId = ticket?.id;
+      }
 
-      // Dispatch vendor — use dynamic base URL, fire-and-forget with timeout guard
+      // Trigger vendor dispatch
       if (classification.dispatch_vendor && ticketId) {
         try {
-          const controller = new AbortController();
-          const dispatchTimeout = setTimeout(() => controller.abort(), 5000);
-          await fetch(`${BASE_URL}/api/dispatch-vendor`, {
+          await fetch(`https://getmodusam.com/api/dispatch-vendor`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -247,19 +280,18 @@ Classify and determine the correct autonomous action. In tenant_reply, write YOU
               unit: tenant?.units?.unit_number,
               property: tenant?.units?.properties?.name,
             }),
-            signal: controller.signal,
           });
-          clearTimeout(dispatchTimeout);
         } catch (dispatchErr) {
           console.warn("Vendor dispatch failed (non-fatal):", dispatchErr.message);
         }
       }
     }
 
-    // ── 6. Create incident log + violation notice ────────────
+    // ── 6. Create incident log ───────────────────────────────
     let incidentId = null;
 
     if (classification.create_incident_log) {
+      // Resolve offending unit ID if a hint was provided
       let offendingUnitId = null;
       if (classification.offending_unit_hint) {
         const { data: offendingUnit } = await supabase
@@ -271,7 +303,9 @@ Classify and determine the correct autonomous action. In tenant_reply, write YOU
         offendingUnitId = offendingUnit?.id || null;
       }
 
-      const incidentCategory = ["NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TENANT_DAMAGE", "TRASH"].includes(classification.category)
+      const incidentCategory = [
+        "NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TENANT_DAMAGE", "TRASH"
+      ].includes(classification.category)
         ? classification.category
         : "OTHER";
 
@@ -295,23 +329,26 @@ Classify and determine the correct autonomous action. In tenant_reply, write YOU
         .select()
         .single();
 
-      if (incidentErr) console.error("Incident log error:", incidentErr);
-      else incidentId = incident?.id;
+      if (incidentErr) {
+        console.error("Incident log error:", incidentErr);
+      } else {
+        incidentId = incident?.id;
+      }
 
       // Send violation notice to offending unit if identified
       if (classification.send_violation_notice && offendingUnitId) {
         const { data: offendingTenant } = await supabase
           .from("tenants")
-          .select("id, user_id, name")
+          .select("user_id, name")
           .eq("unit_id", offendingUnitId)
           .maybeSingle();
 
-        // Bug fix #3: insert notice even if user_id is null, using tenant_id as fallback
-        const violationBody = `NOTICE OF LEASE VIOLATION
+        if (offendingTenant?.user_id) {
+          const violationBody = `NOTICE OF LEASE VIOLATION
 
 Management has received a formal complaint regarding a disturbance originating from your unit. This notice is being issued in accordance with your lease agreement.
 
-Nature of Complaint: ${classification.category.replace(/_/g, " ")}
+Nature of Complaint: ${classification.category.replace("_", " ")}
 Date of Notice: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
 
 You are required to remedy this situation immediately. Continued violations may result in formal lease enforcement action, including written warnings, fines, or lease termination proceedings as permitted under your rental agreement.
@@ -320,20 +357,22 @@ If you believe this notice was issued in error, please respond to this message w
 
 Modus Property Management`;
 
-        const { error: noticeErr } = await supabase.from("messages").insert({
-          sender_id: null,
-          recipient_id: offendingTenant?.user_id || null,
-          tenant_id: offendingTenant?.id || null,
-          body: violationBody,
-          read: false,
-        });
+          const { error: noticeErr } = await supabase.from("messages").insert({
+            sender_id: null,
+            recipient_id: offendingTenant.user_id,
+            tenant_id: null,
+            body: violationBody,
+            read: false,
+          });
 
-        if (noticeErr) console.error("Violation notice error:", noticeErr);
+          if (noticeErr) console.error("Violation notice error:", noticeErr);
+        }
       }
     }
 
-    // ── 7. Emergency email + landlord alert ──────────────────
+    // ── 7. Emergency email to landlord ───────────────────────
     if (classification.tier === "TIER1_EMERGENCY" || classification.escalate_to_landlord) {
+      // Insert landlord alert
       const { error: alertErr } = await supabase.from("landlord_alerts").insert({
         type: classification.tier === "TIER1_EMERGENCY" ? "emergency" : "ai_escalation",
         category: classification.category,
@@ -347,6 +386,7 @@ Modus Property Management`;
 
       if (alertErr) console.error("Landlord alert error:", alertErr);
 
+      // Send emergency email for TIER 1
       if (classification.tier === "TIER1_EMERGENCY") {
         try {
           await resend.emails.send({
@@ -354,30 +394,31 @@ Modus Property Management`;
             to: LANDLORD_EMAIL,
             subject: `🚨 EMERGENCY — ${tenant?.units?.properties?.name || "Property"} Unit ${tenant?.units?.unit_number || "Unknown"}`,
             html: `
-              <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-                <div style="background:#c0392b;color:white;padding:20px;border-radius:8px 8px 0 0;">
-                  <h1 style="margin:0;font-size:22px;">🚨 Emergency Alert — Modus PM</h1>
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #c0392b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                  <h1 style="margin: 0; font-size: 22px;">🚨 Emergency Alert — Modus PM</h1>
                 </div>
-                <div style="background:#f8f8f8;padding:24px;border:1px solid #ddd;border-radius:0 0 8px 8px;">
+                <div style="background: #f8f8f8; padding: 24px; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
                   <p><strong>Property:</strong> ${tenant?.units?.properties?.name || "Unknown"}</p>
                   <p><strong>Unit:</strong> ${tenant?.units?.unit_number || "Unknown"}</p>
                   <p><strong>Tenant:</strong> ${tenant?.name || "Unknown"}</p>
                   <p><strong>Urgency:</strong> ${classification.urgency}</p>
                   <p><strong>Category:</strong> ${classification.category}</p>
-                  <hr style="border:none;border-top:1px solid #ddd;margin:16px 0;" />
+                  <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
                   <p><strong>Tenant Message:</strong></p>
-                  <blockquote style="border-left:4px solid #c0392b;margin:0;padding:12px 16px;background:#fff;">
+                  <blockquote style="border-left: 4px solid #c0392b; margin: 0; padding: 12px 16px; background: #fff; color: #333;">
                     ${message}
                   </blockquote>
-                  <hr style="border:none;border-top:1px solid #ddd;margin:16px 0;" />
+                  <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
                   <p><strong>AI Summary:</strong> ${classification.intent_summary}</p>
-                  <p><strong>Reply Sent to Tenant:</strong></p>
-                  <blockquote style="border-left:4px solid #888;margin:0;padding:12px 16px;background:#fff;color:#555;">
-                    ${finalReply}
+                  <p><strong>AI Reply Sent to Tenant:</strong></p>
+                  <blockquote style="border-left: 4px solid #888; margin: 0; padding: 12px 16px; background: #fff; color: #555;">
+                    ${classification.tenant_reply}
                   </blockquote>
-                  <p style="margin-top:24px;color:#888;font-size:12px;">Modus Property Management · Automated Emergency Alert</p>
+                  <p style="margin-top: 24px; color: #888; font-size: 12px;">Modus Property Management · Automated Emergency Alert</p>
                 </div>
-              </div>`,
+              </div>
+            `,
           });
         } catch (emailErr) {
           console.error("Emergency email error:", emailErr);
@@ -415,7 +456,7 @@ Modus Property Management`;
       urgency: classification.urgency,
       confidence: classification.confidence,
       intent_summary: classification.intent_summary,
-      tenant_reply: finalReply,
+      tenant_reply: classification.tenant_reply,
       missing_info: classification.missing_info,
       ticket_id: ticketId,
       incident_id: incidentId,
