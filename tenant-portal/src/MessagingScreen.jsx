@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
@@ -28,20 +28,32 @@ const QUICK_REPLIES = [
 ];
 
 export default function MessagingScreen() {
-  const navigate        = useNavigate();
-  const { tenant }      = useTenant();
-  const [messages, setMessages] = useState([]);
-  const [input, setInput]       = useState("");
-  const [loading, setLoading]   = useState(true);
-  const [sending, setSending]   = useState(false);
-  const tenantIdRef   = useRef(null);
+  const navigate = useNavigate();
+  const { tenant } = useTenant();
+
+  // ── State (triggers re-renders) ────────────────────────────
+  const [messages, setMessages]   = useState([]);
+  const [input, setInput]         = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [sending, setSending]     = useState(false);
+  const [myUserId, setMyUserId]   = useState(null);   // STATE — drives fromProperty render
+  const [tenantId, setTenantId]   = useState(null);
+
+  // ── Refs (for async callbacks/closures, no re-render needed) ──
+  const myUserIdRef   = useRef(null);   // mirrors myUserId for use inside closures
+  const tenantIdRef   = useRef(null);   // mirrors tenantId for use inside closures
   const landlordIdRef = useRef(null);
-  const myUserIdRef   = useRef(null);
   const pollRef       = useRef(null);
   const bottomRef     = useRef(null);
 
-  useEffect(() => { init(); return () => clearInterval(pollRef.current); }, []);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    init();
+    return () => clearInterval(pollRef.current);
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   async function fetchMessages() {
     const tId = tenantIdRef.current;
@@ -57,11 +69,16 @@ export default function MessagingScreen() {
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
+
+    // Set BOTH state (for render) and ref (for closures)
+    setMyUserId(user.id);
     myUserIdRef.current = user.id;
 
     const { data: tenantData } = await supabase
       .from("tenants").select("id").eq("user_id", user.id).single();
     if (!tenantData) { setLoading(false); return; }
+
+    setTenantId(tenantData.id);
     tenantIdRef.current = tenantData.id;
 
     const { data: firstMsg } = await supabase
@@ -74,9 +91,11 @@ export default function MessagingScreen() {
     await fetchMessages();
 
     await supabase.from("messages").update({ read: true })
-      .eq("tenant_id", tenantData.id).eq("recipient_id", user.id).eq("read", false);
+      .eq("tenant_id", tenantData.id)
+      .eq("recipient_id", user.id)
+      .eq("read", false);
 
-    // Poll every 2 seconds — simple, no race conditions
+    // Poll every 2 seconds to pick up AI replies
     pollRef.current = setInterval(fetchMessages, 2000);
 
     setLoading(false);
@@ -95,8 +114,11 @@ export default function MessagingScreen() {
     }).select().single();
 
     if (!error && data) {
-      // Immediately add to state so it shows right away
-      setMessages(prev => [...prev, data]);
+      // Append confirmed record immediately so it shows without waiting for next poll
+      setMessages(prev => {
+        if (prev.some(m => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
 
       // Fire AI routing — non-blocking
       fetch("/api/classify-and-route", {
@@ -113,6 +135,7 @@ export default function MessagingScreen() {
     setSending(false);
   }
 
+  // Group messages by date for display
   const grouped = [];
   let lastDate = null;
   messages.forEach(msg => {
@@ -145,18 +168,35 @@ export default function MessagingScreen() {
 
         {/* Messages */}
         <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px", display:"flex", flexDirection:"column", gap:4 }}>
-          {loading && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Loading messages…</div>}
-          {!loading && !tenantIdRef.current && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Your account isn't linked to a unit yet. Contact your property manager.</div>}
-          {!loading && tenantIdRef.current && messages.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>No messages yet — send a message to get started.</div>}
+          {loading && (
+            <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Loading messages…</div>
+          )}
+          {!loading && !tenantId && (
+            <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>
+              Your account isn't linked to a unit yet. Contact your property manager.
+            </div>
+          )}
+          {!loading && tenantId && messages.length === 0 && (
+            <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>
+              No messages yet — send a message to get started.
+            </div>
+          )}
 
           {grouped.map((item, i) => {
             if (item.type === "date") return (
-              <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>{item.label}</div>
+              <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>
+                {item.label}
+              </div>
             );
 
-            // LEFT = AI/management: sender_id is null OR not the logged-in user
-            // RIGHT = this tenant's own message
-            const fromProperty = item.sender_id === null || item.sender_id !== myUserIdRef.current;
+            // Use myUserId STATE (not ref) so this re-evaluates when user ID loads.
+            // fromProperty = true  → left side, M avatar (AI / management)
+            // fromProperty = false → right side, gold bubble (this tenant)
+            //
+            // While myUserId is null (still loading), only sender_id===null messages
+            // show on the left; all others are withheld from side-assignment until
+            // the user ID resolves.
+            const fromProperty = item.sender_id === null || (myUserId !== null && item.sender_id !== myUserId);
 
             return (
               <div key={item.id}>
@@ -174,7 +214,7 @@ export default function MessagingScreen() {
               </div>
             );
           })}
-          <div ref={bottomRef}/>
+          <div ref={bottomRef} />
         </div>
 
         {/* Quick replies */}
@@ -189,12 +229,17 @@ export default function MessagingScreen() {
 
         {/* Input */}
         <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"flex-end", gap:10, flexShrink:0 }}>
-          <textarea value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage(input);} }}
-            placeholder="Message Modus Property Management…" rows={1}
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+            placeholder="Message Modus Property Management…"
+            rows={1}
             style={{ flex:1, padding:"10px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:18, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:100 }}
           />
-          <button onClick={()=>sendMessage(input)} disabled={!input.trim() || sending}
+          <button
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim() || sending}
             style={{ width:38, height:38, borderRadius:"50%", background:input.trim()?C.goldDim:C.raised, border:`1px solid ${input.trim()?C.goldDim:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:input.trim()?C.gold:C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
             ➤
           </button>
