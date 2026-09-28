@@ -36,8 +36,9 @@ export default function MessagingScreen() {
   const [tenantId, setTenantId]     = useState(null);
   const [landlordId, setLandlordId] = useState(null);
   const [myUserId, setMyUserId]     = useState(null);
-  const myUserIdRef = useRef(null);
-  const bottomRef   = useRef(null);
+  const myUserIdRef     = useRef(null);
+  const pendingSent     = useRef(new Set()); // bodies of messages we sent, awaiting realtime confirm
+  const bottomRef       = useRef(null);
 
   useEffect(() => { init(); }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -46,7 +47,7 @@ export default function MessagingScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
     setMyUserId(user.id);
-    myUserIdRef.current = user.id; // keep a ref for use inside closures
+    myUserIdRef.current = user.id;
 
     const { data: tenantData } = await supabase
       .from("tenants").select("id").eq("user_id", user.id).single();
@@ -70,22 +71,29 @@ export default function MessagingScreen() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
         if (payload.new.tenant_id !== tenantData.id) return;
 
+        const incoming = payload.new;
+
         setMessages(prev => {
-          // If this is the confirmed version of an optimistic message, replace it
-       const optimisticIndex = payload.new.sender_id === null ? -1 : prev.findIndex(
-  m => m.id?.toString().startsWith("temp-") &&
-       m.sender_id === payload.new.sender_id &&
-       m.body === payload.new.body
-);
-          if (optimisticIndex !== -1) {
-            const next = [...prev];
-            next[optimisticIndex] = payload.new;
-            return next;
+          // Already in state by real ID — ignore
+          if (prev.some(m => m.id === incoming.id)) return prev;
+
+          // This is a message WE sent — replace the optimistic bubble
+          if (
+            incoming.sender_id === myUserIdRef.current &&
+            pendingSent.current.has(incoming.body)
+          ) {
+            pendingSent.current.delete(incoming.body);
+            return prev.map(m =>
+              m.id?.toString().startsWith("temp-") &&
+              m.body === incoming.body &&
+              m.sender_id === myUserIdRef.current
+                ? incoming
+                : m
+            );
           }
-          // Already have this confirmed message
-          if (prev.some(m => m.id === payload.new.id)) return prev;
-          // New message (AI reply, management, or another tenant's device) — append
-          return [...prev, payload.new];
+
+          // AI reply (sender_id === null) or any other new message — append
+          return [...prev, incoming];
         });
       }).subscribe();
 
@@ -107,17 +115,20 @@ export default function MessagingScreen() {
     }
     if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
 
-    // Optimistic message — sender_id is always the logged-in user, never null
+    const body = text.trim();
     const optimisticId = `temp-${Date.now()}`;
     const optimistic = {
       id: optimisticId,
-      sender_id: myUserId,   // explicitly the tenant — never null
+      sender_id: myUserId,
       recipient_id: lId,
       tenant_id: tenantId,
-      body: text.trim(),
+      body,
       created_at: new Date().toISOString(),
       read: false,
     };
+
+    // Register this body BEFORE the insert so realtime handler can match it
+    pendingSent.current.add(body);
     setMessages(prev => [...prev, optimistic]);
     setInput("");
 
@@ -125,23 +136,28 @@ export default function MessagingScreen() {
       sender_id: myUserId,
       recipient_id: lId,
       tenant_id: tenantId,
-      body: text.trim(),
+      body,
     }).select().single();
 
     if (error) {
-      // Insert failed — remove optimistic bubble
+      pendingSent.current.delete(body);
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
     } else if (data) {
-      // Replace optimistic with confirmed record by ID
-      // (realtime may also arrive and replace it — the ID check prevents duplication)
-      setMessages(prev => prev.map(m => m.id === optimisticId ? data : m));
+      // Replace optimistic with confirmed — if realtime already handled it,
+      // this map finds nothing with optimisticId and is a no-op (safe)
+      pendingSent.current.delete(body);
+      setMessages(prev =>
+        prev.some(m => m.id === optimisticId)
+          ? prev.map(m => m.id === optimisticId ? data : m)
+          : prev // realtime already replaced it
+      );
 
-      // 🤖 Fire AI routing — non-blocking, never echoes a message
+      // Fire AI routing — non-blocking
       fetch("/api/classify-and-route", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: text.trim(),
+          message: body,
           tenant_id: tenantId,
           message_id: data.id,
         }),
@@ -190,8 +206,8 @@ export default function MessagingScreen() {
               <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>{item.label}</div>
             );
 
-            // LEFT = sender_id is null (AI/management) or not the logged-in user
-            // RIGHT = sender_id matches the logged-in user
+            // LEFT = AI/management (sender_id null) or not the logged-in user
+            // RIGHT = the logged-in tenant
             const fromProperty = item.sender_id === null || item.sender_id !== myUserId;
 
             return (
