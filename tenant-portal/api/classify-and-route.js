@@ -164,7 +164,11 @@ Classify and determine the correct autonomous action.`,
         ],
       });
 
-      classification = JSON.parse(completion.choices[0]?.message?.content?.trim());
+      const rawContent = completion.choices[0]?.message?.content?.trim();
+      console.log("OpenAI raw output:", rawContent);
+      console.log("OpenAI usage:", JSON.stringify(completion.usage));
+      classification = JSON.parse(rawContent);
+      console.log("Parsed tenant_reply:", classification?.tenant_reply);
     } catch (aiErr) {
       console.error("OpenAI error:", aiErr);
       classification = {
@@ -186,11 +190,21 @@ Classify and determine the correct autonomous action.`,
     }
 
     // ── 4. Send tenant reply ─────────────────────────────────
+    // Safe fallback — never echo the tenant's own message back
+    const finalReply =
+      classification?.tenant_reply &&
+      classification.tenant_reply.trim().length > 0 &&
+      classification.tenant_reply.trim() !== message.trim()
+        ? classification.tenant_reply.trim()
+        : "Thank you for your message. Property Management has received this and will review it shortly.";
+
+    console.log("Final reply being inserted:", finalReply);
+
     const { error: replyErr } = await supabase.from("messages").insert({
       sender_id: null,
       recipient_id: tenant?.user_id || null,
       tenant_id: tenant_id,
-      body: classification.tenant_reply,
+      body: finalReply,
       read: false,
     });
 
@@ -361,7 +375,7 @@ Modus Property Management`;
                   <p><strong>AI Summary:</strong> ${classification.intent_summary}</p>
                   <p><strong>Reply Sent to Tenant:</strong></p>
                   <blockquote style="border-left:4px solid #888;margin:0;padding:12px 16px;background:#fff;color:#555;">
-                    ${classification.tenant_reply}
+                    ${finalReply}
                   </blockquote>
                   <p style="margin-top:24px;color:#888;font-size:12px;">Modus Property Management · Automated Emergency Alert</p>
                 </div>
@@ -403,7 +417,7 @@ Modus Property Management`;
       urgency: classification.urgency,
       confidence: classification.confidence,
       intent_summary: classification.intent_summary,
-      tenant_reply: classification.tenant_reply,
+      tenant_reply: finalReply,
       missing_info: classification.missing_info,
       ticket_id: ticketId,
       incident_id: incidentId,
