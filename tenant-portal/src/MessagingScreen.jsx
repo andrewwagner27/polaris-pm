@@ -143,14 +143,17 @@ export default function MessagingScreen() {
       pendingSent.current.delete(body);
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
     } else if (data) {
-      // Replace optimistic with confirmed — if realtime already handled it,
-      // this map finds nothing with optimisticId and is a no-op (safe)
-      pendingSent.current.delete(body);
+      // Replace optimistic with the confirmed record.
+      // Do NOT delete from pendingSent here — let the realtime handler do it,
+      // so if realtime fires after this point it still knows to replace, not append.
       setMessages(prev =>
         prev.some(m => m.id === optimisticId)
           ? prev.map(m => m.id === optimisticId ? data : m)
-          : prev // realtime already replaced it
+          : prev // realtime already replaced the optimistic
       );
+
+      // Clean up pendingSent after 5s in case realtime never fires
+      setTimeout(() => pendingSent.current.delete(body), 5000);
 
       // Fire AI routing — non-blocking
       fetch("/api/classify-and-route", {
