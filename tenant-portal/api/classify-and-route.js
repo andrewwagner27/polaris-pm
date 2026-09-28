@@ -34,7 +34,7 @@ const CLASSIFICATION_SCHEMA = {
       confidence: { type: "number" },
       urgency: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "EMERGENCY"] },
       intent_summary: { type: "string" },
-      tenant_reply: { type: "string" },
+      tenant_reply: { type: "string", description: "Your professional reply TO the tenant FROM management. This must be a complete, helpful response written by you — NOT the tenant's own message repeated back. Write in first person plural as Modus Property Management." },
       missing_info: { type: "array", items: { type: "string" } },
       billable_to_tenant: { type: "boolean" },
       create_maintenance_ticket: { type: "boolean" },
@@ -159,7 +159,7 @@ ${threadContext || "(no prior messages)"}
 New tenant message:
 "${message}"
 
-Classify and determine the correct autonomous action.`,
+Classify and determine the correct autonomous action. In tenant_reply, write YOUR response to the tenant — a professional reply FROM management. Do not repeat the tenant's message.`,
           },
         ],
       });
@@ -222,8 +222,6 @@ Classify and determine the correct autonomous action.`,
           description: message,
           status: "open",
           priority: classification.urgency === "EMERGENCY" || classification.urgency === "HIGH" ? "urgent" : "normal",
-          ai_generated: true,
-          ai_intent_summary: classification.intent_summary,
           billable_to_tenant: classification.billable_to_tenant,
           is_emergency: classification.tier === "TIER1_EMERGENCY",
         })
