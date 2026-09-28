@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
@@ -30,142 +30,87 @@ const QUICK_REPLIES = [
 export default function MessagingScreen() {
   const navigate        = useNavigate();
   const { tenant }      = useTenant();
-  const [messages, setMessages]     = useState([]);
-  const [input, setInput]           = useState("");
-  const [loading, setLoading]       = useState(true);
-  const [tenantId, setTenantId]     = useState(null);
-  const [landlordId, setLandlordId] = useState(null);
-  const [myUserId, setMyUserId]     = useState(null);
-  const myUserIdRef     = useRef(null);
-  const pendingSent     = useRef(new Set()); // bodies of messages we sent, awaiting realtime confirm
-  const bottomRef       = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput]       = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [sending, setSending]   = useState(false);
+  const tenantIdRef   = useRef(null);
+  const landlordIdRef = useRef(null);
+  const myUserIdRef   = useRef(null);
+  const pollRef       = useRef(null);
+  const bottomRef     = useRef(null);
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => { init(); return () => clearInterval(pollRef.current); }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  async function fetchMessages() {
+    const tId = tenantIdRef.current;
+    if (!tId) return;
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("tenant_id", tId)
+      .order("created_at", { ascending: true });
+    if (data) setMessages(data);
+  }
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
-    setMyUserId(user.id);
     myUserIdRef.current = user.id;
 
     const { data: tenantData } = await supabase
       .from("tenants").select("id").eq("user_id", user.id).single();
     if (!tenantData) { setLoading(false); return; }
-    setTenantId(tenantData.id);
+    tenantIdRef.current = tenantData.id;
 
     const { data: firstMsg } = await supabase
       .from("messages").select("sender_id, recipient_id")
       .eq("tenant_id", tenantData.id).limit(1).single();
-    const lId = firstMsg
+    landlordIdRef.current = firstMsg
       ? (firstMsg.sender_id !== user.id ? firstMsg.sender_id : firstMsg.recipient_id)
-      : null;
-    setLandlordId(lId);
+      : "858462c7-d86a-498f-8cc1-3fc1eecb1888";
 
-    await fetchMessages(tenantData.id);
+    await fetchMessages();
 
     await supabase.from("messages").update({ read: true })
       .eq("tenant_id", tenantData.id).eq("recipient_id", user.id).eq("read", false);
 
-    supabase.channel(`tenant-messages-${tenantData.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
-        if (payload.new.tenant_id !== tenantData.id) return;
-
-        const incoming = payload.new;
-
-        setMessages(prev => {
-          // Already in state by real ID — ignore
-          if (prev.some(m => m.id === incoming.id)) return prev;
-
-          // This is a message WE sent — replace the optimistic bubble
-          if (
-            incoming.sender_id === myUserIdRef.current &&
-            pendingSent.current.has(incoming.body)
-          ) {
-            pendingSent.current.delete(incoming.body);
-            return prev.map(m =>
-              m.id?.toString().startsWith("temp-") &&
-              m.body === incoming.body &&
-              m.sender_id === myUserIdRef.current
-                ? incoming
-                : m
-            );
-          }
-
-          // AI reply (sender_id === null) or any other new message — append
-          return [...prev, incoming];
-        });
-      }).subscribe();
+    // Poll every 2 seconds — simple, no race conditions
+    pollRef.current = setInterval(fetchMessages, 2000);
 
     setLoading(false);
   }
 
-  async function fetchMessages(tId) {
-    const { data } = await supabase.from("messages").select("*")
-      .eq("tenant_id", tId).order("created_at", { ascending: true });
-    setMessages(data || []);
-  }
-
   async function sendMessage(text) {
-    if (!text.trim() || !myUserId || !tenantId) return;
-    let lId = landlordId;
-    if (!lId) {
-      lId = "858462c7-d86a-498f-8cc1-3fc1eecb1888";
-      setLandlordId(lId);
-    }
-    if (!lId) { alert("Unable to find property manager. Please contact support."); return; }
-
-    const body = text.trim();
-    const optimisticId = `temp-${Date.now()}`;
-    const optimistic = {
-      id: optimisticId,
-      sender_id: myUserId,
-      recipient_id: lId,
-      tenant_id: tenantId,
-      body,
-      created_at: new Date().toISOString(),
-      read: false,
-    };
-
-    // Register this body BEFORE the insert so realtime handler can match it
-    pendingSent.current.add(body);
-    setMessages(prev => [...prev, optimistic]);
+    if (!text.trim() || sending || !myUserIdRef.current || !tenantIdRef.current) return;
+    setSending(true);
     setInput("");
 
     const { data, error } = await supabase.from("messages").insert({
-      sender_id: myUserId,
-      recipient_id: lId,
-      tenant_id: tenantId,
-      body,
+      sender_id: myUserIdRef.current,
+      recipient_id: landlordIdRef.current,
+      tenant_id: tenantIdRef.current,
+      body: text.trim(),
     }).select().single();
 
-    if (error) {
-      pendingSent.current.delete(body);
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
-    } else if (data) {
-      // Replace optimistic with the confirmed record.
-      // Do NOT delete from pendingSent here — let the realtime handler do it,
-      // so if realtime fires after this point it still knows to replace, not append.
-      setMessages(prev =>
-        prev.some(m => m.id === optimisticId)
-          ? prev.map(m => m.id === optimisticId ? data : m)
-          : prev // realtime already replaced the optimistic
-      );
-
-      // Clean up pendingSent after 5s in case realtime never fires
-      setTimeout(() => pendingSent.current.delete(body), 5000);
+    if (!error && data) {
+      // Immediately add to state so it shows right away
+      setMessages(prev => [...prev, data]);
 
       // Fire AI routing — non-blocking
       fetch("/api/classify-and-route", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: body,
-          tenant_id: tenantId,
+          message: text.trim(),
+          tenant_id: tenantIdRef.current,
           message_id: data.id,
         }),
       }).catch(() => {});
     }
+
+    setSending(false);
   }
 
   const grouped = [];
@@ -201,17 +146,17 @@ export default function MessagingScreen() {
         {/* Messages */}
         <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px", display:"flex", flexDirection:"column", gap:4 }}>
           {loading && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Loading messages…</div>}
-          {!loading && !tenantId && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Your account isn't linked to a unit yet. Contact your property manager.</div>}
-          {!loading && tenantId && messages.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>No messages yet — send a message to get started.</div>}
+          {!loading && !tenantIdRef.current && <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Your account isn't linked to a unit yet. Contact your property manager.</div>}
+          {!loading && tenantIdRef.current && messages.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, fontSize:13, marginTop:40 }}>No messages yet — send a message to get started.</div>}
 
           {grouped.map((item, i) => {
             if (item.type === "date") return (
               <div key={`d-${i}`} style={{ textAlign:"center", fontSize:11, color:C.textMuted, margin:"10px 0 6px", fontWeight:500 }}>{item.label}</div>
             );
 
-            // LEFT = AI/management (sender_id null) or not the logged-in user
-            // RIGHT = the logged-in tenant
-            const fromProperty = item.sender_id === null || item.sender_id !== myUserId;
+            // LEFT = AI/management: sender_id is null OR not the logged-in user
+            // RIGHT = this tenant's own message
+            const fromProperty = item.sender_id === null || item.sender_id !== myUserIdRef.current;
 
             return (
               <div key={item.id}>
@@ -249,7 +194,7 @@ export default function MessagingScreen() {
             placeholder="Message Modus Property Management…" rows={1}
             style={{ flex:1, padding:"10px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:18, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:100 }}
           />
-          <button onClick={()=>sendMessage(input)} disabled={!input.trim()}
+          <button onClick={()=>sendMessage(input)} disabled={!input.trim() || sending}
             style={{ width:38, height:38, borderRadius:"50%", background:input.trim()?C.goldDim:C.raised, border:`1px solid ${input.trim()?C.goldDim:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:input.trim()?C.gold:C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
             ➤
           </button>
