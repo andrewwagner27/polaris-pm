@@ -1,5 +1,5 @@
 // /api/classify-and-route.js
-// Modus PM — Autonomous Property Manager Reasoning Engine v2
+// Modus PM — Autonomous Property Manager Reasoning Engine v3
 // 4-Tier Escalation: EMERGENCY | TENANT_DAMAGE | MAINTENANCE | DISPUTE
 // Accepts: POST { message: string, tenant_id: string, message_id?: string }
 
@@ -49,7 +49,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       tenant_reply: {
         type: "string",
-        description: "Authoritative reply to send to tenant on behalf of Modus Property Management. Professional tone. Never mention a specific landlord's name. First person plural ('We', 'Management'). If asking for more information, ask exactly what is missing (unit number, time of incident, type of disturbance, photos, etc.)."
+        description: "Your complete, professional reply TO the tenant FROM Modus Property Management. Write in first person plural ('We', 'Management'). Reference the specific policy where relevant. Never mention a landlord's name. Do NOT repeat the tenant's own message back to them."
       },
       missing_info: {
         type: "array",
@@ -102,18 +102,47 @@ Your mission: resolve 95%+ of tenant issues without landlord involvement while p
 
 NEVER mention a specific landlord name. Always speak as "Management" or "Modus Property Management" or "We."
 
-TIER CLASSIFICATION RULES:
+━━━ BUILDING POLICIES (reference these when relevant) ━━━
+
+RENT & LATE FEES:
+- Rent is due on the 1st of each month.
+- A $50 late fee is charged on the 6th if rent has not been received.
+- All payments are processed through Hemlane.
+
+PARKING:
+- Off-street reserved parking spaces are available for $50/month with prior written approval from Management.
+- Unreserved vehicles and guests must park on the street.
+- Unauthorized vehicles in reserved spaces are subject to immediate towing at the vehicle owner's expense.
+
+QUIET HOURS (Lakewood Ordinance § 515.03):
+- Sunday–Thursday: 10:00 PM – 8:00 AM
+- Friday–Saturday: 11:00 PM – 9:00 AM
+
+PETS:
+- Pets are strictly prohibited without prior written consent from Management and a fully executed pet addendum.
+
+SMOKING & MARIJUANA:
+- Smoking and marijuana use are strictly prohibited anywhere on the premises, including all indoor and outdoor areas.
+
+MAINTENANCE RESPONSIBILITIES:
+- Tenant responsibility: lightbulbs, HVAC filters, and drain clogs caused by misuse (hair, grease, etc.)
+- Management responsibility: heating systems, plumbing, electrical, and major appliance repairs.
+
+GUEST POLICY:
+- Guests may not stay more than 7 consecutive nights or 14 total nights per calendar year without written approval from Management.
+
+━━━ TIER CLASSIFICATION RULES ━━━
 
 TIER 1 — EMERGENCY & HABITABILITY RISK:
 Triggers: no heat in winter, active water leak/flooding, gas smell, fire risk, no hot water (extended), structural damage, security breach, broken exterior locks
 → escalate_to_landlord: true, urgency: EMERGENCY
 → Reply must include immediate safety instructions (turn off main water, evacuate if gas, etc.)
-→ Create maintenance ticket with is_emergency: true
+→ create_maintenance_ticket: true, is_emergency: true
 
 TIER 2 — TENANT-CAUSED DAMAGE:
 Triggers: pet damage (urine, scratching), tenant broke window/door, clogged drain (hair, grease), self-caused appliance damage, hoarding issues
 → billable_to_tenant: true
-→ Remind tenant of lease responsibility clause firmly but professionally
+→ Remind tenant of their lease responsibility firmly but professionally
 → Request photos and details
 → create_incident_log: true
 
@@ -121,20 +150,22 @@ TIER 3 — STANDARD PROPERTY MAINTENANCE:
 Triggers: appliance failure (not tenant-caused), leaking faucet, HVAC issues, pest intrusion, lock malfunction
 → Ask 1-2 targeted troubleshooting questions first (check breaker? clean lint trap? tried reset?)
 → create_maintenance_ticket: true, dispatch_vendor: true (if troubleshooting insufficient or already tried)
+→ Remind tenant of their maintenance responsibilities (filters, lightbulbs) if relevant
 
 TIER 4 — NEIGHBOR DISPUTES & LEASE VIOLATIONS:
 Triggers: noise complaints, parking disputes, trash violations, smoking violations, unauthorized pets/guests
-→ "Management has opened an official incident record..."
+→ Open with: "Management has opened an official incident record..."
+→ Reference the specific policy that was violated (quiet hours, parking rules, smoking policy, pet policy, guest policy)
 → If offending unit unknown: ask for unit number, time, nature of disturbance, any evidence
 → create_incident_log: true
 → send_violation_notice: true ONLY if offending unit is clearly identified
 
 PAYMENT & LEGAL:
 → Always escalate_to_landlord: true
-→ Never negotiate payment terms or make legal statements in the tenant reply
+→ Refer tenant to Hemlane for payment questions; never negotiate terms or make legal statements
 
 GENERAL INQUIRY:
-→ Answer helpfully, no ticket needed`;
+→ Answer helpfully using the building policies above; no ticket needed`;
 
 // ── Main handler ───────────────────────────────────────────
 export default async function handler(req, res) {
@@ -200,7 +231,7 @@ ${threadContext || "(no prior messages)"}
 New tenant message:
 "${message}"
 
-Classify this message and determine the correct autonomous action.`,
+Classify this message, determine the correct autonomous action, and write your professional reply to the tenant in tenant_reply. Do NOT repeat the tenant's message in tenant_reply — write Management's response.`,
           },
         ],
       });
@@ -216,7 +247,7 @@ Classify this message and determine the correct autonomous action.`,
         confidence: 0.2,
         urgency: "MEDIUM",
         intent_summary: "AI classification unavailable — escalated for human review",
-        tenant_reply: "Thank you for your message. A member of our management team will follow up with you shortly.",
+        tenant_reply: "Thank you for reaching out. Property Management has logged your request and will follow up shortly.",
         missing_info: [],
         billable_to_tenant: false,
         create_maintenance_ticket: false,
@@ -229,11 +260,14 @@ Classify this message and determine the correct autonomous action.`,
     }
 
     // ── 4. Send tenant reply ─────────────────────────────────
+    // Guard: never echo the tenant's own message back
+    const finalReply = classification?.tenant_reply || "Thank you for reaching out. Property Management has logged your request and will follow up shortly.";
+
     const { error: replyErr } = await supabase.from("messages").insert({
       sender_id: null,
       recipient_id: tenant?.user_id || null,
       tenant_id: tenant_id,
-      body: classification.tenant_reply,
+      body: finalReply,
       read: false,
     });
 
@@ -348,7 +382,7 @@ Classify this message and determine the correct autonomous action.`,
 
 Management has received a formal complaint regarding a disturbance originating from your unit. This notice is being issued in accordance with your lease agreement.
 
-Nature of Complaint: ${classification.category.replace("_", " ")}
+Nature of Complaint: ${classification.category.replace(/_/g, " ")}
 Date of Notice: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
 
 You are required to remedy this situation immediately. Continued violations may result in formal lease enforcement action, including written warnings, fines, or lease termination proceedings as permitted under your rental agreement.
@@ -372,7 +406,6 @@ Modus Property Management`;
 
     // ── 7. Emergency email to landlord ───────────────────────
     if (classification.tier === "TIER1_EMERGENCY" || classification.escalate_to_landlord) {
-      // Insert landlord alert
       const { error: alertErr } = await supabase.from("landlord_alerts").insert({
         type: classification.tier === "TIER1_EMERGENCY" ? "emergency" : "ai_escalation",
         category: classification.category,
@@ -386,7 +419,6 @@ Modus Property Management`;
 
       if (alertErr) console.error("Landlord alert error:", alertErr);
 
-      // Send emergency email for TIER 1
       if (classification.tier === "TIER1_EMERGENCY") {
         try {
           await resend.emails.send({
@@ -413,7 +445,7 @@ Modus Property Management`;
                   <p><strong>AI Summary:</strong> ${classification.intent_summary}</p>
                   <p><strong>AI Reply Sent to Tenant:</strong></p>
                   <blockquote style="border-left: 4px solid #888; margin: 0; padding: 12px 16px; background: #fff; color: #555;">
-                    ${classification.tenant_reply}
+                    ${finalReply}
                   </blockquote>
                   <p style="margin-top: 24px; color: #888; font-size: 12px;">Modus Property Management · Automated Emergency Alert</p>
                 </div>
@@ -456,7 +488,7 @@ Modus Property Management`;
       urgency: classification.urgency,
       confidence: classification.confidence,
       intent_summary: classification.intent_summary,
-      tenant_reply: classification.tenant_reply,
+      tenant_reply: finalReply,
       missing_info: classification.missing_info,
       ticket_id: ticketId,
       incident_id: incidentId,
