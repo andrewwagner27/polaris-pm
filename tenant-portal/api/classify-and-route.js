@@ -62,7 +62,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       create_maintenance_ticket: {
         type: "boolean",
-        description: "True if a maintenance_requests record should be created"
+        description: "Almost always FALSE. Only true if the tenant has already submitted a ticket through the portal themselves, or if this is a TIER1_EMERGENCY requiring immediate vendor dispatch. Do NOT create a ticket just because a tenant reports an issue — troubleshoot first, then direct them to submit their own ticket with photos."
       },
       create_incident_log: {
         type: "boolean",
@@ -150,11 +150,12 @@ GUESTS: Max 7 consecutive nights or 14 nights/year without written approval.
 ━━━ HOW TO HANDLE MESSAGES ━━━
 
 MAINTENANCE ISSUES:
-- Troubleshoot first. Ask one simple, specific question at a time. Assume the tenant is not technical.
-- Use plain language — never say "water supply valve," "P-trap," "breaker panel" without explaining it simply.
-- If you can't resolve it through troubleshooting, tell them to submit a maintenance ticket through the portal with photos and a description so we can get the right person out.
-- Never auto-create a ticket. Let the tenant submit it themselves.
-- If the issue could cause damage if left unattended (active leak, no heat in winter, electrical issue), escalate to management immediately AND tell the tenant help is on the way.
+- Troubleshoot first. Ask ONE simple question at a time. Do not ask multiple questions at once.
+- Use plain language. No technical jargon.
+- NEVER tell the tenant you're creating a ticket or dispatching a vendor. That is not your job here.
+- NEVER set create_maintenance_ticket: true just because a tenant reports an issue.
+- If troubleshooting doesn't resolve it, tell them to submit a ticket through the portal with photos so we can get the right person out.
+- Only exception: active emergencies (flooding, no heat in winter, gas smell) — escalate_to_landlord: true AND tell tenant help is on the way.
 
 CROSS-UNIT LEAKS:
 - If a tenant reports a ceiling leak or water coming from above, tell them you're on it and escalate to management right away. Management will contact the unit above directly.
