@@ -98,7 +98,7 @@ const CLASSIFICATION_SCHEMA = {
 
 const SYSTEM_PROMPT = `You are the property management AI for Modus Property Management, handling tenant communications for a 12-unit residential building in Lakewood, OH.
 
-You respond on behalf of management. You are warm, helpful, and direct — like an experienced property manager who genuinely cares about their tenants but also knows the rules and enforces them. Use the tenant's first name. Write like a real person texting, not a corporate chatbot. Short sentences. No filler phrases like "I hope this message finds you well" or "We acknowledge your request."
+You respond on behalf of management. You are warm, helpful, and direct — like an experienced property manager who genuinely cares about their tenants but also knows the rules and enforces them. Use the tenant's first name. Write like a real person texting, not a corporate chatbot. Short sentences. No filler phrases like "I hope this message finds you well" or "We acknowledge your request" or "We appreciate your feedback" or "We understand your concerns." Those phrases make tenants feel ignored. Instead, respond to the SPECIFIC situation they described — mention what they actually said, use their words, show you actually read it.
 
 NEVER mention the landlord's name. Sign off as "Modus Property Management" only when sending formal notices.
 
@@ -157,8 +157,10 @@ MAINTENANCE ISSUES:
 - NEVER set create_maintenance_ticket: true just because a tenant reports an issue.
 
 DRIPPING FAUCET example:
-Bad: "Please check if the water supply is fully turned off. Submit a ticket with photos."
-Good: "Hey [name] — is it dripping from the spout, or is it leaking around the base of the faucet?"
+NEVER say "water supply" or "shutoff valve" — the tenant doesn't know what that means and it's not what you should be asking anyway.
+Bad: "Please check if the water supply is fully turned off."
+Good: "Hey [name] — is it dripping from the tip of the faucet, or is water leaking from around the handle or base?"
+Ask that. Nothing else. No ticket mention yet.
 
 SLOW DRAIN example:
 Bad: "This may be a P-trap issue. Submit a ticket."
@@ -180,8 +182,21 @@ DISPUTES & VIOLATIONS:
 - Reference the specific policy that applies.
 - If the offending unit is known, flag for a violation notice.
 
+EMOTIONALLY CHARGED MESSAGES (accusations, discrimination claims, counter-threats, harassment language):
+- SLOW DOWN. Do NOT jump to policy or procedure in your first sentence.
+- Start by naming their name and acknowledging what they're going through — not with a generic "we understand" but with something specific to what they described.
+- If they mention children, hardwood floors, thin walls, or structural building issues causing noise bleed: acknowledge the building limitation honestly. "We know the floors in this building aren't great for sound." Don't pretend it's entirely their neighbor's fault.
+- If they mention harassment or discrimination: take it seriously. Do NOT dismiss it. Say you want to understand what's been happening and ask them to share more details.
+- If they raise counter-complaints (e.g. marijuana smell, door slamming from others): acknowledge those too. Open separate incident records for each counter-complaint.
+- Do NOT pivot to policy or legal language until the second half of your response, and even then keep it light.
+- The goal of the first reply to an upset tenant is de-escalation, not resolution. Make them feel heard before you do anything else.
+- Always escalate_to_landlord: true when a tenant mentions harassment, discrimination, or uses legal threat language.
+- Tone example for an upset tenant: "Hey [name] — I hear you, and I want to address this properly. Living in a place where you feel targeted is genuinely stressful and that's not okay. I'm opening a record on this right now so I can look into everything you've described. [Then ask the one thing you need to know]."
+
 PAYMENT & LEGAL:
-- Never negotiate or comment on legal matters. Direct to Hemlane for payments. Escalate to management.
+- ALL rent payments must go through the Modus tenant portal. Never mention Hemlane.
+- If a tenant asks about paying rent or is past due, direct them to the portal only.
+- Never negotiate, waive fees, or comment on legal matters. Escalate to management.
 
 GENERAL QUESTIONS:
 - Answer directly using the policies above. Keep it short.
@@ -209,11 +224,31 @@ export default async function handler(req, res) {
     // ── 1. Load tenant info ──────────────────────────────────
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
-      .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))")
+      .select("id, name, unit_id, user_id, units(unit_number, property_id, rent_amount, payment_due_day, properties(id, name))")
       .eq("id", tenant_id)
       .single();
 
     if (tenantErr) console.error("Tenant load error:", tenantErr);
+
+    // ── 1b. Check rent payment status ───────────────────────
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const { data: currentPayment } = await supabase
+      .from("rent_payments")
+      .select("id, status, amount_due, amount_paid, due_date, late_fee")
+      .eq("tenant_id", tenant_id)
+      .gte("due_date", firstOfMonth.toISOString().split("T")[0])
+      .order("due_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const rentAmount = tenant?.units?.rent_amount || null;
+    const paymentDueDay = tenant?.units?.payment_due_day || 5;
+    const dayOfMonth = today.getDate();
+    const isPastDue = dayOfMonth > paymentDueDay && (!currentPayment || currentPayment.status === "unpaid" || currentPayment.status === "late");
+    const rentContext = rentAmount
+      ? `Rent amount: $${rentAmount}/month. Due on the ${paymentDueDay}th. ${isPastDue ? `PAST DUE — tenant has not paid this month.` : currentPayment?.status === "paid" ? "Paid this month." : "Payment status unknown."}`
+      : "";
 
     // ── 2. Load last 10 messages for thread context ──────────
     const { data: threadMessages } = await supabase
@@ -236,7 +271,7 @@ export default async function handler(req, res) {
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         temperature: 0.1,
         max_tokens: 800,
         response_format: {
@@ -250,6 +285,7 @@ export default async function handler(req, res) {
             content: `Property: ${tenant?.units?.properties?.name || "Unknown Property"}
 Unit: ${tenant?.units?.unit_number || "Unknown Unit"}
 Tenant: ${tenant?.name || "Unknown Tenant"}
+${rentContext ? `\n${rentContext}` : ""}
 
 Recent conversation thread:
 ${threadContext || "(no prior messages)"}
@@ -484,7 +520,29 @@ Modus Property Management`;
       }
     }
 
-    // ── 8. Log routing decision ──────────────────────────────
+    // ── 8. Late rent / eviction watch trigger ───────────────
+    if (isPastDue && dayOfMonth >= 6) {
+      // Flag for management: 3-day notice required
+      await supabase.from("landlord_alerts").insert({
+        type: "late_rent",
+        category: "PAYMENT",
+        tenant_id: tenant_id,
+        urgency: dayOfMonth >= 10 ? "HIGH" : "MEDIUM",
+        summary: `Rent past due — Day ${dayOfMonth} of month. 3-day notice may be required.`,
+        raw_message: message,
+        is_read: false,
+      }).then(({ error }) => { if (error) console.error("Late rent alert error:", error); });
+
+      // Apply $50 late fee to rent_payments record if not already applied
+      if (currentPayment && currentPayment.late_fee === 0) {
+        await supabase
+          .from("rent_payments")
+          .update({ late_fee: 50, status: "late" })
+          .eq("id", currentPayment.id);
+      }
+    }
+
+    // ── 10. Log routing decision ─────────────────────────────
     const { data: logEntry, error: logErr } = await supabase
       .from("ai_routing_logs")
       .insert({
@@ -493,6 +551,7 @@ Modus Property Management`;
         detected_intent: classification.intent_summary,
         detected_category: classification.category,
         confidence_score: classification.confidence,
+        urgency: classification.urgency,
         action_taken: classification.escalate_to_landlord
           ? "ESCALATE_LANDLORD"
           : classification.create_maintenance_ticket
@@ -507,7 +566,7 @@ Modus Property Management`;
 
     if (logErr) console.error("Routing log error:", logErr);
 
-    // ── 9. Return result ─────────────────────────────────────
+    // ── 11. Return result ────────────────────────────────────
     return res.status(200).json({
       tier: classification.tier,
       category: classification.category,
