@@ -1,5 +1,6 @@
 // /api/classify-and-route.js
-// Modus PM — Autonomous Property Manager Reasoning Engine v3
+// Modus PM — Autonomous Property Manager Reasoning Engine v4
+// Human-tone rewrite: no hallucinated rent context, match-the-input behavior
 // 4-Tier Escalation: EMERGENCY | TENANT_DAMAGE | MAINTENANCE | DISPUTE
 // Accepts: POST { message: string, tenant_id: string, message_id?: string }
 
@@ -19,17 +20,14 @@ const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
 const FROM_EMAIL = "noreply@getmodusam.com";
 
 // ── Staff persona pool ─────────────────────────────────────
-// Each tenant is assigned a consistent agent based on their tenant_id hash.
-// Photos use Unsplash Source (free, no auth required, stable URLs).
 const STAFF_PERSONAS = [
-  { name: "Sarah M.",   title: "Property Management",  photo: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" },
-  { name: "James T.",   title: "Resident Services",    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" },
-  { name: "Maria L.",   title: "Property Management",  photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face" },
-  { name: "David K.",   title: "Resident Services",    photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face" },
-  { name: "Rachel B.",  title: "Property Management",  photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face" },
+  { name: "Sarah M.",  title: "Property Management", photo: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" },
+  { name: "James T.",  title: "Resident Services",   photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" },
+  { name: "Maria L.",  title: "Property Management", photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face" },
+  { name: "David K.",  title: "Resident Services",   photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face" },
+  { name: "Rachel B.", title: "Property Management", photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face" },
 ];
 
-// Deterministic persona assignment — same tenant always gets the same "agent"
 function getPersonaForTenant(tenantId) {
   let hash = 0;
   for (let i = 0; i < tenantId.length; i++) {
@@ -38,14 +36,11 @@ function getPersonaForTenant(tenantId) {
   return STAFF_PERSONAS[hash % STAFF_PERSONAS.length];
 }
 
-// Human-feeling delay: 45–120 seconds depending on message length and urgency
 function getReplyDelay(message, urgency) {
-  if (urgency === "EMERGENCY") return 0; // Emergencies reply immediately
+  if (urgency === "EMERGENCY") return 0;
   const wordCount = message.trim().split(/\s+/).length;
-  // Longer messages take longer to "read" — base 45s + up to 75s more
   const base = 45000;
   const extra = Math.min(wordCount * 800, 75000);
-  // Add small random jitter ±10s
   const jitter = (Math.random() - 0.5) * 20000;
   return Math.round(base + extra + jitter);
 }
@@ -66,7 +61,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       category: {
         type: "string",
-        enum: ["EMERGENCY", "HABITABILITY", "TENANT_DAMAGE", "APPLIANCE", "PLUMBING", "HVAC", "ELECTRICAL", "PEST", "LOCK", "NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TRASH", "GENERAL_INQUIRY", "PAYMENT", "LEASE_LEGAL"],
+        enum: ["EMERGENCY", "HABITABILITY", "TENANT_DAMAGE", "APPLIANCE", "PLUMBING", "HVAC", "ELECTRICAL", "PEST", "LOCK", "NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TRASH", "GENERAL_INQUIRY", "GREETING", "PAYMENT", "LEASE_LEGAL"],
         description: "Specific issue category"
       },
       confidence: {
@@ -83,12 +78,12 @@ const CLASSIFICATION_SCHEMA = {
       },
       tenant_reply: {
         type: "string",
-        description: "Your complete, professional reply TO the tenant FROM Modus Property Management. Write in first person plural ('We', 'Management'). Reference the specific policy where relevant. Never mention a landlord's name. Do NOT repeat the tenant's own message back to them."
+        description: "Your complete reply TO the tenant. Match the tone to the input — casual greeting gets a casual reply, serious issue gets a professional reply. Write naturally, like a property manager texting a tenant. Never mention the landlord's name. Sign as Modus Property Management only when the message is formal/substantive."
       },
       missing_info: {
         type: "array",
         items: { type: "string" },
-        description: "List of information still needed before full resolution (e.g. 'offending unit number', 'photo of damage', 'approximate time of noise'). Empty array if nothing missing."
+        description: "Info still needed before full resolution. Empty array if nothing missing."
       },
       billable_to_tenant: {
         type: "boolean",
@@ -96,7 +91,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       create_maintenance_ticket: {
         type: "boolean",
-        description: "Almost always FALSE. Only true if the tenant has already submitted a ticket through the portal themselves, or if this is a TIER1_EMERGENCY requiring immediate vendor dispatch. Do NOT create a ticket just because a tenant reports an issue — troubleshoot first, then direct them to submit their own ticket with photos."
+        description: "Almost always FALSE. Only true for TIER1_EMERGENCY requiring immediate vendor dispatch. Never auto-create tickets — direct tenants to submit through the Modus portal."
       },
       create_incident_log: {
         type: "boolean",
@@ -104,11 +99,11 @@ const CLASSIFICATION_SCHEMA = {
       },
       send_violation_notice: {
         type: "boolean",
-        description: "True only if the offending unit is clearly identified and a formal notice should be sent to them"
+        description: "True only if the offending unit is clearly identified and a formal notice should be sent"
       },
       offending_unit_hint: {
         type: "string",
-        description: "Unit number or identifier of the offending party if mentioned by tenant, otherwise empty string"
+        description: "Unit number of the offending party if mentioned, otherwise empty string"
       },
       dispatch_vendor: {
         type: "boolean",
@@ -116,7 +111,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       escalate_to_landlord: {
         type: "boolean",
-        description: "True if this requires human landlord involvement (payment disputes, legal threats, true emergencies)"
+        description: "True if this requires human landlord involvement"
       }
     },
     required: [
@@ -130,109 +125,106 @@ const CLASSIFICATION_SCHEMA = {
   }
 };
 
-const SYSTEM_PROMPT = `You are the professional property management AI for Modus Property Management, handling all tenant communications for a 12-unit residential building in Lakewood, OH.
+// ── System Prompt ───────────────────────────────────────────
+const SYSTEM_PROMPT = `You are a professional property management assistant for Modus PM, managing Clifton Manor at 12009 Clifton Blvd, Lakewood, OH 44107.
 
-CRITICAL: Every message you send may be used as evidence in eviction proceedings, housing court, or legal disputes. You must treat every reply as a legal document. Your tone is formal, calm, objective, and professionally empathetic at all times — never casual, never speculative, never admitting fault or property deficiencies.
+Your communication style is calm, concise, and human — like an experienced property manager messaging a tenant. Not a lawyer. Not a robot. A real person who knows the building.
 
-NEVER mention the landlord's name. Sign off as "Modus Property Management" on all responses.
+━━━ RULE #1: MATCH THE INPUT ━━━
+This is the most important rule. Read the tenant's message and match your response to what they actually said.
 
-━━━ MANDATORY LEGAL COMMUNICATION FRAMEWORK ━━━
+- Casual greeting ("Hi", "Hello", "Hey") → Reply with a warm, brief greeting. "Hey [name]! How can I help?" That's it. DO NOT add rent reminders, legal warnings, or anything they didn't ask about.
+- Simple question → Give a direct answer.
+- Complaint or issue → Be professional, empathetic, and specific to their concern.
+- Emergency → Be urgent, clear, prioritize their safety.
 
-Apply these rules to EVERY tenant reply, regardless of the message type:
+NEVER inject context that isn't there. If the tenant's rent is past due but they said "Hi", you say hi back. The rent context is available to you but only use it if they bring up payment.
 
-1. ACKNOWLEDGE WITHOUT ADMITTING FAULT
-   - Open by acknowledging that the resident took the time to communicate their concern. Validate that housing and living concerns can be stressful.
-   - NEVER admit, imply, or suggest structural defects, building flaws, poor construction, inadequate soundproofing, or property deficiencies of any kind.
-   - Never say: "the floors are hardwood so sound carries," "the building has thin walls," "the insulation is poor," or anything that could be used to establish a habitability claim.
-   - Instead, refer neutrally to "the nature of multi-family residential living" or "shared-building environments."
+━━━ PROPERTY KNOWLEDGE BASE ━━━
 
-2. STATE MANAGEMENT'S OBJECTIVE ROLE
-   - Clearly communicate that management's function is to receive and review resident concerns objectively, communicate appropriately with all parties, and work toward a respectful living environment for all residents.
-   - If a tenant accuses management of harassment, bias, or singling them out: state that the relay of resident concerns is standard administrative procedure, not an attempt to assign blame, intimidate, or target any individual resident.
+BUILDING LAYOUT:
+- L-shaped building, 3 floors + basement
+- Front section (Clifton Ave side): Units 1–6 (1&2 on 1st floor, 3&4 on 2nd, 5&6 on 3rd)
+- West-facing side section: Units 7–12 (7&8 on 1st floor, 9&10 on 2nd, 11&12 on 3rd)
+- Entry: Steel doors at both front (Clifton Ave) and west entrances. Entry code: 082024
+- Basement/Laundry: Under units 7–12. Rules: clear lint filters, keep area clean, report broken machines, ensure exterior doors close fully
 
-3. HANDLE COUNTER-COMPLAINTS NEUTRALLY
-   - If a tenant raises counter-complaints (e.g., marijuana odor, door slamming, noise from other units, cleanliness): invite them to submit specific, objective incident details — dates, times, locations — through proper management channels.
-   - Do NOT commit to any specific investigation or outcome. Use neutral intake language: "This information will allow management to evaluate each concern based on the circumstances and determine whether follow-up is appropriate."
-   - Each counter-complaint should be treated as a separate matter and logged independently.
+PARKING:
+- 7 reserved spots in the rear lot
+- Currently assigned to: Units 5, 6, 7, 9, 10, 12, plus one additional designated spot
+- All other vehicles in the rear lot are unauthorized and subject to immediate towing at owner's expense
+- Guest parking: street only
 
-4. DISCOURAGE DIRECT RESIDENT-TO-RESIDENT CONFLICT
-   - Encourage the tenant to allow management to handle concerns through established formal channels rather than engaging directly with neighbors.
-   - Frame this as being in their best interest: direct disputes between residents can escalate and complicate management's ability to address concerns fairly.
+UTILITIES:
+- All tenants are responsible for: Electricity, Gas, Wi-Fi
+- Water/trash: varies by lease (some units carry a monthly surcharge, others covered by management — refer to their specific lease)
 
-5. NO UNAUTHORIZED COMMITMENTS
-   - NEVER promise specific manual investigations, building-wide notifications, disciplinary actions, rent adjustments, or any outcome you cannot guarantee.
-   - Every action statement must be framed as intake and review, not resolution: "Management will review this matter" not "We will investigate and fix this."
-   - Never waive fees, negotiate lease terms, or comment on pending legal matters. Escalate those immediately.
+HEATING:
+- Each unit has its own electric heating system on its own breaker
+- If tenant reports no heat: first ask them to check their breaker panel. If breaker is fine, escalate immediately
+- There is NO shared boiler
 
-6. RESPONSE STRUCTURE (use for every message)
-   - Greeting: Use the tenant's first name.
-   - Validation: Acknowledge their communication and that multi-family living concerns can be stressful.
-   - Management's role: One to two sentences on management's objective, neutral function.
-   - Policy/handling: Address their specific concern using the applicable policy below, without admitting fault.
-   - Counter-complaints (if any): Invite formal submission of each separately with dates/times.
-   - Closing: Neutral, professional. Do not promise specific next steps. Close as "Modus Property Management."
+RENT & PAYMENTS:
+- Rent due on the 1st. $50 late fee applied on the 6th
+- All payments through the Modus tenant portal only
+- Never discuss payments outside the portal
 
-━━━ BUILDING LAYOUT ━━━
+━━━ EMERGENCY PROTOCOLS ━━━
 
-12 units across 3 floors. Units are arranged in 4 vertical stacks — when there's a leak or plumbing issue, the units directly above are the likely source:
+Crime / Break-ins / Domestic disputes / Self-harm threats:
+→ Tell them to call 911 immediately, lock doors/windows, document everything for management
 
-Stack A: 1 (floor 1) → 3 (floor 2) → 5 (floor 3)
-Stack B: 2 (floor 1) → 4 (floor 2) → 6 (floor 3)
-Stack C: 7 (floor 1) → 9 (floor 2) → 11 (floor 3)
-Stack D: 8 (floor 1) → 10 (floor 2) → 12 (floor 3)
+Gas leaks / Fire / Smoke / Major water line breaks:
+→ Prioritize life safety. Evacuate if needed. Set escalate_to_landlord: true immediately
+→ [24/7 emergency line to be added — escalate to landlord for now]
 
-Laundry room is in the basement.
+Cross-unit leaks:
+→ Acknowledge urgently. Escalate immediately. Do not speculate on source.
 
-━━━ HEATING ━━━
+━━━ MAINTENANCE WORKFLOW ━━━
 
-Each unit has its own electric heating system on its own breaker. If a tenant reports no heat:
-1. Ask them to check the breaker panel — a tripped breaker is the most common cause.
-2. If the breaker is fine, escalate. Do NOT mention a shared boiler — there isn't one.
+1. NEVER auto-create tickets. Tenants must submit through the Modus maintenance portal themselves.
+2. First response to any maintenance issue: ask ONE gentle diagnostic question to understand the issue better and screen for tenant responsibility.
+3. If it sounds like tenant-caused (hair clogs, minor upkeep, accidental damage): ask clarifying questions respectfully without being accusatory. Note that minor upkeep is tenant responsibility per their lease.
+4. If it's clearly a building system issue (heating, plumbing, electrical, major appliance): acknowledge it, give basic guidance, direct them to submit a ticket through the portal with photos.
+5. After they've submitted a ticket: confirm you've received it and management will review.
 
-━━━ BUILDING POLICIES ━━━
+Tenant vs. Management responsibility:
+- TENANT: lightbulbs, HVAC filters, drain clogs from misuse/hair, minor cosmetic issues
+- MANAGEMENT: plumbing, electrical systems, heating, major appliances, structural issues
 
-RENT & LATE FEES: Due on the 1st. $50 late fee on the 6th. All payments through the Modus tenant portal. Never mention Hemlane.
+━━━ DISPUTES & NOISE ━━━
 
-PARKING: Reserved spaces $50/month with written approval. Guest vehicles on street only. Unauthorized vehicles towed at owner's expense.
-
-QUIET HOURS (Lakewood Ordinance § 515.03):
+Quiet Hours (Lakewood Ordinance § 515.03):
 - Sun–Thu: 10:00 PM – 8:00 AM
 - Fri–Sat: 11:00 PM – 9:00 AM
 
-PETS: Prohibited without written consent and signed pet addendum.
-SMOKING: Strictly prohibited everywhere on the property. No exceptions.
-MAINTENANCE: Tenant responsible for lightbulbs, HVAC filters, clogs from misuse. Management responsible for plumbing, electrical, heating systems, major appliances.
-GUESTS: Max 7 consecutive nights or 14 nights/year without written approval.
+For noise complaints:
+- Acknowledge the concern
+- Reference the ordinance if it's a clear violation
+- Ask for specific dates/times/unit if not provided — needed before any formal action
+- Do not promise specific outcomes, but do confirm you're logging the concern
 
-━━━ MESSAGE-TYPE HANDLING ━━━
+For disputes between tenants:
+- Encourage routing through management channels, not direct confrontation
+- Keep tone neutral — management's role is to evaluate all parties fairly
 
-MAINTENANCE ISSUES:
-- First response is always ONE diagnostic question — no solution, no ticket, no technical jargon.
-- After their answer, if unresolved: direct them to submit a ticket through the portal with photos.
-- NEVER set create_maintenance_ticket: true just because a tenant reports an issue.
-- For cross-unit leaks: acknowledge immediately, escalate to management. Do not speculate on cause.
+━━━ LEGAL GUARDRAILS ━━━
+- Never admit structural defects, poor soundproofing, thin walls, or building flaws of any kind
+- Never promise specific manual investigations or guaranteed outcomes
+- For payment disputes, legal threats, or lease termination: do not engage. Say it has been escalated to management. Set escalate_to_landlord: true.
+- Never mention the landlord's name. Sign off as "Modus Property Management" on formal messages.
 
-DISPUTES, NOISE, VIOLATIONS:
-- Apply the Legal Communication Framework above — acknowledge, state management's role, reference the specific policy (Lakewood Ordinance § 515.03 for noise, lease terms for others), invite formal incident submission with dates/times.
-- If the offending unit is clearly identified: flag for a violation notice.
-- If not identified: ask for specific details (unit number, times, dates) before taking any action.
-- NEVER admit the building has a noise problem or that a complaint is inherently valid.
+━━━ THE ESCALATION RULE ━━━
+If something is complex, out of scope, or you're not sure: say "I've flagged this for our management team to follow up with you directly" and set escalate_to_landlord: true. Don't guess.
 
-HARASSMENT OR DISCRIMINATION ALLEGATIONS:
-- Acknowledge the communication seriously and professionally.
-- State clearly that management does not engage in, condone, or permit harassment or discriminatory conduct.
-- State that all resident concerns are handled through objective administrative procedures.
-- Escalate to landlord immediately: set escalate_to_landlord: true.
+━━━ TONE EXAMPLES ━━━
 
-PAYMENT & LEGAL:
-- Direct to the portal only. Never negotiate or comment on legal matters. Escalate immediately.
-
-━━━ ESCALATION ━━━
-Set escalate_to_landlord: true when:
-- Active emergency: leak, flood, no heat in winter, gas smell, fire, security threat
-- Cross-unit issues involving another resident
-- Tenant mentions legal action, lease termination, withholding rent, discrimination, or harassment
-- Any situation you cannot resolve through standard policy guidance`;
+Tenant says "Hi!" → "Hey [name]! What can I help you with today?"
+Tenant asks about parking → "Hey — parking in the rear lot is reserved for assigned units only. Guest parking is on the street. Do you need info about getting an assigned spot?"
+Tenant reports a clog → "Thanks for letting us know. Is this a slow drain or a full clog? And has anything been put down the drain recently (hair, wipes, etc.)? That helps me figure out the best next step."
+Tenant reports no heat → "Sorry to hear that — let's get this sorted. First, can you check your breaker panel and see if the circuit for the heating unit has been tripped? If it's all good there, let me know and I'll escalate this right away."
+Tenant asks a complex legal question → "I want to make sure you get the right answer on this — I've flagged it for our management team and someone will follow up with you directly."`;
 
 // ── Main handler ───────────────────────────────────────────
 export default async function handler(req, res) {
@@ -257,6 +249,8 @@ export default async function handler(req, res) {
     if (tenantErr) console.error("Tenant load error:", tenantErr);
 
     // ── 1b. Check rent payment status ───────────────────────
+    // NOTE: rent context is passed to the AI but the system prompt
+    // instructs it to ONLY use this if the tenant brings up payment.
     const today = new Date();
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const { data: currentPayment } = await supabase
@@ -272,8 +266,10 @@ export default async function handler(req, res) {
     const paymentDueDay = tenant?.units?.payment_due_day || 5;
     const dayOfMonth = today.getDate();
     const isPastDue = dayOfMonth > paymentDueDay && (!currentPayment || currentPayment.status === "unpaid" || currentPayment.status === "late");
-    const rentContext = rentAmount
-      ? `Rent amount: $${rentAmount}/month. Due on the ${paymentDueDay}th. ${isPastDue ? `PAST DUE — tenant has not paid this month.` : currentPayment?.status === "paid" ? "Paid this month." : "Payment status unknown."}`
+
+    // Only surface rent status to AI if it's actually past due (don't inject it otherwise)
+    const rentContext = isPastDue && rentAmount
+      ? `[BACKGROUND CONTEXT — only use if tenant mentions payment]: Rent of $${rentAmount}/month was due on the ${paymentDueDay}th and has not been paid. Do NOT proactively bring this up unless the tenant asks about payment.`
       : "";
 
     // ── 2. Load last 10 messages for thread context ──────────
@@ -298,8 +294,8 @@ export default async function handler(req, res) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
-        temperature: 0.1,
-        max_tokens: 800,
+        temperature: 0.3,
+        max_tokens: 600,
         response_format: {
           type: "json_schema",
           json_schema: CLASSIFICATION_SCHEMA,
@@ -308,18 +304,17 @@ export default async function handler(req, res) {
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            content: `Property: ${tenant?.units?.properties?.name || "Unknown Property"}
-Unit: ${tenant?.units?.unit_number || "Unknown Unit"}
-Tenant: ${tenant?.name || "Unknown Tenant"}
+            content: `Property: ${tenant?.units?.properties?.name || "Clifton Manor"}
+Unit: ${tenant?.units?.unit_number || "Unknown"}
+Tenant name: ${tenant?.name || "Resident"}
 ${rentContext ? `\n${rentContext}` : ""}
 
-Recent conversation thread:
+Recent conversation:
 ${threadContext || "(no prior messages)"}
 
-New tenant message:
-"${message}"
+New tenant message: "${message}"
 
-Classify this message, determine the correct autonomous action, and write your professional reply to the tenant in tenant_reply. Do NOT repeat the tenant's message in tenant_reply — write Management's response.`,
+Classify and reply. Match your tone to the message — a greeting gets a greeting, an issue gets a professional response. Do not repeat the tenant's message in your reply.`,
           },
         ],
       });
@@ -328,14 +323,13 @@ Classify this message, determine the correct autonomous action, and write your p
       classification = JSON.parse(raw);
     } catch (aiErr) {
       console.error("OpenAI error:", aiErr);
-      // Safe fallback — escalate to landlord if AI fails
       classification = {
         tier: "TIER4_DISPUTE",
         category: "GENERAL_INQUIRY",
         confidence: 0.2,
         urgency: "MEDIUM",
         intent_summary: "AI classification unavailable — escalated for human review",
-        tenant_reply: "Thank you for reaching out. Property Management has logged your request and will follow up shortly.",
+        tenant_reply: "Thanks for reaching out — I've flagged this for our management team and someone will follow up with you directly.",
         missing_info: [],
         billable_to_tenant: false,
         create_maintenance_ticket: false,
@@ -347,17 +341,13 @@ Classify this message, determine the correct autonomous action, and write your p
       };
     }
 
-    // ── 4. Human-feeling delay before sending reply ──────────
-    // Emergencies reply instantly. All others wait 45–120s so it
-    // doesn't feel like a bot — matches the "usually replies within
-    // a few hours" copy in the chat header.
+    // ── 4. Human-feeling delay before reply ──────────────────
     const persona = getPersonaForTenant(tenant_id);
     const delayMs = getReplyDelay(message, classification.urgency);
     if (delayMs > 0) await sleep(delayMs);
 
     // ── 4b. Send tenant reply ────────────────────────────────
-    // Guard: never echo the tenant's own message back
-    const finalReply = classification?.tenant_reply || "Thank you for reaching out. Property Management has logged your request and will follow up shortly.";
+    const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
 
     const { error: replyErr } = await supabase.from("messages").insert({
       sender_id: null,
@@ -371,7 +361,7 @@ Classify this message, determine the correct autonomous action, and write your p
 
     if (replyErr) console.error("Tenant reply insert error:", replyErr);
 
-    // ── 5. Create maintenance ticket ─────────────────────────
+    // ── 5. Create maintenance ticket (emergencies only) ──────
     let ticketId = null;
 
     if (classification.create_maintenance_ticket) {
@@ -398,7 +388,6 @@ Classify this message, determine the correct autonomous action, and write your p
         ticketId = ticket?.id;
       }
 
-      // Trigger vendor dispatch
       if (classification.dispatch_vendor && ticketId) {
         try {
           await fetch(`https://getmodusam.com/api/dispatch-vendor`, {
@@ -423,7 +412,6 @@ Classify this message, determine the correct autonomous action, and write your p
     let incidentId = null;
 
     if (classification.create_incident_log) {
-      // Resolve offending unit ID if a hint was provided
       let offendingUnitId = null;
       if (classification.offending_unit_hint) {
         const { data: offendingUnit } = await supabase
@@ -467,7 +455,6 @@ Classify this message, determine the correct autonomous action, and write your p
         incidentId = incident?.id;
       }
 
-      // Send violation notice to offending unit if identified
       if (classification.send_violation_notice && offendingUnitId) {
         const { data: offendingTenant } = await supabase
           .from("tenants")
@@ -489,22 +476,20 @@ If you believe this notice was issued in error, please respond to this message w
 
 Modus Property Management`;
 
-          const { error: noticeErr } = await supabase.from("messages").insert({
+          await supabase.from("messages").insert({
             sender_id: null,
             recipient_id: offendingTenant.user_id,
             tenant_id: null,
             body: violationBody,
             read: false,
           });
-
-          if (noticeErr) console.error("Violation notice error:", noticeErr);
         }
       }
     }
 
-    // ── 7. Emergency email to landlord ───────────────────────
+    // ── 7. Emergency email & landlord alerts ─────────────────
     if (classification.tier === "TIER1_EMERGENCY" || classification.escalate_to_landlord) {
-      const { error: alertErr } = await supabase.from("landlord_alerts").insert({
+      await supabase.from("landlord_alerts").insert({
         type: classification.tier === "TIER1_EMERGENCY" ? "emergency" : "ai_escalation",
         category: classification.category,
         tenant_id: tenant_id,
@@ -513,23 +498,21 @@ Modus Property Management`;
         summary: classification.intent_summary,
         raw_message: message,
         is_read: false,
-      });
-
-      if (alertErr) console.error("Landlord alert error:", alertErr);
+      }).then(({ error }) => { if (error) console.error("Landlord alert error:", error); });
 
       if (classification.tier === "TIER1_EMERGENCY") {
         try {
           await resend.emails.send({
             from: FROM_EMAIL,
             to: LANDLORD_EMAIL,
-            subject: `🚨 EMERGENCY — ${tenant?.units?.properties?.name || "Property"} Unit ${tenant?.units?.unit_number || "Unknown"}`,
+            subject: `🚨 EMERGENCY — ${tenant?.units?.properties?.name || "Clifton Manor"} Unit ${tenant?.units?.unit_number || "Unknown"}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: #c0392b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
                   <h1 style="margin: 0; font-size: 22px;">🚨 Emergency Alert — Modus PM</h1>
                 </div>
                 <div style="background: #f8f8f8; padding: 24px; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
-                  <p><strong>Property:</strong> ${tenant?.units?.properties?.name || "Unknown"}</p>
+                  <p><strong>Property:</strong> ${tenant?.units?.properties?.name || "Clifton Manor"}</p>
                   <p><strong>Unit:</strong> ${tenant?.units?.unit_number || "Unknown"}</p>
                   <p><strong>Tenant:</strong> ${tenant?.name || "Unknown"}</p>
                   <p><strong>Urgency:</strong> ${classification.urgency}</p>
@@ -541,7 +524,7 @@ Modus Property Management`;
                   </blockquote>
                   <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
                   <p><strong>AI Summary:</strong> ${classification.intent_summary}</p>
-                  <p><strong>AI Reply Sent to Tenant:</strong></p>
+                  <p><strong>AI Reply Sent:</strong></p>
                   <blockquote style="border-left: 4px solid #888; margin: 0; padding: 12px 16px; background: #fff; color: #555;">
                     ${finalReply}
                   </blockquote>
@@ -558,7 +541,6 @@ Modus Property Management`;
 
     // ── 8. Late rent / eviction watch trigger ───────────────
     if (isPastDue && dayOfMonth >= 6) {
-      // Flag for management: 3-day notice required
       await supabase.from("landlord_alerts").insert({
         type: "late_rent",
         category: "PAYMENT",
@@ -569,7 +551,6 @@ Modus Property Management`;
         is_read: false,
       }).then(({ error }) => { if (error) console.error("Late rent alert error:", error); });
 
-      // Apply $50 late fee to rent_payments record if not already applied
       if (currentPayment && currentPayment.late_fee === 0) {
         await supabase
           .from("rent_payments")
@@ -578,7 +559,7 @@ Modus Property Management`;
       }
     }
 
-    // ── 10. Log routing decision ─────────────────────────────
+    // ── 9. Log routing decision ──────────────────────────────
     const { data: logEntry, error: logErr } = await supabase
       .from("ai_routing_logs")
       .insert({
@@ -604,7 +585,7 @@ Modus Property Management`;
 
     if (logErr) console.error("Routing log error:", logErr);
 
-    // ── 11. Return result ────────────────────────────────────
+    // ── 10. Return result ────────────────────────────────────
     return res.status(200).json({
       tier: classification.tier,
       category: classification.category,
