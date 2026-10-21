@@ -31,7 +31,16 @@ const STATUS = {
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
 };
 
-const TABS = ["Overview", "Payments", "Maintenance", "Move-in", "Notes"];
+const EVICTION_STATUSES = [
+  { key: "3_day_notice_issued",  label: "3-Day Notice Issued",  icon: "📄" },
+  { key: "cure_period",          label: "Cure Period Active",    icon: "⏳" },
+  { key: "filed_with_attorney",  label: "Filed w/ Attorney",     icon: "⚖️" },
+  { key: "court_date_scheduled", label: "Court Date Scheduled",  icon: "🏛️" },
+  { key: "resolved",             label: "Resolved",              icon: "✅" },
+  { key: "evicted",              label: "Evicted",               icon: "🔴" },
+];
+
+const TABS = ["Overview", "Payments", "Maintenance", "Move-in", "Notes", "Eviction Watch"];
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 const ROOM_LABELS = {
@@ -174,6 +183,242 @@ function InsuranceCard({ tenant }) {
   );
 }
 
+// ─── Eviction Watch Tab ────────────────────────────────────────────────────
+function EvictionWatchTab({ tenant, tenantId, onFlagChange }) {
+  const [eviction,      setEviction]      = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [toggling,      setToggling]      = useState(false);
+  const [newNote,       setNewNote]       = useState("");
+  const [savingNote,    setSavingNote]    = useState(false);
+  const [noteSaved,     setNoteSaved]     = useState(false);
+  const [form, setForm] = useState({
+    status:        "3_day_notice_issued",
+    notice_date:   "",
+    cure_deadline: "",
+    attorney_name: "",
+    court_date:    "",
+    case_number:   "",
+  });
+
+  useEffect(() => { fetchEviction(); }, [tenantId]);
+
+  async function fetchEviction() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("evictions")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      setEviction(data);
+      setForm({
+        status:        data.status        || "3_day_notice_issued",
+        notice_date:   data.notice_date   || "",
+        cure_deadline: data.cure_deadline || "",
+        attorney_name: data.attorney_name || "",
+        court_date:    data.court_date    || "",
+        case_number:   data.case_number   || "",
+      });
+      setNewNote(data.notes || "");
+    }
+    setLoading(false);
+  }
+
+  async function toggleFlag() {
+    setToggling(true);
+    const newVal = !tenant.eviction_watch;
+    await supabase.from("tenants").update({ eviction_watch: newVal }).eq("id", tenantId);
+    if (newVal && !eviction) {
+      // Create initial eviction record
+      const { data } = await supabase.from("evictions").insert({
+        tenant_id:   tenantId,
+        status:      "3_day_notice_issued",
+        notice_date: new Date().toISOString().split("T")[0],
+      }).select().single();
+      if (data) {
+        setEviction(data);
+        setForm(f => ({ ...f, status: data.status, notice_date: data.notice_date || "" }));
+      }
+    }
+    onFlagChange(newVal);
+    setToggling(false);
+  }
+
+  async function saveEviction() {
+    if (!eviction) return;
+    setSaving(true);
+    const { data } = await supabase.from("evictions").update({
+      status:        form.status,
+      notice_date:   form.notice_date   || null,
+      cure_deadline: form.cure_deadline || null,
+      attorney_name: form.attorney_name || null,
+      court_date:    form.court_date    || null,
+      case_number:   form.case_number   || null,
+      updated_at:    new Date().toISOString(),
+    }).eq("id", eviction.id).select().single();
+    if (data) setEviction(data);
+    setSaving(false);
+  }
+
+  async function saveNote() {
+    if (!eviction) return;
+    setSavingNote(true);
+    await supabase.from("evictions").update({ notes: newNote, updated_at: new Date().toISOString() }).eq("id", eviction.id);
+    setSavingNote(false);
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 2000);
+  }
+
+  const currentStepIdx = EVICTION_STATUSES.findIndex(s => s.key === form.status);
+
+  if (loading) return <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading…</div>;
+
+  // ── Not flagged: show toggle only ──
+  if (!tenant.eviction_watch) {
+    return (
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"32px 28px",textAlign:"center" }}>
+        <div style={{ fontSize:32,marginBottom:14 }}>⚖️</div>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:8 }}>Eviction Watch</div>
+        <div style={{ fontSize:13,color:C.textSub,maxWidth:420,margin:"0 auto 24px",lineHeight:1.6 }}>
+          Flag this tenant to open an eviction case. You'll be able to track the status pipeline, set key dates, add legal notes, and manage the case through resolution.
+        </div>
+        <button
+          onClick={toggleFlag}
+          disabled={toggling}
+          style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.35)`,color:C.red,fontSize:13,fontWeight:600,padding:"10px 24px",borderRadius:8,cursor:toggling?"default":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:toggling?0.6:1 }}
+        >
+          {toggling ? "Flagging…" : "⚑ Flag for Eviction Watch"}
+        </button>
+        <div style={{ fontSize:11,color:C.textMuted,marginTop:12 }}>This is only visible to you — not to the tenant</div>
+      </div>
+    );
+  }
+
+  // ── Flagged: full pipeline ──
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+
+      {/* Active banner */}
+      <div style={{ background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.25)`,borderRadius:10,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <span style={{ fontSize:16 }}>⚑</span>
+          <div>
+            <div style={{ fontSize:13,fontWeight:600,color:C.red }}>Eviction Watch Active</div>
+            <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>
+              {eviction?.created_at ? `Opened ${new Date(eviction.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}` : "Case opened"}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={toggleFlag}
+          disabled={toggling}
+          style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:toggling?0.5:1 }}
+        >
+          {toggling ? "…" : "Remove flag"}
+        </button>
+      </div>
+
+      {/* Status pipeline */}
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
+        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Status Pipeline</div>
+        <div style={{ padding:"16px",display:"flex",gap:6,flexWrap:"wrap" }}>
+          {EVICTION_STATUSES.map((s, i) => {
+            const isActive  = s.key === form.status;
+            const isPast    = i < currentStepIdx;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setForm(f => ({ ...f, status: s.key }))}
+                style={{
+                  flex:"1 1 auto",
+                  minWidth:100,
+                  padding:"10px 8px",
+                  borderRadius:8,
+                  border:`1px solid ${isActive?"rgba(224,85,85,0.5)":isPast?`${C.green}44`:C.border}`,
+                  background:isActive?"rgba(224,85,85,0.12)":isPast?`${C.green}0F`:"transparent",
+                  color:isActive?C.red:isPast?C.green:C.textSub,
+                  fontSize:11,
+                  fontWeight:isActive?600:400,
+                  cursor:"pointer",
+                  fontFamily:"'DM Sans',sans-serif",
+                  textAlign:"center",
+                  transition:"all 0.15s",
+                }}
+              >
+                <div style={{ fontSize:14,marginBottom:3 }}>{s.icon}</div>
+                <div>{s.label}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Case details form */}
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
+        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Details</div>
+        <div style={{ padding:"16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+          <div>
+            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>Notice Date</label>
+            <input type="date" value={form.notice_date} onChange={e=>setForm(f=>({...f,notice_date:e.target.value}))}
+              style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>Cure Deadline</label>
+            <input type="date" value={form.cure_deadline} onChange={e=>setForm(f=>({...f,cure_deadline:e.target.value}))}
+              style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>Attorney Name</label>
+            <input type="text" value={form.attorney_name} onChange={e=>setForm(f=>({...f,attorney_name:e.target.value}))} placeholder="e.g. Smith & Associates"
+              style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>Court Date</label>
+            <input type="date" value={form.court_date} onChange={e=>setForm(f=>({...f,court_date:e.target.value}))}
+              style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+          </div>
+          <div style={{ gridColumn:"1 / -1" }}>
+            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>Case Number</label>
+            <input type="text" value={form.case_number} onChange={e=>setForm(f=>({...f,case_number:e.target.value}))} placeholder="e.g. CV-2026-00142"
+              style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+          </div>
+        </div>
+        <div style={{ padding:"0 16px 16px",display:"flex",justifyContent:"flex-end" }}>
+          <PrimaryBtn onClick={saveEviction} disabled={saving}>{saving?"Saving…":"Save case details"}</PrimaryBtn>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
+        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Notes</div>
+        <div style={{ padding:"16px" }}>
+          <textarea
+            value={newNote}
+            onChange={e=>setNewNote(e.target.value)}
+            placeholder="Add legal notes, timeline entries, communication logs…"
+            style={{ width:"100%",minHeight:120,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}
+          />
+          <div style={{ display:"flex",alignItems:"center",gap:12,marginTop:10 }}>
+            <PrimaryBtn onClick={saveNote} disabled={savingNote}>{noteSaved?"✓ Saved!":savingNote?"Saving…":"Save notes"}</PrimaryBtn>
+            <span style={{ fontSize:11,color:C.textMuted }}>{newNote.length} characters</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline info */}
+      {eviction?.updated_at && (
+        <div style={{ fontSize:11,color:C.textMuted,textAlign:"right" }}>
+          Last updated {new Date(eviction.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordTenantDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -223,7 +468,7 @@ export default function LandlordTenantDetail() {
     if (!tenant.email) { setInviteError("No email on tenant record."); return; }
     setInviting(true); setInviteError("");
     const { error } = await supabase.functions.invoke("invite-tenant", {
-      body: { tenant_id: tenant.id, tenant_name: tenant.name, tenant_email: tenant.email, unit_number: unit?.unit_number||"—", property_name: property?.name||"—", landlord_name: "Andrew Wagner" }
+      body: { tenant_id: tenant.id, tenant_name: tenant.name, tenant_email: tenant.email, unit_number: unit?.unit_number||"—", property_name: property?.name||"—", landlord_name: "Modus Property Management" }
     });
     setInviting(false);
     if (error) { setInviteError(error.message); return; }
@@ -245,6 +490,10 @@ export default function LandlordTenantDetail() {
     setTimeout(() => setNoteSaved(false), 2000);
   }
 
+  function handleEvictionFlagChange(newVal) {
+    setTenant(t => ({ ...t, eviction_watch: newVal }));
+  }
+
   if (loading) return <LandlordLayout><div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,color:C.textSub,fontSize:14 }}>Loading tenant…</div></LandlordLayout>;
   if (!tenant) return <LandlordLayout><div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,color:C.textSub,fontSize:14 }}>Tenant not found.</div></LandlordLayout>;
 
@@ -261,6 +510,9 @@ export default function LandlordTenantDetail() {
   const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((new Date()-leaseStart)/(leaseEnd-leaseStart))*100))) : 0;
   const completedChecklist = checklist.filter(r=>r.completed).length;
   const insDays = insuranceDaysLeft(tenant.insurance_expires);
+
+  // Determine which tabs to show — Eviction Watch always visible so landlord can flag
+  const visibleTabs = TABS;
 
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
@@ -287,11 +539,16 @@ export default function LandlordTenantDetail() {
         )}
 
         {/* Header */}
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap" }}>
+        <div style={{ background:C.surface,border:`1px solid ${tenant.eviction_watch?"rgba(224,85,85,0.4)":C.border}`,borderRadius:10,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap" }}>
           <div style={{ display:"flex",alignItems:"flex-start",gap:16 }}>
             <div style={{ width:56,height:56,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,flexShrink:0 }}>{initials}</div>
             <div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:4 }}>{tenant.name}</div>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:4,display:"flex",alignItems:"center",gap:10 }}>
+                {tenant.name}
+                {tenant.eviction_watch&&(
+                  <span style={{ fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.15)",color:C.red,border:`1px solid rgba(224,85,85,0.3)`,letterSpacing:"0.05em" }}>⚑ EVICTION WATCH</span>
+                )}
+              </div>
               <div style={{ fontSize:13,color:C.textSub,marginBottom:8 }}>
                 {property?.name||"—"} · Unit {unit?.unit_number||"—"}
                 {property?.address&&` · ${property.address}, ${property.city} ${property.state}`}
@@ -330,9 +587,12 @@ export default function LandlordTenantDetail() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:20 }}>
-          {TABS.map(tab=>(
-            <button key={tab} onClick={()=>setActiveTab(tab)} style={{ padding:"10px 16px",fontSize:13,fontWeight:activeTab===tab?600:400,color:activeTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:activeTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}>{tab}</button>
+        <div style={{ display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:20,overflowX:"auto" }}>
+          {visibleTabs.map(tab=>(
+            <button key={tab} onClick={()=>setActiveTab(tab)} style={{ padding:"10px 16px",fontSize:13,fontWeight:activeTab===tab?600:400,color:activeTab===tab?(tab==="Eviction Watch"&&tenant.eviction_watch?C.red:C.gold):C.textSub,background:"none",border:"none",borderBottom:activeTab===tab?`2px solid ${tab==="Eviction Watch"&&tenant.eviction_watch?C.red:C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5 }}>
+              {tab==="Eviction Watch"&&tenant.eviction_watch&&<span style={{ fontSize:9 }}>⚑</span>}
+              {tab}
+            </button>
           ))}
         </div>
 
@@ -370,7 +630,6 @@ export default function LandlordTenantDetail() {
               <InfoRow label="Rent"      value={unit?.rent_amount?`$${unit.rent_amount.toLocaleString()}/mo`:"—"} last/>
             </InfoCard>
 
-            {/* Emergency contact */}
             <InfoCard title="Emergency Contact" borderColor={tenant.emergency_contact_name?C.border:C.border}>
               {tenant.emergency_contact_name ? (
                 <>
@@ -379,13 +638,10 @@ export default function LandlordTenantDetail() {
                   <InfoRow label="Relationship" value={tenant.emergency_contact_relationship||"—"} last/>
                 </>
               ) : (
-                <div style={{ fontSize:13,color:C.textMuted,textAlign:"center",padding:"8px 0" }}>
-                  No emergency contact provided
-                </div>
+                <div style={{ fontSize:13,color:C.textMuted,textAlign:"center",padding:"8px 0" }}>No emergency contact provided</div>
               )}
             </InfoCard>
 
-            {/* Insurance — full width */}
             <div style={{ gridColumn:isMobile?"1":"1 / -1" }}>
               <InsuranceCard tenant={tenant}/>
             </div>
@@ -463,7 +719,6 @@ export default function LandlordTenantDetail() {
                 </span>
               )}
             </div>
-
             {checklist.length===0?(
               <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"40px",textAlign:"center" }}>
                 <div style={{ fontSize:32,marginBottom:12 }}>📋</div>
@@ -517,6 +772,15 @@ export default function LandlordTenantDetail() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Eviction Watch ── */}
+        {activeTab==="Eviction Watch"&&(
+          <EvictionWatchTab
+            tenant={tenant}
+            tenantId={id}
+            onFlagChange={handleEvictionFlagChange}
+          />
         )}
       </div>
 

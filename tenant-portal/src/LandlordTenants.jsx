@@ -123,7 +123,7 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
       const unit     = units.find(u=>u.id===form.unit_id);
       const property = properties.find(p=>p.id===form.property_id);
       const { error:inviteError } = await supabase.functions.invoke("invite-tenant", {
-        body: { tenant_id:tenant.id, tenant_name:form.name.trim(), tenant_email:form.email.trim(), unit_number:unit?.unit_number||"—", property_name:property?.name||"—", landlord_name:"Andrew Wagner" }
+        body: { tenant_id:tenant.id, tenant_name:form.name.trim(), tenant_email:form.email.trim(), unit_number:unit?.unit_number||"—", property_name:property?.name||"—", landlord_name:"Modus Property Management" }
       });
       setInviteStatus(inviteError?"failed":"sent");
     } else {
@@ -262,14 +262,15 @@ export default function LandlordTenants() {
 
     return {
       ...t,
-      unit:       unit?.unit_number||"—",
-      property:   property?.name||"—",
-      property_id:property?.id,
-      rent:       unit?.rent_amount||0,
+      unit:           unit?.unit_number||"—",
+      property:       property?.name||"—",
+      property_id:    property?.id,
+      rent:           unit?.rent_amount||0,
       status,
       payStatus,
-      lastPaid:   latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
-      balance:    latestPay?.status!=="paid" ? (unit?.rent_amount||0) : 0,
+      lastPaid:       latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
+      balance:        latestPay?.status!=="paid" ? (unit?.rent_amount||0) : 0,
+      eviction_watch: t.eviction_watch || false,
       initials,
       accentColor,
     };
@@ -310,6 +311,7 @@ export default function LandlordTenants() {
   const activeCount      = activeEnriched.filter(t=>t.status==="active").length;
   const notInvitedCount  = activeEnriched.filter(t=>t.status==="not_invited").length;
   const invitedCount     = activeEnriched.filter(t=>t.status==="invited").length;
+  const evictionCount    = activeEnriched.filter(t=>t.eviction_watch).length;
 
   const stats = [
     { label:"Total tenants", value:loading?"—":activeEnriched.length, sub:"across all properties",        accent:C.blue  },
@@ -342,7 +344,14 @@ export default function LandlordTenants() {
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10 }}>
           <div>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?20:24,fontWeight:600,color:C.text }}>Tenants</div>
-            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${tenants.length} tenants across ${properties.length} properties`}</div>
+            <div style={{ fontSize:13,color:C.textSub,marginTop:3,display:"flex",alignItems:"center",gap:10 }}>
+              {loading?"Loading…":`${tenants.length} tenants across ${properties.length} properties`}
+              {!loading&&evictionCount>0&&(
+                <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:4,background:"rgba(224,85,85,0.12)",color:C.red,border:`1px solid rgba(224,85,85,0.25)` }}>
+                  ⚑ {evictionCount} on watch
+                </span>
+              )}
+            </div>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
             {!isMobile&&(
@@ -423,12 +432,18 @@ export default function LandlordTenants() {
                   <tr><td colSpan={6} style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>No tenants match your search.</td></tr>
                 )}
                 {sorted.map(t=>(
-                  <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>
-                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                  <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}
+                    style={{ background: t.eviction_watch ? "rgba(224,85,85,0.03)" : "transparent" }}>
+                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,borderLeft:t.eviction_watch?`3px solid rgba(224,85,85,0.5)`:"3px solid transparent" }}>
                       <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                         <div style={{ width:34,height:34,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0 }}>{t.initials}</div>
                         <div>
-                          <div style={{ fontSize:13,fontWeight:600,color:C.text }}>{t.name}</div>
+                          <div style={{ fontSize:13,fontWeight:600,color:C.text,display:"flex",alignItems:"center",gap:7 }}>
+                            {t.name}
+                            {t.eviction_watch&&(
+                              <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(224,85,85,0.15)",color:C.red,border:`1px solid rgba(224,85,85,0.3)`,letterSpacing:"0.05em" }}>⚑ WATCH</span>
+                            )}
+                          </div>
                           <div style={{ fontSize:11,color:C.textSub }}>
                             {isMobile?`${t.property} · Unit ${t.unit}`:(t.email||"—")}
                           </div>
