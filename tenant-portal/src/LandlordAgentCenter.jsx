@@ -139,7 +139,7 @@ function OverrideModal({ log, onClose, onSave }) {
         {/* Original message */}
         <div style={{ background: C.raised, borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: C.textSub, lineHeight: 1.6, borderLeft: `3px solid ${C.border}` }}>
           <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.1em" }}>Original message</div>
-          {log.messages?.content || log.detected_intent}
+          {log.raw_message || log.detected_intent || "—"}
         </div>
 
         {/* Category */}
@@ -335,21 +335,26 @@ export default function LandlordAgentCenter() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [{ data: logsData }, { data: rulesData }] = await Promise.all([
+    const [{ data: logsData, error: logsError }, { data: rulesData }] = await Promise.all([
       supabase
         .from("ai_routing_logs")
         .select(`
-          *,
-          tenants(name, unit_id, units(unit_number, properties(name))),
-          messages(content)
+          id, created_at, tenant_id, message_id,
+          detected_intent, detected_category, confidence_score, urgency,
+          action_taken, auto_reply_sent, ticket_created_id,
+          manager_overridden, manager_override_category, manager_override_action,
+          raw_openai_response,
+          tenants(name, unit_id, units(unit_number, properties(name)))
         `)
         .order("created_at", { ascending: false })
         .limit(100),
       supabase
         .from("ai_routing_rules")
         .select("*")
-        .order("priority", { ascending: true }),
+        .order("created_at", { ascending: false }),
     ]);
+
+    if (logsError) console.error("Agent Center logs error:", logsError);
 
     const l = logsData || [];
     setLogs(l);
@@ -510,11 +515,10 @@ export default function LandlordAgentCenter() {
                           </div>
 
                           <div style={{ fontSize: 12, color: C.textSub, marginBottom: 6, lineHeight: 1.5 }}>
-                            {log.messages?.content
-                              ? log.messages.content.length > 180
-                                ? log.messages.content.slice(0, 180) + "…"
-                                : log.messages.content
-                              : log.detected_intent || "—"}
+                            {(() => {
+                              const text = log.raw_message || log.detected_intent || "—";
+                              return text.length > 180 ? text.slice(0, 180) + "…" : text;
+                            })()}
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>

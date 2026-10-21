@@ -18,6 +18,40 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
 const FROM_EMAIL = "noreply@getmodusam.com";
 
+// ── Staff persona pool ─────────────────────────────────────
+// Each tenant is assigned a consistent agent based on their tenant_id hash.
+// Photos use Unsplash Source (free, no auth required, stable URLs).
+const STAFF_PERSONAS = [
+  { name: "Sarah M.",   title: "Property Management",  photo: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" },
+  { name: "James T.",   title: "Resident Services",    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" },
+  { name: "Maria L.",   title: "Property Management",  photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face" },
+  { name: "David K.",   title: "Resident Services",    photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face" },
+  { name: "Rachel B.",  title: "Property Management",  photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face" },
+];
+
+// Deterministic persona assignment — same tenant always gets the same "agent"
+function getPersonaForTenant(tenantId) {
+  let hash = 0;
+  for (let i = 0; i < tenantId.length; i++) {
+    hash = (hash * 31 + tenantId.charCodeAt(i)) >>> 0;
+  }
+  return STAFF_PERSONAS[hash % STAFF_PERSONAS.length];
+}
+
+// Human-feeling delay: 45–120 seconds depending on message length and urgency
+function getReplyDelay(message, urgency) {
+  if (urgency === "EMERGENCY") return 0; // Emergencies reply immediately
+  const wordCount = message.trim().split(/\s+/).length;
+  // Longer messages take longer to "read" — base 45s + up to 75s more
+  const base = 45000;
+  const extra = Math.min(wordCount * 800, 75000);
+  // Add small random jitter ±10s
+  const jitter = (Math.random() - 0.5) * 20000;
+  return Math.round(base + extra + jitter);
+}
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // ── Structured Output Schema ────────────────────────────────
 const CLASSIFICATION_SCHEMA = {
   name: "property_triage",
@@ -313,7 +347,15 @@ Classify this message, determine the correct autonomous action, and write your p
       };
     }
 
-    // ── 4. Send tenant reply ─────────────────────────────────
+    // ── 4. Human-feeling delay before sending reply ──────────
+    // Emergencies reply instantly. All others wait 45–120s so it
+    // doesn't feel like a bot — matches the "usually replies within
+    // a few hours" copy in the chat header.
+    const persona = getPersonaForTenant(tenant_id);
+    const delayMs = getReplyDelay(message, classification.urgency);
+    if (delayMs > 0) await sleep(delayMs);
+
+    // ── 4b. Send tenant reply ────────────────────────────────
     // Guard: never echo the tenant's own message back
     const finalReply = classification?.tenant_reply || "Thank you for reaching out. Property Management has logged your request and will follow up shortly.";
 
@@ -323,6 +365,8 @@ Classify this message, determine the correct autonomous action, and write your p
       tenant_id: tenant_id,
       body: finalReply,
       read: false,
+      agent_name: persona.name,
+      agent_photo: persona.photo,
     });
 
     if (replyErr) console.error("Tenant reply insert error:", replyErr);
@@ -552,6 +596,7 @@ Modus Property Management`;
         auto_reply_sent: true,
         ticket_created_id: ticketId,
         raw_message: message,
+        agent_name: persona.name,
         raw_openai_response: { tier: classification.tier, category: classification.category },
       })
       .select()

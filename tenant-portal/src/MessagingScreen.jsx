@@ -32,12 +32,13 @@ export default function MessagingScreen() {
   const { tenant } = useTenant();
 
   // ── State (triggers re-renders) ────────────────────────────
-  const [messages, setMessages]   = useState([]);
-  const [input, setInput]         = useState("");
-  const [loading, setLoading]     = useState(true);
-  const [sending, setSending]     = useState(false);
-  const [myUserId, setMyUserId]   = useState(null);   // STATE — drives fromProperty render
-  const [tenantId, setTenantId]   = useState(null);
+  const [messages, setMessages]     = useState([]);
+  const [input, setInput]           = useState("");
+  const [loading, setLoading]       = useState(true);
+  const [sending, setSending]       = useState(false);
+  const [myUserId, setMyUserId]     = useState(null);   // STATE — drives fromProperty render
+  const [tenantId, setTenantId]     = useState(null);
+  const [awaitingReply, setAwaitingReply] = useState(false); // typing indicator
 
   // ── Refs (for async callbacks/closures, no re-render needed) ──
   const myUserIdRef   = useRef(null);   // mirrors myUserId for use inside closures
@@ -120,7 +121,8 @@ export default function MessagingScreen() {
         return [...prev, data];
       });
 
-      // Fire AI routing — non-blocking
+      // Fire AI routing — non-blocking, show typing indicator while waiting
+      setAwaitingReply(true);
       fetch("/api/classify-and-route", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,7 +131,9 @@ export default function MessagingScreen() {
           tenant_id: tenantIdRef.current,
           message_id: data.id,
         }),
-      }).catch(() => {});
+      })
+        .then(() => setAwaitingReply(false))
+        .catch(() => setAwaitingReply(false));
     }
 
     setSending(false);
@@ -159,10 +163,19 @@ export default function MessagingScreen() {
 
         {/* Chat header */}
         <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
-          <div style={{ width:36, height:36, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, flexShrink:0 }}>M</div>
+          {/* Stack of agent avatars */}
+          <div style={{ position:"relative", width:36, height:36, flexShrink:0 }}>
+            <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" alt="" style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${C.surface}`, position:"absolute", top:0, left:0, objectFit:"cover" }} />
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" alt="" style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${C.surface}`, position:"absolute", top:8, left:8, objectFit:"cover" }} />
+          </div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:14, fontWeight:600, color:C.text }}>Modus Property Management</div>
-            <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>Usually replies within a few hours</div>
+            <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
+              {awaitingReply
+                ? <span style={{ color:C.green }}>● Replying…</span>
+                : "Usually replies within a few hours"
+              }
+            </div>
           </div>
         </div>
 
@@ -189,20 +202,23 @@ export default function MessagingScreen() {
               </div>
             );
 
-            // Use myUserId STATE (not ref) so this re-evaluates when user ID loads.
-            // fromProperty = true  → left side, M avatar (AI / management)
+            // fromProperty = true  → left side, agent avatar (AI / management)
             // fromProperty = false → right side, gold bubble (this tenant)
-            //
-            // While myUserId is null (still loading), only sender_id===null messages
-            // show on the left; all others are withheld from side-assignment until
-            // the user ID resolves.
             const fromProperty = item.sender_id === null || (myUserId !== null && item.sender_id !== myUserId);
 
             return (
               <div key={item.id}>
-                <div style={{ display:"flex", justifyContent:fromProperty?"flex-start":"flex-end", marginBottom:2, alignItems:"flex-end", gap:6 }}>
+                {/* Agent name label above management messages */}
+                {fromProperty && item.agent_name && (
+                  <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
+                    {item.agent_name} · Modus Property Management
+                  </div>
+                )}
+                <div style={{ display:"flex", justifyContent:fromProperty?"flex-start":"flex-end", marginBottom:2, alignItems:"flex-end", gap:8 }}>
                   {fromProperty && (
-                    <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0 }}>M</div>
+                    item.agent_photo
+                      ? <img src={item.agent_photo} alt={item.agent_name || "Agent"} style={{ width:26, height:26, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:`1px solid ${C.border}` }} />
+                      : <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0 }}>M</div>
                   )}
                   <div style={{ maxWidth:"75%", padding:"10px 14px", borderRadius:fromProperty?"4px 14px 14px 14px":"14px 4px 14px 14px", background:fromProperty?C.surface:C.goldDim, border:fromProperty?`1px solid ${C.border}`:"none", fontSize:13, color:C.text, lineHeight:1.5 }}>
                     {item.body}
@@ -214,6 +230,33 @@ export default function MessagingScreen() {
               </div>
             );
           })}
+
+          {/* Typing indicator — shown while AI is generating reply */}
+          {awaitingReply && (
+            <div>
+              <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
+                Modus Property Management
+              </div>
+              <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
+                <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0 }}>M</div>
+                <div style={{ padding:"10px 16px", borderRadius:"4px 14px 14px 14px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:4 }}>
+                  <style>{`
+                    @keyframes modus-bounce {
+                      0%,60%,100%{transform:translateY(0);opacity:.4}
+                      30%{transform:translateY(-5px);opacity:1}
+                    }
+                    .modus-dot{width:6px;height:6px;border-radius:50%;background:${C.textSub};animation:modus-bounce 1.2s infinite;}
+                    .modus-dot:nth-child(2){animation-delay:.2s;}
+                    .modus-dot:nth-child(3){animation-delay:.4s;}
+                  `}</style>
+                  <div className="modus-dot" />
+                  <div className="modus-dot" />
+                  <div className="modus-dot" />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
 
