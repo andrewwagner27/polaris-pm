@@ -396,7 +396,7 @@ export default function LandlordMessages() {
                 if (item.type === "date") return (
                   <div key={`d-${i}`} style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: "10px 0 6px", fontWeight: 500 }}>{item.label}</div>
                 );
-                const fromMe = item.sender_id === (landlordIdRef.current || landlordId);
+                const fromMe = item.sender_id === (landlordIdRef.current || landlordId) || item.sender_id === null;
                 return (
                   <div key={item.id}>
                     <div style={{ display: "flex", justifyContent: fromMe ? "flex-end" : "flex-start", marginBottom: 2, alignItems: "flex-end", gap: 8 }}>
