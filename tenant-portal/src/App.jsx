@@ -87,7 +87,8 @@ export default function App() {
         <Route path="/landlord/applications"    element={<ProtectedLandlordRoute><LandlordApplications/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/maintenance"     element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/maintenance/:id" element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/financials"      element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
+        <Route path="/landlord/financials"              element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
+        <Route path="/landlord/financials/:tenantId"   element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/messages"        element={<ProtectedLandlordRoute><LandlordMessages/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/reports"         element={<ProtectedLandlordRoute><LandlordReports/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/agent"           element={<ProtectedLandlordRoute><LandlordAgentCenter/></ProtectedLandlordRoute>}/>

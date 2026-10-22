@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
-import { useNavigate } from "react-router-dom";
-import DebtDSCR from './DebtDSCR';
 import LandlordLayout from "./LandlordLayout";
 
-// ─── Modus tokens ──────────────────────────────────────────────────────────
+// ─── Design tokens (matches rest of app) ────────────────────────────────────
 const C = {
   bg:        "#0A0B0D",
   surface:   "#111316",
@@ -21,544 +20,626 @@ const C = {
   amber:     "#F0A430",
 };
 
-// ─── Static data ───────────────────────────────────────────────────────────
-const MONTHLY_DATA = [
-  { month: "Jan", income: 20600, expenses: 4200, noi: 16400 },
-  { month: "Feb", income: 20600, expenses: 3800, noi: 16800 },
-  { month: "Mar", income: 21350, expenses: 5200, noi: 16150 },
-  { month: "Apr", income: 21350, expenses: 4100, noi: 17250 },
-  { month: "May", income: 21350, expenses: 4550, noi: 16800 },
-  { month: "Jun", income: 18550, expenses: 3650, noi: 14900 },
-];
+const TABS = ["Payment Requests", "Recurring", "Lease Terms"];
 
-const EXPENSES = [
-  { id: 1,  date: "Jun 2, 2026",  property: "Clifton Manor",  category: "Maintenance", description: "Plumbing repair — Unit 2B",        amount: 150,  vendor: "Mike's Plumbing" },
-  { id: 2,  date: "May 22, 2026", property: "Clifton Manor",  category: "Utilities",   description: "Water/sewer — May",                amount: 620,  vendor: "City of Lakewood" },
-  { id: 3,  date: "May 18, 2026", property: "944 18th Ave S", category: "Insurance",   description: "Property insurance — Q2",          amount: 890,  vendor: "Nationwide" },
-  { id: 4,  date: "May 15, 2026", property: "Clifton Manor",  category: "Maintenance", description: "Exhaust fan replacement — Unit 3A", amount: 220,  vendor: "Handy Andy LLC" },
-  { id: 5,  date: "May 10, 2026", property: "Clifton Manor",  category: "Management",  description: "Property mgmt software",           amount: 0,    vendor: "Modus PM" },
-  { id: 6,  date: "May 5, 2026",  property: "Clifton Manor",  category: "Landscaping", description: "Spring cleanup",                   amount: 350,  vendor: "Green Thumb" },
-  { id: 7,  date: "Apr 22, 2026", property: "944 18th Ave S", category: "Maintenance", description: "AC tune-up",                       amount: 180,  vendor: "CoolAir HVAC" },
-  { id: 8,  date: "Apr 1, 2026",  property: "Clifton Manor",  category: "Mortgage",    description: "Mortgage payment — April",         amount: 5800, vendor: "Union Savings Bank" },
-  { id: 9,  date: "Apr 1, 2026",  property: "944 18th Ave S", category: "Mortgage",    description: "Mortgage payment — April",         amount: 2100, vendor: "Union Savings Bank" },
-  { id: 10, date: "Mar 15, 2026", property: "Clifton Manor",  category: "Taxes",       description: "Property tax Q1",                  amount: 1850, vendor: "City of Lakewood" },
-];
-
-const INCOME = [
-  { id: 1, date: "Jun 1, 2026",  property: "Clifton Manor",  category: "Rent",     description: "June rent — 8 of 10 units collected", amount: 9200,  tenant: "Multiple" },
-  { id: 2, date: "Jun 1, 2026",  property: "944 18th Ave S", category: "Rent",     description: "June rent — Main unit",                amount: 2200,  tenant: "Kaidyn T." },
-  { id: 3, date: "May 1, 2026",  property: "Clifton Manor",  category: "Rent",     description: "May rent — 10 of 10 units",            amount: 11500, tenant: "Multiple" },
-  { id: 4, date: "May 1, 2026",  property: "944 18th Ave S", category: "Rent",     description: "May rent — Main + ADU",                amount: 3550,  tenant: "Multiple" },
-  { id: 5, date: "May 1, 2026",  property: "944 18th Ave S", category: "Airbnb",   description: "ADU Airbnb revenue — May",             amount: 1350,  tenant: "Airbnb" },
-  { id: 6, date: "Mar 6, 2026",  property: "Clifton Manor",  category: "Late Fee", description: "Late fee — Unit 2B",                   amount: 75,    tenant: "Priya M." },
-];
-
-const EXPENSE_CATEGORIES = [
-  { label: "Mortgage",    color: C.blue,    pct: 42 },
-  { label: "Maintenance", color: C.amber,   pct: 18 },
-  { label: "Taxes",       color: C.gold,    pct: 15 },
-  { label: "Insurance",   color: C.green,   pct: 12 },
-  { label: "Utilities",   color: "#6B9AE8", pct: 8  },
-  { label: "Other",       color: C.textSub, pct: 5  },
-];
-
-const CAT_COLORS = {
-  Mortgage:    C.blue,
-  Maintenance: C.amber,
-  Taxes:       C.gold,
-  Insurance:   C.green,
-  Utilities:   "#6B9AE8",
-  Landscaping: C.green,
-  Management:  C.textSub,
-  Rent:        C.green,
-  Airbnb:      C.amber,
-  "Late Fee":  C.red,
+const PAYMENT_STATUSES = {
+  Paid:     { color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
+  Unpaid:   { color:"#E05555", bg:"rgba(224,85,85,0.13)"   },
+  Overdue:  { color:"#E05555", bg:"rgba(224,85,85,0.18)"   },
+  Partial:  { color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
+  Pending:  { color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
 };
 
-// ─── Shared components ─────────────────────────────────────────────────────
-function GhostBtn({ children, onClick, small }) {
+const CATEGORIES = ["Rent","Late Fee","Utilities","Security Deposit","Pet Fee","Parking","Other"];
+
+// ─── Small UI atoms ──────────────────────────────────────────────────────────
+function StatusBadge({ status }) {
+  const cfg = PAYMENT_STATUSES[status] || { color:C.textSub, bg:"transparent" };
   return (
-    <button onClick={onClick} style={{
-      background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
-      fontSize: small ? 11 : 12, fontWeight: 500, padding: small ? "5px 10px" : "7px 14px",
-      borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
-    }}
-      onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
-      onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
+    <span style={{ fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color,letterSpacing:"0.05em",whiteSpace:"nowrap" }}>
+      {status?.toUpperCase()}
+    </span>
+  );
+}
+
+function PrimaryBtn({ children, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:disabled?0.6:1,whiteSpace:"nowrap" }}
+      onMouseOver={e=>!disabled&&(e.currentTarget.style.background="rgba(201,169,110,0.07)")}
+      onMouseOut={e=>e.currentTarget.style.background="transparent"}
     >{children}</button>
   );
 }
 
-function PrimaryBtn({ children, onClick }) {
+function GhostBtn({ children, onClick, disabled, danger }) {
   return (
-    <button onClick={onClick} style={{
-      background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold,
-      fontSize: 12, fontWeight: 500, padding: "7px 14px", borderRadius: 7,
-      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s",
-    }}
-      onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
-      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+    <button onClick={onClick} disabled={disabled}
+      style={{ background:"transparent",border:`1px solid ${danger?"rgba(224,85,85,0.35)":C.border}`,color:danger?C.red:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:disabled?0.5:1,whiteSpace:"nowrap" }}
     >{children}</button>
   );
 }
 
-function CatBadge({ cat }) {
-  const color = CAT_COLORS[cat] || C.textSub;
-  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${color}18`, color, whiteSpace: "nowrap" }}>{cat}</span>;
-}
-
-function PropBadge({ prop }) {
-  const color = prop === "Clifton Manor" ? C.blue : C.green;
-  return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${color}18`, color }}>{prop.split(" ")[0]}</span>;
-}
-
-function Card({ children, style }) {
-  return <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", ...style }}>{children}</div>;
-}
-
-function CardHeader({ title, sub, action }) {
+function Input({ label, value, onChange, type="text", placeholder, disabled }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{title}</div>
-        {sub && <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{sub}</div>}
-      </div>
-      {action}
+    <div style={{ display:"flex",flexDirection:"column",gap:5 }}>
+      {label && <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em" }}>{label}</label>}
+      <input
+        type={type} value={value||""} onChange={e=>onChange(e.target.value)}
+        placeholder={placeholder} disabled={disabled}
+        style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,fontSize:13,padding:"8px 11px",fontFamily:"'DM Sans',sans-serif",outline:"none",width:"100%",boxSizing:"border-box",opacity:disabled?0.6:1 }}
+      />
+    </div>
+  );
+}
+
+function Select({ label, value, onChange, options }) {
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:5 }}>
+      {label && <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em" }}>{label}</label>}
+      <select value={value||""} onChange={e=>onChange(e.target.value)}
+        style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,fontSize:13,padding:"8px 11px",fontFamily:"'DM Sans',sans-serif",outline:"none",width:"100%",boxSizing:"border-box" }}>
+        {options.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}
+      </select>
     </div>
   );
 }
 
 const TH = ({ children, right }) => (
-  <th style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>
+  <th style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>
 );
-const TD = ({ children, right, bold, color }) => (
-  <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", verticalAlign: "middle" }}>{children}</td>
+const TD = ({ children, right, bold, color, mono }) => (
+  <td style={{ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:"12px 14px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",verticalAlign:"middle",fontFamily:mono?"'JetBrains Mono',monospace":undefined }}>{children}</td>
 );
 
-// ─── Bar chart ─────────────────────────────────────────────────────────────
-function BarChart({ data, view }) {
-  const maxVal = Math.max(...data.map(d => Math.max(d.income, d.expenses)));
+function fmt$(n) {
+  if (n == null) return "—";
+  const abs = Math.abs(n);
+  const s = abs.toLocaleString("en-US",{ minimumFractionDigits:2,maximumFractionDigits:2 });
+  return n < 0 ? `-$${s}` : `$${s}`;
+}
+function fmtDate(d) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US",{ month:"short",day:"numeric",year:"numeric" });
+}
+
+// ─── Request Money Modal ─────────────────────────────────────────────────────
+function RequestMoneyModal({ tenants, onClose, onSave }) {
+  const [form, setForm] = useState({ tenant_id:"", category:"Rent", amount:"", due_date:"", note:"" });
+  const [saving, setSaving] = useState(false);
+  const set = k => v => setForm(f=>({...f,[k]:v}));
+
+  async function save() {
+    if (!form.tenant_id || !form.amount || !form.due_date) return;
+    setSaving(true);
+    const amt = parseFloat(form.amount);
+    const { error } = await supabase.from("payments").insert({
+      tenant_id: form.tenant_id,
+      category: form.category,
+      amount: amt,
+      amount_cents: Math.round(amt * 100),
+      balance_due: amt,
+      due_date: form.due_date,
+      status: "Unpaid",
+      is_recurring: false,
+      created_at: new Date().toISOString(),
+    });
+    setSaving(false);
+    if (!error) { onSave(); onClose(); }
+    else alert("Error: " + error.message);
+  }
+
   return (
-    <div>
-      <div style={{ padding: "20px 18px", overflowX: "auto" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 160, minWidth: 400 }}>
-          {data.map((d, i) => {
-            const incomeH = Math.round((d.income   / maxVal) * 140);
-            const expH    = Math.round((d.expenses / maxVal) * 140);
-            const noiH    = Math.round((d.noi      / maxVal) * 140);
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 3 }}>
-                  {view !== "expenses" && <div style={{ width: 16, height: incomeH, background: C.green,   borderRadius: "3px 3px 0 0", transition: "height 0.3s" }} title={`Income: $${d.income.toLocaleString()}`} />}
-                  {view !== "income"   && <div style={{ width: 16, height: expH,    background: C.red,     borderRadius: "3px 3px 0 0", transition: "height 0.3s" }} title={`Expenses: $${d.expenses.toLocaleString()}`} />}
-                  {view === "noi"      && <div style={{ width: 16, height: noiH,    background: C.blue,    borderRadius: "3px 3px 0 0", transition: "height 0.3s" }} title={`NOI: $${d.noi.toLocaleString()}`} />}
-                </div>
-                <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>{d.month}</div>
-              </div>
-            );
-          })}
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:440,padding:"28px" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:20 }}>Request Money</div>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <Select label="Tenant" value={form.tenant_id} onChange={set("tenant_id")}
+            options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+          <Select label="Category" value={form.category} onChange={set("category")} options={CATEGORIES} />
+          <Input label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
+          <Input label="Due Date" type="date" value={form.due_date} onChange={set("due_date")} />
+          <Input label="Note (optional)" value={form.note} onChange={set("note")} placeholder="Optional description" />
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 14, padding: "0 18px 14px", justifyContent: "flex-end" }}>
-        {view !== "expenses" && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textSub }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: C.green }} />Income</div>}
-        {view !== "income"   && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textSub }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red   }} />Expenses</div>}
-        {view === "noi"      && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textSub }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: C.blue  }} />NOI</div>}
+        <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:22 }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving||!form.tenant_id||!form.amount||!form.due_date}>{saving?"Saving…":"Send Request"}</PrimaryBtn>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main ──────────────────────────────────────────────────────────────────
-export default function LandlordFinancials() {
-  const [activeTab, setActiveTab]     = useState("Overview");
-  const [chartView, setChartView]     = useState("both");
-  const [expenseProp, setExpenseProp] = useState("all");
-  const [expenseCat, setExpenseCat]     = useState("all");
-  const [realExpenses, setRealExpenses] = useState([]);
-  const [expensesLoading, setExpensesLoading] = useState(true);
-  const [properties, setProperties]     = useState([]);
-  const [showAddExpense, setShowAddExpense] = useState(false);
-  const [addForm, setAddForm]           = useState({ description:"", amount:"", vendor_name:"", category:"Maintenance", property_id:"", date: new Date().toISOString().split("T")[0] });
-  const [addSaving, setAddSaving]       = useState(false);
+// ─── Send Money Modal ────────────────────────────────────────────────────────
+function SendMoneyModal({ tenants, onClose, onSave }) {
+  const [form, setForm] = useState({ tenant_id:"", category:"Security Deposit", amount:"", note:"" });
+  const [saving, setSaving] = useState(false);
+  const set = k => v => setForm(f=>({...f,[k]:v}));
 
-  useEffect(() => { fetchExpenses(); fetchProperties(); }, []);
-
-  async function fetchExpenses() {
-    setExpensesLoading(true);
-    const { data } = await supabase
-      .from("expenses")
-      .select("*, properties(name), units(unit_number)")
-      .order("date", { ascending: false });
-    setRealExpenses(data || []);
-    setExpensesLoading(false);
-  }
-
-  async function fetchProperties() {
-    const { data } = await supabase.from("properties").select("id, name");
-    setProperties(data || []);
-  }
-
-  async function saveExpense() {
-    if (!addForm.description || !addForm.amount) return;
-    setAddSaving(true);
-    await supabase.from("expenses").insert({
-      ...addForm,
-      amount: parseFloat(addForm.amount),
-      property_id: addForm.property_id || null,
+  async function save() {
+    if (!form.tenant_id || !form.amount) return;
+    setSaving(true);
+    const amt = parseFloat(form.amount);
+    const { error } = await supabase.from("payments").insert({
+      tenant_id: form.tenant_id,
+      category: form.category,
+      amount: -amt,
+      amount_cents: -Math.round(amt * 100),
+      balance_due: 0,
+      due_date: new Date().toISOString().split("T")[0],
+      status: "Paid",
+      is_recurring: false,
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
     });
-    setAddSaving(false);
-    setShowAddExpense(false);
-    setAddForm({ description:"", amount:"", vendor_name:"", category:"Maintenance", property_id:"", date: new Date().toISOString().split("T")[0] });
-    fetchExpenses();
+    setSaving(false);
+    if (!error) { onSave(); onClose(); }
+    else alert("Error: " + error.message);
   }
-
-  const ytdIncome   = MONTHLY_DATA.reduce((s, d) => s + d.income, 0);
-  const ytdExpenses = MONTHLY_DATA.reduce((s, d) => s + d.expenses, 0);
-  const ytdNOI      = MONTHLY_DATA.reduce((s, d) => s + d.noi, 0);
-  const noMargin    = Math.round((ytdNOI / ytdIncome) * 100);
-
-  const filteredExpenses = EXPENSES.filter(e => {
-    const matchProp = expenseProp === "all" || e.property === expenseProp;
-    const matchCat  = expenseCat  === "all" || e.category === expenseCat;
-    return matchProp && matchCat;
-  });
-  const totalFilteredExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0);
-
-  const TABS = ["Overview", "Income", "Expenses", "By Property", "Debt & DSCR"];
-
-  const stats = [
-    { label: "YTD Income",   value: `$${(ytdIncome/1000).toFixed(1)}k`,   sub: "Gross revenue",        accent: C.green, change: "+12% vs 2025" },
-    { label: "YTD Expenses", value: `$${(ytdExpenses/1000).toFixed(1)}k`, sub: "All properties",       accent: C.red,   change: "-3% vs 2025"  },
-    { label: "YTD NOI",      value: `$${(ytdNOI/1000).toFixed(1)}k`,      sub: "Net operating income", accent: C.blue,  change: "+18% vs 2025" },
-    { label: "NOI Margin",   value: `${noMargin}%`,                       sub: "Income retained",      accent: C.gold,  change: "Healthy range" },
-  ];
 
   return (
-    <LandlordLayout openMaintenance={0} unreadMessages={0}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${C.bg}; }
-        .m-row:hover td { background: ${C.raised} !important; }
-        .m-chart-btn:hover { background: ${C.raised} !important; color: ${C.text} !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
-      `}</style>
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:440,padding:"28px" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:20 }}>Send Money</div>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <Select label="Tenant" value={form.tenant_id} onChange={set("tenant_id")}
+            options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+          <Select label="Category" value={form.category} onChange={set("category")} options={["Security Deposit","Refund","Other"]} />
+          <Input label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
+          <Input label="Note (optional)" value={form.note} onChange={set("note")} placeholder="e.g. Security deposit refund" />
+        </div>
+        <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:22 }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving||!form.tenant_id||!form.amount}>{saving?"Saving…":"Send Payment"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "28px 32px 48px" }}>
+// ─── Offline Transaction Modal ───────────────────────────────────────────────
+function OfflineModal({ tenants, onClose, onSave }) {
+  const [form, setForm] = useState({ tenant_id:"", category:"Rent", amount:"", paid_at:"", method:"Check", note:"" });
+  const [saving, setSaving] = useState(false);
+  const set = k => v => setForm(f=>({...f,[k]:v}));
 
-        {/* Top bar */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>Financials</div>
-            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Portfolio performance · Jan–Jun 2026</div>
+  async function save() {
+    if (!form.tenant_id || !form.amount || !form.paid_at) return;
+    setSaving(true);
+    const amt = parseFloat(form.amount);
+    const { error } = await supabase.from("payments").insert({
+      tenant_id: form.tenant_id,
+      category: form.category,
+      amount: amt,
+      amount_cents: Math.round(amt * 100),
+      balance_due: 0,
+      due_date: form.paid_at,
+      status: "Paid",
+      is_recurring: false,
+      created_at: new Date().toISOString(),
+      paid_at: new Date(form.paid_at).toISOString(),
+    });
+    setSaving(false);
+    if (!error) { onSave(); onClose(); }
+    else alert("Error: " + error.message);
+  }
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:440,padding:"28px" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:20 }}>Track Offline Transaction</div>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <Select label="Tenant" value={form.tenant_id} onChange={set("tenant_id")}
+            options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+          <Select label="Category" value={form.category} onChange={set("category")} options={CATEGORIES} />
+          <Input label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
+          <Input label="Date Received" type="date" value={form.paid_at} onChange={set("paid_at")} />
+          <Select label="Method" value={form.method} onChange={set("method")} options={["Check","Cash","Zelle","Venmo","Other"]} />
+          <Input label="Note (optional)" value={form.note} onChange={set("note")} placeholder="Optional note" />
+        </div>
+        <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:22 }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving||!form.tenant_id||!form.amount||!form.paid_at}>{saving?"Saving…":"Record Payment"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Payment Modal ──────────────────────────────────────────────────────
+function EditPaymentModal({ payment, onClose, onSave }) {
+  const [form, setForm] = useState({
+    status: payment.status||"Unpaid",
+    amount: payment.amount||"",
+    balance_due: payment.balance_due||"",
+    due_date: payment.due_date||"",
+  });
+  const [saving, setSaving] = useState(false);
+  const set = k => v => setForm(f=>({...f,[k]:v}));
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.from("payments").update({
+      status: form.status,
+      amount: parseFloat(form.amount),
+      amount_cents: Math.round(parseFloat(form.amount)*100),
+      balance_due: parseFloat(form.balance_due),
+      due_date: form.due_date,
+      paid_at: form.status === "Paid" ? new Date().toISOString() : null,
+    }).eq("id", payment.id);
+    setSaving(false);
+    if (!error) { onSave(); onClose(); }
+    else alert("Error: " + error.message);
+  }
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:400,padding:"28px" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:20 }}>Edit Payment</div>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <Select label="Status" value={form.status} onChange={set("status")} options={["Unpaid","Pending","Paid","Partial","Overdue"]} />
+          <Input label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} />
+          <Input label="Balance Due ($)" type="number" value={form.balance_due} onChange={set("balance_due")} />
+          <Input label="Due Date" type="date" value={form.due_date} onChange={set("due_date")} />
+        </div>
+        <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:22 }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving}>{saving?"Saving…":"Save Changes"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Requests Tab ────────────────────────────────────────────────────
+function PaymentRequestsTab({ tenantId, tenantMap, onRefresh }) {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editTarget, setEditTarget] = useState(null);
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterCategory, setFilterCategory] = useState("All");
+
+  async function load() {
+    setLoading(true);
+    let q = supabase.from("payments").select("*").order("due_date", { ascending: false });
+    if (tenantId) q = q.eq("tenant_id", tenantId);
+    const { data } = await q;
+    setPayments(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [tenantId]);
+
+  async function cancel(id) {
+    if (!window.confirm("Cancel this payment request?")) return;
+    await supabase.from("payments").delete().eq("id", id);
+    load();
+  }
+
+  async function markPaid(row) {
+    await supabase.from("payments").update({ status:"Paid", balance_due:0, paid_at:new Date().toISOString() }).eq("id", row.id);
+    load();
+  }
+
+  const filtered = payments.filter(p => {
+    if (filterStatus !== "All" && p.status !== filterStatus) return false;
+    if (filterCategory !== "All" && p.category !== filterCategory) return false;
+    return true;
+  });
+
+  const totalBalance = filtered.filter(p=>p.status!=="Paid").reduce((s,p)=>s+(p.balance_due||0),0);
+
+  return (
+    <div>
+      {/* Filters */}
+      <div style={{ display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center" }}>
+        <div style={{ display:"flex",gap:6 }}>
+          {["All","Unpaid","Overdue","Partial","Pending","Paid"].map(s=>(
+            <button key={s} onClick={()=>setFilterStatus(s)}
+              style={{ fontSize:11,fontWeight:600,padding:"5px 10px",borderRadius:5,cursor:"pointer",border:`1px solid ${filterStatus===s?C.gold:C.border}`,background:filterStatus===s?"rgba(201,169,110,0.1)":"transparent",color:filterStatus===s?C.gold:C.textSub,transition:"all 0.15s" }}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}
+          style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,color:C.textSub,fontSize:12,padding:"5px 10px",fontFamily:"'DM Sans',sans-serif",outline:"none" }}>
+          <option value="All">All categories</option>
+          {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+        {totalBalance > 0 && (
+          <div style={{ marginLeft:"auto",fontSize:13,color:C.red,fontWeight:600 }}>
+            Outstanding: {fmt$(totalBalance)}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <select style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
-              <option>2026 YTD</option>
-              <option>2025 Full Year</option>
-              <option>Last 12 months</option>
-            </select>
-            <GhostBtn>⬇ Export</GhostBtn>
-            <PrimaryBtn>+ Add expense</PrimaryBtn>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>No payment requests found.</div>
+      ) : (
+        <div style={{ overflowX:"auto",borderRadius:10,border:`1px solid ${C.border}` }}>
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead>
+              <tr>
+                {!tenantId && <TH>Tenant</TH>}
+                <TH>Category</TH>
+                <TH>Due Date</TH>
+                <TH>Status</TH>
+                <TH right>Amount</TH>
+                <TH right>Balance Due</TH>
+                <TH>Actions</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(p=>(
+                <tr key={p.id} style={{ background:p.status==="Overdue"?"rgba(224,85,85,0.03)":"transparent" }}>
+                  {!tenantId && <TD bold>{tenantMap[p.tenant_id]||"—"}</TD>}
+                  <TD bold>{p.category||"—"}</TD>
+                  <TD>{fmtDate(p.due_date)}</TD>
+                  <TD><StatusBadge status={p.status} /></TD>
+                  <TD right mono bold>{fmt$(p.amount)}</TD>
+                  <TD right mono color={p.balance_due>0?C.red:C.green}>{fmt$(p.balance_due)}</TD>
+                  <TD>
+                    <div style={{ display:"flex",gap:6 }}>
+                      {p.status !== "Paid" && (
+                        <button onClick={()=>markPaid(p)}
+                          style={{ fontSize:10,padding:"3px 8px",borderRadius:4,border:`1px solid rgba(114,176,42,0.4)`,background:"rgba(114,176,42,0.08)",color:C.green,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                          Mark Paid
+                        </button>
+                      )}
+                      <button onClick={()=>setEditTarget(p)}
+                        style={{ fontSize:10,padding:"3px 8px",borderRadius:4,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                        Edit
+                      </button>
+                      <button onClick={()=>cancel(p.id)}
+                        style={{ fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid rgba(224,85,85,0.3)",background:"transparent",color:C.red,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {editTarget && (
+        <EditPaymentModal payment={editTarget} onClose={()=>setEditTarget(null)} onSave={load} />
+      )}
+    </div>
+  );
+}
+
+// ─── Recurring Requests Tab ──────────────────────────────────────────────────
+function RecurringTab({ tenantId, tenantMap }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load() {
+      setLoading(true);
+      let q = supabase.from("payments").select("*").eq("is_recurring", true).order("due_date",{ascending:false});
+      if (tenantId) q = q.eq("tenant_id", tenantId);
+      const { data } = await q;
+      setRows(data||[]);
+      setLoading(false);
+    }
+    load();
+  },[tenantId]);
+
+  return (
+    <div>
+      <div style={{ fontSize:12,color:C.textMuted,marginBottom:16 }}>
+        Recurring charges are generated automatically each month. Edit the schedule in your lease settings.
+      </div>
+      {loading ? (
+        <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>No recurring charges set up yet.</div>
+      ) : (
+        <div style={{ overflowX:"auto",borderRadius:10,border:`1px solid ${C.border}` }}>
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead>
+              <tr>
+                {!tenantId && <TH>Tenant</TH>}
+                <TH>Category</TH>
+                <TH>Due Date</TH>
+                <TH>Status</TH>
+                <TH right>Amount</TH>
+                <TH right>Balance Due</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(p=>(
+                <tr key={p.id}>
+                  {!tenantId && <TD bold>{tenantMap[p.tenant_id]||"—"}</TD>}
+                  <TD bold>{p.category||"—"}</TD>
+                  <TD>{fmtDate(p.due_date)}</TD>
+                  <TD><StatusBadge status={p.status} /></TD>
+                  <TD right mono bold>{fmt$(p.amount)}</TD>
+                  <TD right mono color={p.balance_due>0?C.red:C.green}>{fmt$(p.balance_due)}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Lease Terms Tab ─────────────────────────────────────────────────────────
+function LeaseTermsTab({ tenantId }) {
+  const [lease, setLease] = useState(null);
+  const [tenant, setTenant] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    if (!tenantId) { setLoading(false); return; }
+    async function load() {
+      const [{ data: t }, { data: l }] = await Promise.all([
+        supabase.from("tenants").select("*").eq("id", tenantId).maybeSingle(),
+        supabase.from("leases").select("*").eq("tenant_id", tenantId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+      ]);
+      setTenant(t);
+      setLease(l);
+      setLoading(false);
+    }
+    load();
+  },[tenantId]);
+
+  if (!tenantId) return (
+    <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>
+      Select a tenant to view lease terms.
+    </div>
+  );
+
+  if (loading) return <div style={{ color:C.textMuted,fontSize:13,padding:"40px 0",textAlign:"center" }}>Loading…</div>;
+
+  function row(label, value, last, color) {
+    return (
+      <div key={label} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:last?"none":`1px solid ${C.border}` }}>
+        <span style={{ fontSize:13,color:C.textSub }}>{label}</span>
+        <span style={{ fontSize:13,fontWeight:500,color:color||C.text }}>{value||"—"}</span>
+      </div>
+    );
+  }
+
+  function card(title, children, borderColor) {
+    return (
+      <div style={{ background:C.surface,border:`1px solid ${borderColor||C.border}`,borderRadius:10,overflow:"hidden",marginBottom:16 }}>
+        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>{title}</div>
+        <div style={{ padding:"4px 16px 8px" }}>{children}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Disclaimer */}
+      <div style={{ background:"rgba(201,169,110,0.07)",border:`1px solid rgba(201,169,110,0.2)`,borderRadius:8,padding:"10px 14px",marginBottom:20,fontSize:12,color:C.amber,lineHeight:1.5 }}>
+        ⚠️ Adding or editing lease information here does not create or update payment requests. Visit the <strong>Payment Requests</strong> tab to create or update payments.
+      </div>
+
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16 }}>
+        <div>
+          {card("Lease Details", <>
+            {row("Lease Start", fmtDate(lease?.start_date))}
+            {row("Lease End", fmtDate(lease?.end_date))}
+            {row("Term Type", lease?.term_type || "Fixed")}
+            {row("Move-out Date", fmtDate(lease?.move_out_date), true)}
+          </>)}
+
+          {card("Financials", <>
+            {row("Monthly Rent", fmt$(lease?.rent_amount || tenant?.rent_amount))}
+            {row("Security Deposit", fmt$(lease?.security_deposit))}
+            {row("Rent Due Date", "1st of each month")}
+            {row("Grace Period", "Through 5th (11:59 PM)", true)}
+          </>)}
+        </div>
+        <div>
+          {card("Late Fee Settings", <>
+            {row("Late Fee Charged", "6th of each month")}
+            {row("Frequency", "One-time")}
+            {row("Amount", "$50.00", true, C.amber)}
+          </>, "rgba(240,164,48,0.3)")}
+
+          {card("Tenant Info", <>
+            {row("Name", tenant?.full_name||tenant?.name)}
+            {row("Email", tenant?.email)}
+            {row("Phone", tenant?.phone)}
+            {row("Bank Connected", tenant?.bank_connected ? "✓ Yes" : "No")}
+            {row("Autopay", tenant?.autopay_enabled ? "On" : "Off", true)}
+          </>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+export default function LandlordFinancials() {
+  const { tenantId } = useParams(); // optional — /financials or /financials/:tenantId
+  const navigate = useNavigate();
+
+  const [tab, setTab] = useState(0);
+  const [tenants, setTenants] = useState([]);
+  const [tenantMap, setTenantMap] = useState({});
+  const [selectedTenant, setSelectedTenant] = useState(tenantId || "");
+  const [modal, setModal] = useState(null); // "request"|"send"|"offline"
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(()=>{
+    async function load() {
+      const { data } = await supabase.from("tenants").select("id,full_name,name,email").eq("is_active",true).order("full_name");
+      const list = data||[];
+      setTenants(list);
+      const map = {};
+      list.forEach(t=>{ map[t.id]=t.full_name||t.name||"Unnamed"; });
+      setTenantMap(map);
+    }
+    load();
+  },[]);
+
+  const refresh = () => setRefreshKey(k=>k+1);
+  const filteredTenantId = selectedTenant || null;
+
+  return (
+    <LandlordLayout>
+      <div style={{ maxWidth:1100,margin:"0 auto",padding:"32px 24px",fontFamily:"'DM Sans',sans-serif" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:12 }}>
+          <div>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:C.text,letterSpacing:"-0.01em" }}>
+              Financials
+            </div>
+            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>
+              Payment requests, recurring charges, and lease terms
+            </div>
+          </div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            <GhostBtn onClick={()=>setModal("offline")}>📋 Track Offline</GhostBtn>
+            <GhostBtn onClick={()=>setModal("send")}>💸 Send Money</GhostBtn>
+            <PrimaryBtn onClick={()=>setModal("request")}>＋ Request Money</PrimaryBtn>
           </div>
         </div>
 
-        {/* KPI cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
-          {stats.map((s, i) => (
-            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
-              </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: s.accent, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: C.textSub }}>{s.sub}</div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: s.accent, marginTop: 4 }}>↑ {s.change}</div>
-            </div>
-          ))}
+        {/* Tenant filter */}
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:20 }}>
+          <span style={{ fontSize:12,color:C.textSub,whiteSpace:"nowrap" }}>Filter by tenant:</span>
+          <select value={selectedTenant} onChange={e=>setSelectedTenant(e.target.value)}
+            style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,fontSize:13,padding:"7px 11px",fontFamily:"'DM Sans',sans-serif",outline:"none",minWidth:200 }}>
+            <option value="">All tenants</option>
+            {tenants.map(t=><option key={t.id} value={t.id}>{t.full_name||t.name||"Unnamed"}</option>)}
+          </select>
+          {selectedTenant && (
+            <button onClick={()=>setSelectedTenant("")}
+              style={{ fontSize:11,color:C.textMuted,background:"transparent",border:"none",cursor:"pointer",padding:0 }}>✕ Clear</button>
+          )}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
-          {TABS.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: "10px 16px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
-              color: activeTab === tab ? C.gold : C.textSub,
-              background: "none", border: "none",
-              borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
-              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
-            }}>{tab}</button>
+        <div style={{ display:"flex",gap:2,marginBottom:24,borderBottom:`1px solid ${C.border}` }}>
+          {TABS.map((t,i)=>(
+            <button key={t} onClick={()=>setTab(i)}
+              style={{ fontSize:13,fontWeight:500,padding:"10px 16px",background:"transparent",border:"none",borderBottom:`2px solid ${tab===i?C.gold:"transparent"}`,color:tab===i?C.gold:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",marginBottom:-1 }}>
+              {t}
+            </button>
           ))}
         </div>
 
-        {/* ── Overview ── */}
-        {activeTab === "Overview" && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
-              {/* Chart */}
-              <Card>
-                <CardHeader
-                  title="Cash Flow — Jan to Jun 2026"
-                  sub="Income vs expenses vs NOI"
-                  action={
-                    <div style={{ display: "flex", gap: 5 }}>
-                      {[["both","All"],["income","Income"],["expenses","Expenses"],["noi","NOI"]].map(([v,l]) => (
-                        <button key={v} className="m-chart-btn" onClick={() => setChartView(v)} style={{
-                          padding: "4px 9px", borderRadius: 5, fontSize: 11, fontWeight: chartView === v ? 600 : 400,
-                          background: chartView === v ? C.goldDim : "transparent",
-                          color: chartView === v ? C.text : C.textSub,
-                          border: `1px solid ${chartView === v ? C.goldDim : C.border}`,
-                          cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s",
-                        }}>{l}</button>
-                      ))}
-                    </div>
-                  }
-                />
-                <BarChart data={MONTHLY_DATA} view={chartView} />
-              </Card>
+        {/* Tab content */}
+        {tab === 0 && <PaymentRequestsTab key={refreshKey} tenantId={filteredTenantId} tenantMap={tenantMap} onRefresh={refresh} />}
+        {tab === 1 && <RecurringTab key={refreshKey} tenantId={filteredTenantId} tenantMap={tenantMap} />}
+        {tab === 2 && <LeaseTermsTab tenantId={filteredTenantId} />}
 
-              {/* Expense breakdown */}
-              <Card>
-                <CardHeader title="Expense breakdown" />
-                <div style={{ padding: "16px 18px" }}>
-                  <div style={{ textAlign: "center", marginBottom: 14 }}>
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.red }}>${ytdExpenses.toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: C.textSub }}>Total expenses YTD</div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    {EXPENSE_CATEGORIES.map((cat, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 11, color: C.textSub, width: 80, flexShrink: 0 }}>{cat.label}</span>
-                        <div style={{ flex: 1, height: 5, background: C.raised, borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${cat.pct}%`, background: cat.color, borderRadius: 3 }} />
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: C.text, width: 28, textAlign: "right", flexShrink: 0 }}>{cat.pct}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            {/* Monthly table */}
-            <Card>
-              <CardHeader title="Monthly summary" action={<button style={{ fontSize: 11, color: C.goldDim, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Export CSV</button>} />
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr><TH>Month</TH><TH right>Gross Income</TH><TH right>Expenses</TH><TH right>NOI</TH><TH>Margin</TH></tr></thead>
-                <tbody>
-                  {MONTHLY_DATA.map((d, i) => (
-                    <tr key={i} className="m-row">
-                      <TD bold>{d.month} 2026</TD>
-                      <TD right bold color={C.green}>${d.income.toLocaleString()}</TD>
-                      <TD right bold color={C.red}>${d.expenses.toLocaleString()}</TD>
-                      <TD right bold color={C.blue}>${d.noi.toLocaleString()}</TD>
-                      <td style={{ padding: "11px 16px", borderBottom: `1px solid ${C.border}` }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ flex: 1, height: 4, background: C.raised, borderRadius: 2 }}>
-                            <div style={{ height: "100%", width: `${Math.round((d.noi/d.income)*100)}%`, background: C.gold, borderRadius: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: C.text, width: 32 }}>{Math.round((d.noi/d.income)*100)}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 18px", background: C.raised, borderTop: `1px solid ${C.border}`, flexWrap: "wrap", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>YTD Total</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>${ytdIncome.toLocaleString()}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>${ytdExpenses.toLocaleString()}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: C.blue }}>${ytdNOI.toLocaleString()}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.gold }}>{noMargin}% avg</span>
-              </div>
-            </Card>
-          </>
-        )}
-
-        {/* ── Income ── */}
-        {activeTab === "Income" && (
-          <Card>
-            <CardHeader
-              title="Income ledger"
-              sub={`${INCOME.length} transactions · $${INCOME.reduce((s,i) => s+i.amount,0).toLocaleString()} total`}
-              action={<GhostBtn small>⬇ Export</GhostBtn>}
-            />
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr><TH>Date</TH><TH>Property</TH><TH>Category</TH><TH>Description</TH><TH>Tenant</TH><TH right>Amount</TH></tr></thead>
-                <tbody>
-                  {INCOME.map(row => (
-                    <tr key={row.id} className="m-row">
-                      <TD>{row.date}</TD>
-                      <TD><PropBadge prop={row.property} /></TD>
-                      <TD><CatBadge cat={row.category} /></TD>
-                      <TD>{row.description}</TD>
-                      <TD>{row.tenant}</TD>
-                      <TD right bold color={C.green}>${row.amount.toLocaleString()}</TD>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 18px", background: C.raised, borderTop: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Total income</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: C.green }}>${INCOME.reduce((s,i) => s+i.amount,0).toLocaleString()}</span>
-            </div>
-          </Card>
-        )}
-
-        {/* ── Expenses ── */}
-        {activeTab === "Expenses" && (
-          <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
-              <select value={expenseProp} onChange={e => setExpenseProp(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
-                <option value="all">All properties</option>
-                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select value={expenseCat} onChange={e => setExpenseCat(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
-                <option value="all">All categories</option>
-                {["Maintenance","Mortgage","Taxes","Insurance","Utilities","Landscaping","Management","Other"].map(c => <option key={c}>{c}</option>)}
-              </select>
-              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: C.red }}>
-                {expensesLoading ? "Loading…" : `${realExpenses.filter(e => (expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).length} expenses · $${realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).reduce((s,e)=>s+(e.amount||0),0).toLocaleString()}`}
-              </span>
-            </div>
-            <Card>
-              <CardHeader title="Expense ledger" action={
-                <div style={{ display:"flex", gap:8 }}>
-                  <GhostBtn small onClick={() => setShowAddExpense(true)}>+ Add expense</GhostBtn>
-                  <GhostBtn small>⬇ Export</GhostBtn>
-                </div>
-              }/>
-              {expensesLoading ? (
-                <div style={{ padding:24, textAlign:"center", color:C.textSub, fontSize:13 }}>Loading expenses…</div>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead><tr><TH>Date</TH><TH>Property</TH><TH>Category</TH><TH>Description</TH><TH>Vendor</TH><TH right>Amount</TH></tr></thead>
-                    <tbody>
-                      {realExpenses
-                        .filter(e => (expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat))
-                        .map(row => (
-                          <tr key={row.id} className="m-row">
-                            <TD>{row.date}</TD>
-                            <TD>{row.properties?.name ? <PropBadge prop={row.properties.name} /> : "—"}</TD>
-                            <TD><CatBadge cat={row.category || "Other"} /></TD>
-                            <TD>{row.description}</TD>
-                            <TD>{row.vendor_name || "—"}</TD>
-                            <TD right bold color={C.red}>${(row.amount||0).toLocaleString()}</TD>
-                          </tr>
-                        ))
-                      }
-                      {realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).length === 0 && (
-                        <tr><td colSpan={6} style={{ padding:24, textAlign:"center", color:C.textSub, fontSize:13 }}>No expenses yet. Approved maintenance invoices will appear here automatically.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 18px", background: C.raised, borderTop: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Total expenses</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: C.red }}>${realExpenses.filter(e=>(expenseProp==="all"||e.property_id===expenseProp)&&(expenseCat==="all"||e.category===expenseCat)).reduce((s,e)=>s+(e.amount||0),0).toLocaleString()}</span>
-              </div>
-            </Card>
-
-            {/* Add expense modal */}
-            {showAddExpense && (
-              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={() => setShowAddExpense(false)}>
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, width:460, padding:"24px" }} onClick={e => e.stopPropagation()}>
-                  <div style={{ fontSize:15, fontWeight:600, color:C.text, marginBottom:20 }}>Add expense</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                    <div>
-                      <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Description *</label>
-                      <input value={addForm.description} onChange={e => setAddForm(f=>({...f,description:e.target.value}))} placeholder="e.g. Plumbing repair Unit 2B"
-                        style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div>
-                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Amount ($) *</label>
-                        <input type="number" value={addForm.amount} onChange={e => setAddForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"
-                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
-                      </div>
-                      <div>
-                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Date</label>
-                        <input type="date" value={addForm.date} onChange={e => setAddForm(f=>({...f,date:e.target.value}))}
-                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
-                      </div>
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div>
-                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Category</label>
-                        <select value={addForm.category} onChange={e => setAddForm(f=>({...f,category:e.target.value}))}
-                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}>
-                          {["Maintenance","Mortgage","Taxes","Insurance","Utilities","Landscaping","Management","Other"].map(c=><option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Property</label>
-                        <select value={addForm.property_id} onChange={e => setAddForm(f=>({...f,property_id:e.target.value}))}
-                          style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}>
-                          <option value="">All / General</option>
-                          {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:5 }}>Vendor</label>
-                      <input value={addForm.vendor_name} onChange={e => setAddForm(f=>({...f,vendor_name:e.target.value}))} placeholder="e.g. Mike's Plumbing"
-                        style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box" }}/>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", gap:10, marginTop:20, justifyContent:"flex-end" }}>
-                    <GhostBtn onClick={() => setShowAddExpense(false)}>Cancel</GhostBtn>
-                    <PrimaryBtn onClick={saveExpense}>{addSaving ? "Saving…" : "Add expense"}</PrimaryBtn>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── By Property ── */}
-        {activeTab === "By Property" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {[
-              { name: "Clifton Manor",  units: 12, income: 103400, expenses: 19800, noi: 83600, occupancy: 83, color: C.blue },
-              { name: "944 18th Ave S", units: 6,  income: 21100,  expenses: 5700,  noi: 15400, occupancy: 83, color: C.green },
-            ].map((prop, i) => (
-              <Card key={i} style={{ borderTop: `2px solid ${prop.color}` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{prop.name}</div>
-                  <span style={{ fontSize: 11, color: C.textSub }}>{prop.units} units · {prop.occupancy}% occupied</span>
-                </div>
-                <div style={{ padding: "16px 18px" }}>
-                  {[
-                    ["Gross income",   `$${prop.income.toLocaleString()}`,   C.green],
-                    ["Total expenses", `$${prop.expenses.toLocaleString()}`, C.red],
-                    ["NOI",           `$${prop.noi.toLocaleString()}`,       prop.color],
-                    ["NOI margin",    `${Math.round((prop.noi/prop.income)*100)}%`, C.text],
-                  ].map(([k, v, c], idx, arr) => (
-                    <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: idx === arr.length-1 ? "none" : `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: 13, color: C.textSub }}>{k}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: c }}>{v}</span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textSub, marginBottom: 5 }}>
-                      <span>NOI margin</span>
-                      <span>{Math.round((prop.noi/prop.income)*100)}%</span>
-                    </div>
-                    <div style={{ height: 6, background: C.raised, borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${Math.round((prop.noi/prop.income)*100)}%`, background: prop.color, borderRadius: 3 }} />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "Debt & DSCR" && <DebtDSCR />}
+        {/* Modals */}
+        {modal==="request" && <RequestMoneyModal tenants={tenants} onClose={()=>setModal(null)} onSave={refresh} />}
+        {modal==="send"    && <SendMoneyModal    tenants={tenants} onClose={()=>setModal(null)} onSave={refresh} />}
+        {modal==="offline" && <OfflineModal      tenants={tenants} onClose={()=>setModal(null)} onSave={refresh} />}
       </div>
     </LandlordLayout>
   );
