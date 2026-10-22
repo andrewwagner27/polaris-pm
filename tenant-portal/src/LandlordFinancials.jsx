@@ -59,27 +59,36 @@ function useFinancialsData() {
     setLoading(true);
     setError(null);
     try {
+      // Tenants — load independently so a bad lease/payment query never blocks the dropdown
+      const { data: tData, error: tErr } = await supabase.from("tenants").select("*").order("name");
+      if (tErr) throw tErr;
+      setTenants(tData || []);
+
+      // Remaining queries — failures are non-fatal; set empty arrays and surface a warning
       const [
-        { data: tData, error: tErr },
-        { data: lData, error: lErr },
-        { data: pData, error: pErr },
+        { data: lData,  error: lErr  },
+        { data: pData,  error: pErr  },
         { data: prData, error: prErr },
-        { data: uData, error: uErr },
+        { data: uData,  error: uErr  },
       ] = await Promise.all([
-        supabase.from("tenants").select("id,name,email,phone,eviction_watch,autopay_enabled,bank_connected").eq("is_active",true).order("name"),
         supabase.from("leases").select("*").order("created_at",{ascending:false}),
         supabase.from("payments").select("*").order("due_date",{ascending:false}),
-        supabase.from("properties").select("id,name,address"),
-        supabase.from("units").select("id,unit_number,property_id"),
+        supabase.from("properties").select("*"),
+        supabase.from("units").select("*"),
       ]);
-      if (tErr) throw tErr;
-      if (lErr) throw lErr;
-      if (pErr) throw pErr;
-      setTenants(tData || []);
-      setLeases(lData || []);
-      setPayments(pData || []);
+
+      if (lErr)  console.warn("[Financials] leases error:", lErr.message);
+      if (pErr)  console.warn("[Financials] payments error:", pErr.message);
+      if (prErr) console.warn("[Financials] properties error:", prErr.message);
+      if (uErr)  console.warn("[Financials] units error:", uErr.message);
+
+      setLeases(lData    || []);
+      setPayments(pData  || []);
       setProperties(prData || []);
-      setUnits(uData || []);
+      setUnits(uData     || []);
+
+      // Surface a non-blocking error banner if payments failed (most important)
+      if (pErr) setError(`Payments table: ${pErr.message}`);
     } catch(e) {
       setError(e.message);
     } finally {
@@ -177,7 +186,7 @@ function SummaryBar({ payments, tenants }) {
     .filter(p=>p.status==="Pending")
     .reduce((s,p)=>s+(p.balance_due||0),0);
 
-  const onWatch = tenants.filter(t=>t.eviction_watch).length;
+  const onWatch = tenants.filter(t=>t?.eviction_watch).length;
 
   const tiles = [
     { label:"Collected YTD",         value:fmt$(collected),  color:C.green,  icon:"↗" },
@@ -662,9 +671,7 @@ function LeaseTermsTab({ tenants, leases, filters, onChange }) {
                   <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>{tenant.email}</div>
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
-                  {tenant.eviction_watch&&<span style={{ fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:3,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚑ WATCH</span>}
-                  <span style={{ fontSize:10,padding:"3px 8px",borderRadius:5,background:tenant.autopay_enabled?"rgba(114,176,42,0.1)":"rgba(144,149,160,0.1)",color:tenant.autopay_enabled?C.green:C.textMuted,border:`1px solid ${tenant.autopay_enabled?"rgba(114,176,42,0.3)":"rgba(144,149,160,0.15)"}` }}>{tenant.autopay_enabled?"Autopay On":"Autopay Off"}</span>
-                  <span style={{ fontSize:10,padding:"3px 8px",borderRadius:5,background:tenant.bank_connected?"rgba(74,154,232,0.1)":"rgba(144,149,160,0.1)",color:tenant.bank_connected?C.blue:C.textMuted,border:`1px solid ${tenant.bank_connected?"rgba(74,154,232,0.3)":"rgba(144,149,160,0.15)"}` }}>{tenant.bank_connected?"Bank Added":"No Bank"}</span>
+                  {tenant?.eviction_watch&&<span style={{ fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:3,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚑ WATCH</span>}
                 </div>
               </div>
 
