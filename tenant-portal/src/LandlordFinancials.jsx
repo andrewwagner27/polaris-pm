@@ -66,7 +66,7 @@ function useFinancialsData() {
         { data: prData, error: prErr },
         { data: uData, error: uErr },
       ] = await Promise.all([
-        supabase.from("tenants").select("id,full_name,name,email,phone,eviction_watch,autopay_enabled,bank_connected").eq("is_active",true).order("full_name"),
+        supabase.from("tenants").select("id,name,email,phone,eviction_watch,autopay_enabled,bank_connected").eq("is_active",true).order("name"),
         supabase.from("leases").select("*").order("created_at",{ascending:false}),
         supabase.from("payments").select("*").order("due_date",{ascending:false}),
         supabase.from("properties").select("id,name,address"),
@@ -90,7 +90,7 @@ function useFinancialsData() {
   useEffect(() => { load(); }, [load]);
 
   // Derived maps
-  const tenantMap  = Object.fromEntries((tenants||[]).map(t=>[t.id, t.full_name||t.name||"Unnamed"]));
+  const tenantMap  = Object.fromEntries((tenants||[]).map(t=>[t.id, t.name||"Unknown Tenant"]));
   const leaseMap   = Object.fromEntries((leases||[]).map(l=>[l.tenant_id, l]));
   const propMap    = Object.fromEntries((properties||[]).map(p=>[p.id, p]));
   const unitMap    = Object.fromEntries((units||[]).map(u=>[u.id, u]));
@@ -232,7 +232,7 @@ function FilterDrawer({ open, onClose, filters, onChange, tenants, onClear }) {
         <div style={{ padding:"20px",display:"flex",flexDirection:"column",gap:20 }}>
           {/* Tenant */}
           <Sel label="Tenant" value={filters.tenantId} onChange={v=>setF("tenantId",v)}
-            options={[{value:"",label:"All tenants"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+            options={[{value:"",label:"All tenants"},...tenants.map(t=>({value:t.id,label:t.name||"Unknown Tenant"}))]} />
 
           {/* Category */}
           <Sel label="Category" value={filters.category} onChange={v=>setF("category",v)}
@@ -353,7 +353,7 @@ function RequestMoneyModal({ tenants, onClose, onSave }) {
   return (
     <Modal title="Request Money" onClose={onClose}>
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.name||"Unknown Tenant"}))]} />
         <Sel label="Category" value={form.category} onChange={set("category")} options={CATEGORIES} />
         <Inp label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
         <Inp label="Due Date" type="date" value={form.due_date} onChange={set("due_date")} />
@@ -381,7 +381,7 @@ function SendMoneyModal({ tenants, onClose, onSave }) {
   return (
     <Modal title="Send Money" onClose={onClose}>
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.name||"Unknown Tenant"}))]} />
         <Sel label="Category" value={form.category} onChange={set("category")} options={["Security Deposit","Refund","Other"]} />
         <Inp label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
         <Inp label="Note (optional)" value={form.note} onChange={set("note")} />
@@ -408,7 +408,7 @@ function OfflineModal({ tenants, onClose, onSave }) {
   return (
     <Modal title="Track Offline Transaction" onClose={onClose}>
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.full_name||t.name||"Unnamed"}))]} />
+        <Sel label="Tenant" value={form.tenant_id} onChange={set("tenant_id")} options={[{value:"",label:"Select tenant…"},...tenants.map(t=>({value:t.id,label:t.name||"Unknown Tenant"}))]} />
         <Sel label="Category" value={form.category} onChange={set("category")} options={CATEGORIES} />
         <Inp label="Amount ($)" type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" />
         <Inp label="Date Received" type="date" value={form.paid_at} onChange={set("paid_at")} />
@@ -658,7 +658,7 @@ function LeaseTermsTab({ tenants, leases, filters, onChange }) {
               {/* Tenant header */}
               <div style={{ padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:C.raised }}>
                 <div>
-                  <div style={{ fontSize:14,fontWeight:600,color:C.text }}>{tenant.full_name||tenant.name||"Unnamed"}</div>
+                  <div style={{ fontSize:14,fontWeight:600,color:C.text }}>{tenant.name||"Unknown Tenant"}</div>
                   <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>{tenant.email}</div>
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
@@ -758,7 +758,7 @@ export default function LandlordFinancials() {
           <select value={filters.tenantId} onChange={e=>setFilters(f=>({...f,tenantId:e.target.value}))}
             style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,color:filters.tenantId?C.text:C.textSub,fontSize:13,padding:"8px 11px",fontFamily:"'DM Sans',sans-serif",outline:"none" }}>
             <option value="">All tenants</option>
-            {tenants.map(t=><option key={t.id} value={t.id}>{t.full_name||t.name||"Unnamed"}</option>)}
+            {tenants.map(t=><option key={t.id} value={t.id}>{t.name||"Unknown Tenant"}</option>)}
           </select>
           {(filters.tenantId||activeFilterCount>0)&&(
             <button onClick={clearFilters} style={{ fontSize:11,color:C.textMuted,background:"transparent",border:"none",cursor:"pointer" }}>✕ Clear</button>
