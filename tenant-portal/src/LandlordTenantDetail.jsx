@@ -44,6 +44,75 @@ const FREQ_OPTIONS = ["Monthly","Weekly","Bi-Weekly","Quarterly","Annually"];
 const CATEGORY_OPTIONS = ["Rent","Pet Fee","Parking","Utility Surcharge","Storage","Other"];
 
 const TABS = ["Overview","Lease & Documents","Recurring Charges","Payments","Messages","Maintenance","Move-in","Notes","Eviction Watch"];
+
+// ─── Record Payment Modal ──────────────────────────────────────────────────
+function RecordPaymentModal({ tenant, unit, onSave, onClose }) {
+  const [form, setForm] = useState({
+    amount:      unit?.rent_amount ? String(unit.rent_amount) : "",
+    date:        new Date().toISOString().split("T")[0],
+    method:      "Check",
+    note:        "",
+    category:    "Rent",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState(null);
+  const set = k => v => { setErr(null); setForm(f=>({...f,[k]:v})); };
+
+  async function save() {
+    if (!form.amount || !form.date) { setErr("Amount and date are required."); return; }
+    setSaving(true); setErr(null);
+    const { error } = await supabase.from("payments").insert({
+      tenant_id:   tenant.id,
+      amount_cents: Math.round(parseFloat(form.amount) * 100),
+      status:      "paid",
+      source:      form.method,
+      note:        form.note || null,
+      category:    form.category,
+      created_at:  new Date(form.date).toISOString(),
+    });
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onSave();
+    onClose();
+  }
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:420 }}>
+        <div style={{ padding:"20px 22px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+          <span style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,color:C.text }}>Record Payment</span>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:C.textSub,fontSize:18,cursor:"pointer",lineHeight:1 }}>✕</button>
+        </div>
+        <div style={{ padding:"18px 22px",display:"flex",flexDirection:"column",gap:14 }}>
+          {err&&<div style={{ fontSize:12,color:C.red,padding:"8px 12px",background:"rgba(224,85,85,0.08)",borderRadius:7,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {err}</div>}
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            <Field label="Amount ($)">
+              <Input type="number" value={form.amount} onChange={e=>set("amount")(e.target.value)} placeholder="0.00"/>
+            </Field>
+            <Field label="Date Received">
+              <Input type="date" value={form.date} onChange={e=>set("date")(e.target.value)}/>
+            </Field>
+            <Field label="Category">
+              <Select value={form.category} onChange={e=>set("category")(e.target.value)}
+                options={["Rent","Late Fee","Pet Fee","Parking","Deposit","Other"]}/>
+            </Field>
+            <Field label="Payment Method">
+              <Select value={form.method} onChange={e=>set("method")(e.target.value)}
+                options={["Check","Zelle","Venmo","Cash","ACH","Other"]}/>
+            </Field>
+          </div>
+          <Field label="Note (optional)">
+            <Input value={form.note} onChange={e=>set("note")(e.target.value)} placeholder="e.g. October rent"/>
+          </Field>
+        </div>
+        <div style={{ padding:"14px 22px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={save} disabled={saving}>{saving?"Recording…":"Record payment"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 const ROOM_LABELS = {
@@ -302,7 +371,7 @@ function RecurringChargeModal({ tenantId, existing, onSave, onClose }) {
 }
 
 // ─── Recurring Charges Tab ─────────────────────────────────────────────────
-function RecurringChargesTab({ tenantId, onAddClick, modalOpen, onModalClose, editingCharge }) {
+function RecurringChargesTab({ tenantId, onChargeChanged }) {
   const [charges,  setCharges]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [showAdd,  setShowAdd]  = useState(false);
@@ -318,9 +387,11 @@ function RecurringChargesTab({ tenantId, onAddClick, modalOpen, onModalClose, ed
 
   useEffect(() => { load(); }, [load]);
 
+  function afterChange() { load(); if (onChargeChanged) onChargeChanged(); }
+
   async function toggleActive(c) {
     await supabase.from("recurring_charges").update({ active: !c.active }).eq("id", c.id);
-    load();
+    afterChange();
   }
 
   async function deleteCharge(c) {
@@ -328,7 +399,7 @@ function RecurringChargesTab({ tenantId, onAddClick, modalOpen, onModalClose, ed
     setDeleting(c.id);
     await supabase.from("recurring_charges").delete().eq("id", c.id);
     setDeleting(null);
-    load();
+    afterChange();
   }
 
   const active = charges.filter(c => c.active !== false);
@@ -423,7 +494,7 @@ function RecurringChargesTab({ tenantId, onAddClick, modalOpen, onModalClose, ed
         <RecurringChargeModal
           tenantId={tenantId}
           existing={editing}
-          onSave={load}
+          onSave={afterChange}
           onClose={()=>{ setShowAdd(false); setEditing(null); }}
         />
       )}
@@ -438,12 +509,13 @@ function LeaseDocumentsTab({ tenant, unit, onLeaseUpdated }) {
   const [err,      setErr]      = useState(null);
   const [saved,    setSaved]    = useState(false);
   const [form, setForm] = useState({
-    lease_start:     tenant.lease_start     || "",
-    lease_end:       tenant.lease_end       || "",
-    security_deposit:tenant.security_deposit||"",
-    late_fee_amount: tenant.late_fee_amount  ||"",
-    late_fee_day:    tenant.late_fee_day     ||"6",
-    lease_notes:     tenant.lease_notes      ||"",
+    lease_start:      tenant.lease_start       || "",
+    lease_end:        tenant.lease_end         || "",
+    security_deposit: tenant.security_deposit  || "",
+    late_fee_amount:  tenant.late_fee_amount   || "",
+    late_fee_day:     tenant.late_fee_day      || "6",
+    lease_end_action: tenant.lease_end_action  || "month_to_month",
+    lease_notes:      tenant.lease_notes       || "",
   });
 
   const set = k => v => { setErr(null); setForm(f=>({...f,[k]:v})); };
@@ -456,6 +528,7 @@ function LeaseDocumentsTab({ tenant, unit, onLeaseUpdated }) {
       security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
       late_fee_amount:  form.late_fee_amount  ? parseFloat(form.late_fee_amount)  : null,
       late_fee_day:     form.late_fee_day     ? parseInt(form.late_fee_day, 10)   : null,
+      lease_end_action: form.lease_end_action || "month_to_month",
       lease_notes:      form.lease_notes      || null,
     };
     const { error } = await supabase.from("tenants").update(payload).eq("id", tenant.id);
@@ -490,6 +563,8 @@ function LeaseDocumentsTab({ tenant, unit, onLeaseUpdated }) {
             <>
               <InfoRow label="Lease start"      value={fmtDate(tenant.lease_start)}/>
               <InfoRow label="Lease end"        value={fmtDate(tenant.lease_end)}/>
+              <InfoRow label="At expiration"    value={tenant.lease_end_action==="terminate"?"Terminate lease":"Auto → Month-to-month"}
+                valueColor={tenant.lease_end_action==="terminate"?C.amber:C.green}/>
               <InfoRow label="Security deposit" value={fmtMoney(tenant.security_deposit)}/>
               <InfoRow label="Monthly rent"     value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
               <InfoRow label="Rent due"         value={`1st of the month`}/>
@@ -520,6 +595,18 @@ function LeaseDocumentsTab({ tenant, unit, onLeaseUpdated }) {
                 <Select value={form.late_fee_day} onChange={e=>set("late_fee_day")(e.target.value)}
                   options={Array.from({length:28},(_,i)=>(i+1).toString())}/>
               </Field>
+              <div style={{ gridColumn:"1 / -1" }}>
+                <Field label="At Lease Expiration">
+                  <div style={{ display:"flex",gap:8 }}>
+                    {[{val:"month_to_month",label:"Auto → Month-to-month"},{val:"terminate",label:"Terminate lease"}].map(opt=>(
+                      <button key={opt.val} onClick={()=>set("lease_end_action")(opt.val)}
+                        style={{ flex:1,padding:"9px 12px",fontSize:12,fontWeight:500,borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${form.lease_end_action===opt.val?(opt.val==="terminate"?C.amber:C.green):C.border}`,background:form.lease_end_action===opt.val?(opt.val==="terminate"?"rgba(240,164,48,0.12)":"rgba(114,176,42,0.1)"):"transparent",color:form.lease_end_action===opt.val?(opt.val==="terminate"?C.amber:C.green):C.textSub,transition:"all 0.15s" }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
               <div style={{ gridColumn:"1 / -1" }}>
                 <Field label="Lease Notes (optional)">
                   <textarea value={form.lease_notes} onChange={e=>set("lease_notes")(e.target.value)}
@@ -827,9 +914,10 @@ export default function LandlordTenantDetail() {
   const [inviting,    setInviting]    = useState(false);
   const [inviteSent,  setInviteSent]  = useState(false);
   const [inviteError, setInviteError] = useState("");
-  const [showArchive, setShowArchive] = useState(false);
-  const [archiving,   setArchiving]   = useState(false);
-  const [showAddCharge, setShowAddCharge] = useState(false);
+  const [showArchive,    setShowArchive]    = useState(false);
+  const [archiving,      setArchiving]      = useState(false);
+  const [showAddCharge,  setShowAddCharge]  = useState(false);
+  const [showRecordPmt,  setShowRecordPmt]  = useState(false);
 
   useEffect(() => { fetchAll(); }, [id]);
 
@@ -931,6 +1019,39 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
+        {/* Lease renewal banner — show when ≤90 days remain */}
+        {daysLeft!==null&&daysLeft>0&&daysLeft<=90&&(
+          <div style={{ background:daysLeft<=30?"rgba(224,85,85,0.08)":"rgba(240,164,48,0.08)",border:`1px solid ${daysLeft<=30?"rgba(224,85,85,0.3)":"rgba(240,164,48,0.3)"}`,borderRadius:8,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <span style={{ fontSize:16 }}>{daysLeft<=30?"🔴":"🟡"}</span>
+              <div>
+                <div style={{ fontSize:13,fontWeight:600,color:daysLeft<=30?C.red:C.amber }}>
+                  Lease expires in {daysLeft} day{daysLeft!==1?"s":""}
+                  {tenant.lease_end&&` · ${new Date(tenant.lease_end).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}`}
+                </div>
+                <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>
+                  At expiration: {tenant.lease_end_action==="terminate"?"Lease terminates — tenant must vacate":"Automatically converts to month-to-month"}
+                </div>
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:8 }}>
+              <GhostBtn onClick={()=>setActiveTab("Lease & Documents")}>Edit lease terms</GhostBtn>
+              <PrimaryBtn onClick={()=>setActiveTab("Messages")}>Contact tenant</PrimaryBtn>
+            </div>
+          </div>
+        )}
+        {daysLeft!==null&&daysLeft<=0&&(
+          <div style={{ background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.3)`,borderRadius:8,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:10 }}>
+            <span style={{ fontSize:16 }}>⚠</span>
+            <div>
+              <div style={{ fontSize:13,fontWeight:600,color:C.red }}>Lease expired {Math.abs(daysLeft)} day{Math.abs(daysLeft)!==1?"s":""}  ago</div>
+              <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>
+                {tenant.lease_end_action==="terminate"?"Tenant should have vacated — review status.":"Tenant is on month-to-month. Update lease terms when renewed."}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ background:C.surface,border:`1px solid ${tenant.eviction_watch?"rgba(224,85,85,0.4)":C.border}`,borderRadius:10,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap" }}>
           <div style={{ display:"flex",alignItems:"flex-start",gap:16 }}>
@@ -980,7 +1101,7 @@ export default function LandlordTenantDetail() {
                 ? <span style={{ fontSize:12,color:C.green,fontWeight:500,padding:"7px 0" }}>✓ Invite sent</span>
                 : <GhostBtn onClick={sendInvite} disabled={inviting}>{inviting?"Sending…":"Send invite"}</GhostBtn>
             )}
-            <GhostBtn>Record payment</GhostBtn>
+            <GhostBtn onClick={()=>setShowRecordPmt(true)}>Record payment</GhostBtn>
             {payStatus==="late"&&<DangerBtn>Send notice</DangerBtn>}
             {!tenant.archived&&<DangerBtn onClick={()=>setShowArchive(true)}>Archive</DangerBtn>}
             {inviteError&&<div style={{ fontSize:11,color:C.red,width:"100%",marginTop:2 }}>{inviteError}</div>}
@@ -1090,7 +1211,7 @@ export default function LandlordTenantDetail() {
 
         {/* ── Recurring Charges ── */}
         {activeTab==="Recurring Charges"&&(
-          <RecurringChargesTab tenantId={id}/>
+          <RecurringChargesTab tenantId={id} onChargeChanged={fetchAll}/>
         )}
 
         {/* ── Messages ── */}
@@ -1236,6 +1357,15 @@ export default function LandlordTenantDetail() {
 
       {showArchive&&(
         <ArchiveModal tenantName={tenant.name} onConfirm={archiveTenant} onCancel={()=>setShowArchive(false)} archiving={archiving}/>
+      )}
+
+      {showRecordPmt&&(
+        <RecordPaymentModal
+          tenant={tenant}
+          unit={unit}
+          onSave={fetchAll}
+          onClose={()=>setShowRecordPmt(false)}
+        />
       )}
     </LandlordLayout>
   );
