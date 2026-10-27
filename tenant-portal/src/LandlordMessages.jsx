@@ -253,6 +253,11 @@ export default function LandlordMessages() {
   const activeTenant = tenants.find(t => t.id === activeId);
   const totalUnread  = Object.values(unreadCounts).reduce((s, n) => s + n, 0);
 
+  // Last message in active thread — used for status indicators
+  const lastActiveMsg = activeMessages[activeMessages.length - 1];
+  const lastMsgFromTenant = lastActiveMsg && lastActiveMsg.sender_id !== null && lastActiveMsg.sender_id !== landlordId && lastActiveMsg.sender_id !== null && !lastActiveMsg.agent_name;
+  const lastMsgFromAI = lastActiveMsg && (lastActiveMsg.sender_id === null || !!lastActiveMsg.agent_name);
+
   const filteredThreads = tenants.filter(t => {
     const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
                         t.unit_number.toLowerCase().includes(search.toLowerCase()) ||
@@ -338,7 +343,7 @@ export default function LandlordMessages() {
               const active = activeId === t.id;
               return (
                 <div key={t.id} className="m-thread"
-                  style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", background: active ? C.raised : "transparent", transition: "background 0.12s" }}
+                  style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", background: active ? C.raised : "transparent", transition: "background 0.12s", position: "relative" }}
                   onClick={() => setActiveId(t.id)}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
@@ -356,8 +361,13 @@ export default function LandlordMessages() {
                       {last ? new Date(last.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, color: unread > 0 ? C.text : C.textSub, fontWeight: unread > 0 ? 500 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingLeft: 43 }}>
-                    {last ? last.body : t.user_id ? "No messages yet" : "⏳ Invite pending"}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 43 }}>
+                    <div style={{ fontSize: 12, color: unread > 0 ? C.text : C.textSub, fontWeight: unread > 0 ? 500 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
+                      {last ? (last.sender_id === null ? `🤖 ${last.body}` : last.body) : t.user_id ? "No messages yet" : "⏳ Invite pending"}
+                    </div>
+                    {last && last.recipient_id === landlordId && !last.read && last.sender_id !== null && last.sender_id !== landlordId && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: C.amber, background: "rgba(240,164,48,0.15)", border: `1px solid rgba(240,164,48,0.3)`, borderRadius: 3, padding: "1px 4px", flexShrink: 0, whiteSpace: "nowrap" }}>REPLY</span>
+                    )}
                   </div>
                   {active && <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 2, background: C.gold, borderRadius: 1 }} />}
                 </div>
@@ -376,7 +386,11 @@ export default function LandlordMessages() {
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{activeTenant.initials}</div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{activeTenant.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.textSub }}>· Unit {activeTenant.unit_number}</span></div>
-                  <div style={{ fontSize: 12, color: C.textMuted }}>{activeTenant.property_name}{!activeTenant.user_id && " · ⏳ Invite pending"}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
+                    {activeTenant.property_name}{!activeTenant.user_id && " · ⏳ Invite pending"}
+                    {lastMsgFromTenant && <span style={{ fontSize: 10, fontWeight: 600, color: C.amber, background: "rgba(240,164,48,0.12)", border: `1px solid rgba(240,164,48,0.25)`, borderRadius: 4, padding: "1px 6px" }}>Awaiting reply</span>}
+                    {lastMsgFromAI && <span style={{ fontSize: 10, fontWeight: 600, color: C.blue, background: "rgba(74,154,232,0.08)", border: `1px solid rgba(74,154,232,0.2)`, borderRadius: 4, padding: "1px 6px" }}>AI replied</span>}
+                  </div>
                 </div>
               </div>
               <GhostBtn small onClick={() => navigate(`/landlord/tenants/${activeTenant.id}`)}>View profile</GhostBtn>
@@ -396,18 +410,37 @@ export default function LandlordMessages() {
                 if (item.type === "date") return (
                   <div key={`d-${i}`} style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: "10px 0 6px", fontWeight: 500 }}>{item.label}</div>
                 );
-                const fromMe = item.sender_id === (landlordIdRef.current || landlordId) || item.sender_id === null;
+                // fromMe = sent by landlord manually; isAI = sent by AI agent (sender_id is landlord but agent_name set, OR sender_id null)
+                const isAI    = !!item.agent_name || item.sender_id === null;
+                const fromMe  = !isAI && item.sender_id === (landlordIdRef.current || landlordId);
+                const fromTenant = !fromMe && !isAI;
                 return (
                   <div key={item.id}>
+                    {/* Agent name label above AI messages */}
+                    {isAI && item.agent_name && (
+                      <div style={{ fontSize: 10, color: C.textSub, marginBottom: 3, paddingLeft: 34, fontWeight: 500 }}>
+                        {item.agent_name} · <span style={{ color: C.textMuted }}>AI</span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: fromMe ? "flex-end" : "flex-start", marginBottom: 2, alignItems: "flex-end", gap: 8 }}>
                       {!fromMe && (
-                        <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{activeTenant.initials}</div>
+                        isAI && item.agent_photo
+                          ? <img src={item.agent_photo} alt={item.agent_name || "AI"} style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `1px solid ${C.border}` }} />
+                          : isAI
+                            ? <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${C.blue}22`, border: `1px solid ${C.blue}44`, color: C.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>AI</div>
+                            : <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{activeTenant.initials}</div>
                       )}
-                      <div style={{ maxWidth: "65%", padding: "10px 14px", borderRadius: fromMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: fromMe ? C.goldDim : C.surface, border: fromMe ? "none" : `1px solid ${C.border}`, fontSize: 13, color: fromMe ? C.text : C.text, lineHeight: 1.5 }}>
+                      <div style={{ maxWidth: "65%", padding: "10px 14px", borderRadius: fromMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: fromMe ? C.goldDim : isAI ? `${C.blue}14` : C.surface, border: fromMe ? "none" : isAI ? `1px solid ${C.blue}33` : `1px solid ${C.border}`, fontSize: 13, color: C.text, lineHeight: 1.5 }}>
                         {item.body}
                       </div>
+                      {fromMe && (
+                        <span style={{ fontSize: 10, color: item.read ? C.blue : C.textMuted, alignSelf: "flex-end", marginBottom: 2, flexShrink: 0 }} title={item.read ? "Read" : "Sent"}>
+                          {item.read ? "✓✓" : "✓"}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 10, color: C.textMuted, textAlign: fromMe ? "right" : "left", marginBottom: 4, paddingLeft: fromMe ? 0 : 34 }}>
+                      {isAI && <span style={{ color: C.blue, marginRight: 6 }}>AI reply</span>}
                       {new Date(item.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                     </div>
                   </div>
