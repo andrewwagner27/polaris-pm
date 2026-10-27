@@ -19,21 +19,6 @@ const C = {
   amber:     "#F0A430",
 };
 
-// Onboarding-based status
-const STATUS = {
-  active:      { label: "Active",       color: "#72B02A", bg: "rgba(114,176,42,0.13)"  },
-  invited:     { label: "Invited",      color: "#4A9AE8", bg: "rgba(74,154,232,0.13)"  },
-  not_invited: { label: "Not invited",  color: "#5C6270", bg: "rgba(92,98,112,0.15)"   },
-  late:        { label: "Late",         color: "#E05555", bg: "rgba(224,85,85,0.13)"   },
-};
-
-// Payment status (separate, shown in balance column)
-const PAY_STATUS = {
-  current: { label: "Current", color: "#72B02A" },
-  pending: { label: "Pending", color: "#F0A430" },
-  late:    { label: "Late",    color: "#E05555" },
-};
-
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 function useWindowWidth() {
@@ -44,12 +29,6 @@ function useWindowWidth() {
     return () => window.removeEventListener("resize", h);
   }, []);
   return w;
-}
-
-function Badge({ status }) {
-  const cfg = STATUS[status];
-  if (!cfg) return null;
-  return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color,whiteSpace:"nowrap" }}>{cfg.label}</span>;
 }
 
 function FieldLabel({ children }) {
@@ -90,14 +69,23 @@ function GhostBtn({ children, onClick, small }) {
   );
 }
 
+// ─── Lease countdown badge ─────────────────────────────────────────────────
+function LeaseBadge({ daysLeft }) {
+  if (daysLeft === null) return <span style={{ fontSize:10,color:C.textMuted }}>No lease end</span>;
+  if (daysLeft <= 0)  return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.25)" }}>Expired</span>;
+  if (daysLeft <= 30) return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.12)",color:C.red,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {daysLeft}d left</span>;
+  if (daysLeft <= 90) return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(240,164,48,0.12)",color:C.amber,border:"1px solid rgba(240,164,48,0.2)" }}>⚠ Ending Soon — {daysLeft}d</span>;
+  return <span style={{ fontSize:10,color:C.textSub }}>{daysLeft}d left</span>;
+}
+
 // ─── Add Tenant Modal ──────────────────────────────────────────────────────
 function AddTenantModal({ properties, units, onClose, onSaved }) {
   const [form, setForm] = useState({ name:"",email:"",phone:"",property_id:"",unit_id:"",lease_start:"",lease_end:"" });
-  const [sendInvite,    setSendInvite]    = useState(true);
-  const [saving,        setSaving]        = useState(false);
-  const [step,          setStep]          = useState("form");
-  const [error,         setError]         = useState("");
-  const [inviteStatus,  setInviteStatus]  = useState("");
+  const [sendInvite,   setSendInvite]   = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [step,         setStep]         = useState("form");
+  const [error,        setError]        = useState("");
+  const [inviteStatus, setInviteStatus] = useState("");
 
   const update = (k,v) => setForm(f=>({ ...f, [k]:v }));
   const filteredUnits = units.filter(u=>u.property_id===form.property_id);
@@ -122,6 +110,7 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
     if (sendInvite && form.email.trim()) {
       const unit     = units.find(u=>u.id===form.unit_id);
       const property = properties.find(p=>p.id===form.property_id);
+      // SECURITY: Never expose landlord personal name — always use company name
       const { error:inviteError } = await supabase.functions.invoke("invite-tenant", {
         body: { tenant_id:tenant.id, tenant_name:form.name.trim(), tenant_email:form.email.trim(), unit_number:unit?.unit_number||"—", property_name:property?.name||"—", landlord_name:"Modus Property Management" }
       });
@@ -215,18 +204,17 @@ export default function LandlordTenants() {
   const width    = useWindowWidth();
   const isMobile = width < 768;
 
-  const [tenants,     setTenants]     = useState([]);
-  const [units,       setUnits]       = useState([]);
-  const [properties,  setProperties]  = useState([]);
-  const [payments,    setPayments]    = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [search,      setSearch]      = useState("");
-  const [propFilter,  setPropFilter]  = useState("all");
-  const [statusFilter,setStatusFilter]= useState("all");
-  const [sortCol,     setSortCol]     = useState("name");
-  const [sortDir,     setSortDir]     = useState("asc");
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [showArchived,setShowArchived]= useState(false);
+  const [tenants,    setTenants]    = useState([]);
+  const [units,      setUnits]      = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [payments,   setPayments]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [propFilter, setPropFilter] = useState("all");
+  const [activeTab,  setActiveTab]  = useState("all");   // all | ending_soon | new_move_ins | past
+  const [sortCol,    setSortCol]    = useState("name");
+  const [sortDir,    setSortDir]    = useState("asc");
+  const [showAdd,    setShowAdd]    = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -245,35 +233,71 @@ export default function LandlordTenants() {
     setLoading(false);
   }
 
+  const now = Date.now();
+
   const enriched = tenants.map((t,i) => {
     const unit        = units.find(u=>u.id===t.unit_id);
     const property    = properties.find(p=>p.id===unit?.property_id);
     const latestPay   = payments.find(p=>p.tenant_id===t.id);
     const accentColor = AVATAR_COLORS[i%AVATAR_COLORS.length];
-    const initials    = t.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const initials    = (t.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
-    // Onboarding status
-    const status = t.user_id ? "active" : t.invite_sent_at ? "invited" : "not_invited";
+    // Onboarding / registration status
+    const isRegistered = !!t.user_id;
+    const isInvited    = !t.user_id && !!t.invite_sent_at;
 
-    // Payment info (separate from onboarding status)
+    // Autopay
+    const autopayOn = t.autopay_enabled === true;
+
+    // Lease timing
+    const leaseEnd   = t.lease_end   ? new Date(t.lease_end)   : null;
+    const leaseStart = t.lease_start ? new Date(t.lease_start) : null;
+    const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime() - now) / 86400000) : null;
+    const isEndingSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= 90;
+    const isNewMoveIn  = leaseStart && ((now - leaseStart.getTime()) / 86400000) <= 30;
+
+    // Payment info
     let payStatus = "pending";
     if (latestPay?.status==="paid")   payStatus = "current";
     if (latestPay?.status==="failed") payStatus = "late";
 
     return {
       ...t,
-      unit:           unit?.unit_number||"—",
-      property:       property?.name||"—",
-      property_id:    property?.id,
-      rent:           unit?.rent_amount||0,
-      status,
+      unit:        unit?.unit_number||"—",
+      property:    property?.name||"—",
+      property_id: property?.id,
+      rent:        unit?.rent_amount||0,
+      isRegistered, isInvited, autopayOn,
+      daysLeft, isEndingSoon, isNewMoveIn,
       payStatus,
-      lastPaid:       latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
-      balance:        latestPay?.status!=="paid" ? (unit?.rent_amount||0) : 0,
-      eviction_watch: t.eviction_watch || false,
-      initials,
-      accentColor,
+      lastPaid:  latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
+      balance:   latestPay?.status!=="paid" ? (unit?.rent_amount||0) : 0,
+      initials, accentColor,
     };
+  });
+
+  const activeEnriched   = enriched.filter(t=>!t.archived);
+  const archivedEnriched = enriched.filter(t=>t.archived);
+
+  // Tab counts
+  const endingSoonCount = activeEnriched.filter(t=>t.isEndingSoon).length;
+  const newMoveInCount  = activeEnriched.filter(t=>t.isNewMoveIn).length;
+  const pastCount       = archivedEnriched.length;
+
+  // Tab → base pool
+  let tabPool;
+  if (activeTab==="ending_soon")  tabPool = activeEnriched.filter(t=>t.isEndingSoon);
+  else if (activeTab==="new_move_ins") tabPool = activeEnriched.filter(t=>t.isNewMoveIn);
+  else if (activeTab==="past")    tabPool = archivedEnriched;
+  else                            tabPool = activeEnriched;
+
+  // Search + property filter
+  const filtered = tabPool.filter(t => {
+    const matchSearch = (t.name||"").toLowerCase().includes(search.toLowerCase())
+      || (t.unit||"").toLowerCase().includes(search.toLowerCase())
+      || (t.email||"").toLowerCase().includes(search.toLowerCase());
+    const matchProp = propFilter==="all" || t.property_id===propFilter;
+    return matchSearch && matchProp;
   });
 
   function handleSort(col) {
@@ -286,45 +310,22 @@ export default function LandlordTenants() {
     return <span style={{ color:C.gold,marginLeft:3 }}>{sortDir==="asc"?"↑":"↓"}</span>;
   }
 
-  const activeEnriched   = enriched.filter(t=>!t.archived);
-  const archivedEnriched = enriched.filter(t=>t.archived);
-  const displayEnriched  = showArchived ? archivedEnriched : activeEnriched;
-
-  const filtered = displayEnriched.filter(t => {
-    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase())||t.unit.toLowerCase().includes(search.toLowerCase())||(t.email||"").toLowerCase().includes(search.toLowerCase());
-    const matchProp   = propFilter==="all"||t.property_id===propFilter;
-    const matchStatus = statusFilter==="all"||t.status===statusFilter;
-    return matchSearch&&matchProp&&matchStatus;
-  });
-
   const sorted = [...filtered].sort((a,b) => {
     let aVal, bVal;
     if (sortCol==="name")     { aVal=a.name;    bVal=b.name; }
     if (sortCol==="property") { aVal=a.property+a.unit; bVal=b.property+b.unit; }
     if (sortCol==="rent")     { aVal=a.rent;    bVal=b.rent; }
-    if (sortCol==="status")   { aVal=a.status;  bVal=b.status; }
+    if (sortCol==="lease")    { aVal=a.daysLeft??99999; bVal=b.daysLeft??99999; }
     if (sortCol==="balance")  { aVal=a.balance; bVal=b.balance; }
     if (typeof aVal==="string") return sortDir==="asc"?aVal.localeCompare(bVal):bVal.localeCompare(aVal);
-    return sortDir==="asc"?aVal-bVal:bVal-aVal;
+    return sortDir==="asc"?(aVal-bVal):(bVal-aVal);
   });
 
-  const activeCount      = activeEnriched.filter(t=>t.status==="active").length;
-  const notInvitedCount  = activeEnriched.filter(t=>t.status==="not_invited").length;
-  const invitedCount     = activeEnriched.filter(t=>t.status==="invited").length;
-  const evictionCount    = activeEnriched.filter(t=>t.eviction_watch).length;
-
-  const stats = [
-    { label:"Total tenants", value:loading?"—":activeEnriched.length, sub:"across all properties",        accent:C.blue  },
-    { label:"Active",        value:loading?"—":activeCount,           sub:"fully onboarded",              accent:C.green },
-    { label:"Invited",       value:loading?"—":invitedCount,          sub:"invite sent, not yet accepted", accent:C.blue  },
-    { label:"Not invited",   value:loading?"—":notInvitedCount,       sub:"no invite sent yet",           accent:C.amber },
-  ];
-
-  const FILTER_PILLS = [
-    { key:"all",         label:`All (${displayEnriched.length})` },
-    { key:"active",      label:`Active (${displayEnriched.filter(t=>t.status==="active").length})` },
-    { key:"invited",     label:`Invited (${displayEnriched.filter(t=>t.status==="invited").length})` },
-    { key:"not_invited", label:`Not invited (${displayEnriched.filter(t=>t.status==="not_invited").length})` },
+  const TABS = [
+    { key:"all",          label:"All Leases",  count:activeEnriched.length },
+    { key:"ending_soon",  label:"Ending Soon", count:endingSoonCount, accent:C.amber },
+    { key:"new_move_ins", label:"New Move-Ins",count:newMoveInCount,  accent:C.green },
+    { key:"past",         label:"Past Tenants",count:pastCount,       accent:C.textSub },
   ];
 
   return (
@@ -334,7 +335,6 @@ export default function LandlordTenants() {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .m-row:hover td{background:${C.raised}!important;cursor:pointer;}
-        .m-filter-pill:hover{color:${C.text}!important;border-color:#353A44!important;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
@@ -344,13 +344,8 @@ export default function LandlordTenants() {
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10 }}>
           <div>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?20:24,fontWeight:600,color:C.text }}>Tenants</div>
-            <div style={{ fontSize:13,color:C.textSub,marginTop:3,display:"flex",alignItems:"center",gap:10 }}>
-              {loading?"Loading…":`${tenants.length} tenants across ${properties.length} properties`}
-              {!loading&&evictionCount>0&&(
-                <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:4,background:"rgba(224,85,85,0.12)",color:C.red,border:`1px solid rgba(224,85,85,0.25)` }}>
-                  ⚑ {evictionCount} on watch
-                </span>
-              )}
+            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>
+              {loading?"Loading…":`${activeEnriched.length} active leases across ${properties.length} properties`}
             </div>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
@@ -361,6 +356,10 @@ export default function LandlordTenants() {
                   style={{ flex:1,border:"none",outline:"none",fontSize:13,fontFamily:"'DM Sans',sans-serif",background:"transparent",color:C.text }}/>
               </div>
             )}
+            <select value={propFilter} onChange={e=>setPropFilter(e.target.value)} style={{ padding:"8px 12px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:C.surface,color:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
+              <option value="all">All Properties</option>
+              {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
             <PrimaryBtn onClick={()=>setShowAdd(true)}>+ Add tenant</PrimaryBtn>
           </div>
         </div>
@@ -373,39 +372,28 @@ export default function LandlordTenants() {
           </div>
         )}
 
-        {/* Stats */}
-        <div style={{ display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:10,marginBottom:24 }}>
-          {stats.map((s,i)=>(
-            <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
-                <div style={{ width:6,height:6,borderRadius:"50%",background:s.accent }}/>
-                <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em" }}>{s.label}</div>
-              </div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:s.accent,lineHeight:1,marginBottom:4 }}>{s.value}</div>
-              <div style={{ fontSize:11,color:C.textSub }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <div style={{ display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap" }}>
-          <select value={propFilter} onChange={e=>setPropFilter(e.target.value)} style={{ padding:"7px 12px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:C.surface,color:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
-            <option value="all">All Properties</option>
-            {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          {FILTER_PILLS.map(f=>(
-            <button key={f.key} className="m-filter-pill" onClick={()=>setStatusFilter(f.key)} style={{ padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:500,background:statusFilter===f.key?C.goldDim:"transparent",color:statusFilter===f.key?C.text:C.textSub,border:`1px solid ${statusFilter===f.key?C.goldDim:C.border}`,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s" }}>
-              {f.label}
-            </button>
-          ))}
-          <button onClick={()=>{ setShowArchived(a=>!a); setStatusFilter("all"); }} style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:500,background:showArchived?"rgba(224,85,85,0.1)":"transparent",color:showArchived?C.red:C.textSub,border:`1px solid ${showArchived?"rgba(224,85,85,0.25)":C.border}`,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s" }}>
-            {showArchived?"← Active tenants":`Archived (${archivedEnriched.length})`}
-          </button>
-          <span style={{ fontSize:12,color:C.textMuted }}>{filtered.length} results</span>
+        {/* Smart lease filter tabs */}
+        <div style={{ display:"flex",gap:0,marginBottom:0,borderBottom:`1px solid ${C.border}` }}>
+          {TABS.map(tab=>{
+            const active = activeTab===tab.key;
+            const accentCol = tab.accent||C.gold;
+            return (
+              <button key={tab.key} onClick={()=>setActiveTab(tab.key)}
+                style={{ padding:"10px 18px",fontSize:13,fontWeight:active?600:400,color:active?(tab.accent||C.gold):C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${tab.accent||C.gold}`:"2px solid transparent",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6 }}>
+                {tab.label}
+                {tab.count>0&&(
+                  <span style={{ fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:10,background:active?`${accentCol}22`:`${C.textMuted}22`,color:active?accentCol:C.textMuted }}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <span style={{ marginLeft:"auto",display:"flex",alignItems:"center",padding:"0 4px",fontSize:12,color:C.textMuted }}>{filtered.length} results</span>
         </div>
 
         {/* Table */}
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",overflowX:"auto" }}>
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",overflowX:"auto" }}>
           {loading?(
             <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading tenants…</div>
           ):(
@@ -413,12 +401,12 @@ export default function LandlordTenants() {
               <thead>
                 <tr>
                   {[
-                    { col:"name",     label:"Tenant",          always:true  },
-                    { col:"property", label:"Property · Unit",  always:false },
-                    { col:"rent",     label:"Rent",             always:true,  right:true },
-                    { col:"status",   label:"Status",           always:true  },
-                    { col:"balance",  label:"Balance",          always:false, right:true },
-                    { col:null,       label:"Actions",          always:true  },
+                    { col:"name",     label:"Tenant",         always:true  },
+                    { col:"property", label:"Property · Unit", always:false },
+                    { col:"rent",     label:"Rent",            always:true,  right:true },
+                    { col:"lease",    label:"Lease Status",    always:true  },
+                    { col:"balance",  label:"Balance",         always:false, right:true },
+                    { col:null,       label:"Actions",         always:true  },
                   ].filter(h=>h.always||!isMobile).map(h=>(
                     <th key={h.label} onClick={h.col?()=>handleSort(h.col):undefined}
                       style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"10px 16px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,cursor:h.col?"pointer":"default",whiteSpace:"nowrap" }}>
@@ -429,40 +417,71 @@ export default function LandlordTenants() {
               </thead>
               <tbody>
                 {sorted.length===0&&(
-                  <tr><td colSpan={6} style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>No tenants match your search.</td></tr>
+                  <tr><td colSpan={6} style={{ padding:40,textAlign:"center",color:C.textSub,fontSize:13 }}>
+                    {activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":"No tenants match your search."}
+                  </td></tr>
                 )}
                 {sorted.map(t=>(
-                  <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}
-                    style={{ background: t.eviction_watch ? "rgba(224,85,85,0.03)" : "transparent" }}>
-                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,borderLeft:t.eviction_watch?`3px solid rgba(224,85,85,0.5)`:"3px solid transparent" }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                        <div style={{ width:34,height:34,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0 }}>{t.initials}</div>
+                  <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>
+                    {/* Tenant name + three status badges */}
+                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ display:"flex",alignItems:"flex-start",gap:10 }}>
+                        <div style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0,marginTop:2 }}>{t.initials}</div>
                         <div>
-                          <div style={{ fontSize:13,fontWeight:600,color:C.text,display:"flex",alignItems:"center",gap:7 }}>
-                            {t.name}
-                            {t.eviction_watch&&(
-                              <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(224,85,85,0.15)",color:C.red,border:`1px solid rgba(224,85,85,0.3)`,letterSpacing:"0.05em" }}>⚑ WATCH</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize:11,color:C.textSub }}>
+                          <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:4 }}>{t.name}</div>
+                          <div style={{ fontSize:11,color:C.textSub,marginBottom:5 }}>
                             {isMobile?`${t.property} · Unit ${t.unit}`:(t.email||"—")}
+                          </div>
+                          {/* Three status badges */}
+                          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+                            {/* Autopay */}
+                            {t.autopayOn
+                              ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Autopay On</span>
+                              : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.08)",color:"#A0556A",border:"1px solid rgba(224,85,85,0.15)" }}>✕ Autopay Off</span>
+                            }
+                            {/* Registration */}
+                            {t.isRegistered
+                              ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Registered</span>
+                              : t.isInvited
+                                ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(74,154,232,0.1)",color:C.blue,border:"1px solid rgba(74,154,232,0.2)" }}>✉ Invite Sent</span>
+                                : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Pending Invite</span>
+                            }
+                            {/* Eviction watch */}
+                            {t.eviction_watch&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>}
                           </div>
                         </div>
                       </div>
                     </td>
+
                     {!isMobile&&(
                       <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
                         <div style={{ fontWeight:500 }}>{t.property}</div>
                         <div style={{ fontSize:11,color:C.textSub }}>Unit {t.unit}</div>
                       </td>
                     )}
-                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right",fontWeight:600 }}>${(t.rent||0).toLocaleString()}</td>
-                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}><Badge status={t.status}/></td>
+
+                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right",fontWeight:600 }}>
+                      ${(t.rent||0).toLocaleString()}
+                    </td>
+
+                    {/* Lease status column */}
+                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                      <LeaseBadge daysLeft={t.daysLeft}/>
+                      {t.lease_end&&(
+                        <div style={{ fontSize:10,color:C.textMuted,marginTop:3 }}>
+                          {new Date(t.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                        </div>
+                      )}
+                    </td>
+
                     {!isMobile&&(
                       <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
-                        <span style={{ fontWeight:600,color:t.balance>0?C.red:C.green }}>{t.balance>0?`-$${t.balance.toLocaleString()}`:"✓ $0"}</span>
+                        <span style={{ fontWeight:600,color:t.balance>0?C.red:C.green }}>
+                          {t.balance>0?`-$${t.balance.toLocaleString()}`:"✓ $0"}
+                        </span>
                       </td>
                     )}
+
                     <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }} onClick={e=>e.stopPropagation()}>
                       <div style={{ display:"flex",gap:6 }}>
                         <PrimaryBtn small onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>View</PrimaryBtn>

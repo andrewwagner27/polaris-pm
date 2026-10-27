@@ -31,88 +31,7 @@ const STATUS = {
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
 };
 
-const EVICTION_STATUSES = [
-  { key: "3_day_notice_issued",  label: "3-Day Notice Issued",  icon: "📄" },
-  { key: "cure_period",          label: "Cure Period Active",    icon: "⏳" },
-  { key: "filed_with_attorney",  label: "Filed w/ Attorney",     icon: "⚖️" },
-  { key: "court_date_scheduled", label: "Court Date Scheduled",  icon: "🏛️" },
-  { key: "resolved",             label: "Resolved",              icon: "✅" },
-  { key: "evicted",              label: "Evicted",               icon: "🔴" },
-];
-
-const FREQ_OPTIONS = ["Monthly","Weekly","Bi-Weekly","Quarterly","Annually"];
-const CATEGORY_OPTIONS = ["Rent","Pet Fee","Parking","Utility Surcharge","Storage","Other"];
-
-const TABS = ["Overview","Lease & Documents","Recurring Charges","Payments","Messages","Maintenance","Move-in","Notes","Eviction Watch"];
-
-// ─── Record Payment Modal ──────────────────────────────────────────────────
-function RecordPaymentModal({ tenant, unit, onSave, onClose }) {
-  const [form, setForm] = useState({
-    amount:      unit?.rent_amount ? String(unit.rent_amount) : "",
-    date:        new Date().toISOString().split("T")[0],
-    method:      "Check",
-    note:        "",
-    category:    "Rent",
-  });
-  const [saving, setSaving] = useState(false);
-  const [err,    setErr]    = useState(null);
-  const set = k => v => { setErr(null); setForm(f=>({...f,[k]:v})); };
-
-  async function save() {
-    if (!form.amount || !form.date) { setErr("Amount and date are required."); return; }
-    setSaving(true); setErr(null);
-    const { error } = await supabase.from("payments").insert({
-      tenant_id:   tenant.id,
-      amount_cents: Math.round(parseFloat(form.amount) * 100),
-      status:      "paid",
-      source:      form.method,
-      note:        form.note || null,
-      category:    form.category,
-      created_at:  new Date(form.date).toISOString(),
-    });
-    setSaving(false);
-    if (error) { setErr(error.message); return; }
-    onSave();
-    onClose();
-  }
-
-  return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:420 }}>
-        <div style={{ padding:"20px 22px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <span style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,color:C.text }}>Record Payment</span>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:C.textSub,fontSize:18,cursor:"pointer",lineHeight:1 }}>✕</button>
-        </div>
-        <div style={{ padding:"18px 22px",display:"flex",flexDirection:"column",gap:14 }}>
-          {err&&<div style={{ fontSize:12,color:C.red,padding:"8px 12px",background:"rgba(224,85,85,0.08)",borderRadius:7,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {err}</div>}
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-            <Field label="Amount ($)">
-              <Input type="number" value={form.amount} onChange={e=>set("amount")(e.target.value)} placeholder="0.00"/>
-            </Field>
-            <Field label="Date Received">
-              <Input type="date" value={form.date} onChange={e=>set("date")(e.target.value)}/>
-            </Field>
-            <Field label="Category">
-              <Select value={form.category} onChange={e=>set("category")(e.target.value)}
-                options={["Rent","Late Fee","Pet Fee","Parking","Deposit","Other"]}/>
-            </Field>
-            <Field label="Payment Method">
-              <Select value={form.method} onChange={e=>set("method")(e.target.value)}
-                options={["Check","Zelle","Venmo","Cash","ACH","Other"]}/>
-            </Field>
-          </div>
-          <Field label="Note (optional)">
-            <Input value={form.note} onChange={e=>set("note")(e.target.value)} placeholder="e.g. October rent"/>
-          </Field>
-        </div>
-        <div style={{ padding:"14px 22px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end" }}>
-          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
-          <PrimaryBtn onClick={save} disabled={saving}>{saving?"Recording…":"Record payment"}</PrimaryBtn>
-        </div>
-      </div>
-    </div>
-  );
-}
+const TABS = ["Overview","Payments","Recurring","Maintenance","Lease","Move-in","Notes"];
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 const ROOM_LABELS = {
@@ -139,37 +58,62 @@ function Badge({ status }) {
   return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color,whiteSpace:"nowrap" }}>{cfg.label}</span>;
 }
 
-function PrimaryBtn({ children, onClick, disabled }) {
+function PrimaryBtn({ children, onClick, disabled, small }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s",opacity:disabled?0.6:1,whiteSpace:"nowrap" }}
+    <button onClick={onClick} disabled={disabled}
+      style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s",opacity:disabled?0.6:1,whiteSpace:"nowrap" }}
       onMouseOver={e=>!disabled&&(e.currentTarget.style.background="rgba(201,169,110,0.07)")}
       onMouseOut={e=>e.currentTarget.style.background="transparent"}
     >{children}</button>
   );
 }
 
-function GhostBtn({ children, onClick, disabled }) {
+function GhostBtn({ children, onClick, disabled, small }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap",opacity:disabled?0.6:1 }}
+    <button onClick={onClick} disabled={disabled}
+      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap",opacity:disabled?0.6:1 }}
       onMouseOver={e=>{ e.currentTarget.style.color=C.text; e.currentTarget.style.borderColor="#353A44"; }}
       onMouseOut={e=>{ e.currentTarget.style.color=C.textSub; e.currentTarget.style.borderColor=C.border; }}
     >{children}</button>
   );
 }
 
-function DangerBtn({ children, onClick }) {
+function DangerBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick} style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" }}>{children}</button>
+    <button onClick={onClick}
+      style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" }}>
+      {children}
+    </button>
   );
 }
 
-function InfoCard({ title, children, borderColor, action }) {
+function FieldLabel({ children }) {
+  return <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{children}</label>;
+}
+
+function Input({ value, onChange, placeholder, type="text" }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+      onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s" }}
+    />
+  );
+}
+
+function SelectField({ value, onChange, children }) {
+  return (
+    <select value={value} onChange={onChange}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
+      {children}
+    </select>
+  );
+}
+
+function InfoCard({ title, children, borderColor }) {
   return (
     <div style={{ background:C.surface,border:`1px solid ${borderColor||C.border}`,borderRadius:10,overflow:"hidden" }}>
-      <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-        <span>{title}</span>
-        {action}
-      </div>
+      <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>{title}</div>
       <div style={{ padding:"14px 16px" }}>{children}</div>
     </div>
   );
@@ -184,31 +128,6 @@ function InfoRow({ label, value, last, valueColor }) {
   );
 }
 
-function Field({ label, children }) {
-  return (
-    <div>
-      <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Input({ value, onChange, type="text", placeholder="" }) {
-  return (
-    <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-      style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
-  );
-}
-
-function Select({ value, onChange, options }) {
-  return (
-    <select value={value} onChange={onChange}
-      style={{ width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}>
-      {options.map(o=><option key={o} value={o}>{o}</option>)}
-    </select>
-  );
-}
-
 const TH = ({ children, right }) => (
   <th style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>
 );
@@ -216,6 +135,75 @@ const TD = ({ children, right, bold, color }) => (
   <td style={{ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:"11px 14px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",verticalAlign:"middle" }}>{children}</td>
 );
 
+// ─── Record Payment Modal ──────────────────────────────────────────────────
+function RecordPaymentModal({ tenantId, unit, onClose, onSaved }) {
+  const [form, setForm] = useState({ amount:"", method:"cash", date:new Date().toISOString().split("T")[0], notes:"" });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState("");
+
+  const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
+
+  async function submit() {
+    if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Enter a valid amount."); return; }
+    setSaving(true); setError("");
+    const { error:err } = await supabase.from("payments").insert({
+      tenant_id:    tenantId,
+      amount_cents: Math.round(parseFloat(form.amount)*100),
+      status:       "paid",
+      source:       form.method,
+      paid_at:      form.date ? new Date(form.date).toISOString() : new Date().toISOString(),
+      notes:        form.notes||null,
+    });
+    if (err) { setError(err.message); setSaving(false); return; }
+    setSaving(false);
+    onSaved();
+  }
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }} onClick={onClose}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:440,maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ padding:"18px 22px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <div style={{ fontSize:15,fontWeight:600,color:C.text }}>Record Payment</div>
+          <button onClick={onClose} style={{ background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textSub }}>✕</button>
+        </div>
+        <div style={{ padding:"16px 22px" }}>
+          {error&&<div style={{ background:"rgba(224,85,85,0.1)",color:C.red,fontSize:12,padding:"10px 12px",borderRadius:7,marginBottom:14,border:`1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+          <div style={{ marginBottom:12 }}>
+            <FieldLabel>Amount ($) *</FieldLabel>
+            <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder={`${unit?.rent_amount||"0"}.00`}/>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+            <div>
+              <FieldLabel>Payment Method</FieldLabel>
+              <SelectField value={form.method} onChange={e=>update("method",e.target.value)}>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="venmo">Venmo</option>
+                <option value="zelle">Zelle</option>
+                <option value="ach">ACH / Bank Transfer</option>
+                <option value="other">Other</option>
+              </SelectField>
+            </div>
+            <div>
+              <FieldLabel>Payment Date</FieldLabel>
+              <Input type="date" value={form.date} onChange={e=>update("date",e.target.value)}/>
+            </div>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <FieldLabel>Notes</FieldLabel>
+            <Input value={form.notes} onChange={e=>update("notes",e.target.value)} placeholder="Optional note…"/>
+          </div>
+        </div>
+        <div style={{ padding:"12px 22px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,justifyContent:"flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={submit} disabled={saving}>{saving?"Saving…":"Record Payment"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Archive Modal ─────────────────────────────────────────────────────────
 function ArchiveModal({ tenantName, onConfirm, onCancel, archiving }) {
   return (
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
@@ -233,9 +221,10 @@ function ArchiveModal({ tenantName, onConfirm, onCancel, archiving }) {
   );
 }
 
+// ─── Insurance Card ────────────────────────────────────────────────────────
 function insuranceDaysLeft(expires) {
   if (!expires) return null;
-  return Math.ceil((new Date(expires) - new Date()) / (1000*60*60*24));
+  return Math.ceil((new Date(expires)-new Date())/(1000*60*60*24));
 }
 
 function InsuranceCard({ tenant }) {
@@ -283,611 +272,269 @@ function InsuranceCard({ tenant }) {
   );
 }
 
-// ─── Recurring Charge Modal ────────────────────────────────────────────────
-function RecurringChargeModal({ tenantId, existing, onSave, onClose }) {
-  const editing = !!existing;
-  const blank = { category:"Rent", amount:"", frequency:"Monthly", start_date:"", end_date:"", day_of_month:"1", note:"" };
-  const [form, setForm] = useState(existing ? {
-    category:     existing.category    || "Rent",
-    amount:       existing.amount      || "",
-    frequency:    existing.frequency   || "Monthly",
-    start_date:   existing.start_date  || "",
-    end_date:     existing.end_date    || "",
-    day_of_month: existing.day_of_month?.toString() || "1",
-    note:         existing.note        || "",
-  } : blank);
+// ─── Recurring Charges Tab ─────────────────────────────────────────────────
+function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
+  const [charges,    setCharges]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [form,       setForm]       = useState({ category:"Rent", amount:"", due_day:"1", start_date:"", end_date:"" });
+  const [saving,     setSaving]     = useState(false);
+  const [formError,  setFormError]  = useState("");
+
+  const fetchCharges = useCallback(async () => {
+    setLoading(true);
+    // recurring_charges.tenant_id references tenants(id) — tenantId IS tenants.id
+    const { data } = await supabase.from("recurring_charges").select("*").eq("tenant_id",tenantId).order("created_at",{ascending:false});
+    setCharges(data||[]);
+    setLoading(false);
+  },[tenantId]);
+
+  useEffect(() => { fetchCharges(); },[fetchCharges]);
+
+  const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
+
+  async function addCharge() {
+    if (!form.amount||isNaN(parseFloat(form.amount))) { setFormError("Enter a valid amount."); return; }
+    setSaving(true); setFormError("");
+    const { error } = await supabase.from("recurring_charges").insert({
+      tenant_id:  tenantId,
+      unit_id:    unit?.id||null,
+      category:   form.category,
+      amount:     parseFloat(form.amount),
+      due_day:    parseInt(form.due_day)||1,
+      start_date: form.start_date||null,
+      end_date:   form.end_date||null,
+      status:     "active",
+    });
+    setSaving(false);
+    if (error) { setFormError(error.message); return; }
+    setForm({ category:"Rent",amount:"",due_day:"1",start_date:"",end_date:"" });
+    setShowAdd(false);
+    fetchCharges();
+    if (onChargeChanged) onChargeChanged();
+  }
+
+  async function toggleStatus(charge) {
+    const newStatus = charge.status==="active"?"paused":"active";
+    await supabase.from("recurring_charges").update({status:newStatus}).eq("id",charge.id);
+    fetchCharges();
+    if (onChargeChanged) onChargeChanged();
+  }
+
+  async function deleteCharge(id) {
+    if (!window.confirm("Delete this recurring charge?")) return;
+    await supabase.from("recurring_charges").delete().eq("id",id);
+    fetchCharges();
+    if (onChargeChanged) onChargeChanged();
+  }
+
+  const totalMonthly = charges.filter(c=>c.status==="active").reduce((s,c)=>s+parseFloat(c.amount||0),0);
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <div>
+          <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Recurring Charges</div>
+          <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>
+            {loading?"Loading…":`${charges.filter(c=>c.status==="active").length} active · $${totalMonthly.toLocaleString("en-US",{minimumFractionDigits:2})}/mo`}
+          </div>
+        </div>
+        <PrimaryBtn onClick={()=>setShowAdd(v=>!v)}>
+          {showAdd?"Cancel":"+ Add Charge"}
+        </PrimaryBtn>
+      </div>
+
+      {showAdd&&(
+        <div style={{ background:C.raised,border:`1px solid ${C.goldDim}`,borderRadius:10,padding:"16px",marginBottom:16 }}>
+          {formError&&<div style={{ color:C.red,fontSize:12,marginBottom:12 }}>{formError}</div>}
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+            <div>
+              <FieldLabel>Category</FieldLabel>
+              <SelectField value={form.category} onChange={e=>update("category",e.target.value)}>
+                {["Rent","Pet Fee","Parking","Utility Surcharge","Other"].map(c=><option key={c}>{c}</option>)}
+              </SelectField>
+            </div>
+            <div>
+              <FieldLabel>Monthly Amount ($) *</FieldLabel>
+              <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder="0.00"/>
+            </div>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14 }}>
+            <div>
+              <FieldLabel>Due Day</FieldLabel>
+              <Input type="number" value={form.due_day} onChange={e=>update("due_day",e.target.value)} placeholder="1"/>
+            </div>
+            <div>
+              <FieldLabel>Start Date</FieldLabel>
+              <Input type="date" value={form.start_date} onChange={e=>update("start_date",e.target.value)}/>
+            </div>
+            <div>
+              <FieldLabel>End Date</FieldLabel>
+              <Input type="date" value={form.end_date} onChange={e=>update("end_date",e.target.value)}/>
+            </div>
+          </div>
+          <div style={{ display:"flex",gap:8 }}>
+            <PrimaryBtn onClick={addCharge} disabled={saving}>{saving?"Saving…":"Save Charge"}</PrimaryBtn>
+            <GhostBtn onClick={()=>{ setShowAdd(false); setFormError(""); }}>Cancel</GhostBtn>
+          </div>
+        </div>
+      )}
+
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden" }}>
+        {loading?(
+          <div style={{ padding:24,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading charges…</div>
+        ):charges.length===0?(
+          <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>
+            No recurring charges yet.{" "}
+            <button onClick={()=>setShowAdd(true)} style={{ background:"none",border:"none",color:C.gold,cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>Add one</button>
+          </div>
+        ):(
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead>
+              <tr style={{ background:C.raised }}>
+                <TH>Category</TH><TH>Amount</TH><TH>Due Day</TH><TH>Start → End</TH><TH>Status</TH><TH>Actions</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {charges.map(c=>(
+                <tr key={c.id} style={{ transition:"background 0.1s" }}
+                  onMouseOver={e=>e.currentTarget.style.background=C.raised}
+                  onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                  <TD bold>{c.category}</TD>
+                  <TD bold>${parseFloat(c.amount||0).toLocaleString("en-US",{minimumFractionDigits:2})}/mo</TD>
+                  <TD>{c.due_day ? `${c.due_day}${c.due_day===1?"st":c.due_day===2?"nd":c.due_day===3?"rd":"th"}` : "—"}</TD>
+                  <TD>
+                    <span style={{ fontSize:11 }}>
+                      {c.start_date?new Date(c.start_date).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"—"}
+                      {" → "}
+                      {c.end_date?new Date(c.end_date).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"Ongoing"}
+                    </span>
+                  </TD>
+                  <TD>
+                    <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,
+                      background:c.status==="active"?"rgba(114,176,42,0.13)":c.status==="paused"?"rgba(240,164,48,0.13)":"rgba(92,98,112,0.15)",
+                      color:c.status==="active"?C.green:c.status==="paused"?C.amber:C.textSub }}>
+                      {c.status?.charAt(0).toUpperCase()+(c.status?.slice(1)||"")}
+                    </span>
+                  </TD>
+                  <TD>
+                    <div style={{ display:"flex",gap:6 }}>
+                      <GhostBtn small onClick={()=>toggleStatus(c)}>{c.status==="active"?"Pause":"Resume"}</GhostBtn>
+                      <button onClick={()=>deleteCharge(c.id)}
+                        style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Lease Tab ─────────────────────────────────────────────────────────────
+function LeaseTab({ tenant, unit, property, onUpdate }) {
+  const [form, setForm] = useState({
+    lease_start:     tenant.lease_start||"",
+    lease_end:       tenant.lease_end||"",
+    lease_end_action:tenant.lease_end_action||"month_to_month",
+  });
   const [saving, setSaving] = useState(false);
-  const [err,    setErr]    = useState(null);
-  const set = k => v => { setErr(null); setForm(f=>({...f,[k]:v})); };
+  const [saved,  setSaved]  = useState(false);
+
+  const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
 
   async function save() {
-    if (!form.amount || !form.start_date) { setErr("Amount and start date are required."); return; }
-    setSaving(true); setErr(null);
-    const payload = {
-      tenant_id:    tenantId,
-      category:     form.category,
-      amount:       parseFloat(form.amount),
-      frequency:    form.frequency,
-      start_date:   form.start_date,
-      end_date:     form.end_date || null,
-      day_of_month: form.frequency==="Monthly" ? parseInt(form.day_of_month,10) : null,
-      note:         form.note || null,
-      active:       true,
-    };
-    let saveErr;
-    if (editing) {
-      ({ error: saveErr } = await supabase.from("recurring_charges").update(payload).eq("id", existing.id));
-    } else {
-      payload.created_at = new Date().toISOString();
-      ({ error: saveErr } = await supabase.from("recurring_charges").insert(payload));
-    }
-    setSaving(false);
-    if (!saveErr) { onSave(); onClose(); } else setErr(saveErr.message);
+    setSaving(true); setSaved(false);
+    await supabase.from("tenants").update({
+      lease_start:      form.lease_start||null,
+      lease_end:        form.lease_end||null,
+      lease_end_action: form.lease_end_action,
+    }).eq("id",tenant.id);
+    setSaving(false); setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+    if (onUpdate) onUpdate();
   }
+
+  const leaseEnd   = form.lease_end   ? new Date(form.lease_end)   : null;
+  const leaseStart = form.lease_start ? new Date(form.lease_start) : null;
+  const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime()-Date.now())/86400000) : null;
+  const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((Date.now()-leaseStart.getTime())/(leaseEnd.getTime()-leaseStart.getTime()))*100))) : 0;
 
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto" }}>
-        <div style={{ padding:"20px 22px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <span style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,color:C.text }}>{editing?"Edit Recurring Charge":"Add Recurring Charge"}</span>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:C.textSub,fontSize:18,cursor:"pointer",lineHeight:1 }}>✕</button>
-        </div>
-        <div style={{ padding:"18px 22px",display:"flex",flexDirection:"column",gap:14 }}>
-          {err&&<div style={{ fontSize:12,color:C.red,padding:"8px 12px",background:"rgba(224,85,85,0.08)",borderRadius:7,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {err}</div>}
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-            <Field label="Category">
-              <Select value={form.category} onChange={e=>set("category")(e.target.value)} options={CATEGORY_OPTIONS}/>
-            </Field>
-            <Field label="Amount ($)">
-              <Input type="number" value={form.amount} onChange={e=>set("amount")(e.target.value)} placeholder="0.00"/>
-            </Field>
-            <Field label="Frequency">
-              <Select value={form.frequency} onChange={e=>set("frequency")(e.target.value)} options={FREQ_OPTIONS}/>
-            </Field>
-            {form.frequency==="Monthly"&&(
-              <Field label="Day of Month">
-                <Select value={form.day_of_month} onChange={e=>set("day_of_month")(e.target.value)}
-                  options={Array.from({length:28},(_,i)=>(i+1).toString())}/>
-              </Field>
-            )}
-            <Field label="Start Date">
-              <Input type="date" value={form.start_date} onChange={e=>set("start_date")(e.target.value)}/>
-            </Field>
-            <Field label="End Date (optional)">
-              <Input type="date" value={form.end_date} onChange={e=>set("end_date")(e.target.value)}/>
-            </Field>
-          </div>
-          <Field label="Note (optional)">
-            <Input value={form.note} onChange={e=>set("note")(e.target.value)} placeholder="e.g. Covered parking spot #4"/>
-          </Field>
-        </div>
-        <div style={{ padding:"14px 22px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end" }}>
-          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
-          <PrimaryBtn onClick={save} disabled={saving}>{saving?"Saving…":editing?"Save changes":"Add charge"}</PrimaryBtn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Recurring Charges Tab ─────────────────────────────────────────────────
-function RecurringChargesTab({ tenantId, onChargeChanged }) {
-  const [charges,  setCharges]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [showAdd,  setShowAdd]  = useState(false);
-  const [editing,  setEditing]  = useState(null);
-  const [deleting, setDeleting] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from("recurring_charges").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true });
-    setCharges(data || []);
-    setLoading(false);
-  }, [tenantId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function afterChange() { load(); if (onChargeChanged) onChargeChanged(); }
-
-  async function toggleActive(c) {
-    await supabase.from("recurring_charges").update({ active: !c.active }).eq("id", c.id);
-    afterChange();
-  }
-
-  async function deleteCharge(c) {
-    if (!window.confirm(`Delete ${c.category} – $${c.amount}?`)) return;
-    setDeleting(c.id);
-    await supabase.from("recurring_charges").delete().eq("id", c.id);
-    setDeleting(null);
-    afterChange();
-  }
-
-  const active = charges.filter(c => c.active !== false);
-  const paused = charges.filter(c => c.active === false);
-
-  function fmtFreq(c) {
-    if (c.frequency === "Monthly" && c.day_of_month) return `Monthly · due ${c.day_of_month}${ordinal(c.day_of_month)}`;
-    return c.frequency || "Monthly";
-  }
-
-  function ordinal(n) {
-    const s = ["th","st","nd","rd"], v = n%100;
-    return s[(v-20)%10]||s[v]||s[0];
-  }
-
-  if (loading) return <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading…</div>;
-
-  return (
-    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-      <div style={{ display:"flex",justifyContent:"flex-end" }}>
-        <PrimaryBtn onClick={()=>setShowAdd(true)}>＋ Add Recurring Charge</PrimaryBtn>
-      </div>
-
-      {charges.length===0&&(
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"40px",textAlign:"center" }}>
-          <div style={{ fontSize:32,marginBottom:12 }}>💳</div>
-          <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No recurring charges yet</div>
-          <div style={{ fontSize:13,color:C.textSub,marginBottom:20 }}>Add rent and any additional charges for this tenant.</div>
-          <PrimaryBtn onClick={()=>setShowAdd(true)}>＋ Add Recurring Charge</PrimaryBtn>
-        </div>
-      )}
-
-      {active.length>0&&(
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Active ({active.length})</div>
-          {active.map((c,i)=>(
-            <div key={c.id} style={{ padding:"14px 16px",borderBottom:i<active.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                <div style={{ width:38,height:38,borderRadius:8,background:"rgba(201,169,110,0.1)",border:`1px solid rgba(201,169,110,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0 }}>
-                  {c.category==="Rent"?"🏠":c.category==="Pet Fee"?"🐾":c.category==="Parking"?"🚗":c.category==="Utility Surcharge"?"⚡":"📋"}
-                </div>
-                <div>
-                  <div style={{ fontSize:13,fontWeight:600,color:C.text }}>{c.category}</div>
-                  <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>{fmtFreq(c)}{c.note&&` · ${c.note}`}</div>
-                  <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>
-                    {c.start_date&&`From ${new Date(c.start_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
-                    {c.end_date&&` → ${new Date(c.end_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
-                    {!c.end_date&&" · Cancel upon move-out"}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display:"flex",alignItems:"center",gap:16 }}>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.gold }}>${parseFloat(c.amount).toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-                <div style={{ display:"flex",gap:6 }}>
-                  <GhostBtn onClick={()=>setEditing(c)}>Edit</GhostBtn>
-                  <GhostBtn onClick={()=>toggleActive(c)}>Pause</GhostBtn>
-                  <DangerBtn onClick={()=>deleteCharge(c)}>{deleting===c.id?"…":"Delete"}</DangerBtn>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {paused.length>0&&(
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Paused ({paused.length})</div>
-          {paused.map((c,i)=>(
-            <div key={c.id} style={{ padding:"14px 16px",borderBottom:i<paused.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",opacity:0.65 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                <div style={{ width:38,height:38,borderRadius:8,background:C.raised,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0 }}>
-                  {c.category==="Rent"?"🏠":c.category==="Pet Fee"?"🐾":c.category==="Parking"?"🚗":"📋"}
-                </div>
-                <div>
-                  <div style={{ fontSize:13,fontWeight:600,color:C.text }}>{c.category} <span style={{ fontSize:10,fontWeight:600,padding:"2px 6px",borderRadius:4,background:`${C.amber}15`,color:C.amber,marginLeft:4 }}>PAUSED</span></div>
-                  <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>{fmtFreq(c)}</div>
-                </div>
-              </div>
-              <div style={{ display:"flex",alignItems:"center",gap:16 }}>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.textSub }}>${parseFloat(c.amount).toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-                <div style={{ display:"flex",gap:6 }}>
-                  <PrimaryBtn onClick={()=>toggleActive(c)}>Resume</PrimaryBtn>
-                  <DangerBtn onClick={()=>deleteCharge(c)}>{deleting===c.id?"…":"Delete"}</DangerBtn>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(showAdd||editing)&&(
-        <RecurringChargeModal
-          tenantId={tenantId}
-          existing={editing}
-          onSave={afterChange}
-          onClose={()=>{ setShowAdd(false); setEditing(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Lease & Documents Tab ─────────────────────────────────────────────────
-function LeaseDocumentsTab({ tenant, unit, onLeaseUpdated }) {
-  const [editMode, setEditMode] = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const [err,      setErr]      = useState(null);
-  const [saved,    setSaved]    = useState(false);
-  const [form, setForm] = useState({
-    lease_start:      tenant.lease_start       || "",
-    lease_end:        tenant.lease_end         || "",
-    security_deposit: tenant.security_deposit  || "",
-    late_fee_amount:  tenant.late_fee_amount   || "",
-    late_fee_day:     tenant.late_fee_day      || "6",
-    lease_end_action: tenant.lease_end_action  || "month_to_month",
-    lease_notes:      tenant.lease_notes       || "",
-  });
-
-  const set = k => v => { setErr(null); setForm(f=>({...f,[k]:v})); };
-
-  async function saveLease() {
-    setSaving(true); setErr(null);
-    const payload = {
-      lease_start:      form.lease_start      || null,
-      lease_end:        form.lease_end        || null,
-      security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
-      late_fee_amount:  form.late_fee_amount  ? parseFloat(form.late_fee_amount)  : null,
-      late_fee_day:     form.late_fee_day     ? parseInt(form.late_fee_day, 10)   : null,
-      lease_end_action: form.lease_end_action || "month_to_month",
-      lease_notes:      form.lease_notes      || null,
-    };
-    const { error } = await supabase.from("tenants").update(payload).eq("id", tenant.id);
-    setSaving(false);
-    if (error) { setErr(error.message); return; }
-    setSaved(true);
-    setTimeout(()=>setSaved(false), 2500);
-    setEditMode(false);
-    if (onLeaseUpdated) onLeaseUpdated();
-  }
-
-  const fmtDate = d => d ? new Date(d).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : "—";
-  const fmtMoney = v => v ? `$${parseFloat(v).toLocaleString("en-US",{minimumFractionDigits:2})}` : "—";
-
-  return (
-    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-      {/* Lease Terms */}
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <span>Lease Terms</span>
-          {!editMode
-            ? <button onClick={()=>setEditMode(true)} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500 }}>Edit</button>
-            : <div style={{ display:"flex",gap:8 }}>
-                <GhostBtn onClick={()=>{ setEditMode(false); setErr(null); }}>Cancel</GhostBtn>
-                <PrimaryBtn onClick={saveLease} disabled={saving}>{saving?"Saving…":saved?"✓ Saved!":"Save changes"}</PrimaryBtn>
-              </div>
-          }
-        </div>
-        {err&&<div style={{ margin:"12px 16px 0",fontSize:12,color:C.red,padding:"8px 12px",background:"rgba(224,85,85,0.08)",borderRadius:7,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {err}</div>}
-        <div style={{ padding:"16px" }}>
-          {!editMode ? (
-            <>
-              <InfoRow label="Lease start"      value={fmtDate(tenant.lease_start)}/>
-              <InfoRow label="Lease end"        value={fmtDate(tenant.lease_end)}/>
-              <InfoRow label="At expiration"    value={tenant.lease_end_action==="terminate"?"Terminate lease":"Auto → Month-to-month"}
-                valueColor={tenant.lease_end_action==="terminate"?C.amber:C.green}/>
-              <InfoRow label="Security deposit" value={fmtMoney(tenant.security_deposit)}/>
-              <InfoRow label="Monthly rent"     value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
-              <InfoRow label="Rent due"         value={`1st of the month`}/>
-              <InfoRow label="Late fee amount"  value={fmtMoney(tenant.late_fee_amount)}/>
-              <InfoRow label="Late fee charged" value={tenant.late_fee_day?`${tenant.late_fee_day}${ordinalSuffix(tenant.late_fee_day)} of the month`:"—"} last/>
-              {tenant.lease_notes&&(
-                <div style={{ marginTop:12,padding:"10px 12px",background:C.raised,borderRadius:8,fontSize:12,color:C.textSub,lineHeight:1.6 }}>
-                  <span style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",display:"block",marginBottom:4 }}>Notes</span>
-                  {tenant.lease_notes}
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-              <Field label="Lease Start">
-                <Input type="date" value={form.lease_start} onChange={e=>set("lease_start")(e.target.value)}/>
-              </Field>
-              <Field label="Lease End">
-                <Input type="date" value={form.lease_end} onChange={e=>set("lease_end")(e.target.value)}/>
-              </Field>
-              <Field label="Security Deposit ($)">
-                <Input type="number" value={form.security_deposit} onChange={e=>set("security_deposit")(e.target.value)} placeholder="0.00"/>
-              </Field>
-              <Field label="Late Fee Amount ($)">
-                <Input type="number" value={form.late_fee_amount} onChange={e=>set("late_fee_amount")(e.target.value)} placeholder="50.00"/>
-              </Field>
-              <Field label="Late Fee Charged On (day of month)">
-                <Select value={form.late_fee_day} onChange={e=>set("late_fee_day")(e.target.value)}
-                  options={Array.from({length:28},(_,i)=>(i+1).toString())}/>
-              </Field>
-              <div style={{ gridColumn:"1 / -1" }}>
-                <Field label="At Lease Expiration">
-                  <div style={{ display:"flex",gap:8 }}>
-                    {[{val:"month_to_month",label:"Auto → Month-to-month"},{val:"terminate",label:"Terminate lease"}].map(opt=>(
-                      <button key={opt.val} onClick={()=>set("lease_end_action")(opt.val)}
-                        style={{ flex:1,padding:"9px 12px",fontSize:12,fontWeight:500,borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${form.lease_end_action===opt.val?(opt.val==="terminate"?C.amber:C.green):C.border}`,background:form.lease_end_action===opt.val?(opt.val==="terminate"?"rgba(240,164,48,0.12)":"rgba(114,176,42,0.1)"):"transparent",color:form.lease_end_action===opt.val?(opt.val==="terminate"?C.amber:C.green):C.textSub,transition:"all 0.15s" }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-              </div>
-              <div style={{ gridColumn:"1 / -1" }}>
-                <Field label="Lease Notes (optional)">
-                  <textarea value={form.lease_notes} onChange={e=>set("lease_notes")(e.target.value)}
-                    placeholder="Month-to-month clause, special terms, etc."
-                    style={{ width:"100%",minHeight:80,padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",resize:"vertical",lineHeight:1.5,boxSizing:"border-box" }}/>
-                </Field>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Documents */}
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <span>Lease & Documents</span>
-          <PrimaryBtn onClick={()=>{}}>＋ Upload</PrimaryBtn>
-        </div>
-        <div style={{ padding:"16px" }}>
-          {tenant.lease_url ? (
-            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:C.raised,borderRadius:8,border:`1px solid ${C.border}` }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                <span style={{ fontSize:20 }}>📄</span>
-                <div>
-                  <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Signed Lease Agreement</div>
-                  <div style={{ fontSize:11,color:C.textSub }}>Uploaded lease document</div>
-                </div>
-              </div>
-              <a href={tenant.lease_url} target="_blank" rel="noreferrer" style={{ fontSize:12,color:C.blue,textDecoration:"none" }}>View →</a>
-            </div>
-          ) : (
-            <div style={{ textAlign:"center",padding:"24px 0",color:C.textSub,fontSize:13 }}>
-              <div style={{ fontSize:28,marginBottom:8 }}>📂</div>
-              No documents uploaded yet. Upload the signed lease or any addenda.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ordinalSuffix(n) {
-  const s = ["th","st","nd","rd"], v = n%100;
-  return s[(v-20)%10]||s[v]||s[0];
-}
-
-// ─── Messages Tab ──────────────────────────────────────────────────────────
-function MessagesTab({ tenant }) {
-  const [messages,  setMessages]  = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [reply,     setReply]     = useState("");
-  const [sending,   setSending]   = useState(false);
-  const [sendErr,   setSendErr]   = useState(null);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data } = await supabase
-        .from("messages")
-        .select("*")
-        .or(`tenant_id.eq.${tenant.id},sender_id.eq.${tenant.user_id}`)
-        .order("created_at", { ascending: true });
-      setMessages(data || []);
-      setLoading(false);
-    }
-    load();
-  }, [tenant.id, tenant.user_id]);
-
-  async function sendMessage() {
-    if (!reply.trim()) return;
-    setSending(true); setSendErr(null);
-    const { error } = await supabase.from("messages").insert({
-      tenant_id: tenant.id,
-      body:      reply.trim(),
-      sender:    "landlord",
-      created_at: new Date().toISOString(),
-    });
-    setSending(false);
-    if (error) { setSendErr(error.message); return; }
-    setReply("");
-    // Re-fetch
-    const { data } = await supabase.from("messages").select("*")
-      .or(`tenant_id.eq.${tenant.id},sender_id.eq.${tenant.user_id}`)
-      .order("created_at", { ascending: true });
-    setMessages(data || []);
-  }
-
-  if (loading) return <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading messages…</div>;
-
-  return (
-    <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-      {/* Thread */}
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
-          Message thread with {tenant.name}
-        </div>
-        <div style={{ padding:"16px",display:"flex",flexDirection:"column",gap:10,maxHeight:420,overflowY:"auto" }}>
-          {messages.length===0&&(
-            <div style={{ textAlign:"center",padding:"24px 0",color:C.textSub,fontSize:13 }}>No messages yet.</div>
-          )}
-          {messages.map(m=>{
-            const isLandlord = m.sender==="landlord";
-            return (
-              <div key={m.id} style={{ display:"flex",justifyContent:isLandlord?"flex-end":"flex-start" }}>
-                <div style={{
-                  maxWidth:"70%",
-                  padding:"10px 14px",
-                  borderRadius:isLandlord?"12px 12px 2px 12px":"12px 12px 12px 2px",
-                  background:isLandlord?"rgba(201,169,110,0.12)":C.raised,
-                  border:`1px solid ${isLandlord?"rgba(201,169,110,0.2)":C.border}`,
-                }}>
-                  <div style={{ fontSize:13,color:C.text,lineHeight:1.5 }}>{m.body||m.message||m.content}</div>
-                  <div style={{ fontSize:10,color:C.textMuted,marginTop:4,textAlign:isLandlord?"right":"left" }}>
-                    {isLandlord?"You":"Tenant"} · {new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Reply */}
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px" }}>
-        {sendErr&&<div style={{ fontSize:12,color:C.red,marginBottom:8,padding:"6px 10px",background:"rgba(224,85,85,0.08)",borderRadius:6,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {sendErr}</div>}
-        <textarea value={reply} onChange={e=>{ setSendErr(null); setReply(e.target.value); }}
-          placeholder={`Send a message to ${tenant.name}…`}
-          rows={3}
-          style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box",marginBottom:10 }}
-        />
-        <div style={{ display:"flex",justifyContent:"flex-end" }}>
-          <PrimaryBtn onClick={sendMessage} disabled={sending||!reply.trim()}>{sending?"Sending…":"Send message"}</PrimaryBtn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Eviction Watch Tab ────────────────────────────────────────────────────
-function EvictionWatchTab({ tenant, tenantId, onFlagChange }) {
-  const [eviction,   setEviction]   = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [saving,     setSaving]     = useState(false);
-  const [toggling,   setToggling]   = useState(false);
-  const [newNote,    setNewNote]    = useState("");
-  const [savingNote, setSavingNote] = useState(false);
-  const [noteSaved,  setNoteSaved]  = useState(false);
-  const [form, setForm] = useState({
-    status:        "3_day_notice_issued",
-    notice_date:   "",
-    cure_deadline: "",
-    attorney_name: "",
-    court_date:    "",
-    case_number:   "",
-  });
-
-  useEffect(() => { fetchEviction(); }, [tenantId]);
-
-  async function fetchEviction() {
-    setLoading(true);
-    const { data } = await supabase.from("evictions").select("*").eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (data) {
-      setEviction(data);
-      setForm({ status:data.status||"3_day_notice_issued", notice_date:data.notice_date||"", cure_deadline:data.cure_deadline||"", attorney_name:data.attorney_name||"", court_date:data.court_date||"", case_number:data.case_number||"" });
-      setNewNote(data.notes||"");
-    }
-    setLoading(false);
-  }
-
-  async function toggleFlag() {
-    setToggling(true);
-    const newVal = !tenant.eviction_watch;
-    await supabase.from("tenants").update({ eviction_watch: newVal }).eq("id", tenantId);
-    if (newVal && !eviction) {
-      const { data } = await supabase.from("evictions").insert({ tenant_id:tenantId, status:"3_day_notice_issued", notice_date:new Date().toISOString().split("T")[0] }).select().single();
-      if (data) { setEviction(data); setForm(f=>({...f, status:data.status, notice_date:data.notice_date||""})); }
-    }
-    onFlagChange(newVal);
-    setToggling(false);
-  }
-
-  async function saveEviction() {
-    if (!eviction) return;
-    setSaving(true);
-    const { data } = await supabase.from("evictions").update({ ...form, updated_at:new Date().toISOString() }).eq("id",eviction.id).select().single();
-    if (data) setEviction(data);
-    setSaving(false);
-  }
-
-  async function saveNote() {
-    if (!eviction) return;
-    setSavingNote(true);
-    await supabase.from("evictions").update({ notes:newNote, updated_at:new Date().toISOString() }).eq("id",eviction.id);
-    setSavingNote(false); setNoteSaved(true);
-    setTimeout(()=>setNoteSaved(false), 2000);
-  }
-
-  const currentStepIdx = EVICTION_STATUSES.findIndex(s=>s.key===form.status);
-  if (loading) return <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading…</div>;
-
-  if (!tenant.eviction_watch) {
-    return (
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"32px 28px",textAlign:"center" }}>
-        <div style={{ fontSize:32,marginBottom:14 }}>⚖️</div>
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:8 }}>Eviction Watch</div>
-        <div style={{ fontSize:13,color:C.textSub,maxWidth:420,margin:"0 auto 24px",lineHeight:1.6 }}>
-          Flag this tenant to open an eviction case. Track the status pipeline, set key dates, add legal notes, and manage the case through resolution.
-        </div>
-        <button onClick={toggleFlag} disabled={toggling}
-          style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.35)`,color:C.red,fontSize:13,fontWeight:600,padding:"10px 24px",borderRadius:8,cursor:toggling?"default":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:toggling?0.6:1 }}>
-          {toggling?"Flagging…":"⚑ Flag for Eviction Watch"}
-        </button>
-        <div style={{ fontSize:11,color:C.textMuted,marginTop:12 }}>Only visible to you — not to the tenant</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-      <div style={{ background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.25)`,borderRadius:10,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
-        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-          <span style={{ fontSize:16 }}>⚑</span>
+    <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:14 }}>
+      {/* Renewal banner */}
+      {daysLeft!==null&&daysLeft>0&&daysLeft<=90&&(
+        <div style={{ background:"rgba(240,164,48,0.08)",border:`1px solid rgba(240,164,48,0.25)`,borderRadius:10,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
           <div>
-            <div style={{ fontSize:13,fontWeight:600,color:C.red }}>Eviction Watch Active</div>
-            <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>{eviction?.created_at?`Opened ${new Date(eviction.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"Case opened"}</div>
+            <div style={{ fontSize:13,fontWeight:600,color:C.amber,marginBottom:2 }}>⚠ Lease Ending Soon</div>
+            <div style={{ fontSize:12,color:C.textSub }}>{daysLeft} days remaining · expires {new Date(form.lease_end).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
           </div>
-        </div>
-        <button onClick={toggleFlag} disabled={toggling}
-          style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:toggling?0.5:1 }}>
-          {toggling?"…":"Remove flag"}
-        </button>
-      </div>
-
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Status Pipeline</div>
-        <div style={{ padding:"16px",display:"flex",gap:6,flexWrap:"wrap" }}>
-          {EVICTION_STATUSES.map((s,i)=>{
-            const isActive=s.key===form.status, isPast=i<currentStepIdx;
-            return (
-              <button key={s.key} onClick={()=>setForm(f=>({...f,status:s.key}))}
-                style={{ flex:"1 1 auto",minWidth:100,padding:"10px 8px",borderRadius:8,border:`1px solid ${isActive?"rgba(224,85,85,0.5)":isPast?`${C.green}44`:C.border}`,background:isActive?"rgba(224,85,85,0.12)":isPast?`${C.green}0F`:"transparent",color:isActive?C.red:isPast?C.green:C.textSub,fontSize:11,fontWeight:isActive?600:400,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textAlign:"center",transition:"all 0.15s" }}>
-                <div style={{ fontSize:14,marginBottom:3 }}>{s.icon}</div>
-                <div>{s.label}</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Details</div>
-        <div style={{ padding:"16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-          <Field label="Notice Date"><Input type="date" value={form.notice_date} onChange={e=>setForm(f=>({...f,notice_date:e.target.value}))}/></Field>
-          <Field label="Cure Deadline"><Input type="date" value={form.cure_deadline} onChange={e=>setForm(f=>({...f,cure_deadline:e.target.value}))}/></Field>
-          <Field label="Attorney Name"><Input value={form.attorney_name} onChange={e=>setForm(f=>({...f,attorney_name:e.target.value}))} placeholder="e.g. Smith & Associates"/></Field>
-          <Field label="Court Date"><Input type="date" value={form.court_date} onChange={e=>setForm(f=>({...f,court_date:e.target.value}))}/></Field>
-          <div style={{ gridColumn:"1 / -1" }}><Field label="Case Number"><Input value={form.case_number} onChange={e=>setForm(f=>({...f,case_number:e.target.value}))} placeholder="e.g. CV-2026-00142"/></Field></div>
-        </div>
-        <div style={{ padding:"0 16px 16px",display:"flex",justifyContent:"flex-end" }}>
-          <PrimaryBtn onClick={saveEviction} disabled={saving}>{saving?"Saving…":"Save case details"}</PrimaryBtn>
-        </div>
-      </div>
-
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-        <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Case Notes</div>
-        <div style={{ padding:"16px" }}>
-          <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add legal notes, timeline entries, communication logs…"
-            style={{ width:"100%",minHeight:120,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}/>
-          <div style={{ display:"flex",alignItems:"center",gap:12,marginTop:10 }}>
-            <PrimaryBtn onClick={saveNote} disabled={savingNote}>{noteSaved?"✓ Saved!":savingNote?"Saving…":"Save notes"}</PrimaryBtn>
-            <span style={{ fontSize:11,color:C.textMuted }}>{newNote.length} characters</span>
-          </div>
-        </div>
-      </div>
-      {eviction?.updated_at&&(
-        <div style={{ fontSize:11,color:C.textMuted,textAlign:"right" }}>
-          Last updated {new Date(eviction.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}
+          <span style={{ fontSize:11,fontWeight:600,padding:"4px 12px",borderRadius:6,background:"rgba(240,164,48,0.15)",color:C.amber,border:"1px solid rgba(240,164,48,0.3)",whiteSpace:"nowrap" }}>
+            Renewal Needed
+          </span>
         </div>
       )}
+      {daysLeft!==null&&daysLeft<=0&&(
+        <div style={{ background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.25)`,borderRadius:10,padding:"14px 18px" }}>
+          <div style={{ fontSize:13,fontWeight:600,color:C.red }}>✕ Lease Expired</div>
+          <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>This tenant's lease has expired. Update lease terms or archive the tenant.</div>
+        </div>
+      )}
+
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"18px 20px" }}>
+        <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14 }}>Lease Dates</div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14 }}>
+          <div><FieldLabel>Lease Start</FieldLabel><Input type="date" value={form.lease_start} onChange={e=>update("lease_start",e.target.value)}/></div>
+          <div><FieldLabel>Lease End</FieldLabel><Input type="date" value={form.lease_end} onChange={e=>update("lease_end",e.target.value)}/></div>
+        </div>
+
+        {leaseStart&&leaseEnd&&leaseEnd>leaseStart&&(
+          <div style={{ marginBottom:14 }}>
+            <div style={{ height:4,background:C.raised,borderRadius:2,overflow:"hidden",marginBottom:4 }}>
+              <div style={{ height:"100%",width:`${progress}%`,background:daysLeft&&daysLeft<=30?C.red:daysLeft&&daysLeft<=90?C.amber:C.gold,borderRadius:2,transition:"width 0.3s" }}/>
+            </div>
+            <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:C.textMuted }}>
+              <span>{progress}% through lease</span>
+              {daysLeft!==null&&daysLeft>0&&<span>{daysLeft} days remaining</span>}
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginBottom:16 }}>
+          <FieldLabel>At Lease Expiration</FieldLabel>
+          <div style={{ display:"flex",gap:8 }}>
+            {[
+              { val:"month_to_month", label:"Month-to-Month", desc:"Auto-continue at same rent" },
+              { val:"terminate",      label:"Terminate Lease", desc:"End lease, notify tenant" },
+            ].map(opt=>(
+              <div key={opt.val} onClick={()=>update("lease_end_action",opt.val)}
+                style={{ flex:1,padding:"12px 14px",borderRadius:8,border:`1px solid ${form.lease_end_action===opt.val?C.gold:C.border}`,background:form.lease_end_action===opt.val?"rgba(201,169,110,0.06)":C.raised,cursor:"pointer",transition:"all 0.15s" }}>
+                <div style={{ fontSize:12,fontWeight:600,color:form.lease_end_action===opt.val?C.gold:C.text,marginBottom:3 }}>{opt.label}</div>
+                <div style={{ fontSize:11,color:C.textSub }}>{opt.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+          <PrimaryBtn onClick={save} disabled={saving}>{saved?"✓ Saved!":saving?"Saving…":"Save Lease Terms"}</PrimaryBtn>
+          <span style={{ fontSize:11,color:C.textMuted,fontStyle:"italic" }}>Changes here do not create payment requests. Visit Financials to manage payments.</span>
+        </div>
+      </div>
+
+      {/* Read-only summary */}
+      <InfoCard title="Lease Summary">
+        <InfoRow label="Monthly Rent"    value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
+        <InfoRow label="Term Type"       value={form.lease_end_action==="month_to_month"?"Month-to-Month":"Fixed Term"}/>
+        <InfoRow label="Bedrooms"        value={unit?.bedrooms??"—"}/>
+        <InfoRow label="Bathrooms"       value={unit?.bathrooms??"—"}/>
+        <InfoRow label="Payment Due Day" value={unit?.payment_due_day?`${unit.payment_due_day}${unit.payment_due_day===1?"st":unit.payment_due_day===2?"nd":unit.payment_due_day===3?"rd":"th"} of month`:"—"} last/>
+      </InfoCard>
     </div>
   );
 }
@@ -899,50 +546,47 @@ export default function LandlordTenantDetail() {
   const width    = useWindowWidth();
   const isMobile = width < 768;
 
-  const [tenant,      setTenant]      = useState(null);
-  const [unit,        setUnit]        = useState(null);
-  const [property,    setProperty]    = useState(null);
-  const [payments,    setPayments]    = useState([]);
-  const [maintenance, setMaintenance] = useState([]);
-  const [checklist,   setChecklist]   = useState([]);
-  const [charges,     setCharges]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [activeTab,   setActiveTab]   = useState("Overview");
-  const [notes,       setNotes]       = useState("");
-  const [noteSaved,   setNoteSaved]   = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [inviting,    setInviting]    = useState(false);
-  const [inviteSent,  setInviteSent]  = useState(false);
-  const [inviteError, setInviteError] = useState("");
-  const [showArchive,    setShowArchive]    = useState(false);
-  const [archiving,      setArchiving]      = useState(false);
-  const [showAddCharge,  setShowAddCharge]  = useState(false);
-  const [showRecordPmt,  setShowRecordPmt]  = useState(false);
+  const [tenant,       setTenant]       = useState(null);
+  const [unit,         setUnit]         = useState(null);
+  const [property,     setProperty]     = useState(null);
+  const [payments,     setPayments]     = useState([]);
+  const [maintenance,  setMaintenance]  = useState([]);
+  const [checklist,    setChecklist]    = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [activeTab,    setActiveTab]    = useState("Overview");
+  const [notes,        setNotes]        = useState("");
+  const [noteSaved,    setNoteSaved]    = useState(false);
+  const [savingNotes,  setSavingNotes]  = useState(false);
+  const [inviting,     setInviting]     = useState(false);
+  const [inviteSent,   setInviteSent]   = useState(false);
+  const [inviteError,  setInviteError]  = useState("");
+  const [showArchive,  setShowArchive]  = useState(false);
+  const [archiving,    setArchiving]    = useState(false);
+  const [showRecordPmt,setShowRecordPmt]= useState(false);
 
-  useEffect(() => { fetchAll(); }, [id]);
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
-    const { data: tenantData } = await supabase.from("tenants").select("*").eq("id", id).single();
+    const { data:tenantData } = await supabase.from("tenants").select("*").eq("id",id).single();
     if (!tenantData) { setLoading(false); return; }
     setTenant(tenantData);
-    setNotes(tenantData.notes || "");
-    const [{ data: unitData }, { data: paymentsData }, { data: maintData }, { data: checklistData }, { data: chargesData }] = await Promise.all([
-      supabase.from("units").select("*, properties(*)").eq("id", tenantData.unit_id).single(),
-      supabase.from("payments").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
-      supabase.from("maintenance_requests").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
-      supabase.from("move_in_checklist").select("*").eq("tenant_id", id).order("created_at", { ascending: true }),
-      supabase.from("recurring_charges").select("*").eq("tenant_id", id).order("created_at", { ascending: true }),
+    setNotes(tenantData.notes||"");
+    const [{ data:unitData },{ data:paymentsData },{ data:maintData },{ data:checklistData }] = await Promise.all([
+      supabase.from("units").select("*, properties(*)").eq("id",tenantData.unit_id).single(),
+      supabase.from("payments").select("*").eq("tenant_id",id).order("created_at",{ascending:false}),
+      supabase.from("maintenance_requests").select("*").eq("tenant_id",id).order("created_at",{ascending:false}),
+      supabase.from("move_in_checklist").select("*").eq("tenant_id",id).order("created_at",{ascending:true}),
     ]);
-    setUnit(unitData || null);
-    setProperty(unitData?.properties || null);
-    setPayments(paymentsData || []);
-    setMaintenance(maintData || []);
-    setChecklist(checklistData || []);
-    setCharges(chargesData || []);
+    setUnit(unitData||null);
+    setProperty(unitData?.properties||null);
+    setPayments(paymentsData||[]);
+    setMaintenance(maintData||[]);
+    setChecklist(checklistData||[]);
     setLoading(false);
-  }
+  },[id]);
 
+  useEffect(() => { fetchAll(); },[fetchAll]);
+
+  // SECURITY: Never expose landlord personal name — always use company name
   async function sendInvite() {
     if (!tenant.email) { setInviteError("No email on tenant record."); return; }
     setInviting(true); setInviteError("");
@@ -952,48 +596,44 @@ export default function LandlordTenantDetail() {
     setInviting(false);
     if (error) { setInviteError(error.message); return; }
     setInviteSent(true);
+    await supabase.from("tenants").update({ invite_sent_at:new Date().toISOString() }).eq("id",id);
+    fetchAll();
   }
 
   async function archiveTenant() {
     setArchiving(true);
-    await supabase.from("tenants").update({ archived:true }).eq("id", id);
+    await supabase.from("tenants").update({archived:true}).eq("id",id);
     setArchiving(false);
     navigate("/landlord/tenants");
   }
 
   async function saveNotes() {
     setSavingNotes(true);
-    await supabase.from("tenants").update({ notes }).eq("id", id);
-    setSavingNotes(false); setNoteSaved(true);
-    setTimeout(()=>setNoteSaved(false), 2000);
-  }
-
-  function handleEvictionFlagChange(newVal) {
-    setTenant(t=>({...t, eviction_watch:newVal}));
+    await supabase.from("tenants").update({notes}).eq("id",id);
+    setSavingNotes(false);
+    setNoteSaved(true);
+    setTimeout(()=>setNoteSaved(false),2000);
   }
 
   if (loading) return <LandlordLayout><div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,color:C.textSub,fontSize:14 }}>Loading tenant…</div></LandlordLayout>;
-  if (!tenant)  return <LandlordLayout><div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,color:C.textSub,fontSize:14 }}>Tenant not found.</div></LandlordLayout>;
+  if (!tenant) return <LandlordLayout><div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,color:C.textSub,fontSize:14 }}>Tenant not found.</div></LandlordLayout>;
 
-  const initials      = tenant.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  const initials      = (tenant.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   const accentColor   = AVATAR_COLORS[0];
   const latestPayment = payments[0];
-  let payStatus = "current";
-  if (latestPayment?.status==="failed") payStatus="late";
-  else if (!latestPayment||latestPayment.status==="pending") payStatus="pending";
-  const balance    = payStatus!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0;
-  const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
+  let status = "current";
+  if (latestPayment?.status==="failed") status = "late";
+  else if (!latestPayment||latestPayment.status==="pending") status = "pending";
+  const balance    = status!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0;
   const leaseEnd   = tenant.lease_end   ? new Date(tenant.lease_end)   : null;
-  const daysLeft   = leaseEnd ? Math.ceil((leaseEnd-new Date())/(1000*60*60*24)) : null;
-  const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((new Date()-leaseStart)/(leaseEnd-leaseStart))*100))) : 0;
+  const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
+  const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime()-Date.now())/86400000) : null;
+  const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((Date.now()-leaseStart.getTime())/(leaseEnd.getTime()-leaseStart.getTime()))*100))) : 0;
   const completedChecklist = checklist.filter(r=>r.completed).length;
   const insDays    = insuranceDaysLeft(tenant.insurance_expires);
-  const activeCharges = charges.filter(c=>c.active!==false);
 
-  // Portal status badge
-  const portalStatus = tenant.user_id ? "Registered" : tenant.invited_at ? "Invited" : "Not Invited";
-  const portalStatusColor = tenant.user_id ? C.green : tenant.invited_at ? C.amber : C.textMuted;
-  const portalStatusBg = tenant.user_id ? `${C.green}15` : tenant.invited_at ? `${C.amber}15` : `${C.textMuted}15`;
+  const isRegistered = !!tenant.user_id;
+  const isInvited    = !tenant.user_id && !!tenant.invite_sent_at;
 
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
@@ -1019,112 +659,85 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
-        {/* Lease renewal banner — show when ≤90 days remain */}
-        {daysLeft!==null&&daysLeft>0&&daysLeft<=90&&(
-          <div style={{ background:daysLeft<=30?"rgba(224,85,85,0.08)":"rgba(240,164,48,0.08)",border:`1px solid ${daysLeft<=30?"rgba(224,85,85,0.3)":"rgba(240,164,48,0.3)"}`,borderRadius:8,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
-            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-              <span style={{ fontSize:16 }}>{daysLeft<=30?"🔴":"🟡"}</span>
+        {/* ─── Compact Executive Header ─────────────────────────── */}
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 22px",marginBottom:20 }}>
+          {/* Top row: avatar + name + actions */}
+          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginBottom:12 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+              <div style={{ width:46,height:46,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,flexShrink:0 }}>{initials}</div>
               <div>
-                <div style={{ fontSize:13,fontWeight:600,color:daysLeft<=30?C.red:C.amber }}>
-                  Lease expires in {daysLeft} day{daysLeft!==1?"s":""}
-                  {tenant.lease_end&&` · ${new Date(tenant.lease_end).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}`}
-                </div>
-                <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>
-                  At expiration: {tenant.lease_end_action==="terminate"?"Lease terminates — tenant must vacate":"Automatically converts to month-to-month"}
+                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,lineHeight:1.2 }}>{tenant.name}</div>
+                <div style={{ fontSize:12,color:C.textSub,marginTop:3 }}>
+                  {property?.name||"—"} · Unit {unit?.unit_number||"—"}
+                  {property?.address&&` · ${property.address}`}
                 </div>
               </div>
             </div>
-            <div style={{ display:"flex",gap:8 }}>
-              <GhostBtn onClick={()=>setActiveTab("Lease & Documents")}>Edit lease terms</GhostBtn>
-              <PrimaryBtn onClick={()=>setActiveTab("Messages")}>Contact tenant</PrimaryBtn>
+            {/* Action buttons */}
+            <div style={{ display:"flex",gap:7,flexWrap:"wrap",alignItems:"center" }}>
+              <PrimaryBtn onClick={()=>navigate("/landlord/messages")}>Message</PrimaryBtn>
+              <PrimaryBtn onClick={()=>setShowRecordPmt(true)}>Record Payment</PrimaryBtn>
+              {!tenant.user_id&&(
+                inviteSent
+                  ? <span style={{ fontSize:12,color:C.green,fontWeight:500 }}>✓ Invite sent</span>
+                  : <GhostBtn onClick={sendInvite} disabled={inviting}>{inviting?"Sending…":"Send Invite"}</GhostBtn>
+              )}
+              {tenant.eviction_watch&&<DangerBtn>Send Notice</DangerBtn>}
+              {!tenant.archived&&<DangerBtn onClick={()=>setShowArchive(true)}>Archive</DangerBtn>}
             </div>
           </div>
-        )}
-        {daysLeft!==null&&daysLeft<=0&&(
-          <div style={{ background:"rgba(224,85,85,0.08)",border:`1px solid rgba(224,85,85,0.3)`,borderRadius:8,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:10 }}>
-            <span style={{ fontSize:16 }}>⚠</span>
-            <div>
-              <div style={{ fontSize:13,fontWeight:600,color:C.red }}>Lease expired {Math.abs(daysLeft)} day{Math.abs(daysLeft)!==1?"s":""}  ago</div>
-              <div style={{ fontSize:11,color:C.textSub,marginTop:1 }}>
-                {tenant.lease_end_action==="terminate"?"Tenant should have vacated — review status.":"Tenant is on month-to-month. Update lease terms when renewed."}
-              </div>
-            </div>
-          </div>
-        )}
+          {inviteError&&<div style={{ fontSize:11,color:C.red,marginBottom:8 }}>{inviteError}</div>}
 
-        {/* Header */}
-        <div style={{ background:C.surface,border:`1px solid ${tenant.eviction_watch?"rgba(224,85,85,0.4)":C.border}`,borderRadius:10,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap" }}>
-          <div style={{ display:"flex",alignItems:"flex-start",gap:16 }}>
-            <div style={{ width:56,height:56,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,flexShrink:0 }}>{initials}</div>
-            <div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:4,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap" }}>
-                {tenant.name}
-                {/* Portal status badge */}
-                <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:portalStatusBg,color:portalStatusColor,letterSpacing:"0.04em" }}>
-                  {tenant.user_id?"● ":"○ "}{portalStatus}
-                </span>
-                {tenant.eviction_watch&&(
-                  <span style={{ fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.15)",color:C.red,border:`1px solid rgba(224,85,85,0.3)`,letterSpacing:"0.05em" }}>⚑ EVICTION WATCH</span>
-                )}
-              </div>
-              <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>
-                {property?.name||"—"} · Unit {unit?.unit_number||"—"}
-                {property?.address&&` · ${property.address}, ${property.city} ${property.state}`}
-              </div>
-              {/* Bank / Autopay badges */}
-              <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8 }}>
-                <Badge status={payStatus}/>
-                {tenant.bank_account_linked&&(
-                  <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.green}15`,color:C.green }}>✓ Bank added</span>
-                )}
-                {tenant.autopay_enabled&&(
-                  <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.green}15`,color:C.green }}>✓ Autopay on</span>
-                )}
-                {daysLeft!==null&&daysLeft<60&&daysLeft>0&&(
-                  <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(240,164,48,0.13)",color:C.amber }}>⚠ Lease expiring in {daysLeft}d</span>
-                )}
-                {!tenant.insurance_url&&(
-                  <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.red}15`,color:C.red }}>No insurance on file</span>
-                )}
-              </div>
-              <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
-                {tenant.email&&<span style={{ fontSize:12,color:C.textSub }}>✉ {tenant.email}</span>}
-                {tenant.phone&&<span style={{ fontSize:12,color:C.textSub }}>☎ {tenant.phone}</span>}
-                {tenant.lease_start&&<span style={{ fontSize:12,color:C.textSub }}>Move-in: {new Date(tenant.lease_start).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
-              </div>
+          {/* Bottom row: contact info + status badges */}
+          <div style={{ display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",borderTop:`1px solid ${C.border}`,paddingTop:12 }}>
+            {/* Contact */}
+            <div style={{ display:"flex",gap:14,flexWrap:"wrap" }}>
+              {tenant.email&&<span style={{ fontSize:12,color:C.textSub }}>✉ {tenant.email}</span>}
+              {tenant.phone&&<span style={{ fontSize:12,color:C.textSub }}>☎ {tenant.phone}</span>}
             </div>
-          </div>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"flex-start" }}>
-            <PrimaryBtn onClick={()=>setActiveTab("Messages")}>Message</PrimaryBtn>
-            {!tenant.user_id&&(
-              inviteSent
-                ? <span style={{ fontSize:12,color:C.green,fontWeight:500,padding:"7px 0" }}>✓ Invite sent</span>
-                : <GhostBtn onClick={sendInvite} disabled={inviting}>{inviting?"Sending…":"Send invite"}</GhostBtn>
-            )}
-            <GhostBtn onClick={()=>setShowRecordPmt(true)}>Record payment</GhostBtn>
-            {payStatus==="late"&&<DangerBtn>Send notice</DangerBtn>}
-            {!tenant.archived&&<DangerBtn onClick={()=>setShowArchive(true)}>Archive</DangerBtn>}
-            {inviteError&&<div style={{ fontSize:11,color:C.red,width:"100%",marginTop:2 }}>{inviteError}</div>}
+            {/* Divider */}
+            <div style={{ width:1,height:16,background:C.border,flexShrink:0 }}/>
+            {/* Status badges */}
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+              {/* Payment */}
+              <Badge status={status}/>
+              {/* Registration */}
+              {isRegistered
+                ? <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Registered</span>
+                : isInvited
+                  ? <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(74,154,232,0.1)",color:C.blue,border:"1px solid rgba(74,154,232,0.2)" }}>✉ Invite Sent</span>
+                  : <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Not Invited</span>
+              }
+              {/* Autopay */}
+              {tenant.autopay_enabled
+                ? <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Autopay On</span>
+                : <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(92,98,112,0.12)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Autopay Off</span>
+              }
+              {/* Lease countdown */}
+              {daysLeft!==null&&daysLeft>0&&daysLeft<=90&&(
+                <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(240,164,48,0.13)",color:C.amber,border:"1px solid rgba(240,164,48,0.2)" }}>⚠ Lease: {daysLeft}d</span>
+              )}
+              {daysLeft!==null&&daysLeft<=0&&(
+                <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.12)",color:C.red,border:"1px solid rgba(224,85,85,0.2)" }}>Lease Expired</span>
+              )}
+              {!tenant.insurance_url&&(
+                <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.red}15`,color:C.red }}>No Insurance</span>
+              )}
+              {tenant.eviction_watch&&(
+                <span style={{ fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tab bar */}
         <div style={{ display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:20,overflowX:"auto" }}>
-          {TABS.map(tab=>{
-            const isEviction = tab==="Eviction Watch";
-            const isActive = activeTab===tab;
-            const tabColor = isActive ? (isEviction&&tenant.eviction_watch?C.red:C.gold) : C.textSub;
-            const borderColor = isActive ? (isEviction&&tenant.eviction_watch?C.red:C.gold) : "transparent";
-            return (
-              <button key={tab} onClick={()=>setActiveTab(tab)} style={{ padding:"10px 16px",fontSize:13,fontWeight:isActive?600:400,color:tabColor,background:"none",border:"none",borderBottom:`2px solid ${borderColor}`,marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5 }}>
-                {isEviction&&tenant.eviction_watch&&<span style={{ fontSize:9 }}>⚑</span>}
-                {tab==="Recurring Charges"&&activeCharges.length>0&&(
-                  <span style={{ fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:4,background:isActive?"rgba(201,169,110,0.2)":"rgba(201,169,110,0.1)",color:C.gold }}>{activeCharges.length}</span>
-                )}
-                {tab}
-              </button>
-            );
-          })}
+          {TABS.map(tab=>(
+            <button key={tab} onClick={()=>setActiveTab(tab)}
+              style={{ padding:"10px 16px",fontSize:13,fontWeight:activeTab===tab?600:400,color:activeTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:activeTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s",whiteSpace:"nowrap" }}>
+              {tab}
+            </button>
+          ))}
         </div>
 
         {/* ── Overview ── */}
@@ -1135,47 +748,22 @@ export default function LandlordTenantDetail() {
                 {balance>0?`-$${balance.toLocaleString()}`:"$0.00"}
               </div>
               <div style={{ fontSize:12,color:balance>0?C.red:C.green,marginBottom:balance>0?14:0 }}>{balance>0?"Amount overdue":"Fully paid ✓"}</div>
-              {balance>0&&<PrimaryBtn onClick={()=>{}}>Send payment reminder</PrimaryBtn>}
+              {balance>0&&<PrimaryBtn>Send payment reminder</PrimaryBtn>}
             </InfoCard>
 
-            {/* Recurring Charges summary */}
-            <InfoCard title="Recurring Charges"
-              action={<button onClick={()=>setActiveTab("Recurring Charges")} style={{ background:"none",border:"none",color:C.gold,fontSize:11,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500 }}>View all →</button>}>
-              {activeCharges.length===0?(
-                <div style={{ fontSize:13,color:C.textSub,textAlign:"center",padding:"8px 0" }}>
-                  No recurring charges set up.
-                  <div style={{ marginTop:10 }}><PrimaryBtn onClick={()=>setActiveTab("Recurring Charges")}>＋ Add charges</PrimaryBtn></div>
-                </div>
-              ):(
-                <>
-                  {activeCharges.slice(0,3).map(c=>(
-                    <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:13,color:C.textSub }}>{c.category}</span>
-                      <span style={{ fontSize:13,fontWeight:600,color:C.text }}>${parseFloat(c.amount).toLocaleString("en-US",{minimumFractionDigits:2})}<span style={{ fontSize:11,color:C.textSub,fontWeight:400 }}>/mo</span></span>
-                    </div>
-                  ))}
-                  {activeCharges.length>3&&<div style={{ fontSize:11,color:C.textMuted,marginTop:6 }}>+{activeCharges.length-3} more charges</div>}
-                  <div style={{ marginTop:12 }}><PrimaryBtn onClick={()=>setShowAddCharge(true)}>＋ Add charge</PrimaryBtn></div>
-                </>
-              )}
-            </InfoCard>
-
-            <InfoCard title="Lease Details">
-              <InfoRow label="Monthly rent"   value={unit?.rent_amount?`$${unit.rent_amount.toLocaleString()}`:"—"}/>
+            <InfoCard title="Lease Overview">
+              <InfoRow label="Monthly rent"   value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
               <InfoRow label="Lease start"    value={tenant.lease_start?new Date(tenant.lease_start).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
               <InfoRow label="Lease end"      value={tenant.lease_end?new Date(tenant.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
               <InfoRow label="Days remaining" value={daysLeft!==null?(daysLeft>0?`${daysLeft} days`:"Expired"):"—"} last/>
-              {leaseStart&&leaseEnd&&(
+              {leaseStart&&leaseEnd&&leaseEnd>leaseStart&&(
                 <>
                   <div style={{ height:4,background:C.raised,borderRadius:2,overflow:"hidden",marginTop:12 }}>
-                    <div style={{ height:"100%",width:`${progress}%`,background:C.gold,borderRadius:2 }}/>
+                    <div style={{ height:"100%",width:`${progress}%`,background:daysLeft&&daysLeft<=30?C.red:daysLeft&&daysLeft<=90?C.amber:C.gold,borderRadius:2 }}/>
                   </div>
                   <div style={{ fontSize:10,color:C.textMuted,marginTop:4 }}>{progress}% through lease</div>
                 </>
               )}
-              <div style={{ marginTop:12 }}>
-                <button onClick={()=>setActiveTab("Lease & Documents")} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500,padding:0 }}>Edit lease terms →</button>
-              </div>
             </InfoCard>
 
             <InfoCard title="Unit Info">
@@ -1183,17 +771,17 @@ export default function LandlordTenantDetail() {
               <InfoRow label="Unit"      value={unit?.unit_number||"—"}/>
               <InfoRow label="Bedrooms"  value={unit?.bedrooms??"—"}/>
               <InfoRow label="Bathrooms" value={unit?.bathrooms??"—"}/>
-              <InfoRow label="Rent"      value={unit?.rent_amount?`$${unit.rent_amount.toLocaleString()}/mo`:"—"} last/>
+              <InfoRow label="Rent"      value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}/mo`:"—"} last/>
             </InfoCard>
 
             <InfoCard title="Emergency Contact">
-              {tenant.emergency_contact_name ? (
+              {tenant.emergency_contact_name?(
                 <>
                   <InfoRow label="Name"         value={tenant.emergency_contact_name}/>
                   <InfoRow label="Phone"        value={tenant.emergency_contact_phone||"—"}/>
                   <InfoRow label="Relationship" value={tenant.emergency_contact_relationship||"—"} last/>
                 </>
-              ) : (
+              ):(
                 <div style={{ fontSize:13,color:C.textMuted,textAlign:"center",padding:"8px 0" }}>No emergency contact provided</div>
               )}
             </InfoCard>
@@ -1204,27 +792,15 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
-        {/* ── Lease & Documents ── */}
-        {activeTab==="Lease & Documents"&&(
-          <LeaseDocumentsTab tenant={tenant} unit={unit} onLeaseUpdated={fetchAll}/>
-        )}
-
-        {/* ── Recurring Charges ── */}
-        {activeTab==="Recurring Charges"&&(
-          <RecurringChargesTab tenantId={id} onChargeChanged={fetchAll}/>
-        )}
-
-        {/* ── Messages ── */}
-        {activeTab==="Messages"&&(
-          <MessagesTab tenant={tenant}/>
-        )}
-
         {/* ── Payments ── */}
         {activeTab==="Payments"&&(
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-            <div style={{ padding:"14px 16px",borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Payment history</div>
-              <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>{payments.length} payments recorded</div>
+            <div style={{ padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Payment history</div>
+                <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>{payments.length} payments recorded</div>
+              </div>
+              <PrimaryBtn onClick={()=>setShowRecordPmt(true)}>+ Record Payment</PrimaryBtn>
             </div>
             {payments.length===0?(
               <div style={{ textAlign:"center",padding:32,color:C.textSub,fontSize:13 }}>No payment history yet.</div>
@@ -1235,7 +811,7 @@ export default function LandlordTenantDetail() {
                   {payments.map((p,i)=>(
                     <tr key={i} className="m-row">
                       <TD>{new Date(p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</TD>
-                      <TD right bold>${((p.amount_cents||0)/100).toLocaleString()}</TD>
+                      <TD right bold>${((p.amount_cents||0)/100).toLocaleString("en-US",{minimumFractionDigits:2})}</TD>
                       <TD><Badge status={p.status}/></TD>
                       <TD>{p.source||"—"}</TD>
                     </tr>
@@ -1244,6 +820,11 @@ export default function LandlordTenantDetail() {
               </table>
             )}
           </div>
+        )}
+
+        {/* ── Recurring Charges ── */}
+        {activeTab==="Recurring"&&(
+          <RecurringChargesTab tenantId={id} unit={unit} onChargeChanged={fetchAll}/>
         )}
 
         {/* ── Maintenance ── */}
@@ -1274,6 +855,11 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
+        {/* ── Lease ── */}
+        {activeTab==="Lease"&&(
+          <LeaseTab tenant={tenant} unit={unit} property={property} onUpdate={fetchAll}/>
+        )}
+
         {/* ── Move-in ── */}
         {activeTab==="Move-in"&&(
           <div>
@@ -1291,7 +877,7 @@ export default function LandlordTenantDetail() {
               )}
             </div>
             {checklist.length===0?(
-              <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"40px",textAlign:"center" }}>
+              <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:40,textAlign:"center" }}>
                 <div style={{ fontSize:32,marginBottom:12 }}>📋</div>
                 <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No checklist submitted yet</div>
                 <div style={{ fontSize:13,color:C.textSub }}>The tenant will complete this during onboarding.</div>
@@ -1299,7 +885,7 @@ export default function LandlordTenantDetail() {
             ):(
               <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                 {checklist.map(item=>{
-                  const condColor=item.condition==="Good"?C.green:item.condition==="Fair"?C.amber:C.red;
+                  const condColor = item.condition==="Good"?C.green:item.condition==="Fair"?C.amber:C.red;
                   return (
                     <div key={item.id} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px" }}>
                       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:item.notes?8:0 }}>
@@ -1328,9 +914,10 @@ export default function LandlordTenantDetail() {
               <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Private notes</div>
               <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Only visible to you — never shown to the tenant</div>
             </div>
-            <div style={{ padding:"16px" }}>
+            <div style={{ padding:16 }}>
               <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add private notes about this tenant…"
-                style={{ width:"100%",minHeight:140,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}/>
+                style={{ width:"100%",minHeight:140,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}
+              />
               <div style={{ display:"flex",alignItems:"center",gap:12,marginTop:10 }}>
                 <PrimaryBtn onClick={saveNotes} disabled={savingNotes}>{noteSaved?"✓ Saved!":savingNotes?"Saving…":"Save notes"}</PrimaryBtn>
                 <span style={{ fontSize:11,color:C.textMuted }}>{notes.length} characters</span>
@@ -1338,34 +925,13 @@ export default function LandlordTenantDetail() {
             </div>
           </div>
         )}
-
-        {/* ── Eviction Watch ── */}
-        {activeTab==="Eviction Watch"&&(
-          <EvictionWatchTab tenant={tenant} tenantId={id} onFlagChange={handleEvictionFlagChange}/>
-        )}
       </div>
-
-      {/* Quick-add charge modal from Overview */}
-      {showAddCharge&&(
-        <RecurringChargeModal
-          tenantId={id}
-          existing={null}
-          onSave={fetchAll}
-          onClose={()=>setShowAddCharge(false)}
-        />
-      )}
 
       {showArchive&&(
         <ArchiveModal tenantName={tenant.name} onConfirm={archiveTenant} onCancel={()=>setShowArchive(false)} archiving={archiving}/>
       )}
-
       {showRecordPmt&&(
-        <RecordPaymentModal
-          tenant={tenant}
-          unit={unit}
-          onSave={fetchAll}
-          onClose={()=>setShowRecordPmt(false)}
-        />
+        <RecordPaymentModal tenantId={id} unit={unit} onClose={()=>setShowRecordPmt(false)} onSaved={()=>{ setShowRecordPmt(false); fetchAll(); }}/>
       )}
     </LandlordLayout>
   );
