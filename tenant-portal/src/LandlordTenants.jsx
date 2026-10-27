@@ -255,6 +255,25 @@ export default function LandlordTenants() {
   }
 
   const now = Date.now();
+  const todayDate = new Date();
+
+  // Helper: has tenant paid rent this calendar month?
+  function paidThisMonth(tenantId) {
+    const y = todayDate.getFullYear();
+    const m = todayDate.getMonth();
+    return payments.some(p => {
+      if (p.tenant_id !== tenantId || p.status !== "paid") return false;
+      const d = new Date(p.paid_at || p.created_at);
+      return d.getFullYear() === y && d.getMonth() === m;
+    });
+  }
+
+  // Helper: is rent currently late? (today > due day and not paid this month)
+  function isLateThisMonth(t) {
+    const dueDay = t.rent_due_day || 1;
+    if (todayDate.getDate() <= dueDay) return false; // not past due yet
+    return !paidThisMonth(t.id);
+  }
 
   const enriched = tenants.map((t,i) => {
     const unit        = units.find(u=>u.id===t.unit_id);
@@ -277,22 +296,26 @@ export default function LandlordTenants() {
     const isEndingSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= 90;
     const isNewMoveIn  = leaseStart && ((now - leaseStart.getTime()) / 86400000) <= 30;
 
-    // Payment info
-    let payStatus = "pending";
-    if (latestPay?.status==="paid")   payStatus = "current";
+    // Payment / late status
+    const hasPaidThisMonth = paidThisMonth(t.id);
+    const isLate = !t.archived && isLateThisMonth(t);
+    let payStatus = hasPaidThisMonth ? "current" : isLate ? "late" : "pending";
     if (latestPay?.status==="failed") payStatus = "late";
+
+    const rentAmount = unit?.rent_amount || 0;
+    const balance = hasPaidThisMonth ? 0 : rentAmount;
 
     return {
       ...t,
       unit:        unit?.unit_number||"—",
       property:    property?.name||"—",
       property_id: property?.id,
-      rent:        unit?.rent_amount||0,
+      rent:        rentAmount,
       isRegistered, isInvited, autopayOn,
       daysLeft, isEndingSoon, isNewMoveIn,
-      payStatus,
+      payStatus, isLate, hasPaidThisMonth,
       lastPaid:  latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
-      balance:   latestPay?.status!=="paid" ? (unit?.rent_amount||0) : 0,
+      balance,
       initials, accentColor,
     };
   });
@@ -303,12 +326,14 @@ export default function LandlordTenants() {
   // Tab counts
   const endingSoonCount = activeEnriched.filter(t=>t.isEndingSoon).length;
   const newMoveInCount  = activeEnriched.filter(t=>t.isNewMoveIn).length;
+  const lateCount       = activeEnriched.filter(t=>t.isLate).length;
   const pastCount       = archivedEnriched.length;
 
   // Tab → base pool
   let tabPool;
   if (activeTab==="ending_soon")  tabPool = activeEnriched.filter(t=>t.isEndingSoon);
   else if (activeTab==="new_move_ins") tabPool = activeEnriched.filter(t=>t.isNewMoveIn);
+  else if (activeTab==="late")    tabPool = activeEnriched.filter(t=>t.isLate);
   else if (activeTab==="past")    tabPool = archivedEnriched;
   else                            tabPool = activeEnriched;
 
@@ -344,6 +369,7 @@ export default function LandlordTenants() {
 
   const TABS = [
     { key:"all",          label:"All Leases",  count:activeEnriched.length },
+    { key:"late",         label:"Late",        count:lateCount,       accent:C.red },
     { key:"ending_soon",  label:"Ending Soon", count:endingSoonCount, accent:C.amber },
     { key:"new_move_ins", label:"New Move-Ins",count:newMoveInCount,  accent:C.green },
     { key:"past",         label:"Past Tenants",count:pastCount,       accent:C.textSub },
@@ -397,10 +423,10 @@ export default function LandlordTenants() {
         {!loading&&(
           <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:24 }}>
             {[
-              { label:"Active Leases",      value:activeEnriched.length,                                                          color:C.gold,   tab:"all"        },
-              { label:"Outstanding Balance", value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green, tab:null },
+              { label:"Active Leases",      value:activeEnriched.length,                                                          color:C.gold,                              tab:"all"         },
+              { label:"Late This Month",     value:lateCount,                                                                     color:lateCount>0?C.red:C.textSub,         tab:"late"        },
               { label:"Ending Soon",         value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub, tab:"ending_soon" },
-              { label:"Past Tenants",        value:pastCount,                                                                     color:C.textSub, tab:"past"       },
+              { label:"Outstanding Rent",    value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green, tab:null },
             ].map(s=>(
               <div key={s.label}
                 onClick={s.tab?()=>setActiveTab(s.tab):undefined}
@@ -461,7 +487,7 @@ export default function LandlordTenants() {
               <tbody>
                 {sorted.length===0&&(
                   <tr><td colSpan={6} style={{ padding:40,textAlign:"center",color:C.textSub,fontSize:13 }}>
-                    {activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":"No tenants match your search."}
+                    {activeTab==="late"?"No late tenants this month.":activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":"No tenants match your search."}
                   </td></tr>
                 )}
                 {sorted.map(t=>(
@@ -489,6 +515,8 @@ export default function LandlordTenants() {
                                 ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(74,154,232,0.1)",color:C.blue,border:"1px solid rgba(74,154,232,0.2)" }}>✉ Invite Sent</span>
                                 : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Pending Invite</span>
                             }
+                            {/* Late rent */}
+                            {t.isLate&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.18)",color:C.red,border:"1px solid rgba(224,85,85,0.35)" }}>⚠ Late</span>}
                             {/* Eviction watch */}
                             {t.eviction_watch&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>}
                           </div>
