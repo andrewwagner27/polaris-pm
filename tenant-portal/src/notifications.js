@@ -300,3 +300,29 @@ export async function notifyQuoteReceived({ vendorName, ticketTitle, quoteAmount
     `,
   });
 }
+
+// ─── SMS escalation ───────────────────────────────────
+async function sendSms(message) {
+  try {
+    await fetch("/api/sms-escalate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+  } catch (e) { console.warn("SMS send failed", e); }
+}
+
+export async function escalateStaleTicket({ tenantName, title, unit, property, ticketId, hoursOpen }) {
+  return sendSms(
+    `[Modus] Maintenance ticket open ${hoursOpen}h with no response:\n` +
+    `"${title}" — ${tenantName}, Unit ${unit}${property ? ", " + property : ""}.\n` +
+    `View: https://www.getmodusam.com/landlord/maintenance`
+  );
+}
+
+export async function notifyUrgentTicketSms({ tenantName, title, unit, property }) {
+  return sendSms(
+    `[Modus] URGENT maintenance: "${title}" — ${tenantName}, Unit ${unit}${property ? ", " + property : ""}.\n` +
+    `View: https://www.getmodusam.com/landlord/maintenance`
+  );
+}
