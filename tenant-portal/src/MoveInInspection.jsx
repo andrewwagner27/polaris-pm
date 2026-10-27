@@ -185,14 +185,100 @@ export default function MoveInInspection() {
           </div>
         )}
 
-        {!done && !loading && inspection && inspection.status === "tenant_complete" && (
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"40px 24px", textAlign:"center" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>✅</div>
-            <div style={{ fontSize:15, fontWeight:600, color:C.text, marginBottom:8 }}>Inspection Complete</div>
-            <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>
-              You've already completed your move-in inspection on{" "}
-              {new Date(inspection.tenant_signed_at || inspection.updated_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}.
-            </p>
+        {!done && !loading && inspection && (inspection.status === "tenant_complete" || inspection.status === "closed") && (
+          <div>
+            {/* Header */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:4 }}>
+                Your Move-In Inspection
+              </div>
+              <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                <span style={{ fontSize:11, padding:"2px 9px", borderRadius:10, background:`${C.green}18`, color:C.green, fontWeight:600 }}>✓ Signed</span>
+                <span style={{ fontSize:12, color:C.textMuted }}>
+                  {new Date(inspection.tenant_signed_at || inspection.updated_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+                </span>
+                {inspection.tenant_signature && (
+                  <span style={{ fontSize:12, color:C.textSub, fontStyle:"italic" }}>"{inspection.tenant_signature}"</span>
+                )}
+              </div>
+            </div>
+
+            {/* Landlord baseline — read only */}
+            <div style={{ fontSize:12, fontWeight:600, color:C.textMuted, letterSpacing:1, marginBottom:8, marginTop:4 }}>UNIT CONDITION AT MOVE-IN (PROPERTY MANAGER)</div>
+            {(inspection.rooms||[]).map((room, ri) => (
+              <div key={ri} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8, overflow:"hidden" }}>
+                <div style={{ background:C.raised, padding:"8px 16px", borderBottom:`1px solid ${C.border}`, fontSize:13, fontWeight:600, color:C.text }}>
+                  {room.room}
+                </div>
+                <div style={{ padding:"10px 16px 12px" }}>
+                  {(room.items||[]).map((item,ii) => {
+                    const STATUS_COLOR = { Good:"#72B02A", Fair:"#F0A430", Poor:"#E05555", "N/A":"#5C6270" };
+                    return (
+                      <div key={ii} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
+                        <span style={{ color:C.textSub }}>{item.name}</span>
+                        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                          {item.notes && <span style={{ fontSize:11, color:C.textMuted, fontStyle:"italic" }}>{item.notes}</span>}
+                          <span style={{ fontSize:11, fontWeight:700, color:STATUS_COLOR[item.status]||C.textMuted }}>{item.status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {room.room_notes && <div style={{ fontSize:11, color:C.textMuted, marginTop:6, fontStyle:"italic" }}>Note: {room.room_notes}</div>}
+                </div>
+              </div>
+            ))}
+
+            {/* Tenant responses */}
+            {inspection.tenant_notes && (
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"12px 16px", marginTop:8 }}>
+                <div style={{ fontSize:11, color:C.textMuted, marginBottom:4, letterSpacing:1 }}>YOUR NOTES</div>
+                <p style={{ fontSize:13, color:C.textSub, lineHeight:1.6 }}>{inspection.tenant_notes}</p>
+              </div>
+            )}
+
+            {/* Tenant photos */}
+            {(inspection.tenant_photos||[]).length > 0 && (
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"14px 16px", marginTop:8 }}>
+                <div style={{ fontSize:11, color:C.textMuted, marginBottom:10, letterSpacing:1 }}>YOUR PHOTOS</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                  {(inspection.tenant_photos||[]).map((p,i) => {
+                    const url = typeof p === "string" ? p : p.url;
+                    const caption = typeof p === "string" ? "" : (p.caption||p.room||"");
+                    return (
+                      <div key={i} style={{ width:100 }}>
+                        <img src={url} alt="" onClick={()=>window.open(url,"_blank")}
+                          style={{ width:100, height:72, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }} />
+                        {caption && <div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{caption}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Move-out summary if closed */}
+            {inspection.status === "closed" && inspection.deposit_deductions?.length > 0 && (
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"14px 16px", marginTop:12 }}>
+                <div style={{ fontSize:11, color:C.textMuted, marginBottom:10, letterSpacing:1 }}>DEPOSIT SUMMARY</div>
+                {inspection.deposit_deductions.map((d,i) => (
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
+                    <span style={{ color:C.textSub }}>{d.description}</span>
+                    <span style={{ color:"#E05555", fontWeight:600 }}>-${Number(d.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:700 }}>
+                  <span style={{ color:C.text }}>Your refund</span>
+                  <span style={{ color:"#72B02A" }}>${Math.max(0, (inspection.deposit_held||0) - (inspection.total_deducted||0)).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop:20 }}>
+              <button onClick={() => navigate("/home")}
+                style={{ padding:"9px 20px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, color:C.textSub, fontSize:13, cursor:"pointer" }}>
+                ← Back to Home
+              </button>
+            </div>
           </div>
         )}
 

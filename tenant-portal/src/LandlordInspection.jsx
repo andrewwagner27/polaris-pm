@@ -616,11 +616,54 @@ export default function LandlordInspection() {
           {(selected.status==="tenant_complete"||selected.status==="closed") && (
             <>
               <div style={{ borderTop:`1px solid ${C.border}`, margin:"20px 0" }}/>
-              <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:4 }}>
                 Tenant Walkthrough Sign-Off
-                {selected.tenant_signed_at&&<span style={{ fontSize:11, color:C.textMuted, fontWeight:400, marginLeft:8 }}>Signed {new Date(selected.tenant_signed_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
-                {selected.tenant_signature&&<span style={{ fontSize:11, color:C.green, fontWeight:600, marginLeft:8 }}>· "{selected.tenant_signature}"</span>}
               </div>
+              <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:14, flexWrap:"wrap" }}>
+                {selected.tenant_signed_at&&<span style={{ fontSize:11, color:C.textMuted }}>Signed {new Date(selected.tenant_signed_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                {selected.tenant_signature&&<span style={{ fontSize:12, color:C.green, fontWeight:600 }}>✓ "{selected.tenant_signature}"</span>}
+              </div>
+
+              {/* Tenant room-by-room responses */}
+              {(selected.rooms||[]).length > 0 && (
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:11, color:C.textMuted, letterSpacing:1, marginBottom:8 }}>TENANT ASSESSMENT — ROOM BY ROOM</div>
+                  {(selected.rooms||[]).map((room, ri) => {
+                    const issues = (room.items||[]).filter(it=>it.status==="Poor").length;
+                    return (
+                      <div key={ri} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8, overflow:"hidden" }}>
+                        <div style={{ background:C.raised, padding:"8px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{room.room}</span>
+                          {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:700 }}>{issues} issue{issues!==1?"s":""}</span>}
+                        </div>
+                        <div style={{ padding:"10px 16px 12px" }}>
+                          {(room.items||[]).map((item,ii) => {
+                            const landlordItem = selected.rooms?.[ri]?.items?.[ii];
+                            const tenantStatus = item.status;
+                            const sColor = { Good:C.green, Fair:C.amber, Poor:C.red, "N/A":C.textMuted }[tenantStatus]||C.textMuted;
+                            const degraded = landlordItem && tenantStatus !== landlordItem.status &&
+                              (tenantStatus==="Poor"||(tenantStatus==="Fair"&&landlordItem.status==="Good"));
+                            return (
+                              <div key={ii} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
+                                <span style={{ color:C.textSub }}>
+                                  {degraded&&<span style={{ color:C.amber, marginRight:4 }}>▲</span>}
+                                  {item.name}
+                                </span>
+                                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                                  {degraded&&<span style={{ fontSize:10, color:C.amber }}>landlord: {landlordItem.status}</span>}
+                                  {item.notes&&<span style={{ fontSize:11, color:C.textMuted, fontStyle:"italic" }}>{item.notes}</span>}
+                                  <span style={{ fontSize:11, fontWeight:700, color:sColor }}>{tenantStatus}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {room.room_notes&&<div style={{ fontSize:11, color:C.textMuted, marginTop:6, fontStyle:"italic" }}>Tenant note: {room.room_notes}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {tPhotos.length > 0 && (
                 <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"14px 18px", marginBottom:12 }}>
