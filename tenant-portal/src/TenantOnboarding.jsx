@@ -70,8 +70,8 @@ export default function TenantOnboarding() {
   const isInvited = !!invitedTenantId;
 
   const STEPS = isInvited
-    ? ["Your info", "Set password", "Your unit", "Emergency contact", "Move-in checklist", "All set"]
-    : ["Your info", "Find your unit", "Emergency contact", "Move-in checklist", "All set"];
+    ? ["Your info", "Set password", "Your unit", "Emergency contact", "All set"]
+    : ["Your info", "Find your unit", "Emergency contact", "All set"];
 
   const [step,           setStep]           = useState(0);
   const [linkedTenantId, setLinkedTenantId] = useState(null);
@@ -449,7 +449,7 @@ export default function TenantOnboarding() {
                 ["Property",          foundProperty?.property||"Not linked yet"],
                 ["Unit",              foundProperty?.unit||"—"],
                 ["Emergency contact", ecName||"Not provided"],
-                ["Move-in checklist", completedRooms>0?`${completedRooms}/${ROOMS.length} areas documented`:"Not completed"],
+                
               ].map(([k,v],i,arr)=>(
                 <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
                   <span style={{ fontSize:13,color:C.textSub }}>{k}</span>

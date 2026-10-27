@@ -29,6 +29,8 @@ import TenantMaintenanceDetail from "./TenantMaintenanceDetail";
 import MessagingScreen        from "./MessagingScreen";
 import BulletinBoard          from "./BulletinBoard";
 import AccountScreen          from "./AccountScreen";
+import ActivityLedger         from "./ActivityLedger";
+import Wallet                  from "./Wallet";
 import DocumentsScreen        from "./DocumentsScreen";
 import MoveInInspection      from "./MoveInInspection";
 import AuthCallback           from "./AuthCallback";
@@ -78,6 +80,8 @@ export default function App() {
         <Route path="/messages"          element={<ProtectedTenantRoute><MessagingScreen/></ProtectedTenantRoute>}/>
         <Route path="/bulletin"          element={<ProtectedTenantRoute><BulletinBoard/></ProtectedTenantRoute>}/>
         <Route path="/account"           element={<ProtectedTenantRoute><AccountScreen/></ProtectedTenantRoute>}/>
+        <Route path="/activity"          element={<ProtectedTenantRoute><ActivityLedger/></ProtectedTenantRoute>}/>
+        <Route path="/wallet"            element={<ProtectedTenantRoute><Wallet/></ProtectedTenantRoute>}/>
         <Route path="/documents"         element={<ProtectedTenantRoute><DocumentsScreen/></ProtectedTenantRoute>}/>
         <Route path="/inspection"        element={<ProtectedTenantRoute><MoveInInspection/></ProtectedTenantRoute>}/>
 

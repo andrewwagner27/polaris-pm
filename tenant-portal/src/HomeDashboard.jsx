@@ -5,65 +5,69 @@ import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:"#0A0B0D",surface:"#111316",raised:"#181C21",border:"#252930",
+  text:"#EDEAE2",textSub:"#9095A0",textMuted:"#5C6270",
+  gold:"#C9A96E",goldDim:"#7A5C2E",blue:"#4A9AE8",green:"#72B02A",red:"#E05555",amber:"#F0A430",
 };
 
-const STATUS = {
-  open:        { label: "Open",        color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  in_progress: { label: "In progress", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  resolved:    { label: "Resolved",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-};
+function fmt(n) { return n!=null ? `$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"; }
+function fmtDate(d) { if (!d) return "—"; return new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
 
-function SectionLabel({ children }) {
-  return <div style={{ fontSize:13,fontWeight:600,color:C.textSub,letterSpacing:"0.04em" }}>{children}</div>;
+function isRentDue(leaseStart) {
+  // Never flag as due if lease hasn't started
+  if (!leaseStart) return true;
+  return new Date(leaseStart+"T00:00:00") <= new Date();
 }
 
-function Badge({ status }) {
-  const s = STATUS[status] || STATUS.open;
-  return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:4,background:s.bg,color:s.color,whiteSpace:"nowrap" }}>{s.label}</span>;
+function Tile({ children, style = {} }) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "22px 24px", ...style }}>
+      {children}
+    </div>
+  );
 }
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr) - new Date()) / (1000*60*60*24));
+function TileLabel({ children }) {
+  return <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{children}</div>;
 }
 
-function paymentLabel(status) {
-  if (status === "paid")       return { label: "Rent payment",  color: C.green };
-  if (status === "failed")     return { label: "Payment failed", color: C.red };
-  if (status === "pending")    return { label: "Payment pending", color: C.amber };
-  if (status === "processing") return { label: "Payment processing", color: C.blue };
-  return { label: "Payment", color: C.textSub };
+function StatusBadge({ status }) {
+  const map = {
+    open:        { label:"Open",        c:"#F0A430", bg:"rgba(240,164,48,0.13)" },
+    in_progress: { label:"In Progress", c:"#4A9AE8", bg:"rgba(74,154,232,0.13)" },
+    resolved:    { label:"Resolved",    c:"#72B02A", bg:"rgba(114,176,42,0.13)" },
+  };
+  const s = map[status] || map.open;
+  return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:4,background:s.bg,color:s.c,whiteSpace:"nowrap" }}>{s.label}</span>;
 }
 
-export default function HomeDashboard({ onNavigate }) {
+export default function HomeDashboard() {
   const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
-  const [messages,    setMessages]    = useState([]);
+  const [messages, setMessages] = useState([]);
   const [msgsLoading, setMsgsLoading] = useState(true);
-  const nav = onNavigate || navigate;
+  const [balanceInfo, setBalanceInfo] = useState(null);
 
-  useEffect(() => { if (user) fetchMessages(); }, [user]);
+  useEffect(() => { if (user && tenant?.id) { fetchMessages(); fetchBalance(); } }, [user, tenant?.id]);
 
   async function fetchMessages() {
     setMsgsLoading(true);
-    const { data: tenantData } = await supabase.from("tenants").select("id").eq("user_id", user.id).single();
-    if (!tenantData) { setMsgsLoading(false); return; }
-    const { data } = await supabase.from("messages").select("*").eq("tenant_id", tenantData.id).order("created_at", { ascending: false }).limit(20);
+    const { data } = await supabase.from("messages").select("*").eq("tenant_id", tenant.id).order("created_at",{ascending:false}).limit(10);
     setMessages(data || []);
     setMsgsLoading(false);
+  }
+
+  async function fetchBalance() {
+    // Sum charges minus payments for current balance
+    const { data: charges } = await supabase.from("ledger_entries").select("amount,type").eq("tenant_id", tenant.id);
+    if (charges) {
+      let bal = 0;
+      charges.forEach(e => {
+        if (e.type === "charge") bal += Number(e.amount);
+        else if (e.type === "payment") bal -= Number(e.amount);
+      });
+      setBalanceInfo(bal);
+    }
   }
 
   if (loading) return (
@@ -72,209 +76,196 @@ export default function HomeDashboard({ onNavigate }) {
     </div>
   );
 
-  const firstName   = (tenant?.name || "Tenant").split(" ")[0];
-  const rentAmount  = tenant?.rent || 0;
-  const payments    = tenant?.payments || [];
-  const maintenance = tenant?.maintenance || [];
+  const firstName = (tenant?.name || "Tenant").split(" ")[0];
   const unreadCount = messages.filter(m => !m.read && m.recipient_id === user?.id).length;
-  const hour        = new Date().getHours();
-  const timeOfDay   = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
-
-  // Show only most recent message as a single conversation thread
-  const latestMessage = messages[0] || null;
-
-  // Alert logic
-  const insDaysLeft   = daysUntil(tenant?.insurance_expires);
-  const leaseDaysLeft = daysUntil(tenant?.lease_end);
-  const insStatus = !tenant?.insurance_url ? "missing"
-    : insDaysLeft === null ? null
-    : insDaysLeft < 0     ? "expired"
-    : insDaysLeft < 30    ? "expiring"
-    : null;
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const maintenance = tenant?.maintenance || [];
+  const leaseDaysLeft = tenant?.leaseEnd ? Math.ceil((new Date(tenant.leaseEnd+"T00:00:00") - new Date()) / (1000*60*60*24)) : null;
   const showLeaseAlert = leaseDaysLeft !== null && leaseDaysLeft < 60 && leaseDaysLeft >= 0;
+  const rentDue = isRentDue(tenant?.leaseStart);
+  const rentAmount = tenant?.rent || 0;
+
+  // Upcoming charge: next month's rent
+  const now = new Date();
+  const nextDue = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > 1 ? 1 : 0), 1);
+  const nextDueStr = nextDue.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
 
   return (
     <TenantLayout tenantName={tenant?.name || "Tenant"} unreadMessages={unreadCount}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};}
+        *,*::before,*::after{box-sizing:border-box;}
         .t-row:hover{background:${C.raised}!important;}
-        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
+        @media(max-width:767px){
+          .home-grid{grid-template-columns:1fr!important;}
+          .home-pad{padding:20px 16px 24px!important;}
+          .home-hero{font-size:32px!important;}
+        }
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"40px 48px 80px",maxWidth:1000,margin:"0 auto" }}>
+      <div className="home-pad" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"36px 40px 80px",maxWidth:960,margin:"0 auto" }}>
 
         {/* Greeting */}
-        <div style={{ marginBottom:insStatus||showLeaseAlert?20:36 }}>
-          <div style={{ fontSize:13,color:C.textSub,marginBottom:4 }}>Good {timeOfDay}</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:40,fontWeight:600,color:C.text,lineHeight:1 }}>{firstName}</div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize:12,color:C.textSub,marginBottom:4 }}>Good {timeOfDay}</div>
+          <div className="home-hero" style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:600,color:C.text,lineHeight:1 }}>{firstName}</div>
         </div>
 
-        {/* Alert banners */}
-        {(insStatus||showLeaseAlert)&&(
-          <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:28 }}>
-            {insStatus==="missing"&&(
-              <div onClick={()=>nav("/account")} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:`${C.red}10`,border:`1px solid ${C.red}30`,borderRadius:9,cursor:"pointer" }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:7,height:7,borderRadius:"50%",background:C.red,flexShrink:0 }}/>
-                  <span style={{ fontSize:13,color:C.text,fontWeight:500 }}>Renters insurance required</span>
-                  <span style={{ fontSize:12,color:C.textSub }}>— Upload your policy to stay compliant</span>
-                </div>
-                <span style={{ fontSize:12,color:C.red,flexShrink:0 }}>Upload →</span>
-              </div>
-            )}
-            {insStatus==="expired"&&(
-              <div onClick={()=>nav("/account")} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:`${C.red}10`,border:`1px solid ${C.red}30`,borderRadius:9,cursor:"pointer" }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:7,height:7,borderRadius:"50%",background:C.red,flexShrink:0 }}/>
-                  <span style={{ fontSize:13,color:C.text,fontWeight:500 }}>Renters insurance expired</span>
-                  <span style={{ fontSize:12,color:C.textSub }}>— Please upload a new policy</span>
-                </div>
-                <span style={{ fontSize:12,color:C.red,flexShrink:0 }}>Update →</span>
-              </div>
-            )}
-            {insStatus==="expiring"&&(
-              <div onClick={()=>nav("/account")} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:`${C.amber}10`,border:`1px solid ${C.amber}30`,borderRadius:9,cursor:"pointer" }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:7,height:7,borderRadius:"50%",background:C.amber,flexShrink:0 }}/>
-                  <span style={{ fontSize:13,color:C.text,fontWeight:500 }}>Insurance expires in {insDaysLeft} days</span>
-                  <span style={{ fontSize:12,color:C.textSub }}>— Renew your policy soon</span>
-                </div>
-                <span style={{ fontSize:12,color:C.amber,flexShrink:0 }}>Update →</span>
-              </div>
-            )}
-            {showLeaseAlert&&(
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:`${C.amber}10`,border:`1px solid ${C.amber}30`,borderRadius:9 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:7,height:7,borderRadius:"50%",background:C.amber,flexShrink:0 }}/>
-                  <span style={{ fontSize:13,color:C.text,fontWeight:500 }}>Lease expires in {leaseDaysLeft} days</span>
-                  <span style={{ fontSize:12,color:C.textSub }}>— Contact your property manager about renewal</span>
-                </div>
-              </div>
-            )}
+        {/* Lease expiry alert only — insurance banner removed */}
+        {showLeaseAlert && (
+          <div style={{ marginBottom:20,padding:"12px 16px",background:`${C.amber}10`,border:`1px solid ${C.amber}30`,borderRadius:9,display:"flex",alignItems:"center",gap:10 }}>
+            <div style={{ width:7,height:7,borderRadius:"50%",background:C.amber,flexShrink:0 }}/>
+            <span style={{ fontSize:13,color:C.text,fontWeight:500 }}>Lease expires in {leaseDaysLeft} days</span>
+            <span style={{ fontSize:12,color:C.textSub }}>— Contact your property manager about renewal</span>
           </div>
         )}
 
-        {/* Rent card */}
-        <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:12,marginBottom:12 }}>
-          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"24px 28px",display:"flex",flexDirection:"column",justifyContent:"space-between" }}>
-            <div style={{ textAlign:"center",marginBottom:24 }}>
-              <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:16 }}>Rent due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:52,fontWeight:600,color:C.gold,lineHeight:1,marginBottom:10 }}>
-                {rentAmount>0?`$${rentAmount.toLocaleString()}`:"—"}
+        {/* ── Tile grid ── */}
+        <div className="home-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14 }}>
+
+          {/* Tile 1 — Current Balance */}
+          <Tile>
+            <TileLabel>Current Balance</TileLabel>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:46,fontWeight:600,color: balanceInfo > 0 ? C.red : C.green,lineHeight:1,marginBottom:6 }}>
+              {balanceInfo != null ? fmt(Math.abs(balanceInfo)) : (rentDue ? fmt(rentAmount) : "—")}
+            </div>
+            {balanceInfo != null && (
+              <div style={{ fontSize:12,color:C.textSub,marginBottom:16 }}>
+                {balanceInfo > 0 ? "Amount due" : balanceInfo < 0 ? "Credit on account" : "Account current"}
               </div>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:8 }}>
-                <div style={{ fontSize:12,color:C.textSub }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
-                <span style={{ fontSize:10,fontWeight:600,padding:"3px 10px",background:"rgba(240,164,48,0.13)",color:C.amber,borderRadius:20 }}>Due 1st</span>
+            )}
+            {balanceInfo == null && rentDue && (
+              <div style={{ fontSize:12,color:C.textSub,marginBottom:16 }}>Due 1st · Unit {tenant?.unit||"—"}</div>
+            )}
+            {!rentDue && balanceInfo == null && (
+              <div style={{ fontSize:12,color:C.green,marginBottom:16 }}>Lease starts {fmtDate(tenant?.leaseStart)} — no balance due yet</div>
+            )}
+            <button onClick={() => navigate("/pay")}
+              style={{ width:"100%",padding:"10px",background:C.goldDim,border:"none",borderRadius:7,fontSize:13,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}
+              onMouseOver={e=>e.currentTarget.style.opacity="0.8"} onMouseOut={e=>e.currentTarget.style.opacity="1"}>
+              Make Payment →
+            </button>
+          </Tile>
+
+          {/* Tile 2 — Upcoming Charges */}
+          <Tile>
+            <TileLabel>Upcoming Charges</TileLabel>
+            {rentDue ? (
+              <div>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Monthly Rent</div>
+                    <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Due {nextDueStr}</div>
+                  </div>
+                  <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{fmt(rentAmount)}</div>
+                </div>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12 }}>
+                  <span style={{ fontSize:12,color:C.textMuted }}>No other charges scheduled</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding:"16px 0",color:C.textMuted,fontSize:13 }}>
+                <div style={{ fontSize:13,color:C.text,fontWeight:500,marginBottom:4 }}>Lease not yet started</div>
+                First charge due {fmtDate(tenant?.leaseStart)}
+              </div>
+            )}
+          </Tile>
+
+          {/* Tile 3 — Security Deposit */}
+          <Tile>
+            <TileLabel>Security Deposit</TileLabel>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:600,color:C.textSub,lineHeight:1,marginBottom:6 }}>
+              {tenant?.raw?.security_deposit ? fmt(tenant.raw.security_deposit) : "—"}
+            </div>
+            <div style={{ fontSize:12,color:C.textMuted }}>Held in escrow · Refundable at move-out</div>
+            <div style={{ marginTop:14,padding:"10px 14px",background:C.raised,borderRadius:8,fontSize:12,color:C.textSub }}>
+              Deposit disputes are resolved within 30 days of move-out per your lease agreement.
+            </div>
+          </Tile>
+
+          {/* Tile 4 — Lease Summary */}
+          <Tile>
+            <TileLabel>Lease Summary</TileLabel>
+            <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+              <div style={{ display:"flex",justifyContent:"space-between" }}>
+                <span style={{ fontSize:12,color:C.textMuted }}>Resident</span>
+                <span style={{ fontSize:13,fontWeight:500,color:C.text }}>{tenant?.name || "—"}</span>
+              </div>
+              <div style={{ height:1,background:C.border }} />
+              <div style={{ display:"flex",justifyContent:"space-between" }}>
+                <span style={{ fontSize:12,color:C.textMuted }}>Unit</span>
+                <span style={{ fontSize:13,color:C.text }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</span>
+              </div>
+              <div style={{ height:1,background:C.border }} />
+              <div style={{ display:"flex",justifyContent:"space-between" }}>
+                <span style={{ fontSize:12,color:C.textMuted }}>Lease Start</span>
+                <span style={{ fontSize:13,color:C.text }}>{fmtDate(tenant?.leaseStart)}</span>
+              </div>
+              <div style={{ height:1,background:C.border }} />
+              <div style={{ display:"flex",justifyContent:"space-between" }}>
+                <span style={{ fontSize:12,color:C.textMuted }}>Lease End</span>
+                <span style={{ fontSize:13,color:leaseDaysLeft !== null && leaseDaysLeft < 60 ? C.amber : C.text }}>{fmtDate(tenant?.leaseEnd)}</span>
+              </div>
+              <div style={{ height:1,background:C.border }} />
+              <div style={{ display:"flex",justifyContent:"space-between" }}>
+                <span style={{ fontSize:12,color:C.textMuted }}>Monthly Rent</span>
+                <span style={{ fontSize:13,fontWeight:600,color:C.gold }}>{fmt(rentAmount)}</span>
               </div>
             </div>
-            <div>
-              <button onClick={()=>nav("/pay")} style={{ width:"100%",padding:"11px",background:C.goldDim,border:"none",borderRadius:7,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"opacity 0.15s" }}
-                onMouseOver={e=>e.currentTarget.style.opacity="0.85"}
-                onMouseOut={e=>e.currentTarget.style.opacity="1"}
-              >Pay rent →</button>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10 }}>
-                <span style={{ fontSize:11,color:C.textMuted }}>Autopay is off</span>
-                <span style={{ fontSize:11,color:C.goldDim,cursor:"pointer" }}>Turn on →</span>
-              </div>
-            </div>
-          </div>
+          </Tile>
         </div>
 
-        {/* Bottom row */}
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+        {/* ── Lower row: Maintenance + Messages ── */}
+        <div className="home-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
 
-          {/* Payment history */}
-          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 22px",borderBottom:`1px solid ${C.border}` }}>
-              <SectionLabel>Payment history</SectionLabel>
-              <button onClick={()=>nav("/pay")} style={{ fontSize:11,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}
-                onMouseOver={e=>e.currentTarget.style.color=C.gold}
-                onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
-              >See all →</button>
+          {/* Maintenance */}
+          <Tile style={{ padding:0,overflow:"hidden" }}>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.06em",textTransform:"uppercase" }}>Maintenance</span>
+              <button onClick={()=>navigate("/maintenance")} style={{ fontSize:11,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}
+                onMouseOver={e=>e.currentTarget.style.color=C.gold} onMouseOut={e=>e.currentTarget.style.color=C.goldDim}>See all →</button>
             </div>
-            {payments.length===0?(
-              <div style={{ padding:"28px 22px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No payment history yet.</div>
-            ):payments.slice(0,4).map((p,i)=>{
-              const amount = (p.amount_cents||0)/100;
-              const date   = new Date(p.paid_at||p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"});
-              const { label, color } = paymentLabel(p.status);
-              return (
-                <div key={p.id} className="t-row" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 22px",borderBottom:i<Math.min(payments.length,4)-1?`1px solid ${C.border}`:"none",transition:"background 0.12s" }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                    <div style={{ width:7,height:7,borderRadius:"50%",background:color,flexShrink:0 }}/>
-                    <div>
-                      <div style={{ fontSize:13,fontWeight:500,color:C.text }}>{label}</div>
-                      <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>{date}</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize:13,fontWeight:600,color }}>${amount.toLocaleString()}</span>
+            {maintenance.length === 0 ? (
+              <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No open requests.</div>
+            ) : maintenance.slice(0,3).map((m,i) => (
+              <div key={m.id} className="t-row" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",borderBottom:i<2&&i<maintenance.length-1?`1px solid ${C.border}`:"none",cursor:"pointer",transition:"background 0.12s" }}
+                onClick={()=>navigate(`/maintenance/${m.id}`)}>
+                <div>
+                  <div style={{ fontSize:13,fontWeight:500,color:C.text }}>{m.title}</div>
+                  <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>{new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Right col */}
-          <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-
-            {/* Maintenance */}
-            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 22px",borderBottom:`1px solid ${C.border}` }}>
-                <SectionLabel>Maintenance</SectionLabel>
-                <button onClick={()=>nav("/maintenance")} style={{ fontSize:11,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}
-                  onMouseOver={e=>e.currentTarget.style.color=C.gold}
-                  onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
-                >See all →</button>
+                <StatusBadge status={m.status}/>
               </div>
-              {maintenance.length===0?(
-                <div style={{ padding:"20px 22px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No maintenance requests yet.</div>
-              ):maintenance.slice(0,3).map((m,i)=>(
-                <div key={m.id} className="t-row" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 22px",borderBottom:i<Math.min(maintenance.length,3)-1?`1px solid ${C.border}`:"none",cursor:"pointer",transition:"background 0.12s" }}
-                  onClick={()=>nav(`/maintenance/${m.id}`)}>
-                  <div>
-                    <div style={{ fontSize:13,fontWeight:500,color:C.text }}>{m.title}</div>
-                    <div style={{ fontSize:11,color:C.textMuted,marginTop:1 }}>Submitted {new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
-                  </div>
-                  <Badge status={m.status}/>
-                </div>
-              ))}
-            </div>
+            ))}
+          </Tile>
 
-            {/* Messages — single conversation thread */}
-            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 22px",borderBottom:`1px solid ${C.border}` }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <SectionLabel>Messages</SectionLabel>
-                  {unreadCount>0&&<span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:C.blue,color:"#fff",marginTop:-2 }}>{unreadCount}</span>}
-                </div>
-                <button onClick={()=>nav("/messages")} style={{ fontSize:11,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}
-                  onMouseOver={e=>e.currentTarget.style.color=C.gold}
-                  onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
-                >Open →</button>
+          {/* Messages */}
+          <Tile style={{ padding:0,overflow:"hidden" }}>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:`1px solid ${C.border}` }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.06em",textTransform:"uppercase" }}>Messages</span>
+                {unreadCount>0&&<span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:C.blue,color:"#fff" }}>{unreadCount}</span>}
               </div>
-              {msgsLoading?(
-                <div style={{ padding:"20px 22px",color:C.textMuted,fontSize:13 }}>Loading…</div>
-              ):!latestMessage?(
-                <div style={{ padding:"20px 22px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No messages yet.</div>
-              ):(
-                <div className="t-row" style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 22px",cursor:"pointer",transition:"background 0.12s" }}
-                  onClick={()=>nav("/messages")}>
-                  <div style={{ width:38,height:38,borderRadius:"50%",background:`${C.gold}18`,border:`1px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0 }}>M</div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3 }}>
-                      <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Modus Property Management</div>
-                      <span style={{ fontSize:10,color:C.textMuted }}>{new Date(latestMessage.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
-                    </div>
-                    <div style={{ fontSize:12,color:C.textSub,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{latestMessage.body}</div>
-                    {unreadCount>0&&(
-                      <div style={{ fontSize:11,color:C.blue,marginTop:3,fontWeight:500 }}>{unreadCount} unread message{unreadCount>1?"s":""}</div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <button onClick={()=>navigate("/messages")} style={{ fontSize:11,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}
+                onMouseOver={e=>e.currentTarget.style.color=C.gold} onMouseOut={e=>e.currentTarget.style.color=C.goldDim}>Open →</button>
             </div>
-          </div>
+            {msgsLoading ? (
+              <div style={{ padding:"20px",color:C.textMuted,fontSize:13 }}>Loading…</div>
+            ) : messages.length === 0 ? (
+              <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No messages yet.</div>
+            ) : (
+              <div className="t-row" style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 20px",cursor:"pointer",transition:"background 0.12s" }} onClick={()=>navigate("/messages")}>
+                <div style={{ width:36,height:36,borderRadius:"50%",background:`${C.gold}18`,border:`1px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0 }}>M</div>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:3 }}>Modus Property Management</div>
+                  <div style={{ fontSize:12,color:C.textSub,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{messages[0]?.body}</div>
+                  {unreadCount>0&&<div style={{ fontSize:11,color:C.blue,marginTop:2,fontWeight:500 }}>{unreadCount} unread</div>}
+                </div>
+                <span style={{ fontSize:10,color:C.textMuted,flexShrink:0 }}>{new Date(messages[0]?.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+              </div>
+            )}
+          </Tile>
         </div>
       </div>
     </TenantLayout>
