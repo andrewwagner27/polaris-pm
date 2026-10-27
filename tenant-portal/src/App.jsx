@@ -17,6 +17,7 @@ import LandlordApplications   from "./LandlordApplications";
 import ProtectedLandlordRoute from "./ProtectedLandlordRoute";
 import LandlordAgentCenter    from "./LandlordAgentCenter";
 import EvictionWatch          from "./EvictionWatch";
+import LandlordInspection    from "./LandlordInspection";
 
 // Tenant
 import LoginScreen            from "./LoginScreen";
@@ -29,6 +30,7 @@ import MessagingScreen        from "./MessagingScreen";
 import BulletinBoard          from "./BulletinBoard";
 import AccountScreen          from "./AccountScreen";
 import DocumentsScreen        from "./DocumentsScreen";
+import MoveInInspection      from "./MoveInInspection";
 import AuthCallback           from "./AuthCallback";
 import LandingPage            from "./LandingPage";
 import ForgotPassword         from "./ForgotPassword";
@@ -77,6 +79,7 @@ export default function App() {
         <Route path="/bulletin"          element={<ProtectedTenantRoute><BulletinBoard/></ProtectedTenantRoute>}/>
         <Route path="/account"           element={<ProtectedTenantRoute><AccountScreen/></ProtectedTenantRoute>}/>
         <Route path="/documents"         element={<ProtectedTenantRoute><DocumentsScreen/></ProtectedTenantRoute>}/>
+        <Route path="/inspection"        element={<ProtectedTenantRoute><MoveInInspection/></ProtectedTenantRoute>}/>
 
         {/* Landlord */}
         <Route path="/landlord/login"           element={<LandlordLogin/>}/>
@@ -94,6 +97,7 @@ export default function App() {
         <Route path="/landlord/agent"           element={<ProtectedLandlordRoute><LandlordAgentCenter/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/settings"        element={<ProtectedLandlordRoute><LandlordSettings/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/evictions"       element={<ProtectedLandlordRoute><EvictionWatch/></ProtectedLandlordRoute>}/>
+        <Route path="/landlord/inspections"     element={<ProtectedLandlordRoute><LandlordInspection/></ProtectedLandlordRoute>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Routes>

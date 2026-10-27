@@ -37,6 +37,7 @@ const NAV = [
     { label: "Financials",   path: "/landlord/financials"   },
     { label: "Messages",     path: "/landlord/messages"     },
     { label: "Agent",        path: "/landlord/agent"        },
+    { label: "Inspections",  path: "/landlord/inspections"  },
   ]},
   { section: "ACCOUNT", items: [
     { label: "Settings",     path: "/landlord/settings"     },

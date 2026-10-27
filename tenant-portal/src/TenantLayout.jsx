@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { label: "Requests",  route: "/maintenance" },
   { label: "Messages",  route: "/messages" },
   { label: "Bulletin",  route: "/bulletin" },
+  { label: "Inspect",   route: "/inspection" },
 ];
 
 function useWindowWidth() {
