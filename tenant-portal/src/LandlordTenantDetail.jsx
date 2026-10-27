@@ -31,7 +31,7 @@ const STATUS = {
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
 };
 
-const TABS = ["Overview","Payments","Recurring","Maintenance","Lease","Move-in","Notes"];
+const TABS = ["Overview","Payments","Recurring","Maintenance","Lease","Inspections","Notes"];
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 const ROOM_LABELS = {
@@ -439,9 +439,10 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
 // ─── Lease Tab ─────────────────────────────────────────────────────────────
 function LeaseTab({ tenant, unit, property, onUpdate }) {
   const [form, setForm] = useState({
-    lease_start:     tenant.lease_start||"",
-    lease_end:       tenant.lease_end||"",
-    lease_end_action:tenant.lease_end_action||"month_to_month",
+    lease_start:      tenant.lease_start||"",
+    lease_end:        tenant.lease_end||"",
+    lease_end_action: tenant.lease_end_action||"month_to_month",
+    security_deposit: tenant.security_deposit||tenant.raw?.security_deposit||"",
   });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
@@ -454,6 +455,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
       lease_start:      form.lease_start||null,
       lease_end:        form.lease_end||null,
       lease_end_action: form.lease_end_action,
+      security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
     }).eq("id",tenant.id);
     setSaving(false); setSaved(true);
     setTimeout(()=>setSaved(false),2000);
@@ -504,6 +506,14 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
             </div>
           </div>
         )}
+
+        <div style={{ marginBottom:14 }}>
+          <FieldLabel>Security Deposit</FieldLabel>
+          <div style={{ position:"relative" }}>
+            <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.textSub,fontSize:13,pointerEvents:"none" }}>$</span>
+            <Input type="number" value={form.security_deposit} onChange={e=>update("security_deposit",e.target.value)} style={{ paddingLeft:24 }} placeholder="0.00"/>
+          </div>
+        </div>
 
         <div style={{ marginBottom:16 }}>
           <FieldLabel>At Lease Expiration</FieldLabel>
@@ -621,12 +631,20 @@ export default function LandlordTenantDetail() {
   const initials      = (tenant.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   const accentColor   = AVATAR_COLORS[0];
   const latestPayment = payments[0];
-  let status = "current";
-  if (latestPayment?.status==="failed") status = "late";
-  else if (!latestPayment||latestPayment.status==="pending") status = "pending";
-  const balance    = status!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0;
+  // Declare dates first to avoid temporal dead zone
   const leaseEnd   = tenant.lease_end   ? new Date(tenant.lease_end)   : null;
   const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
+  // Determine status — never flag overdue/pending if lease hasn't started yet
+  const leaseStarted = leaseStart ? leaseStart.getTime() <= Date.now() : true;
+  let status = "current";
+  if (!leaseStarted) {
+    status = "upcoming";
+  } else if (latestPayment?.status==="failed") {
+    status = "late";
+  } else if (!latestPayment||latestPayment.status==="pending") {
+    status = "pending";
+  }
+  const balance    = !leaseStarted ? 0 : (status!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0);
   const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime()-Date.now())/86400000) : null;
   const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((Date.now()-leaseStart.getTime())/(leaseEnd.getTime()-leaseStart.getTime()))*100))) : 0;
   const completedChecklist = checklist.filter(r=>r.completed).length;
@@ -747,7 +765,9 @@ export default function LandlordTenantDetail() {
               <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:balance>0?C.red:C.green,marginBottom:4 }}>
                 {balance>0?`-$${balance.toLocaleString()}`:"$0.00"}
               </div>
-              <div style={{ fontSize:12,color:balance>0?C.red:C.green,marginBottom:balance>0?14:0 }}>{balance>0?"Amount overdue":"Fully paid ✓"}</div>
+              <div style={{ fontSize:12,color:balance>0?C.red:(!leaseStarted?C.textSub:C.green),marginBottom:balance>0?14:0 }}>
+                {balance>0?"Amount overdue":(!leaseStarted?(`Lease starts ${leaseStart.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`):"Fully paid ✓")}
+              </div>
               {balance>0&&<PrimaryBtn>Send payment reminder</PrimaryBtn>}
             </InfoCard>
 
@@ -755,7 +775,8 @@ export default function LandlordTenantDetail() {
               <InfoRow label="Monthly rent"   value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
               <InfoRow label="Lease start"    value={tenant.lease_start?new Date(tenant.lease_start).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
               <InfoRow label="Lease end"      value={tenant.lease_end?new Date(tenant.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
-              <InfoRow label="Days remaining" value={daysLeft!==null?(daysLeft>0?`${daysLeft} days`:"Expired"):"—"} last/>
+              <InfoRow label="Days remaining"    value={daysLeft!==null?(daysLeft>0?`${daysLeft} days`:"Expired"):"—"}/>
+              <InfoRow label="Security deposit" value={tenant.security_deposit?`$${parseFloat(tenant.security_deposit).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"} last/>
               {leaseStart&&leaseEnd&&leaseEnd>leaseStart&&(
                 <>
                   <div style={{ height:4,background:C.raised,borderRadius:2,overflow:"hidden",marginTop:12 }}>
@@ -860,54 +881,23 @@ export default function LandlordTenantDetail() {
           <LeaseTab tenant={tenant} unit={unit} property={property} onUpdate={fetchAll}/>
         )}
 
-        {/* ── Move-in ── */}
-        {activeTab==="Move-in"&&(
-          <div>
-            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-              <div>
-                <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:2 }}>Move-in checklist</div>
-                <div style={{ fontSize:12,color:C.textSub }}>
-                  {checklist.length===0?"Tenant has not completed the move-in checklist yet.":`${completedChecklist} of ${checklist.length} areas documented`}
-                </div>
-              </div>
-              {checklist.length>0&&(
-                <span style={{ fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:5,background:completedChecklist===checklist.length?`${C.green}15`:`${C.amber}15`,color:completedChecklist===checklist.length?C.green:C.amber }}>
-                  {completedChecklist===checklist.length?"Complete":"In progress"}
-                </span>
-              )}
+        {/* ── Inspections ── */}
+        {activeTab==="Inspections"&&(
+          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 18px" }}>
+            <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:4 }}>Inspections</div>
+            <div style={{ fontSize:12,color:C.textSub,marginBottom:18 }}>
+              View and manage property inspection records for this tenant.
             </div>
-            {checklist.length===0?(
-              <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:40,textAlign:"center" }}>
-                <div style={{ fontSize:32,marginBottom:12 }}>📋</div>
-                <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No checklist submitted yet</div>
-                <div style={{ fontSize:13,color:C.textSub }}>The tenant will complete this during onboarding.</div>
-              </div>
-            ):(
-              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                {checklist.map(item=>{
-                  const condColor = item.condition==="Good"?C.green:item.condition==="Fair"?C.amber:C.red;
-                  return (
-                    <div key={item.id} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px" }}>
-                      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:item.notes?8:0 }}>
-                        <div style={{ fontSize:14,fontWeight:500,color:C.text }}>{ROOM_LABELS[item.room]||item.room}</div>
-                        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                          {item.condition&&<span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:5,background:`${condColor}18`,color:condColor }}>{item.condition}</span>}
-                          {!item.completed&&<span style={{ fontSize:11,color:C.textMuted }}>Not documented</span>}
-                        </div>
-                      </div>
-                      {item.notes&&<div style={{ fontSize:12,color:C.textSub,marginTop:6,padding:"8px 10px",background:C.raised,borderRadius:7 }}>{item.notes}</div>}
-                    </div>
-                  );
-                })}
-                <div style={{ fontSize:11,color:C.textMuted,textAlign:"right",marginTop:4 }}>
-                  Submitted {checklist[0]?.created_at?new Date(checklist[0].created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"—"}
-                </div>
-              </div>
-            )}
+            <a
+              href="/landlord/inspections"
+              style={{ display:"inline-block",padding:"10px 20px",background:C.goldDim,borderRadius:8,fontSize:13,fontWeight:500,color:C.text,textDecoration:"none",fontFamily:"'DM Sans',sans-serif" }}
+            >
+              Open Inspections →
+            </a>
           </div>
         )}
 
-        {/* ── Notes ── */}
+                {/* ── Notes ── */}
         {activeTab==="Notes"&&(
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
             <div style={{ padding:"14px 16px",borderBottom:`1px solid ${C.border}` }}>
