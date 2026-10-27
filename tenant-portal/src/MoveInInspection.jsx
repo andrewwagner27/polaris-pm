@@ -11,6 +11,18 @@ const C = {
   blue:"#4A9AE8", green:"#72B02A", red:"#E05555", amber:"#F0A430",
 };
 
+
+// ─── email helper ─────────────────────────────────────
+async function sendEmail({ to, subject, html }) {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, html }),
+    });
+  } catch (e) { console.warn("Inspection email failed", e); }
+}
+
 export default function MoveInInspection() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
@@ -102,6 +114,24 @@ export default function MoveInInspection() {
         status:          "tenant_complete",
       }).eq("id", inspection.id);
 
+      // notify landlord
+      await sendEmail({
+        to: "moduspropmgmt@gmail.com",
+        subject: `Tenant Walkthrough Complete — ${inspection?.tenants?.name || "Tenant"} Has Signed Off`,
+        html: `<div style="font-family:'DM Sans',Arial,sans-serif;background:#0A0B0D;padding:32px;border-radius:8px;max-width:600px;margin:auto">
+  <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#C9A96E;margin-bottom:4px">Modus Property Management</div>
+  <hr style="border:none;border-top:1px solid #252930;margin:14px 0 20px"/>
+  <p style="color:#EDEAE2;font-size:15px;margin-bottom:12px">A tenant has completed their move-in walkthrough.</p>
+  <table style="width:100%;border-collapse:collapse;background:#111316;border-radius:6px;overflow:hidden;margin-bottom:20px">
+    <tr><td style="padding:8px 12px;color:#5C6270;font-size:12px;width:120px">Tenant</td><td style="padding:8px 12px;color:#EDEAE2;font-size:13px">${signature.trim()}</td></tr>
+    <tr style="background:#181C21"><td style="padding:8px 12px;color:#5C6270;font-size:12px">Signed at</td><td style="padding:8px 12px;color:#EDEAE2;font-size:13px">${new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}</td></tr>
+    <tr><td style="padding:8px 12px;color:#5C6270;font-size:12px">Photos</td><td style="padding:8px 12px;color:#EDEAE2;font-size:13px">${photoUrls.length} uploaded</td></tr>
+  </table>
+  <p style="color:#9095A0;font-size:13px;line-height:1.6">Log in to the landlord portal to review the tenant's notes and photos. When the tenant moves out, you can begin the move-out inspection from the inspection detail view.</p>
+  <hr style="border:none;border-top:1px solid #252930;margin:24px 0 14px"/>
+  <p style="font-size:11px;color:#5C6270">Modus Property Management — automated notification</p>
+</div>`,
+      });
       setDone(true);
     } catch (e) {
       alert("Error submitting. Please try again.");

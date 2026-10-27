@@ -197,6 +197,27 @@ function RoomChecklist({ rooms, onChange, readOnly = false, compareRooms = null 
   );
 }
 
+// ─── email helper ────────────────────────────────────
+async function sendInspectionEmail({ to, subject, html }) {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, html }),
+    });
+  } catch (e) { console.warn("Email send failed", e); }
+}
+
+function inspectionEmailBase(bodyContent) {
+  return `<div style="font-family:'DM Sans',Arial,sans-serif;background:#0A0B0D;padding:32px;border-radius:8px;max-width:600px;margin:auto">
+  <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#C9A96E;margin-bottom:4px">Modus Property Management</div>
+  <hr style="border:none;border-top:1px solid #252930;margin:14px 0 20px"/>
+  ${bodyContent}
+  <hr style="border:none;border-top:1px solid #252930;margin:24px 0 14px"/>
+  <p style="font-size:11px;color:#5C6270">This is an automated message from Modus Property Management. Do not reply to this email.</p>
+</div>`;
+}
+
 // ─── main component ──────────────────────────────────────
 export default function LandlordInspection() {
   const [view, setView]               = useState("list");    // list | create | detail | moveout
@@ -229,10 +250,10 @@ export default function LandlordInspection() {
     setLoading(true);
     const [{ data:insp }, { data:ten }] = await Promise.all([
       supabase.from("inspections")
-        .select("*, tenants(id,name,unit_id,archived, units:unit_id(unit_number,properties:property_id(name)))")
+        .select("*, tenants(id,name,email,unit_id,archived, units:unit_id(unit_number,properties:property_id(name)))")
         .order("created_at",{ ascending:false }),
       supabase.from("tenants")
-        .select("id,name,unit_id,archived, units:unit_id(unit_number,properties:property_id(name))")
+        .select("id,name,email,unit_id,archived, units:unit_id(unit_number,properties:property_id(name))")
         .eq("archived",false)
         .order("name"),
     ]);
@@ -290,6 +311,27 @@ export default function LandlordInspection() {
     if (photoUrls.length > 0) {
       await supabase.from("inspections").update({ landlord_photos:photoUrls }).eq("id",ins.id);
     }
+    // notify tenant
+    const tenantRec = tenants.find(t=>t.id===fTenant);
+    if (tenantRec?.email) {
+      await sendInspectionEmail({
+        to: tenantRec.email,
+        subject: "Your Move-In Inspection Is Ready — Please Complete Your Walkthrough",
+        html: inspectionEmailBase(`
+          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${tenantRec.name?.split(" ")[0] || "there"},</p>
+          <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:16px">
+            Your property manager has completed the pre-move-in inspection for your unit.
+            Please log in to the tenant portal and complete your own walkthrough to confirm the unit's condition.
+          </p>
+          <div style="text-align:center;margin:24px 0">
+            <a href="https://www.getmodusam.com/inspection" style="display:inline-block;padding:12px 28px;background:#7A5C2E;border-radius:6px;color:#C9A96E;font-weight:600;font-size:14px;text-decoration:none">
+              Complete My Walkthrough →
+            </a>
+          </div>
+          <p style="color:#5C6270;font-size:12px">Inspection date: ${fDate}</p>
+        `),
+      });
+    }
     setMsg("Saved! Tenant can now complete their walkthrough.");
     await loadData();
     setTimeout(()=>{ setMsg(""); setView("list"); }, 1800);
@@ -330,6 +372,33 @@ export default function LandlordInspection() {
       status:               "closed",
     }).eq("id", selected.id);
     if (error) { setMsg("Error: "+error.message); setSaving(false); return; }
+    // notify tenant of deposit result
+    const tRec = selected.tenants;
+    if (tRec?.email) {
+      const deductions = moDeduct.filter(d=>d.description.trim()&&parseFloat(d.amount)>0);
+      const totalDed   = deductions.reduce((s,d)=>s+(parseFloat(d.amount)||0),0);
+      const dep        = parseFloat(moDeposit)||0;
+      const refundAmt  = Math.max(0, dep - totalDed);
+      const deductRows = deductions.map(d=>`<tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">${d.description}</td><td style="padding:5px 8px;color:#E05555;font-size:13px;text-align:right">-$${parseFloat(d.amount).toFixed(2)}</td></tr>`).join("");
+      await sendInspectionEmail({
+        to: tRec.email,
+        subject: "Move-Out Inspection Complete — Deposit Summary",
+        html: inspectionEmailBase(`
+          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${tRec.name?.split(" ")[0] || "there"},</p>
+          <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:20px">
+            Your move-out inspection has been completed. Here is your deposit summary:
+          </p>
+          <table style="width:100%;border-collapse:collapse;background:#111316;border-radius:6px;overflow:hidden;margin-bottom:16px">
+            <tr style="background:#181C21"><td style="padding:8px;color:#5C6270;font-size:11px;font-weight:600">ITEM</td><td style="padding:8px;color:#5C6270;font-size:11px;font-weight:600;text-align:right">AMOUNT</td></tr>
+            <tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">Deposit held</td><td style="padding:5px 8px;color:#EDEAE2;font-size:13px;text-align:right">$${dep.toFixed(2)}</td></tr>
+            ${deductRows}
+            <tr style="background:#181C21"><td style="padding:8px;color:#EDEAE2;font-size:14px;font-weight:700">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#E05555"};font-size:14px;font-weight:700;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
+          </table>
+          ${moNotes ? `<p style="color:#5C6270;font-size:12px;line-height:1.5">${moNotes}</p>` : ""}
+          <p style="color:#5C6270;font-size:12px;margin-top:12px">Please contact us with any questions about this summary.</p>
+        `),
+      });
+    }
     setMsg("Move-out inspection saved.");
     await loadData();
     setTimeout(()=>{ setMsg(""); setView("list"); }, 1800);
