@@ -395,16 +395,22 @@ export default function LandlordTenants() {
 
         {/* Stat ribbon */}
         {!loading&&(
-          <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:10,marginBottom:20 }}>
+          <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:24 }}>
             {[
-              { label:"Active Leases",     value:activeEnriched.length,                                                          color:C.gold   },
-              { label:"Outstanding Balance",value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green },
-              { label:"Ending Soon",        value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub },
-              { label:"Past Tenants",       value:pastCount,                                                                     color:C.textSub },
+              { label:"Active Leases",      value:activeEnriched.length,                                                          color:C.gold,   tab:"all"        },
+              { label:"Outstanding Balance", value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green, tab:null },
+              { label:"Ending Soon",         value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub, tab:"ending_soon" },
+              { label:"Past Tenants",        value:pastCount,                                                                     color:C.textSub, tab:"past"       },
             ].map(s=>(
-              <div key={s.label} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 18px" }}>
-                <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8 }}>{s.label}</div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:s.color }}>{s.value}</div>
+              <div key={s.label}
+                onClick={s.tab?()=>setActiveTab(s.tab):undefined}
+                style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",cursor:s.tab?"pointer":"default",transition:"border-color 0.15s,background 0.15s" }}
+                onMouseEnter={s.tab?e=>{e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.background=C.raised;}:undefined}
+                onMouseLeave={s.tab?e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.surface;}:undefined}
+              >
+                <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>{s.label}</div>
+                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:s.color,lineHeight:1 }}>{s.value}</div>
+                {s.tab&&<div style={{ fontSize:10,color:C.textMuted,marginTop:8 }}>Click to filter →</div>}
               </div>
             ))}
           </div>
@@ -446,7 +452,7 @@ export default function LandlordTenants() {
                     { col:null,       label:"Actions",         always:true  },
                   ].filter(h=>h.always||!isMobile).map(h=>(
                     <th key={h.label} onClick={h.col?()=>handleSort(h.col):undefined}
-                      style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"10px 16px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,cursor:h.col?"pointer":"default",whiteSpace:"nowrap" }}>
+                      style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 18px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,cursor:h.col?"pointer":"default",whiteSpace:"nowrap" }}>
                       {h.label}{h.col&&<SortIcon col={h.col}/>}
                     </th>
                   ))}
@@ -461,12 +467,12 @@ export default function LandlordTenants() {
                 {sorted.map(t=>(
                   <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>
                     {/* Tenant name + three status badges */}
-                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
-                      <div style={{ display:"flex",alignItems:"flex-start",gap:10 }}>
-                        <div style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0,marginTop:2 }}>{t.initials}</div>
+                    <td style={{ fontSize:13,color:C.text,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ display:"flex",alignItems:"flex-start",gap:12 }}>
+                        <div style={{ width:38,height:38,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0,marginTop:1 }}>{t.initials}</div>
                         <div>
-                          <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:4 }}>{t.name}</div>
-                          <div style={{ fontSize:11,color:C.textSub,marginBottom:5 }}>
+                          <div style={{ fontSize:14,fontWeight:600,color:C.text,marginBottom:4 }}>{t.name}</div>
+                          <div style={{ fontSize:12,color:C.textSub,marginBottom:6 }}>
                             {isMobile?`${t.property} · Unit ${t.unit}`:(t.email||"—")}
                           </div>
                           {/* Three status badges */}
@@ -491,27 +497,35 @@ export default function LandlordTenants() {
                     </td>
 
                     {!isMobile&&(
-                      <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
-                        <div style={{ fontWeight:500 }}>{t.property}</div>
-                        <div style={{ fontSize:11,color:C.textSub }}>Unit {t.unit}</div>
+                      <td style={{ fontSize:13,color:C.text,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
+                        <div style={{ fontWeight:500,fontSize:13 }}>{t.property}</div>
+                        <div style={{ fontSize:12,color:C.textSub,marginTop:3 }}>Unit {t.unit}</div>
                       </td>
                     )}
 
                     {/* Lease status column */}
-                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                    <td style={{ fontSize:13,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
                       <LeaseBadge daysLeft={t.daysLeft} leaseEnd={t.lease_end}/>
                     </td>
 
-                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
-                      <span style={{ fontWeight:600,color:t.balance>0?C.red:C.green }}>
+                    <td style={{ fontSize:13,padding:"14px 18px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
+                      <span style={{ fontSize:14,fontWeight:600,color:t.balance>0?C.red:C.green }}>
                         {t.balance>0?`-$${t.balance.toLocaleString()}`:"$0"}
                       </span>
                     </td>
 
                     <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }} onClick={e=>e.stopPropagation()}>
-                      <div style={{ display:"flex",gap:6 }}>
-                        <PrimaryBtn small onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>View</PrimaryBtn>
-                        {!isMobile&&<GhostBtn small onClick={()=>navigate("/landlord/messages",{ state:{ tenantId:t.id } })}>Message</GhostBtn>}
+                      <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                        <button onClick={()=>navigate("/landlord/messages",{ state:{ tenantId:t.id } })}
+                          title="Message tenant"
+                          style={{ width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.15s,color 0.15s" }}
+                          onMouseEnter={e=>{e.currentTarget.style.background=C.raised;e.currentTarget.style.color=C.text;}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=C.textSub;}}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
