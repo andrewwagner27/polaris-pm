@@ -70,12 +70,33 @@ function GhostBtn({ children, onClick, small }) {
 }
 
 // ─── Lease countdown badge ─────────────────────────────────────────────────
-function LeaseBadge({ daysLeft }) {
-  if (daysLeft === null) return <span style={{ fontSize:10,color:C.textMuted }}>No lease end</span>;
-  if (daysLeft <= 0)  return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.25)" }}>Expired</span>;
-  if (daysLeft <= 30) return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.12)",color:C.red,border:"1px solid rgba(224,85,85,0.2)" }}>⚠ {daysLeft}d left</span>;
-  if (daysLeft <= 90) return <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(240,164,48,0.12)",color:C.amber,border:"1px solid rgba(240,164,48,0.2)" }}>⚠ Ending Soon — {daysLeft}d</span>;
-  return <span style={{ fontSize:10,color:C.textSub }}>{daysLeft}d left</span>;
+function LeaseBadge({ daysLeft, leaseEnd }) {
+  const endLabel = leaseEnd ? new Date(leaseEnd).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : null;
+  if (daysLeft === null) return <span style={{ fontSize:12,color:C.textSub }}>No end date</span>;
+  if (daysLeft <= 0)  return (
+    <div>
+      <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"rgba(224,85,85,0.18)",color:C.red,border:"1px solid rgba(224,85,85,0.3)",display:"inline-block" }}>Expired</span>
+      {endLabel&&<div style={{ fontSize:11,color:C.textMuted,marginTop:3 }}>{endLabel}</div>}
+    </div>
+  );
+  if (daysLeft <= 30) return (
+    <div>
+      <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.25)",display:"inline-block" }}>Expires in {daysLeft} days</span>
+      {endLabel&&<div style={{ fontSize:11,color:C.textMuted,marginTop:3 }}>{endLabel}</div>}
+    </div>
+  );
+  if (daysLeft <= 90) return (
+    <div>
+      <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"rgba(240,164,48,0.15)",color:C.amber,border:"1px solid rgba(240,164,48,0.25)",display:"inline-block" }}>Expires in {daysLeft} days</span>
+      {endLabel&&<div style={{ fontSize:11,color:C.textMuted,marginTop:3 }}>{endLabel}</div>}
+    </div>
+  );
+  return (
+    <div>
+      <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"rgba(114,176,42,0.13)",color:C.green,border:"1px solid rgba(114,176,42,0.22)",display:"inline-block" }}>Expires in {daysLeft} days</span>
+      {endLabel&&<div style={{ fontSize:11,color:C.textMuted,marginTop:3 }}>{endLabel}</div>}
+    </div>
+  );
 }
 
 // ─── Add Tenant Modal ──────────────────────────────────────────────────────
@@ -372,6 +393,23 @@ export default function LandlordTenants() {
           </div>
         )}
 
+        {/* Stat ribbon */}
+        {!loading&&(
+          <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:10,marginBottom:20 }}>
+            {[
+              { label:"Active Leases",     value:activeEnriched.length,                                                          color:C.gold   },
+              { label:"Outstanding Balance",value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green },
+              { label:"Ending Soon",        value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub },
+              { label:"Past Tenants",       value:pastCount,                                                                     color:C.textSub },
+            ].map(s=>(
+              <div key={s.label} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 18px" }}>
+                <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8 }}>{s.label}</div>
+                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Smart lease filter tabs */}
         <div style={{ display:"flex",gap:0,marginBottom:0,borderBottom:`1px solid ${C.border}` }}>
           {TABS.map(tab=>{
@@ -403,9 +441,8 @@ export default function LandlordTenants() {
                   {[
                     { col:"name",     label:"Tenant",         always:true  },
                     { col:"property", label:"Property · Unit", always:false },
-                    { col:"rent",     label:"Rent",            always:true,  right:true },
                     { col:"lease",    label:"Lease Status",    always:true  },
-                    { col:"balance",  label:"Balance",         always:false, right:true },
+                    { col:"balance",  label:"Balance",         always:true,  right:true },
                     { col:null,       label:"Actions",         always:true  },
                   ].filter(h=>h.always||!isMobile).map(h=>(
                     <th key={h.label} onClick={h.col?()=>handleSort(h.col):undefined}
@@ -460,27 +497,16 @@ export default function LandlordTenants() {
                       </td>
                     )}
 
-                    <td style={{ fontSize:13,color:C.text,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right",fontWeight:600 }}>
-                      ${(t.rent||0).toLocaleString()}
-                    </td>
-
                     {/* Lease status column */}
                     <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
-                      <LeaseBadge daysLeft={t.daysLeft}/>
-                      {t.lease_end&&(
-                        <div style={{ fontSize:10,color:C.textMuted,marginTop:3 }}>
-                          {new Date(t.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
-                        </div>
-                      )}
+                      <LeaseBadge daysLeft={t.daysLeft} leaseEnd={t.lease_end}/>
                     </td>
 
-                    {!isMobile&&(
-                      <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
-                        <span style={{ fontWeight:600,color:t.balance>0?C.red:C.green }}>
-                          {t.balance>0?`-$${t.balance.toLocaleString()}`:"✓ $0"}
-                        </span>
-                      </td>
-                    )}
+                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
+                      <span style={{ fontWeight:600,color:t.balance>0?C.red:C.green }}>
+                        {t.balance>0?`-$${t.balance.toLocaleString()}`:"$0"}
+                      </span>
+                    </td>
 
                     <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }} onClick={e=>e.stopPropagation()}>
                       <div style={{ display:"flex",gap:6 }}>
