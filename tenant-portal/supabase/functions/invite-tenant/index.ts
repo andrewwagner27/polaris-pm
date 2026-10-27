@@ -22,7 +22,7 @@ serve(async (req) => {
       type: "invite",
       email: tenant_email,
       options: {
-        redirectTo: `https://polaris-pm.vercel.app/onboarding?tenant_id=${tenant_id}`,
+        redirectTo: `https://www.getmodusam.com/onboarding?tenant_id=${tenant_id}`,
         data: {
           full_name: tenant_name,
           tenant_id,
