@@ -252,6 +252,7 @@ export default function LandlordMessages() {
 
   const activeTenant = tenants.find(t => t.id === activeId);
   const totalUnread  = Object.values(unreadCounts).reduce((s, n) => s + n, 0);
+  const activeMessages = messages.filter(m => m.tenant_id === activeId);
 
   // Last message in active thread — used for status indicators
   const lastActiveMsg = activeMessages[activeMessages.length - 1];
@@ -277,7 +278,6 @@ export default function LandlordMessages() {
     return groups;
   }
 
-  const activeMessages = messages.filter(m => m.tenant_id === activeId);
 
   return (
     <LandlordLayout unreadMessages={totalUnread} openMaintenance={0}>
