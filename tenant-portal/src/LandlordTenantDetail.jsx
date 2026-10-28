@@ -437,13 +437,12 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
   async function save() {
     setSaving(true); setSaved(false); setSaveErr("");
     // Build update payload — only include columns that exist in schema
+    // Only update columns confirmed to exist in schema
     const payload = {
       lease_start:      form.lease_start||null,
       lease_end:        form.lease_end||null,
       security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
     };
-    // lease_end_action is optional — add if the column exists
-    try { payload.lease_end_action = form.lease_end_action; } catch(e) {}
     const { error: err } = await supabase.from("tenants").update(payload).eq("id",tenant.id);
     setSaving(false);
     if (!err) {
