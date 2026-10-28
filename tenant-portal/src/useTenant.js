@@ -83,7 +83,7 @@ export function useTenant() {
           rent:             unitData?.rent_amount || 0,
           leaseStart:       tenantData?.lease_start || null,
           leaseEnd:         tenantData?.lease_end   || null,
-          security_deposit: tenantData?.security_deposit || 0,
+          security_deposit: tenantData?.security_deposit ?? null,
           payments:         payments         || [],
           maintenance:      maintenance      || [],
           recurringCharges: recurringCharges || [],
