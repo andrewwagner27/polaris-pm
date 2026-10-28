@@ -298,12 +298,10 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
     setSaving(true); setFormError("");
     const { error } = await supabase.from("recurring_charges").insert({
       tenant_id:  tenantId,
-      unit_id:    unit?.id||null,
       category:   form.category,
       amount:     parseFloat(form.amount),
       start_date: form.start_date||null,
       end_date:   form.end_date||null,
-      status:     "active",
     });
     setSaving(false);
     if (error) { setFormError(error.message); return; }
@@ -314,10 +312,9 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
   }
 
   async function toggleStatus(charge) {
-    const newStatus = charge.status==="active"?"paused":"active";
-    await supabase.from("recurring_charges").update({status:newStatus}).eq("id",charge.id);
+    // No status column in DB — charges are active unless deleted
+    // This is a no-op; UI hides pause button
     fetchCharges();
-    if (onChargeChanged) onChargeChanged();
   }
 
   async function deleteCharge(id) {
@@ -327,7 +324,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
     if (onChargeChanged) onChargeChanged();
   }
 
-  const totalMonthly = charges.filter(c=>c.status==="active").reduce((s,c)=>s+parseFloat(c.amount||0),0);
+  const totalMonthly = charges.reduce((s,c)=>s+parseFloat(c.amount||0),0);
 
   return (
     <div>
@@ -335,7 +332,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
         <div>
           <div style={{ fontSize:13,fontWeight:600,color:C.text }}>Recurring Charges</div>
           <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>
-            {loading?"Loading…":`${charges.filter(c=>c.status==="active").length} active · $${totalMonthly.toLocaleString("en-US",{minimumFractionDigits:2})}/mo`}
+            {loading?"Loading…":`${charges.length} active · $${totalMonthly.toLocaleString("en-US",{minimumFractionDigits:2})}/mo`}
           </div>
         </div>
         <PrimaryBtn onClick={()=>setShowAdd(v=>!v)}>
@@ -387,7 +384,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:C.raised }}>
-                <TH>Category</TH><TH>Amount</TH><TH>Start → End</TH><TH>Status</TH><TH>Actions</TH>
+                <TH>Category</TH><TH>Amount</TH><TH>Start → End</TH><TH>Actions</TH>
               </tr>
             </thead>
             <tbody>
@@ -404,17 +401,10 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
                       {c.end_date?new Date(c.end_date).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"Ongoing"}
                     </span>
                   </TD>
-                  <TD>
-                    <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,
-                      background:c.status==="active"?"rgba(114,176,42,0.13)":c.status==="paused"?"rgba(240,164,48,0.13)":"rgba(92,98,112,0.15)",
-                      color:c.status==="active"?C.green:c.status==="paused"?C.amber:C.textSub }}>
-                      {c.status?.charAt(0).toUpperCase()+(c.status?.slice(1)||"")}
-                    </span>
-                  </TD>
+
                   <TD>
                     <div style={{ display:"flex",gap:6 }}>
-                      <GhostBtn small onClick={()=>toggleStatus(c)}>{c.status==="active"?"Pause":"Resume"}</GhostBtn>
-                      <button onClick={()=>deleteCharge(c.id)}
+<button onClick={()=>deleteCharge(c.id)}
                         style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
                         Delete
                       </button>
@@ -443,26 +433,30 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
 
   const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
 
+  const [saveErr, setSaveErr] = useState("");
   async function save() {
-    setSaving(true); setSaved(false);
-    const { error: saveErr } = await supabase.from("tenants").update({
+    setSaving(true); setSaved(false); setSaveErr("");
+    // Build update payload — only include columns that exist in schema
+    const payload = {
       lease_start:      form.lease_start||null,
       lease_end:        form.lease_end||null,
-      lease_end_action: form.lease_end_action,
       security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
-    }).eq("id",tenant.id);
+    };
+    // lease_end_action is optional — add if the column exists
+    try { payload.lease_end_action = form.lease_end_action; } catch(e) {}
+    const { error: err } = await supabase.from("tenants").update(payload).eq("id",tenant.id);
     setSaving(false);
-    if (!saveErr) {
+    if (!err) {
       setSaved(true);
       setTimeout(()=>setSaved(false),2000);
-      // Don't call onUpdate() — it re-renders LeaseTab and resets the form.
-      // The save is persisted; parent will pick it up on next full load.
     } else {
-      console.error("Lease save error:", saveErr);
+      setSaveErr(err.message);
+      console.error("Lease save error:", err);
     }
   }
 
-  const leaseEnd   = form.lease_end   ? new Date(form.lease_end)   : null;
+  const parseDateLocal = (s) => { if (!s) return null; const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+  const leaseEnd   = parseDateLocal(form.lease_end);
   const leaseStart = form.lease_start ? new Date(form.lease_start) : null;
   const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime()-Date.now())/86400000) : null;
   const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((Date.now()-leaseStart.getTime())/(leaseEnd.getTime()-leaseStart.getTime()))*100))) : 0;
@@ -535,6 +529,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
           <PrimaryBtn onClick={save} disabled={saving}>{saved?"✓ Saved!":saving?"Saving…":"Save Lease Terms"}</PrimaryBtn>
           <span style={{ fontSize:11,color:C.textMuted,fontStyle:"italic" }}>Changes here do not create payment requests. Visit Financials to manage payments.</span>
         </div>
+        {saveErr&&<div style={{ marginTop:8,fontSize:12,color:C.red,background:"rgba(224,85,85,0.1)",border:`1px solid ${C.red}`,borderRadius:6,padding:"8px 12px" }}>Save failed: {saveErr}</div>}
       </div>
 
       {/* Read-only summary */}
@@ -632,8 +627,10 @@ export default function LandlordTenantDetail() {
   const accentColor   = AVATAR_COLORS[0];
   const latestPayment = payments[0];
   // Declare dates first to avoid temporal dead zone
-  const leaseEnd   = tenant.lease_end   ? new Date(tenant.lease_end)   : null;
-  const leaseStart = tenant.lease_start ? new Date(tenant.lease_start) : null;
+  // Parse date strings as LOCAL dates (not UTC) to avoid off-by-one-day in ET
+  const parseDateLocal = (s) => { if (!s) return null; const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+  const leaseEnd   = parseDateLocal(tenant.lease_end);
+  const leaseStart = parseDateLocal(tenant.lease_start);
   // Determine status — never flag overdue/pending if lease hasn't started yet
   const leaseStarted = leaseStart ? leaseStart.getTime() <= Date.now() : true;
   let status = "current";
@@ -773,8 +770,8 @@ export default function LandlordTenantDetail() {
 
             <InfoCard title="Lease Overview">
               <InfoRow label="Monthly rent"   value={unit?.rent_amount?`$${parseFloat(unit.rent_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}/>
-              <InfoRow label="Lease start"    value={tenant.lease_start?new Date(tenant.lease_start).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
-              <InfoRow label="Lease end"      value={tenant.lease_end?new Date(tenant.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
+              <InfoRow label="Lease start"    value={tenant.lease_start?parseDateLocal(tenant.lease_start).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
+              <InfoRow label="Lease end"      value={tenant.lease_end?parseDateLocal(tenant.lease_end).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}/>
               <InfoRow label="Days remaining"    value={daysLeft!==null?(daysLeft>0?`${daysLeft} days`:"Expired"):"—"}/>
               <InfoRow label="Security deposit" value={tenant.security_deposit?`$${parseFloat(tenant.security_deposit).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"} last/>
               {leaseStart&&leaseEnd&&leaseEnd>leaseStart&&(

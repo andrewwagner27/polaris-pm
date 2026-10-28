@@ -64,7 +64,6 @@ export function useTenant() {
           .from("recurring_charges")
           .select("*")
           .eq("tenant_id", tenantData?.id || authUser.id)
-          .eq("status", "active")
           .order("created_at", { ascending: false });
 
         if (!mounted) return;
