@@ -3,13 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
   const body = await req.text();
-  const sig  = req.headers.get("stripe-signature");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
 
-  // Verify webhook signature
-  // Note: Deno doesn't have crypto.subtle HMAC verify built in easily,
-  // so we verify by re-fetching the event from Stripe directly
   let event;
   try {
     event = JSON.parse(body);
@@ -22,15 +18,15 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const paymentIntent = event.data?.object;
-  const paymentIntentId = paymentIntent?.id;
+  const obj = event.data?.object;
 
+  // ── Rent payment succeeded ──────────────────────────────────────────────
   if (event.type === "payment_intent.succeeded") {
+    const paymentIntentId = obj?.id;
     await supabase.from("payments")
       .update({ status: "paid", paid_at: new Date().toISOString() })
       .eq("stripe_payment_intent_id", paymentIntentId);
 
-    // Notify tenant
     const { data: payment } = await supabase.from("payments")
       .select("tenant_id, amount_cents")
       .eq("stripe_payment_intent_id", paymentIntentId)
@@ -47,10 +43,30 @@ serve(async (req) => {
     }
   }
 
+  // ── Rent payment failed ─────────────────────────────────────────────────
   if (event.type === "payment_intent.payment_failed") {
     await supabase.from("payments")
       .update({ status: "failed" })
-      .eq("stripe_payment_intent_id", paymentIntentId);
+      .eq("stripe_payment_intent_id", obj?.id);
+  }
+
+  // ── Stripe Connect: landlord completed onboarding ───────────────────────
+  if (event.type === "account.updated") {
+    const account = obj;
+    // details_submitted = landlord finished filling out Stripe's form
+    if (account?.details_submitted) {
+      const landlordId = account?.metadata?.landlord_id;
+      if (landlordId) {
+        await supabase.from("landlords")
+          .update({ stripe_onboarded: true })
+          .eq("id", landlordId);
+      } else {
+        // Fallback: match by stripe_account_id if metadata wasn't set
+        await supabase.from("landlords")
+          .update({ stripe_onboarded: true })
+          .eq("stripe_account_id", account.id);
+      }
+    }
   }
 
   return new Response(JSON.stringify({ received: true }), {

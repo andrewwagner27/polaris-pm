@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
@@ -314,11 +314,71 @@ function VendorsSection() {
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordSettings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState("profile");
   const [saved, setSaved]                 = useState(false);
   const [notifs, setNotifs]               = useState(NOTIFICATION_SETTINGS);
   const [profile, setProfile]             = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrewwagner27@gmail.com", phone: "(614) 555-0100" });
   const [company, setCompany]             = useState({ name: "Modus Property Management", address: "Columbus, OH", ein: "**-*******", website: "moduspm.com" });
+
+  // Stripe Connect state
+  const [stripeOnboarded,    setStripeOnboarded]    = useState(false);
+  const [stripeAccountId,    setStripeAccountId]    = useState(null);
+  const [stripeLoading,      setStripeLoading]      = useState(false);
+  const [stripeStatusMsg,    setStripeStatusMsg]    = useState("");
+  const [landlordId,         setLandlordId]         = useState(null);
+
+  // Load landlord Stripe status on mount
+  useEffect(() => {
+    async function loadStripeStatus() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("landlords")
+        .select("id, stripe_account_id, stripe_onboarded")
+        .eq("auth_user_id", user.id)
+        .single();
+      if (data) {
+        setLandlordId(data.id);
+        setStripeAccountId(data.stripe_account_id);
+        setStripeOnboarded(data.stripe_onboarded || false);
+      }
+    }
+    loadStripeStatus();
+  }, []);
+
+  // Handle Stripe redirect back after onboarding
+  useEffect(() => {
+    const stripeParam = searchParams.get("stripe");
+    if (stripeParam === "success") {
+      setStripeStatusMsg("✓ Bank account connected! Payments will route to your account.");
+      setStripeOnboarded(true);
+      setActiveSection("integrations");
+    } else if (stripeParam === "refresh") {
+      setStripeStatusMsg("Onboarding session expired — please try again.");
+      setActiveSection("integrations");
+    }
+  }, [searchParams]);
+
+  async function handleStripeConnect() {
+    if (!landlordId) { setStripeStatusMsg("Landlord profile not found."); return; }
+    setStripeLoading(true);
+    setStripeStatusMsg("");
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-connect-onboard", {
+        body: {
+          landlord_id: landlordId,
+          return_url:  `${window.location.origin}/settings?stripe=success`,
+          refresh_url: `${window.location.origin}/settings?stripe=refresh`,
+        },
+      });
+      if (error || data?.error) throw new Error(error?.message || data?.error);
+      window.location.href = data.onboarding_url;
+    } catch (err) {
+      setStripeStatusMsg(err.message || "Failed to start onboarding.");
+      setStripeLoading(false);
+    }
+  }
 
   function save() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
   function toggleNotif(id, type) { setNotifs(prev => prev.map(n => n.id === id ? { ...n, [type]: !n[type] } : n)); }
@@ -443,32 +503,89 @@ export default function LandlordSettings() {
             )}
 
             {activeSection === "integrations" && (
-              <Card>
-                <CardHeader title="Connected integrations" />
-                {[
-                  { name: "Stripe",     sub: "Payment processing for rent collection",     connected: false, color: C.blue  },
-                  { name: "Plaid",      sub: "Bank account verification for ACH payments", connected: false, color: C.green },
-                  { name: "Resend",     sub: "Email notifications and receipts",           connected: true,  color: C.gold  },
-                  { name: "Twilio",     sub: "SMS notifications to tenants",               connected: false, color: C.amber },
-                  { name: "QuickBooks", sub: "Sync income and expenses to QBO",            connected: false, color: C.textSub },
-                ].map((integ, i, arr) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 8, background: `${integ.color}18`, border: `1px solid ${integ.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: "50%", background: integ.color }} />
+              <>
+                {/* Stripe Connect — live */}
+                <Card>
+                  <CardHeader title="Stripe — Rent collection & payouts" sub="Connect your bank account to receive tenant payments automatically" />
+                  <div style={{ padding: "20px" }}>
+                    {stripeStatusMsg && (
+                      <div style={{ background: stripeStatusMsg.startsWith("✓") ? "rgba(114,176,42,0.1)" : "rgba(224,85,85,0.1)", color: stripeStatusMsg.startsWith("✓") ? C.green : C.red, fontSize: 12, padding: "10px 14px", borderRadius: 7, marginBottom: 16, border: `1px solid ${stripeStatusMsg.startsWith("✓") ? "rgba(114,176,42,0.2)" : "rgba(224,85,85,0.2)"}` }}>
+                        {stripeStatusMsg}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
+                      {/* Stripe logo placeholder */}
+                      <div style={{ width: 48, height: 48, borderRadius: 10, background: "rgba(74,154,232,0.1)", border: `1px solid rgba(74,154,232,0.25)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                          <rect x="2" y="5" width="20" height="14" rx="3" stroke={C.blue} strokeWidth="1.6"/>
+                          <path d="M2 10h20" stroke={C.blue} strokeWidth="1.6"/>
+                        </svg>
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{integ.name}</div>
-                        <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{integ.sub}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>
+                          {stripeOnboarded ? "Bank account connected" : "Bank account not connected"}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.textSub }}>
+                          {stripeOnboarded
+                            ? `Tenant payments route to your account automatically. Modus retains 5% platform fee.`
+                            : "Connect your bank account so tenant rent payments are deposited directly to you."}
+                        </div>
+                        {stripeAccountId && (
+                          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                            Account: {stripeAccountId}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {integ.connected
-                      ? <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: `${C.green}15`, color: C.green }}>● Connected</span>
-                      : <GhostBtn small onClick={() => {}}>Connect</GhostBtn>
-                    }
+
+                    {stripeOnboarded ? (
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 20, background: "rgba(114,176,42,0.12)", color: C.green }}>● Connected</span>
+                        <GhostBtn small onClick={handleStripeConnect}>Update bank info</GhostBtn>
+                      </div>
+                    ) : (
+                      <button onClick={handleStripeConnect} disabled={stripeLoading}
+                        style={{ background: stripeLoading ? "rgba(74,154,232,0.05)" : "rgba(74,154,232,0.1)", border: `1px solid rgba(74,154,232,0.3)`, color: C.blue, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: stripeLoading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", opacity: stripeLoading ? 0.7 : 1 }}>
+                        {stripeLoading ? "Redirecting to Stripe…" : "Connect bank account →"}
+                      </button>
+                    )}
+
+                    <div style={{ marginTop: 16, padding: "12px 14px", background: C.raised, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                      <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.6 }}>
+                        <strong style={{ color: C.textSub }}>How it works:</strong> Tenants pay rent through Modus → Stripe collects the funds → 95% deposits to your bank account within 3–5 business days → Modus retains the 5% platform fee automatically. No manual transfers needed.
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </Card>
+                </Card>
+
+                {/* Other integrations */}
+                <Card>
+                  <CardHeader title="Other integrations" />
+                  {[
+                    { name: "Plaid",      sub: "Bank account verification for ACH payments", connected: false, color: C.green },
+                    { name: "Resend",     sub: "Email notifications and receipts",           connected: true,  color: C.gold  },
+                    { name: "Twilio",     sub: "SMS notifications to tenants",               connected: false, color: C.amber },
+                    { name: "QuickBooks", sub: "Sync income and expenses to QBO",            connected: false, color: C.textSub },
+                  ].map((integ, i, arr) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 8, background: `${integ.color}18`, border: `1px solid ${integ.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <div style={{ width: 14, height: 14, borderRadius: "50%", background: integ.color }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{integ.name}</div>
+                          <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{integ.sub}</div>
+                        </div>
+                      </div>
+                      {integ.connected
+                        ? <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: `${C.green}15`, color: C.green }}>● Connected</span>
+                        : <GhostBtn small onClick={() => {}}>Connect</GhostBtn>
+                      }
+                    </div>
+                  ))}
+                </Card>
+              </>
             )}
 
             {activeSection === "billing" && (
