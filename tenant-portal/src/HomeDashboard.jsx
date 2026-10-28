@@ -174,7 +174,7 @@ export default function HomeDashboard() {
           </Tile>
 
           {/* Tile 3 — Lease Summary */}
-          <Tile>
+          <Tile style={{ gridColumn:"1 / -1" }}>
             <TileLabel>Lease Summary</TileLabel>
             <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
               <div style={{ display:"flex",justifyContent:"space-between" }}>
