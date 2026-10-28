@@ -173,19 +173,7 @@ export default function HomeDashboard() {
               </div>
           </Tile>
 
-          {/* Tile 3 — Security Deposit */}
-          <Tile>
-            <TileLabel>Security Deposit</TileLabel>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:600,color:C.textSub,lineHeight:1,marginBottom:6 }}>
-              {(tenant?.security_deposit != null && tenant.security_deposit > 0) ? fmt(tenant.security_deposit) : (tenant?.raw?.security_deposit ? fmt(parseFloat(tenant.raw.security_deposit)) : "—")}
-            </div>
-            <div style={{ fontSize:12,color:C.textMuted }}>Held in escrow · Refundable at move-out</div>
-            <div style={{ marginTop:14,padding:"10px 14px",background:C.raised,borderRadius:8,fontSize:12,color:C.textSub }}>
-              Deposit disputes are resolved within 30 days of move-out per your lease agreement.
-            </div>
-          </Tile>
-
-          {/* Tile 4 — Lease Summary */}
+          {/* Tile 3 — Lease Summary */}
           <Tile>
             <TileLabel>Lease Summary</TileLabel>
             <div style={{ display:"flex",flexDirection:"column",gap:10 }}>

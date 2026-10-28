@@ -304,7 +304,11 @@ function ACHForm({ tenant, user, rentAmount }) {
 
 export default function RentPaymentScreen() {
   const { tenant, user } = useTenant();
-  const rentAmount = tenant?.rent || 0;
+  // Use recurring charges total if set, otherwise fall back to unit base rent
+  const recurringTotal = tenant?.recurringCharges?.length > 0
+    ? tenant.recurringCharges.reduce((s, c) => s + parseFloat(c.amount || 0), 0)
+    : 0;
+  const rentAmount = recurringTotal > 0 ? recurringTotal : (tenant?.rent || 0);
   const [savedMethod, setSavedMethod] = useState(null);
 
   useEffect(() => {
