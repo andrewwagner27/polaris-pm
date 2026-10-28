@@ -153,16 +153,24 @@ export default function HomeDashboard() {
             <TileLabel>Upcoming Charges</TileLabel>
             {rentDue ? (
               <div>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}` }}>
-                  <div>
-                    <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Monthly Rent</div>
-                    <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Due {nextDueStr}</div>
+                {/* Show all active recurring charges */}
+                {(tenant?.recurringCharges?.length > 0 ? tenant.recurringCharges : [{ category: "Monthly Rent", amount: rentAmount, _isDefault: true }])
+                  .map((c, i, arr) => (
+                    <div key={c.id || "default"} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom: i < arr.length-1 ? `1px solid ${C.border}` : "none" }}>
+                      <div>
+                        <div style={{ fontSize:13,fontWeight:500,color:C.text }}>{c.category || "Monthly Rent"}</div>
+                        <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Due {nextDueStr}</div>
+                      </div>
+                      <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{fmt(parseFloat(c.amount||0))}</div>
+                    </div>
+                  ))
+                }
+                {tenant?.recurringCharges?.length > 0 && (
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,borderTop:`1px solid ${C.border}`,marginTop:2 }}>
+                    <span style={{ fontSize:11,color:C.textMuted,fontWeight:600 }}>Total / mo</span>
+                    <span style={{ fontSize:13,fontWeight:600,color:C.gold }}>{fmt(tenant.recurringCharges.reduce((s,c)=>s+parseFloat(c.amount||0),0))}</span>
                   </div>
-                  <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{fmt(rentAmount)}</div>
-                </div>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12 }}>
-                  <span style={{ fontSize:12,color:C.textMuted }}>No other charges scheduled</span>
-                </div>
+                )}
               </div>
             ) : (
               <div style={{ padding:"16px 0",color:C.textMuted,fontSize:13 }}>
@@ -176,7 +184,7 @@ export default function HomeDashboard() {
           <Tile>
             <TileLabel>Security Deposit</TileLabel>
             <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:600,color:C.textSub,lineHeight:1,marginBottom:6 }}>
-              {tenant?.raw?.security_deposit ? fmt(tenant.raw.security_deposit) : "—"}
+              {(tenant?.security_deposit || tenant?.raw?.security_deposit) ? fmt(tenant.security_deposit || tenant.raw.security_deposit) : "—"}
             </div>
             <div style={{ fontSize:12,color:C.textMuted }}>Held in escrow · Refundable at move-out</div>
             <div style={{ marginTop:14,padding:"10px 14px",background:C.raised,borderRadius:8,fontSize:12,color:C.textSub }}>

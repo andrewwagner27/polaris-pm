@@ -59,6 +59,14 @@ export function useTenant() {
           .order("created_at", { ascending: false })
           .limit(5);
 
+        // Fetch recurring charges (for upcoming payments display)
+        const { data: recurringCharges } = await supabase
+          .from("recurring_charges")
+          .select("*")
+          .eq("tenant_id", tenantData?.id || authUser.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
+
         if (!mounted) return;
 
         setTenant({
@@ -73,11 +81,13 @@ export function useTenant() {
           address:  propertyData
             ? `${propertyData.address}, ${propertyData.city} ${propertyData.state}`
             : "—",
-          rent:     unitData?.rent_amount || 0,
-          leaseStart: tenantData?.lease_start || null,
-          leaseEnd:   tenantData?.lease_end   || null,
-          payments:    payments    || [],
-          maintenance: maintenance || [],
+          rent:             unitData?.rent_amount || 0,
+          leaseStart:       tenantData?.lease_start || null,
+          leaseEnd:         tenantData?.lease_end   || null,
+          security_deposit: tenantData?.security_deposit || 0,
+          payments:         payments         || [],
+          maintenance:      maintenance      || [],
+          recurringCharges: recurringCharges || [],
           raw:  tenantData,
           role: role,
         });

@@ -277,7 +277,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
   const [charges,    setCharges]    = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
-  const [form,       setForm]       = useState({ category:"Rent", amount:"", due_day:"1", start_date:"", end_date:"" });
+  const [form,       setForm]       = useState({ category:"Rent", amount:"", start_date:"", end_date:"" });
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState("");
 
@@ -301,14 +301,13 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
       unit_id:    unit?.id||null,
       category:   form.category,
       amount:     parseFloat(form.amount),
-      due_day:    parseInt(form.due_day)||1,
       start_date: form.start_date||null,
       end_date:   form.end_date||null,
       status:     "active",
     });
     setSaving(false);
     if (error) { setFormError(error.message); return; }
-    setForm({ category:"Rent",amount:"",due_day:"1",start_date:"",end_date:"" });
+    setForm({ category:"Rent",amount:"",start_date:"",end_date:"" });
     setShowAdd(false);
     fetchCharges();
     if (onChargeChanged) onChargeChanged();
@@ -359,11 +358,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
               <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder="0.00"/>
             </div>
           </div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14 }}>
-            <div>
-              <FieldLabel>Due Day</FieldLabel>
-              <Input type="number" value={form.due_day} onChange={e=>update("due_day",e.target.value)} placeholder="1"/>
-            </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14 }}>
             <div>
               <FieldLabel>Start Date</FieldLabel>
               <Input type="date" value={form.start_date} onChange={e=>update("start_date",e.target.value)}/>
@@ -392,7 +387,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:C.raised }}>
-                <TH>Category</TH><TH>Amount</TH><TH>Due Day</TH><TH>Start → End</TH><TH>Status</TH><TH>Actions</TH>
+                <TH>Category</TH><TH>Amount</TH><TH>Start → End</TH><TH>Status</TH><TH>Actions</TH>
               </tr>
             </thead>
             <tbody>
@@ -402,7 +397,6 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
                   onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                   <TD bold>{c.category}</TD>
                   <TD bold>${parseFloat(c.amount||0).toLocaleString("en-US",{minimumFractionDigits:2})}/mo</TD>
-                  <TD>{c.due_day ? `${c.due_day}${c.due_day===1?"st":c.due_day===2?"nd":c.due_day===3?"rd":"th"}` : "—"}</TD>
                   <TD>
                     <span style={{ fontSize:11 }}>
                       {c.start_date?new Date(c.start_date).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"—"}
@@ -451,15 +445,21 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
 
   async function save() {
     setSaving(true); setSaved(false);
-    await supabase.from("tenants").update({
+    const { error: saveErr } = await supabase.from("tenants").update({
       lease_start:      form.lease_start||null,
       lease_end:        form.lease_end||null,
       lease_end_action: form.lease_end_action,
       security_deposit: form.security_deposit ? parseFloat(form.security_deposit) : null,
     }).eq("id",tenant.id);
-    setSaving(false); setSaved(true);
-    setTimeout(()=>setSaved(false),2000);
-    if (onUpdate) onUpdate();
+    setSaving(false);
+    if (!saveErr) {
+      setSaved(true);
+      setTimeout(()=>setSaved(false),2000);
+      // Don't call onUpdate() — it re-renders LeaseTab and resets the form.
+      // The save is persisted; parent will pick it up on next full load.
+    } else {
+      console.error("Lease save error:", saveErr);
+    }
   }
 
   const leaseEnd   = form.lease_end   ? new Date(form.lease_end)   : null;
