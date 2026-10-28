@@ -67,7 +67,10 @@ export default function ActivityLedger() {
   }
 
   function buildFromPayments(payments, tenant) {
-    const rentAmount = tenant?.rent || 0;
+    const recurringTotal = tenant?.recurringCharges?.length > 0
+      ? tenant.recurringCharges.reduce((s, c) => s + parseFloat(c.amount || 0), 0)
+      : 0;
+    const rentAmount = recurringTotal > 0 ? recurringTotal : (tenant?.rent || 0);
     const rows = [];
     let running = 0;
 
@@ -122,14 +125,10 @@ export default function ActivityLedger() {
           </div>
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 22px",flex:1,minWidth:140 }}>
             <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 }}>Monthly Rent</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.gold }}>${(tenant?.rent||0).toLocaleString()}</div>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.gold }}>${((tenant?.recurringCharges?.length > 0 ? tenant.recurringCharges.reduce((s,c)=>s+parseFloat(c.amount||0),0) : tenant?.rent)||0).toLocaleString()}</div>
             <div style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>Due 1st of each month</div>
           </div>
-          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 22px",flex:1,minWidth:140 }}>
-            <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 }}>Security Deposit</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.textSub }}>{tenant?.raw?.security_deposit ? `$${Number(tenant.raw.security_deposit).toLocaleString()}` : "—"}</div>
-            <div style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>Held in escrow</div>
-          </div>
+
         </div>
 
         {/* Ledger table */}
