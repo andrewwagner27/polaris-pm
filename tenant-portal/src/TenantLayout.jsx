@@ -102,15 +102,25 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
           {mobileNav.map(item => {
             const active = isActive(item.route);
             const badge  = item.label === "Messages" && unreadMessages > 0 ? unreadMessages : 0;
+            const icons  = {
+              "Home":    [["M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"], ["M9 22V12h6v10"]],
+              "Payment": [["M3 10h18M7 15h.01M11 15h2M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"]],
+              "Activity":[["M22 12h-4l-3 9L9 3l-3 9H2"]],
+              "Maint.":  [["M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3-3a1 1 0 000-1.4l-1.6-1.6a1 1 0 00-1.4 0l-3 3z","M11 13l-9 9"]],
+              "Messages":[["M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"]],
+            };
+            const paths = icons[item.label] || [["M12 12m-4 0a4 4 0 108 0"]];
             return (
               <button key={item.route} onClick={() => navigate(item.route)}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8px 2px 10px", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", position: "relative", minWidth: 0 }}>
-                {active && <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 20, height: 2, background: C.gold, borderRadius: 1 }} />}
-                <div style={{ position: "relative" }}>
-                  {badge > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: C.red, color: "#fff", borderRadius: 10, fontSize: 9, fontWeight: 700, padding: "1px 4px", minWidth: 14, textAlign: "center" }}>{badge}</span>}
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? C.gold : C.textMuted, margin: "0 auto 4px" }} />
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "10px 2px 12px", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", position: "relative", minWidth: 0, WebkitTapHighlightColor: "transparent" }}>
+                {active && <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 24, height: 2, background: C.gold, borderRadius: 1 }} />}
+                <div style={{ position: "relative", marginBottom: 4 }}>
+                  {badge > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: C.red, color: "#fff", borderRadius: 10, fontSize: 9, fontWeight: 700, padding: "1px 4px", minWidth: 14, textAlign: "center", zIndex: 1 }}>{badge}</span>}
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    {paths[0].map((d, i) => <path key={i} d={d}/>)}
+                  </svg>
                 </div>
-                <span style={{ fontSize: 9, color: active ? C.gold : C.textMuted, fontWeight: active ? 600 : 400, whiteSpace: "nowrap" }}>{item.label}</span>
+                <span style={{ fontSize: 10, color: active ? C.gold : C.textMuted, fontWeight: active ? 600 : 400, whiteSpace: "nowrap" }}>{item.label}</span>
               </button>
             );
           })}
