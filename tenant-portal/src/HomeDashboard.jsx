@@ -151,15 +151,14 @@ export default function HomeDashboard() {
           {/* Tile 2 — Upcoming Charges */}
           <Tile>
             <TileLabel>Upcoming Charges</TileLabel>
-            {rentDue ? (
-              <div>
-                {/* Show all active recurring charges */}
+            <div>
+                {/* Always show recurring charges; fall back to base rent */}
                 {(tenant?.recurringCharges?.length > 0 ? tenant.recurringCharges : [{ category: "Monthly Rent", amount: rentAmount, _isDefault: true }])
                   .map((c, i, arr) => (
                     <div key={c.id || "default"} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom: i < arr.length-1 ? `1px solid ${C.border}` : "none" }}>
                       <div>
                         <div style={{ fontSize:13,fontWeight:500,color:C.text }}>{c.category || "Monthly Rent"}</div>
-                        <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Due {nextDueStr}</div>
+                        <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>{rentDue ? `Due ${nextDueStr}` : `First due ${fmtDate(tenant?.leaseStart)}`}</div>
                       </div>
                       <div style={{ fontSize:15,fontWeight:600,color:C.text }}>{fmt(parseFloat(c.amount||0))}</div>
                     </div>
@@ -172,12 +171,6 @@ export default function HomeDashboard() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div style={{ padding:"16px 0",color:C.textMuted,fontSize:13 }}>
-                <div style={{ fontSize:13,color:C.text,fontWeight:500,marginBottom:4 }}>Lease not yet started</div>
-                First charge due {fmtDate(tenant?.leaseStart)}
-              </div>
-            )}
           </Tile>
 
           {/* Tile 3 — Security Deposit */}
@@ -218,7 +211,11 @@ export default function HomeDashboard() {
               <div style={{ height:1,background:C.border }} />
               <div style={{ display:"flex",justifyContent:"space-between" }}>
                 <span style={{ fontSize:12,color:C.textMuted }}>Monthly Rent</span>
-                <span style={{ fontSize:13,fontWeight:600,color:C.gold }}>{fmt(rentAmount)}</span>
+                <span style={{ fontSize:13,fontWeight:600,color:C.gold }}>
+                  {tenant?.recurringCharges?.length > 0
+                    ? fmt(tenant.recurringCharges.reduce((s,c)=>s+parseFloat(c.amount||0),0))
+                    : fmt(rentAmount)}
+                </span>
               </div>
             </div>
           </Tile>
