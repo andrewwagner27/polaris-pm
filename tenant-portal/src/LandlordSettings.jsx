@@ -320,6 +320,8 @@ export default function LandlordSettings() {
   const [notifs, setNotifs]               = useState(NOTIFICATION_SETTINGS);
   const [profile, setProfile]             = useState({ firstName: "Andrew", lastName: "Wagner", email: "andrewwagner27@gmail.com", phone: "(614) 555-0100" });
   const [company, setCompany]             = useState({ name: "Modus Property Management", address: "Columbus, OH", ein: "**-*******", website: "moduspm.com" });
+  const [pwForm,  setPwForm]              = useState({ current: "", newPw: "", confirm: "" });
+  const [pwMsg,   setPwMsg]               = useState({ text: "", ok: false });
 
   // Stripe Connect state
   const [stripeOnboarded,    setStripeOnboarded]    = useState(false);
@@ -408,6 +410,17 @@ export default function LandlordSettings() {
   function save() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
   function toggleNotif(id, type) { setNotifs(prev => prev.map(n => n.id === id ? { ...n, [type]: !n[type] } : n)); }
 
+  async function updatePassword() {
+    setPwMsg({ text: "", ok: false });
+    if (!pwForm.current) { setPwMsg({ text: "Enter your current password.", ok: false }); return; }
+    if (pwForm.newPw.length < 8) { setPwMsg({ text: "New password must be at least 8 characters.", ok: false }); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwMsg({ text: "New passwords do not match.", ok: false }); return; }
+    const { error } = await supabase.auth.updateUser({ password: pwForm.newPw });
+    if (error) { setPwMsg({ text: error.message, ok: false }); return; }
+    setPwMsg({ text: "\u2713 Password updated successfully.", ok: true });
+    setPwForm({ current: "", newPw: "", confirm: "" });
+  }
+
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
@@ -461,11 +474,17 @@ export default function LandlordSettings() {
                 <Card>
                   <CardHeader title="Password" sub="Change your login password" />
                   <div style={{ padding: "20px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
-                      <div><FieldLabel>Current password</FieldLabel><Input type="password" placeholder="••••••••" value="" onChange={() => {}} /></div>
-                      <div><FieldLabel>New password</FieldLabel><Input type="password" placeholder="••••••••" value="" onChange={() => {}} /></div>
+                    {pwMsg.text && (
+                      <div style={{ background: pwMsg.ok ? "rgba(114,176,42,0.1)" : "rgba(224,85,85,0.1)", color: pwMsg.ok ? C.green : C.red, fontSize: 12, padding: "10px 14px", borderRadius: 7, marginBottom: 14, border: `1px solid ${pwMsg.ok ? "rgba(114,176,42,0.2)" : "rgba(224,85,85,0.2)"}` }}>
+                        {pwMsg.text}
+                      </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
+                      <div><FieldLabel>Current password</FieldLabel><Input type="password" placeholder="••••••••" value={pwForm.current} onChange={e => setPwForm(f => ({...f, current: e.target.value}))} /></div>
+                      <div><FieldLabel>New password</FieldLabel><Input type="password" placeholder="••••••••" value={pwForm.newPw} onChange={e => setPwForm(f => ({...f, newPw: e.target.value}))} /></div>
+                      <div><FieldLabel>Confirm new password</FieldLabel><Input type="password" placeholder="••••••••" value={pwForm.confirm} onChange={e => setPwForm(f => ({...f, confirm: e.target.value}))} /></div>
                     </div>
-                    <PrimaryBtn onClick={() => {}}>Update password</PrimaryBtn>
+                    <PrimaryBtn onClick={updatePassword}>Update password</PrimaryBtn>
                   </div>
                 </Card>
               </>
