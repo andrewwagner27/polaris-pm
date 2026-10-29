@@ -6,19 +6,19 @@ import AssignVendorModal from "./AssignVendorModal";
 import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const PRIORITY = {
@@ -380,7 +380,7 @@ export default function LandlordMaintenance() {
               {["all","open","in_progress","quote_submitted","pending_review","resolved"].map(f => (
                 <button key={f} className="m-filter" onClick={() => setStatusFilter(f)} style={{
                   padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  background: statusFilter === f ? C.goldDim : "transparent",
+                  background: statusFilter === f ? "rgba(201,169,110,0.12)" : "transparent",
                   color: statusFilter === f ? C.text : C.textSub,
                   border: `1px solid ${statusFilter === f ? C.goldDim : C.border}`,
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif", textTransform: "capitalize", transition: "all 0.12s",
@@ -682,13 +682,13 @@ export default function LandlordMaintenance() {
                     return (
                       <div key={c.id} style={{ marginBottom: 14, display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexDirection: isMe ? "row-reverse" : "row" }}>
-                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? "rgba(201,169,110,0.18)" : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
                           <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub }}>{displayName}</span>
                           {!c.visible_to_tenant && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber, fontWeight: 600 }}>🔒 Internal</span>}
                           {c.visible_to_tenant  && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(114,176,42,0.13)", color: C.green, fontWeight: 600 }}>👁 Visible</span>}
                           <span style={{ fontSize: 10, color: C.textMuted }}>{date}</span>
                         </div>
-                        <div style={{ maxWidth: "82%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.goldDim : C.border}`, borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", padding: "10px 14px" }}>
+                        <div style={{ maxWidth: "82%", background: isMe ? "rgba(201,169,110,0.15)" : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", padding: "10px 14px" }}>
                           <p style={{ fontSize: 13, color: isMe ? C.text : C.textSub, lineHeight: 1.5, margin: 0 }}>{c.body}</p>
                         </div>
                       </div>
@@ -702,7 +702,7 @@ export default function LandlordMaintenance() {
                     <option value="hidden">🔒 Internal only</option>
                     <option value="visible">👁 Visible to tenant</option>
                   </select>
-                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{ padding: "8px 16px", background: newComment.trim() ? C.goldDim : C.raised, color: newComment.trim() ? C.text : C.textMuted, border: `1px solid ${newComment.trim() ? C.goldDim : C.border}`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
+                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{ padding: "8px 16px", background: newComment.trim() ? "rgba(201,169,110,0.12)" : C.raised, color: newComment.trim() ? C.gold : C.textMuted, border: `1px solid ${newComment.trim() ? C.gold : C.border}`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
                     {posting ? "Posting…" : "Post"}
                   </button>
                 </div>
@@ -761,14 +761,14 @@ export default function LandlordMaintenance() {
       {/* Rejection modal */}
       {rejectTicket && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#111316", border:"1px solid #252930", borderRadius:12, width:"100%", maxWidth:440, padding:"28px 24px" }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, width:"100%", maxWidth:440, padding:"28px 24px" }}>
             <div style={{ fontSize:15, fontWeight:600, color:"#EDEAE2", marginBottom:6 }}>Request more work</div>
             <div style={{ fontSize:13, color:"#9095A0", marginBottom:16 }}>Tell the vendor what still needs to be done. They'll be notified via email.</div>
             <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
               placeholder="e.g. The leak is still present under the sink. Please return to complete the repair."
-              rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:"1px solid #252930", borderRadius:8, background:"#181C21", color:"#EDEAE2", outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
+              rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:"1px solid #252930", borderRadius:7, fontSize:13, color:"#9095A0", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+              <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
               <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A96E", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif", opacity:rejectNotes.trim()?1:0.5 }}>
                 {rejecting ? "Sending…" : "↩ Send to vendor"}
               </button>

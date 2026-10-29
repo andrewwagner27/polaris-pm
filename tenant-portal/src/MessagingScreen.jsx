@@ -5,19 +5,20 @@ import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#F5F3EE",
+  surface:  "#FFFFFF",
+  raised:   "#F8F7F4",
+  border:   "#E4E1DA",
+  text:     "#18181B",
+  textSub:  "#52525B",
+  textMuted:"#A1A1AA",
+  gold:     "#8B6914",
+  goldBg:   "#FBF6EC",
+  goldDim:  "#C9A96E",
+  blue:     "#1D4ED8",
+  green:    "#15803D",
+  red:      "#DC2626",
+  amber:    "#92400E",
 };
 
 const QUICK_REPLIES = [
@@ -155,6 +156,7 @@ export default function MessagingScreen() {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .t-quick:hover{border-color:${C.goldDim}!important;color:${C.gold}!important;}
+        @media(max-width:480px){.msg-bubble{max-width:88%!important;} .msg-input-row{padding:10px 12px!important;}}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
         ::-webkit-scrollbar:horizontal{height:0;}
       `}</style>

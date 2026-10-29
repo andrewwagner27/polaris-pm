@@ -3,14 +3,17 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
 
 const C = {
-  bg:       "#0A0B0D",
-  surface:  "#111316",
-  border:   "#252930",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
   text:     "#EDEAE2",
   textSub:  "#9095A0",
   textMuted:"#5C6270",
   gold:     "#C9A96E",
-  goldDim:  "#7A5C2E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
   red:      "#E05555",
   amber:    "#F0A430",
 };
@@ -47,7 +50,7 @@ const NAV = [
 export default function LandlordLayout({ children, openMaintenance = 0, unreadMessages = 0 }) {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const [landlordName, setLandlordName] = useState("Andrew Wagner");
+  const [landlordName, setLandlordName] = useState("");
   const [showPopover,  setShowPopover]  = useState(false);
 
   useEffect(() => {
@@ -70,7 +73,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .l-nav:hover{background:rgba(255,255,255,0.04)!important;color:${C.text}!important;}
-        .l-pop-item:hover{background:#181C21!important;}
+        .l-pop-item:hover{background:#1A1F29!important;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
@@ -112,7 +115,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         {/* Footer */}
         <div style={{ borderTop:`1px solid ${C.border}`,position:"relative" }}>
           {showPopover&&(
-            <div style={{ position:"absolute",bottom:"100%",left:8,right:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+            <div style={{ position:"absolute",bottom:"100%",left:8,right:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:6,boxShadow:"0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)" }}>
               <div className="l-pop-item" onClick={()=>{ navigate("/landlord/settings"); setShowPopover(false); }}
                 style={{ padding:"10px 14px",fontSize:13,color:C.text,cursor:"pointer",display:"flex",alignItems:"center",gap:8,borderBottom:`1px solid ${C.border}` }}>
                 <div style={{ width:6,height:6,borderRadius:"50%",background:C.gold }}/> Settings

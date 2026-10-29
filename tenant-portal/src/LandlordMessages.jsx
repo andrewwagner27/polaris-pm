@@ -5,19 +5,19 @@ import LandlordLayout from "./LandlordLayout";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
@@ -322,7 +322,7 @@ export default function LandlordMessages() {
               {["all", "unread"].map(f => (
                 <button key={f} onClick={() => setFilter(f)} style={{
                   padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 500,
-                  background: filter === f ? C.goldDim : "transparent",
+                  background: filter === f ? "rgba(201,169,110,0.12)" : "transparent",
                   color: filter === f ? C.text : C.textSub,
                   border: `1px solid ${filter === f ? C.goldDim : C.border}`,
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s",
@@ -430,7 +430,7 @@ export default function LandlordMessages() {
                             ? <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${C.blue}22`, border: `1px solid ${C.blue}44`, color: C.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>AI</div>
                             : <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{activeTenant.initials}</div>
                       )}
-                      <div style={{ maxWidth: "65%", padding: "10px 14px", borderRadius: fromMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: fromMe ? C.goldDim : isAI ? `${C.blue}14` : C.surface, border: fromMe ? "none" : isAI ? `1px solid ${C.blue}33` : `1px solid ${C.border}`, fontSize: 13, color: C.text, lineHeight: 1.5 }}>
+                      <div style={{ maxWidth: "65%", padding: "10px 14px", borderRadius: fromMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: fromMe ? "rgba(201,169,110,0.18)" : isAI ? `${C.blue}14` : C.surface, border: fromMe ? `1px solid ${C.gold}44` : isAI ? `1px solid ${C.blue}33` : `1px solid ${C.border}`, fontSize: 13, color: C.text, lineHeight: 1.5 }}>
                         {item.body}
                       </div>
                       {fromMe && (
@@ -470,7 +470,7 @@ export default function LandlordMessages() {
               <button
                 onClick={() => sendMessage(input)}
                 disabled={!input.trim() || !activeTenant.user_id || sending}
-                style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && activeTenant.user_id ? C.goldDim : C.raised, border: `1px solid ${input.trim() && activeTenant.user_id ? C.goldDim : C.border}`, cursor: input.trim() && activeTenant.user_id ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: input.trim() && activeTenant.user_id ? C.gold : C.textMuted, flexShrink: 0, transition: "all 0.15s" }}
+                style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && activeTenant.user_id ? "rgba(201,169,110,0.12)" : C.raised, border: `1px solid ${input.trim() && activeTenant.user_id ? C.gold : C.border}`, cursor: input.trim() && activeTenant.user_id ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: input.trim() && activeTenant.user_id ? C.gold : C.textMuted, flexShrink: 0, transition: "all 0.15s" }}
               >➤</button>
             </div>
           </div>

@@ -4,19 +4,19 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 // ─── Shared UI atoms ───────────────────────────────────────────────────────
@@ -340,7 +340,7 @@ function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
         <div style={{ display:"flex",gap:8 }}>
           {["all","paid","pending","failed"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
-              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.07)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
+              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
           ))}

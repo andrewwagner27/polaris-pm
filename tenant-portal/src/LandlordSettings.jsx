@@ -4,19 +4,19 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const TRADE_CATEGORIES = [
@@ -109,7 +109,7 @@ function CardHeader({ title, sub, action }) {
 
 function Toggle({ on, onToggle }) {
   return (
-    <div onClick={onToggle} style={{ width: 36, height: 20, borderRadius: 10, background: on ? C.goldDim : C.raised, border: `1px solid ${on ? C.goldDim : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
+    <div onClick={onToggle} style={{ width: 36, height: 20, borderRadius: 10, background: on ? "rgba(201,169,110,0.30)" : C.raised, border: `1px solid ${on ? C.gold : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
       <div style={{ width: 14, height: 14, borderRadius: "50%", background: on ? C.gold : C.textMuted, position: "absolute", top: 2, left: on ? 19 : 2, transition: "left 0.2s" }} />
     </div>
   );

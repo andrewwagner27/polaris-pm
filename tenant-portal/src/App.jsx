@@ -26,6 +26,7 @@ import HomeDashboard          from "./HomeDashboard";
 import RentPaymentScreen      from "./RentPaymentScreen";
 import TenantMaintenanceList  from "./TenantMaintenanceList";
 import TenantMaintenanceDetail from "./TenantMaintenanceDetail";
+import MaintenanceRequestForm from "./MaintenanceRequestForm";
 import MessagingScreen        from "./MessagingScreen";
 import BulletinBoard          from "./BulletinBoard";
 import AccountScreen          from "./AccountScreen";
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/home"              element={<ProtectedTenantRoute><HomeDashboard/></ProtectedTenantRoute>}/>
         <Route path="/pay"               element={<ProtectedTenantRoute><RentPaymentScreen/></ProtectedTenantRoute>}/>
         <Route path="/maintenance"       element={<ProtectedTenantRoute><TenantMaintenanceList/></ProtectedTenantRoute>}/>
+        <Route path="/maintenance/new"    element={<ProtectedTenantRoute><MaintenanceRequestForm/></ProtectedTenantRoute>}/>
         <Route path="/maintenance/:id"   element={<ProtectedTenantRoute><TenantMaintenanceDetail/></ProtectedTenantRoute>}/>
         <Route path="/messages"          element={<ProtectedTenantRoute><MessagingScreen/></ProtectedTenantRoute>}/>
         <Route path="/bulletin"          element={<ProtectedTenantRoute><BulletinBoard/></ProtectedTenantRoute>}/>

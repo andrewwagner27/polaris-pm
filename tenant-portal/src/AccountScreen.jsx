@@ -5,9 +5,9 @@ import { useTenant } from "./useTenant";
 import TenantLayout from "./TenantLayout";
 
 const C = {
-  bg:"#0A0B0D",surface:"#111316",raised:"#181C21",border:"#252930",
-  text:"#EDEAE2",textSub:"#9095A0",textMuted:"#5C6270",
-  gold:"#C9A96E",goldDim:"#7A5C2E",blue:"#4A9AE8",green:"#72B02A",red:"#E05555",amber:"#F0A430",
+  bg:"#F5F3EE",surface:"#FFFFFF",raised:"#F8F7F4",border:"#E4E1DA",
+  text:"#18181B",textSub:"#52525B",textMuted:"#A1A1AA",
+  gold:"#8B6914",goldBg:"#FBF6EC",goldDim:"#C9A96E",blue:"#1D4ED8",green:"#15803D",red:"#DC2626",amber:"#92400E",
 };
 
 function fmtDate(d) {
@@ -78,17 +78,17 @@ export default function AccountScreen() {
 
   const initials = (tenant?.name||"T").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
-  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textSub,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
+  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
 
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
         *,*::before,*::after{box-sizing:border-box;}
-        @media(max-width:767px){.acct-layout{flex-direction:column!important;} .acct-sidebar{width:100%!important;border-right:none!important;border-bottom:1px solid ${C.border}!important;flex-direction:row!important;gap:4px!important;padding:12px!important;}}
+        @media(max-width:767px){.acct-layout{flex-direction:column!important;} .acct-sidebar{width:100%!important;border-right:none!important;border-bottom:1px solid ${C.border}!important;flex-direction:row!important;gap:4px!important;padding:10px 8px!important;overflow-x:auto!important;} .acct-wrap{padding:16px 14px 80px!important;}}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"36px 40px 80px",maxWidth:900,margin:"0 auto" }}>
+      <div className="acct-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 80px",maxWidth:900,margin:"0 auto" }}>
 
         {/* Header */}
         <div style={{ marginBottom:28 }}>
@@ -129,7 +129,7 @@ export default function AccountScreen() {
                   <InputField label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="(555) 000-0000" />
                   <InputField label="Email" value={email} readOnly placeholder="—" />
                   <button onClick={saveProfile} disabled={saving}
-                    style={{ padding:"10px 20px",background:C.goldDim,border:"none",borderRadius:8,color:C.text,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1 }}>
+                    style={{ padding:"10px 20px",background:C.gold,border:"none",borderRadius:8,color:C.text,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1 }}>
                     {saving?"Saving…":saved?"Saved ✓":"Save Changes"}
                   </button>
                 </div>
@@ -141,7 +141,7 @@ export default function AccountScreen() {
                   <InputField label="Confirm Password" value={confirmPw} onChange={setConfirmPw} type="password" placeholder="Confirm new password" />
                   {pwMsg && <div style={{ fontSize:12,color:pwMsg.includes("Error")?C.red:C.green,marginBottom:10 }}>{pwMsg}</div>}
                   <button onClick={changePassword} disabled={pwSaving}
-                    style={{ padding:"10px 20px",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:pwSaving?0.7:1 }}>
+                    style={{ padding:"10px 20px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:pwSaving?0.7:1 }}>
                     {pwSaving?"Updating…":"Update Password"}
                   </button>
                 </div>
@@ -197,7 +197,7 @@ export default function AccountScreen() {
                 <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:12 }}>Move-In Inspection</div>
                 <div style={{ fontSize:13,color:C.textSub,marginBottom:20 }}>View or complete your move-in inspection report.</div>
                 <button onClick={()=>navigate("/inspection")}
-                  style={{ padding:"11px 24px",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                  style={{ padding:"11px 24px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
                   Open Inspection →
                 </button>
               </div>

@@ -7,16 +7,19 @@ const LANDLORD_EMAILS = [
 ];
 
 const C = {
-  bg:       "#0A0B0D",
-  surface:  "#111316",
-  raised:   "#181C21",
-  border:   "#252930",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
   text:     "#EDEAE2",
   textSub:  "#9095A0",
   textMuted:"#5C6270",
   gold:     "#C9A96E",
-  goldDim:  "#7A5C2E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
   red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 function ModusMark({ size = 36 }) {
@@ -71,7 +74,7 @@ export default function LandlordLogin() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0A0B0D; }
+        body { background: #0C0E12; }
       `}</style>
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "40px 36px", width: "100%", maxWidth: 400 }}>

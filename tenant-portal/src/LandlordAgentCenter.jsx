@@ -4,20 +4,19 @@ import LandlordLayout from "./LandlordLayout";
 
 // ── Design tokens ───────────────────────────────────────────
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  red:       "#E05555",
-  green:     "#72B02A",
-  amber:     "#F0A430",
-  blue:      "#4A9AE8",
-  purple:    "#9B7FE8",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 // ── Action badge config ─────────────────────────────────────
@@ -203,7 +202,7 @@ function OverrideModal({ log, onClose, onSave }) {
             fontFamily: "'DM Sans', sans-serif",
           }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{
-            flex: 2, padding: "10px", background: C.goldDim,
+            flex: 2, padding: "10px", background: "rgba(201,169,110,0.12)", border: `1px solid ${C.gold}`,
             border: "none", borderRadius: 8,
             fontSize: 13, fontWeight: 500, color: C.text,
             cursor: saving ? "default" : "pointer",
@@ -294,7 +293,7 @@ function RuleRow({ rule, onUpdate, onDelete }) {
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           {editing ? (
             <>
-              <button onClick={save} disabled={saving} style={{ padding: "5px 12px", background: C.goldDim, border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.text, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={save} disabled={saving} style={{ padding: "5px 12px", background: "rgba(201,169,110,0.10)", border: `1px solid ${C.gold}`, borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                 {saving ? "…" : "Save"}
               </button>
               <button onClick={() => setEditing(false)} style={{ padding: "5px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
@@ -595,7 +594,7 @@ export default function LandlordAgentCenter() {
                   loadData();
                 }}
                 style={{
-                  padding: "8px 16px", background: C.goldDim, border: "none",
+                  padding: "8px 16px", background: "rgba(201,169,110,0.10)", border: `1px solid ${C.gold}`,
                   borderRadius: 8, fontSize: 12, fontWeight: 500, color: C.text,
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
                 }}>

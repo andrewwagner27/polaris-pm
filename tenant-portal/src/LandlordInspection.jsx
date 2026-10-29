@@ -3,10 +3,19 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
 const C = {
-  bg:"#0A0B0D", surface:"#111316", raised:"#181C21", border:"#252930",
-  text:"#EDEAE2", textSub:"#9095A0", textMuted:"#5C6270",
-  gold:"#C9A96E", goldDim:"#7A5C2E",
-  blue:"#4A9AE8", green:"#72B02A", red:"#E05555", amber:"#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const DEFAULT_ROOMS = [
@@ -98,7 +107,7 @@ function PhotoUploader({ photos, setPhotos, rooms, label = "Add Photos" }) {
             style={{ width:"100%", padding:"7px 10px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:12, outline:"none" }} />
         </div>
         <button onClick={()=>fileRef.current?.click()}
-          style={{ padding:"7px 14px", background:C.goldDim, border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+          style={{ padding:"7px 14px", background:"rgba(201,169,110,0.10)", border:`1px solid ${C.gold}`, borderRadius:6, color:C.gold, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
           + Photo
         </button>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleAdd} style={{ display:"none" }} />
@@ -431,7 +440,7 @@ export default function LandlordInspection() {
             <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>End-to-end inspection workflow — document condition, get tenant sign-off, compare at move-out, issue deposit decisions</p>
           </div>
           <button onClick={()=>{ setFTenant(""); setFDate(new Date().toISOString().slice(0,10)); setFRooms(DEFAULT_ROOMS.map(r=>({room:r.room,room_notes:"",items:r.items.map(name=>({name,status:"Good",notes:""}))})));setFNotes("");setFPhotos([]); setView("create"); }}
-            style={{ padding:"9px 18px", background:C.goldDim, border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+            style={{ padding:"9px 18px", background:"rgba(201,169,110,0.10)", border:`1px solid ${C.gold}`, borderRadius:6, color:C.gold, fontSize:13, fontWeight:600, cursor:"pointer" }}>
             + New Inspection
           </button>
         </div>
@@ -500,7 +509,7 @@ export default function LandlordInspection() {
             <div>
               <label style={{ fontSize:11, color:C.textMuted, display:"block", marginBottom:5 }}>TENANT</label>
               <select value={fTenant} onChange={e=>setFTenant(e.target.value)}
-                style={{ width:"100%", padding:"8px 12px", background:C.raised, border:`1px solid ${fTenant?C.goldDim:C.border}`, borderRadius:6, color:fTenant?C.text:C.textMuted, fontSize:13, outline:"none" }}>
+                style={{ width:"100%", padding:"8px 12px", background:C.raised, border:`1px solid ${fTenant?C.gold:C.border}`, borderRadius:6, color:fTenant?C.text:C.textMuted, fontSize:13, outline:"none" }}>
                 <option value="">Select active tenant…</option>
                 {tenants.map(t=><option key={t.id} value={t.id}>{getTenantDisplay(t)}</option>)}
               </select>
@@ -528,7 +537,7 @@ export default function LandlordInspection() {
 
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <button onClick={savePreMoveIn} disabled={saving}
-            style={{ padding:"10px 24px", background:fTenant?C.goldDim:"transparent", border:`1px solid ${fTenant?C.goldDim:C.border}`, borderRadius:6, color:fTenant?C.gold:C.textMuted, fontSize:13, fontWeight:600, cursor:saving||!fTenant?"default":"pointer", opacity:saving?0.6:1 }}>
+            style={{ padding:"10px 24px", background:fTenant?"rgba(201,169,110,0.10)":"transparent", border:`1px solid ${fTenant?C.gold:C.border}`, borderRadius:6, color:fTenant?C.gold:C.textMuted, fontSize:13, fontWeight:600, cursor:saving||!fTenant?"default":"pointer", opacity:saving?0.6:1 }}>
             {saving ? "Saving…" : "Save Pre-Move-In Inspection →"}
           </button>
           {msg&&<span style={{ fontSize:13, color:msg.startsWith("Error")?C.red:C.green }}>{msg}</span>}
@@ -563,7 +572,7 @@ export default function LandlordInspection() {
               <StatusBadge status={selected.status}/>
               {canMoveOut && (
                 <button onClick={()=>startMoveOut(selected)}
-                  style={{ padding:"8px 16px", background:C.goldDim, border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                  style={{ padding:"8px 16px", background:"rgba(201,169,110,0.10)", border:`1px solid ${C.gold}`, borderRadius:6, color:C.gold, fontSize:12, fontWeight:600, cursor:"pointer" }}>
                   Begin Move-Out Inspection →
                 </button>
               )}
@@ -823,7 +832,7 @@ export default function LandlordInspection() {
 
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <button onClick={saveMoveOut} disabled={saving}
-              style={{ padding:"10px 24px", background:C.goldDim, border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, fontSize:13, fontWeight:600, cursor:saving?"default":"pointer", opacity:saving?0.6:1 }}>
+              style={{ padding:"10px 24px", background:"rgba(201,169,110,0.10)", border:`1px solid ${C.gold}`, borderRadius:6, color:C.gold, fontSize:13, fontWeight:600, cursor:saving?"default":"pointer", opacity:saving?0.6:1 }}>
               {saving?"Saving…":"Save Move-Out & Close Inspection ✓"}
             </button>
             {msg&&<span style={{ fontSize:13, color:msg.startsWith("Error")?C.red:C.green }}>{msg}</span>}

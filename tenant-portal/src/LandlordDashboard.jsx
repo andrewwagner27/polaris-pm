@@ -5,19 +5,19 @@ import LandlordLayout from "./LandlordLayout";
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
 const C = {
-  bg:       "#0A0B0D",   // page background
-  surface:  "#111316",   // card surface
-  raised:   "#181C21",   // table header / raised elements
-  border:   "#252930",   // all borders — one value, no confusion
-  text:     "#EDEAE2",   // primary text — warm white, fully legible
-  textSub:  "#9095A0",   // secondary text — readable on dark
-  textMuted:"#5C6270",   // timestamps, minor labels
-  gold:     "#C9A96E",   // brand accent
-  goldDim:  "#7A5C2E",   // dimmed gold for links/borders
-  blue:     "#4A9AE8",   // collected
-  red:      "#E05555",   // outstanding
-  green:    "#72B02A",   // occupancy
-  amber:    "#F0A430",   // maintenance
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const STATUS = {
@@ -136,8 +136,14 @@ export default function LandlordDashboard() {
   const [payments, setPayments]       = useState([]);
   const [maintenance, setMaintenance] = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [landlordName, setLandlordName] = useState("");
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata?.full_name) setLandlordName(user.user_metadata.full_name);
+    });
+  }, []);
 
   async function fetchAll() {
     setLoading(true);
@@ -209,7 +215,7 @@ export default function LandlordDashboard() {
         .m-addbtn:hover  { background: rgba(201,169,110,0.06) !important; }
         .m-prop:hover    { border-color: #353A44 !important; }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #2A2D35; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
       `}</style>
 
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
@@ -224,7 +230,7 @@ export default function LandlordDashboard() {
                   fontFamily: "'Cormorant Garamond', serif",
                   fontSize: isMobile ? 22 : 26, fontWeight: 600,
                   color: C.text, letterSpacing: "0.01em", lineHeight: 1.2,
-                }}>Good morning, Andrew</div>
+                }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}{landlordName ? `, ${landlordName.split(" ")[0]}` : ""}</div>
                 <div style={{ fontSize: 13, color: C.textSub, marginTop: 4, letterSpacing: "0.02em" }}>
                   {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                 </div>
@@ -333,7 +339,7 @@ export default function LandlordDashboard() {
                 {["all","paid","pending","late","vacant"].map(f => (
                   <button key={f} onClick={() => setRentFilter(f)} style={{
                     padding: "4px 12px", borderRadius: 5, fontSize: 12, fontWeight: 500,
-                    background: rentFilter === f ? C.goldDim : "transparent",
+                    background: rentFilter === f ? "rgba(201,169,110,0.12)" : "transparent",
                     color: rentFilter === f ? C.text : C.textSub,
                     border: `1px solid ${rentFilter === f ? C.goldDim : C.border}`,
                     cursor: "pointer", fontFamily: "'DM Sans', sans-serif",

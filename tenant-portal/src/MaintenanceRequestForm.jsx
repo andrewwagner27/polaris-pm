@@ -6,19 +6,20 @@ import { notifyNewMaintenanceTicket } from "./notifications";
 import TenantLayout from "./TenantLayout";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#F5F3EE",
+  surface:  "#FFFFFF",
+  raised:   "#F8F7F4",
+  border:   "#E4E1DA",
+  text:     "#18181B",
+  textSub:  "#52525B",
+  textMuted:"#A1A1AA",
+  gold:     "#8B6914",
+  goldBg:   "#FBF6EC",
+  goldDim:  "#C9A96E",
+  blue:     "#1D4ED8",
+  green:    "#15803D",
+  red:      "#DC2626",
+  amber:    "#92400E",
 };
 
 const CATEGORIES = [
@@ -351,7 +352,7 @@ export default function MaintenanceRequestForm() {
         )}
 
         {/* Submit */}
-        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:C.gold, cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
+        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
           {loading ? <><Spinner/> Submitting…</> : "Submit request →"}
         </button>
       </div>

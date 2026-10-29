@@ -4,19 +4,19 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  blue:      "#4A9AE8",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
+  bg:       "#0C0E12",
+  surface:  "#14181F",
+  raised:   "#1A1F29",
+  border:   "rgba(255,255,255,0.08)",
+  text:     "#EDEAE2",
+  textSub:  "#9095A0",
+  textMuted:"#5C6270",
+  gold:     "#C9A96E",
+  goldDim:  "#6B4F24",
+  blue:     "#4A9AE8",
+  green:    "#72B02A",
+  red:      "#E05555",
+  amber:    "#F0A430",
 };
 
 const STATUS = {
@@ -341,7 +341,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
       </div>
 
       {showAdd&&(
-        <div style={{ background:C.raised,border:`1px solid ${C.goldDim}`,borderRadius:10,padding:"16px",marginBottom:16 }}>
+        <div style={{ background:C.raised,border:`1px solid ${C.gold}`,borderRadius:10,padding:"16px",marginBottom:16 }}>
           {formError&&<div style={{ color:C.red,fontSize:12,marginBottom:12 }}>{formError}</div>}
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
             <div>
@@ -661,7 +661,7 @@ export default function LandlordTenantDetail() {
 
       <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
 
-        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:20,padding:0 }}
+        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.gold,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:20,padding:0 }}
           onMouseOver={e=>e.currentTarget.style.color=C.gold}
           onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
         >← Back to Tenants</button>
@@ -886,7 +886,7 @@ export default function LandlordTenantDetail() {
             </div>
             <a
               href="/landlord/inspections"
-              style={{ display:"inline-block",padding:"10px 20px",background:C.goldDim,borderRadius:8,fontSize:13,fontWeight:500,color:C.text,textDecoration:"none",fontFamily:"'DM Sans',sans-serif" }}
+              style={{ display:"inline-block",padding:"10px 20px",background:"rgba(201,169,110,0.12)",borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,textDecoration:"none",fontFamily:"'DM Sans',sans-serif" }}
             >
               Open Inspections →
             </a>

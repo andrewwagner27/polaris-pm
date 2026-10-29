@@ -4,9 +4,9 @@ import { useTenant } from "./useTenant";
 import TenantLayout from "./TenantLayout";
 
 const C = {
-  bg:"#0A0B0D",surface:"#111316",raised:"#181C21",border:"#252930",
-  text:"#EDEAE2",textSub:"#9095A0",textMuted:"#5C6270",
-  gold:"#C9A96E",goldDim:"#7A5C2E",blue:"#4A9AE8",green:"#72B02A",red:"#E05555",amber:"#F0A430",
+  bg:"#F5F3EE",surface:"#FFFFFF",raised:"#F8F7F4",border:"#E4E1DA",
+  text:"#18181B",textSub:"#52525B",textMuted:"#A1A1AA",
+  gold:"#8B6914",goldBg:"#FBF6EC",goldDim:"#C9A96E",blue:"#1D4ED8",green:"#15803D",red:"#DC2626",amber:"#92400E",
 };
 
 const CATEGORY_COLORS = {
@@ -102,7 +102,7 @@ function CommentThread({ post, tenant }) {
                     <input value={editText} onChange={e=>setEditText(e.target.value)}
                       style={inputStyle({ padding:"6px 10px", fontSize:12, flex:1 })}/>
                     <button onClick={()=>saveEdit(c.id)}
-                      style={{ padding:"6px 12px", background:C.gold, color:"#0A0B0D", border:"none", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Save</button>
+                      style={{ padding:"6px 12px", background:C.gold, color:C.bg, border:"none", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Save</button>
                     <button onClick={()=>setEditId(null)}
                       style={{ padding:"6px 10px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
                   </div>
@@ -121,7 +121,7 @@ function CommentThread({ post, tenant }) {
           placeholder="Write a comment…"
           style={inputStyle({ flex:1, padding:"8px 12px", fontSize:12 })}/>
         <button onClick={submit} disabled={submitting || !text.trim()}
-          style={{ padding:"8px 14px", background:C.gold, color:"#0A0B0D", border:"none", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:(!text.trim()||submitting)?0.5:1 }}>
+          style={{ padding:"8px 14px", background:C.gold, color:C.bg, border:"none", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:(!text.trim()||submitting)?0.5:1 }}>
           {submitting ? "…" : "Post"}
         </button>
       </div>
@@ -237,7 +237,7 @@ export default function BulletinBoard() {
   const categories = ["all", ...Array.from(new Set(posts.map(p=>p.category).filter(Boolean)))];
   const filtered   = filter === "all" ? posts : posts.filter(p => p.category === filter);
 
-  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textSub,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
+  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
 
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
@@ -289,7 +289,7 @@ export default function BulletinBoard() {
               </div>
               {postErr && <div style={{ fontSize:12, color:C.red, background:"rgba(224,85,85,0.1)", border:`1px solid ${C.red}`, borderRadius:6, padding:"8px 12px" }}>{postErr}</div>}
               <button onClick={submitPost} disabled={posting}
-                style={{ alignSelf:"flex-end", padding:"9px 22px", borderRadius:8, border:"none", background:C.gold, color:"#0A0B0D", fontSize:13, fontWeight:600, cursor:posting?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:posting?0.7:1 }}>
+                style={{ alignSelf:"flex-end", padding:"9px 22px", borderRadius:8, border:"none", background:C.gold, color:C.bg, fontSize:13, fontWeight:600, cursor:posting?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:posting?0.7:1 }}>
                 {posting ? "Posting…" : "Post"}
               </button>
             </div>
@@ -364,7 +364,7 @@ export default function BulletinBoard() {
                         <button onClick={()=>setEditPost(null)}
                           style={{ padding:"7px 14px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
                         <button onClick={saveEdit} disabled={saving}
-                          style={{ padding:"7px 16px", background:C.gold, color:"#0A0B0D", border:"none", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:saving?0.7:1 }}>{saving?"Saving…":"Save"}</button>
+                          style={{ padding:"7px 16px", background:C.gold, color:C.bg, border:"none", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:saving?0.7:1 }}>{saving?"Saving…":"Save"}</button>
                       </div>
                     </div>
                   ) : (
