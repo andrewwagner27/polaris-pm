@@ -347,16 +347,41 @@ export default function LandlordSettings() {
     loadStripeStatus();
   }, []);
 
-  // Handle Stripe redirect back after onboarding
+  // Handle Stripe redirect back after onboarding — verify directly with Stripe
   useEffect(() => {
     const stripeParam = searchParams.get("stripe");
+    if (!stripeParam) return;
+    setActiveSection("integrations");
+
     if (stripeParam === "success") {
-      setStripeStatusMsg("✓ Bank account connected! Payments will route to your account.");
-      setStripeOnboarded(true);
-      setActiveSection("integrations");
+      // Verify with Stripe directly and update Supabase
+      async function verifyAndMark() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: landlord } = await supabase
+          .from("landlords")
+          .select("id, stripe_account_id")
+          .eq("auth_user_id", user.id)
+          .single();
+        if (!landlord?.stripe_account_id) return;
+
+        // Call edge function to verify + mark onboarded
+        const { data, error } = await supabase.functions.invoke("stripe-connect-verify", {
+          body: { landlord_id: landlord.id, stripe_account_id: landlord.stripe_account_id },
+        });
+
+        if (!error && data?.onboarded) {
+          setStripeOnboarded(true);
+          setStripeAccountId(landlord.stripe_account_id);
+          setLandlordId(landlord.id);
+          setStripeStatusMsg("✓ Bank account connected! Payments will route to your account.");
+        } else {
+          setStripeStatusMsg("Stripe account created but verification pending — check back shortly.");
+        }
+      }
+      verifyAndMark();
     } else if (stripeParam === "refresh") {
       setStripeStatusMsg("Onboarding session expired — please try again.");
-      setActiveSection("integrations");
     }
   }, [searchParams]);
 
@@ -368,8 +393,8 @@ export default function LandlordSettings() {
       const { data, error } = await supabase.functions.invoke("stripe-connect-onboard", {
         body: {
           landlord_id: landlordId,
-          return_url:  `${window.location.origin}/settings?stripe=success`,
-          refresh_url: `${window.location.origin}/settings?stripe=refresh`,
+          return_url:  `${window.location.origin}/landlord/settings?stripe=success`,
+          refresh_url: `${window.location.origin}/landlord/settings?stripe=refresh`,
         },
       });
       if (error || data?.error) throw new Error(error?.message || data?.error);
