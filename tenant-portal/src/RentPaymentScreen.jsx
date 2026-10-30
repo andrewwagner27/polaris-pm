@@ -332,7 +332,7 @@ export default function RentPaymentScreen() {
         body{background:${C.bg};}
       `}</style>
 
-      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 16px 60px",maxWidth:580,margin:"0 auto" }}>
+      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 60px" }}>
 
         <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
         <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>

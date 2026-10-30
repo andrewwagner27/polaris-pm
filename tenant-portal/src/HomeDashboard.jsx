@@ -127,7 +127,7 @@ export default function HomeDashboard() {
         }
       `}</style>
 
-      <div className="home-pad" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"28px 32px 80px", maxWidth:1000, margin:"0 auto" }}>
+      <div className="home-pad" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"28px 24px 80px" }}>
 
         {/* ── Greeting ── */}
         <div style={{ marginBottom:20 }}>

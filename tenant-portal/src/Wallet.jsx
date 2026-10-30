@@ -9,19 +9,20 @@ const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K5
 const stripePromise = loadStripe(STRIPE_PK);
 
 const C = {
-  bg:        "#0A0B0D",
-  surface:   "#111316",
-  raised:    "#181C21",
-  border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
-  goldDim:   "#7A5C2E",
-  green:     "#72B02A",
-  red:       "#E05555",
-  amber:     "#F0A430",
-  blue:      "#4A9AE8",
+  bg:       "#F5F3EE",
+  surface:  "#FFFFFF",
+  raised:   "#F8F7F4",
+  border:   "#E4E1DA",
+  text:     "#18181B",
+  textSub:  "#52525B",
+  textMuted:"#A1A1AA",
+  gold:     "#8B6914",
+  goldBg:   "#FBF6EC",
+  goldDim:  "#C9A96E",
+  green:    "#15803D",
+  red:      "#DC2626",
+  amber:    "#92400E",
+  blue:     "#1D4ED8",
 };
 
 function Spinner() {
@@ -102,7 +103,7 @@ function LinkBankForm({ tenant, user, onLinked }) {
       ) : (
         <button
           onClick={linkBank}
-          style={{ width:"100%",padding:"12px",background:C.goldDim,border:"none",borderRadius:8,fontSize:13,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}
+          style={{ width:"100%",padding:"12px",background:"rgba(139,105,20,0.10)",border:`1px solid ${C.gold}`,borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}
         >
           + Link new bank account
         </button>
@@ -381,10 +382,10 @@ export default function Wallet() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};}
+        body{background:#F5F3EE;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"32px 20px 64px",maxWidth:580,margin:"0 auto" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"32px 20px 64px" }}>
         <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4 }}>Wallet</div>
         <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>Saved bank accounts &amp; autopay settings</div>
 

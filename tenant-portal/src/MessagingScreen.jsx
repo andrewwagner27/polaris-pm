@@ -53,8 +53,15 @@ export default function MessagingScreen() {
     return () => clearInterval(pollRef.current);
   }, []);
 
+  // Only scroll to bottom when a NEW message is added (count goes up),
+  // not on every poll refresh. Uses a ref to track previous length.
+  const prevMsgCountRef = useRef(0);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const newCount = messages.length;
+    if (newCount > prevMsgCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevMsgCountRef.current = newCount;
   }, [messages]);
 
   async function fetchMessages() {
