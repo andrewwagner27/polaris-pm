@@ -9,15 +9,16 @@ const C = {
   surface:  "#14181F",
   raised:   "#1A1F29",
   border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
-  goldDim:  "#6B4F24",
+  text:     "#F0EDE6",
+  textSub:  "#7A7F8A",
+  textMuted:"#4A4F5A",
+  gold:     "#B99A5B",
+  goldDim:  "rgba(185,154,91,0.18)",
+  goldText: "#C9A96E",
   blue:     "#4A9AE8",
-  green:    "#72B02A",
+  green:    "#4CAF50",
   red:      "#E05555",
-  amber:    "#F0A430",
+  amber:    "#D4871A",
 };
 
 const STATUS = {
@@ -92,30 +93,32 @@ function CardHeader({ title, sub, action, onAction }) {
       </div>
       {action && (
         <button onClick={onAction} style={{
-          fontSize: 12, color: C.goldDim, background: "none", border: "none",
+          fontSize: 12, color: C.textSub, background: "none", border: "none",
           cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s",
         }}
-          onMouseOver={e => e.currentTarget.style.color = C.gold}
-          onMouseOut={e => e.currentTarget.style.color = C.goldDim}
-        >{action}</button>
+          onMouseOver={e => e.currentTarget.style.color = C.text}
+          onMouseOut={e => e.currentTarget.style.color = C.textSub}
+        >{action} →</button>
       )}
     </div>
   );
 }
 
 // ─── Stat card ─────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, accent }) {
+function StatCard({ label, value, sub, accent, primary }) {
   return (
     <div style={{
-      background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 10, padding: "18px 20px",
+      background: C.surface, border: `1px solid ${primary ? "rgba(185,154,91,0.25)" : C.border}`,
+      borderRadius: 10, padding: "18px 20px", position:"relative", overflow:"hidden",
     }}>
-      <div style={{ fontSize: 11, fontWeight: 500, color: C.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>
+      {primary && <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.gold},transparent)` }}/>}
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
         {label}
       </div>
       <div style={{
         fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 32, fontWeight: 600, color: accent,
+        fontSize: 30, fontWeight: 600,
+        color: primary ? C.goldText : C.text,
         lineHeight: 1, marginBottom: 6,
       }}>{value}</div>
       <div style={{ fontSize: 12, color: C.textSub }}>{sub}</div>
@@ -198,10 +201,10 @@ export default function LandlordDashboard() {
   }));
 
   const stats = [
-    { label: "Collected · " + now.toLocaleDateString("en-US", { month: "short" }), value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, accent: C.blue },
-    { label: "Outstanding",      value: loading ? "—" : String(rentRollRows.filter(r => r.status === "pending" || r.status === "late").length), sub: "tenants pending or late", accent: C.red },
-    { label: "Occupancy",        value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units`, accent: C.green },
-    { label: "Open Maintenance", value: loading ? "—" : String(openMaint.length), sub: "active requests", accent: C.amber },
+    { label: "Collected · " + now.toLocaleDateString("en-US", { month: "short" }), value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, primary: true },
+    { label: "Outstanding",      value: loading ? "—" : String(rentRollRows.filter(r => r.status === "pending" || r.status === "late").length), sub: "pending or late" },
+    { label: "Occupancy",        value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units` },
+    { label: "Open Maintenance", value: loading ? "—" : String(openMaint.length), sub: "active requests" },
   ];
 
   return (
@@ -210,9 +213,9 @@ export default function LandlordDashboard() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
-        .m-action:hover  { color: ${C.gold} !important; }
+        .m-action:hover  { color: ${C.text} !important; }
         .m-row:hover td  { background: ${C.raised} !important; }
-        .m-addbtn:hover  { background: rgba(201,169,110,0.06) !important; }
+        .m-addbtn:hover  { background: rgba(255,255,255,0.04) !important; color: #F0EDE6 !important; border-color: rgba(255,255,255,0.2) !important; }
         .m-prop:hover    { border-color: #353A44 !important; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -238,10 +241,10 @@ export default function LandlordDashboard() {
             </div>
             {!isMobile && (
               <button className="m-addbtn" onClick={() => navigate("/landlord/tenants")} style={{
-                background: "transparent", border: `1px solid ${C.goldDim}`,
-                color: C.gold, fontSize: 13, fontWeight: 500,
+                background: "transparent", border: `1px solid ${C.border}`,
+                color: C.textSub, fontSize: 13, fontWeight: 500,
                 padding: "9px 20px", borderRadius: 7, cursor: "pointer",
-                fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.04em", transition: "background 0.15s",
+                fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.02em", transition: "all 0.15s",
               }}>+ Add Tenant</button>
             )}
           </div>
@@ -257,11 +260,8 @@ export default function LandlordDashboard() {
 
           {/* ── Properties ── */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase" }}>Properties</span>
-            <button className="m-action" onClick={() => navigate("/landlord/properties")} style={{
-              fontSize: 13, color: C.goldDim, background: "none", border: "none",
-              cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
-            }}>+ Add property</button>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.12em", textTransform: "uppercase" }}>Properties</span>
+            <button className="m-action" onClick={() => navigate("/landlord/properties")} style={{ fontSize: 12, color: C.textSub, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}>+ Add property</button>
           </div>
 
           {loading ? (
@@ -440,10 +440,9 @@ export default function LandlordDashboard() {
                     borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
                   }}>
                     <div style={{
-                      width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                      background: a.paid ? "rgba(114,176,42,0.13)" : "rgba(224,85,85,0.13)",
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13,
-                    }}>{a.paid ? "💰" : "⚠️"}</div>
+                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0, marginTop: 5,
+                      background: a.paid ? "#4CAF50" : "#E05555",
+                    }}/>
                     <div>
                       <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{a.text}</div>
                       <div style={{ fontSize: 11, color: C.textSub, marginTop: 3 }}>{a.time}</div>

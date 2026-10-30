@@ -7,15 +7,16 @@ const C = {
   surface:  "#14181F",
   raised:   "#1A1F29",
   border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
-  goldDim:  "#6B4F24",
+  text:     "#F0EDE6",
+  textSub:  "#7A7F8A",
+  textMuted:"#4A4F5A",
+  gold:     "#B99A5B",
+  goldDim:  "rgba(185,154,91,0.18)",
+  goldText: "#C9A96E",
   blue:     "#4A9AE8",
-  green:    "#72B02A",
+  green:    "#4CAF50",
   red:      "#E05555",
-  amber:    "#F0A430",
+  amber:    "#D4871A",
 };
 
 function ModusMark({ size = 32 }) {
@@ -72,7 +73,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
-        .l-nav:hover{background:rgba(255,255,255,0.04)!important;color:${C.text}!important;}
+        .l-nav:hover{background:rgba(255,255,255,0.03)!important;color:#F0EDE6!important;}
         .l-pop-item:hover{background:#1A1F29!important;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
@@ -81,11 +82,11 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
       <div style={{ width:220,background:C.bg,borderRight:`1px solid ${C.border}`,minHeight:"100vh",display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto" }}>
 
         {/* Logo */}
-        <div style={{ padding:"24px 20px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
-          <ModusMark size={30}/>
+        <div style={{ padding:"22px 18px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+          <ModusMark size={28}/>
           <div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:C.text,letterSpacing:"0.08em" }}>MODUS</div>
-            <div style={{ fontSize:9,color:C.textMuted,letterSpacing:"0.14em" }}>PROPERTY MANAGEMENT</div>
+            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:C.text,letterSpacing:"0.1em" }}>MODUS</div>
+            <div style={{ fontSize:9,color:C.textMuted,letterSpacing:"0.16em",marginTop:1 }}>PROPERTY MGMT</div>
           </div>
         </div>
 
@@ -93,7 +94,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         <div style={{ padding:"8px 10px",flex:1 }}>
           {NAV.map(section=>(
             <div key={section.section} style={{ marginBottom:16 }}>
-              <div style={{ fontSize:9,fontWeight:700,color:C.textMuted,letterSpacing:"0.14em",padding:"0 8px",marginBottom:4 }}>{section.section}</div>
+              <div style={{ fontSize:9,fontWeight:700,color:C.textMuted,letterSpacing:"0.16em",padding:"6px 10px 4px",opacity:0.7 }}>{section.section}</div>
               {section.items.map(item=>{
                 const active = isActive(item.path);
                 const badge = item.label==="Maintenance"&&openMaintenance>0 ? openMaintenance
@@ -104,7 +105,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
                     onClick={()=>navigate(item.path)}
                     style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:active?500:400,color:active?C.gold:C.textSub,background:active?"rgba(201,169,110,0.07)":"transparent",borderLeft:`2px solid ${active?C.gold:"transparent"}`,transition:"all 0.12s",marginBottom:1 }}>
                     <span>{item.label}</span>
-                    {badge>0&&<span style={{ fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,background:item.label==="Messages"?C.blue:C.amber,color:"#fff",minWidth:18,textAlign:"center" }}>{badge}</span>}
+                    {badge>0&&<span style={{ fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,background:item.label==="Messages"?"#2563EB":C.amber,color:"#fff",minWidth:18,textAlign:"center" }}>{badge}</span>}
                   </div>
                 );
               })}
@@ -127,7 +128,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
             </div>
           )}
           <div style={{ padding:"16px 20px",display:"flex",alignItems:"center",gap:10,cursor:"pointer" }} onClick={()=>setShowPopover(p=>!p)}>
-            <div style={{ width:34,height:34,borderRadius:"50%",background:`${C.gold}22`,border:`1px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0 }}>{initials}</div>
+            <div style={{ width:32,height:32,borderRadius:"50%",background:"rgba(185,154,91,0.12)",border:`1px solid rgba(185,154,91,0.22)`,color:C.goldText,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,flexShrink:0,letterSpacing:"0.02em" }}>{initials}</div>
             <div style={{ flex:1,minWidth:0 }}>
               <div style={{ fontSize:13,fontWeight:500,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{landlordName}</div>
               <div style={{ fontSize:11,color:C.textMuted }}>Portfolio Owner</div>
