@@ -208,14 +208,18 @@ export default function HomeDashboard() {
             </button>
 
             {/* Lease docs */}
-            <button onClick={() => navigate("/account")} className="t-action-btn"
-              style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
+            <button
+              onClick={() => tenant?.lease_document_url ? window.open(tenant.lease_document_url, "_blank") : navigate("/account")}
+              className="t-action-btn"
+              style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${tenant?.lease_document_url ? C.blue : C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ width:30, height:30, borderRadius:7, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
               </div>
               <div>
                 <div style={{ fontSize:12, fontWeight:600, color:C.text }}>Lease &amp; Docs</div>
-                <div style={{ fontSize:11, color:C.textMuted }}>{fmtDate(tenant?.leaseEnd)}</div>
+                <div style={{ fontSize:11, color:tenant?.lease_document_url ? C.blue : C.textMuted }}>
+                  {tenant?.lease_document_url ? "View lease →" : fmtDate(tenant?.leaseEnd)}
+                </div>
               </div>
             </button>
           </div>

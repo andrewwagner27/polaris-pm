@@ -428,10 +428,38 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
     lease_end_action: tenant.lease_end_action||"month_to_month",
     security_deposit: tenant.security_deposit||tenant.raw?.security_deposit||"",
   });
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [leaseDocUrl,  setLeaseDocUrl]  = useState(tenant.lease_document_url||"");
+  const [uploading,    setUploading]    = useState(false);
+  const [uploadMsg,    setUploadMsg]    = useState("");
+  const [uploadErr,    setUploadErr]    = useState("");
 
   const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
+
+  async function uploadLeaseDoc(file) {
+    if (!file) return;
+    if (file.type !== "application/pdf") { setUploadErr("Please upload a PDF file."); return; }
+    if (file.size > 20 * 1024 * 1024) { setUploadErr("File must be under 20 MB."); return; }
+    setUploading(true); setUploadMsg(""); setUploadErr("");
+    const path = `${tenant.id}/lease-${Date.now()}.pdf`;
+    const { error: upErr } = await supabase.storage.from("lease-documents").upload(path, file, { upsert: true, contentType: "application/pdf" });
+    if (upErr) { setUploadErr(upErr.message); setUploading(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from("lease-documents").getPublicUrl(path);
+    const { error: dbErr } = await supabase.from("tenants").update({ lease_document_url: publicUrl }).eq("id", tenant.id);
+    if (dbErr) { setUploadErr(dbErr.message); setUploading(false); return; }
+    setLeaseDocUrl(publicUrl);
+    setUploadMsg("Lease uploaded — tenant can now view it in their portal.");
+    setUploading(false);
+    setTimeout(() => setUploadMsg(""), 5000);
+  }
+
+  async function removeLeaseDoc() {
+    await supabase.from("tenants").update({ lease_document_url: null }).eq("id", tenant.id);
+    setLeaseDocUrl("");
+    setUploadMsg("Lease document removed.");
+    setTimeout(() => setUploadMsg(""), 3000);
+  }
 
   const [saveErr, setSaveErr] = useState("");
   async function save() {
@@ -539,6 +567,63 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
         <InfoRow label="Bathrooms"       value={unit?.bathrooms??"—"}/>
         <InfoRow label="Payment Due Day" value={unit?.payment_due_day?`${unit.payment_due_day}${unit.payment_due_day===1?"st":unit.payment_due_day===2?"nd":unit.payment_due_day===3?"rd":"th"} of month`:"—"} last/>
       </InfoCard>
+
+      {/* ── Lease Document Upload ─────────────────────────────── */}
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"18px 20px" }}>
+        <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14 }}>Lease Document</div>
+
+        {uploadMsg && (
+          <div style={{ background:"rgba(114,176,42,0.10)",border:`1px solid rgba(114,176,42,0.25)`,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:C.green }}>
+            ✓ {uploadMsg}
+          </div>
+        )}
+        {uploadErr && (
+          <div style={{ background:"rgba(224,85,85,0.10)",border:`1px solid rgba(224,85,85,0.25)`,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:C.red }}>
+            {uploadErr}
+          </div>
+        )}
+
+        {leaseDocUrl ? (
+          <div>
+            <div style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:C.raised,borderRadius:8,border:`1px solid ${C.border}`,marginBottom:12 }}>
+              <div style={{ width:36,height:36,borderRadius:7,background:`rgba(74,154,232,0.12)`,border:`1px solid rgba(74,154,232,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>📄</div>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Lease Agreement</div>
+                <div style={{ fontSize:11,color:C.textSub }}>Visible to tenant in their portal</div>
+              </div>
+              <a href={leaseDocUrl} target="_blank" rel="noreferrer"
+                style={{ fontSize:12,color:C.blue,textDecoration:"none",fontWeight:500,flexShrink:0 }}>
+                View →
+              </a>
+            </div>
+            <div style={{ display:"flex",gap:8 }}>
+              <label style={{ flex:1,padding:"10px 14px",background:"rgba(201,169,110,0.08)",border:`1px solid ${C.gold}`,borderRadius:7,fontSize:12,fontWeight:500,color:C.gold,cursor:"pointer",textAlign:"center",display:"block" }}>
+                {uploading ? "Uploading…" : "Replace document"}
+                <input type="file" accept="application/pdf" style={{ display:"none" }} disabled={uploading}
+                  onChange={e => uploadLeaseDoc(e.target.files?.[0])}/>
+              </label>
+              <button onClick={removeLeaseDoc}
+                style={{ padding:"10px 14px",background:"none",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,color:C.textSub,cursor:"pointer" }}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ textAlign:"center",padding:"20px 0 16px",marginBottom:12 }}>
+              <div style={{ width:48,height:48,borderRadius:"50%",background:"rgba(74,154,232,0.10)",border:`1px solid rgba(74,154,232,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px",fontSize:22 }}>📄</div>
+              <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:4 }}>No lease document uploaded</div>
+              <div style={{ fontSize:12,color:C.textSub,lineHeight:1.5 }}>Upload a PDF — the tenant will see it in their portal under Lease &amp; Docs.</div>
+            </div>
+            <label style={{ display:"block",width:"100%",padding:"11px 14px",background:"rgba(201,169,110,0.08)",border:`1px solid ${C.gold}`,borderRadius:7,fontSize:13,fontWeight:500,color:C.gold,cursor:"pointer",textAlign:"center",boxSizing:"border-box" }}>
+              {uploading ? "Uploading…" : "Upload lease PDF"}
+              <input type="file" accept="application/pdf" style={{ display:"none" }} disabled={uploading}
+                onChange={e => uploadLeaseDoc(e.target.files?.[0])}/>
+            </label>
+            <div style={{ fontSize:11,color:C.textMuted,textAlign:"center",marginTop:8 }}>PDF only · max 20 MB</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

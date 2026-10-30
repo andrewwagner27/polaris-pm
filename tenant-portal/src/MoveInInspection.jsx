@@ -152,7 +152,7 @@ export default function MoveInInspection() {
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
-      <div style={{ padding:"24px 20px", maxWidth:640, margin:"0 auto", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ padding:"24px 20px", fontFamily:"'DM Sans',sans-serif" }}>
 
         {/* Done state */}
         {done && (

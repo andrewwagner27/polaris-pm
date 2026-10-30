@@ -88,7 +88,7 @@ export default function AccountScreen() {
         @media(max-width:767px){.acct-layout{flex-direction:column!important;} .acct-sidebar{width:100%!important;border-right:none!important;border-bottom:1px solid ${C.border}!important;flex-direction:row!important;gap:4px!important;padding:10px 8px!important;overflow-x:auto!important;} .acct-wrap{padding:16px 14px 80px!important;}}
       `}</style>
 
-      <div className="acct-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 80px",maxWidth:900,margin:"0 auto" }}>
+      <div className="acct-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 80px" }}>
 
         {/* Header */}
         <div style={{ marginBottom:28 }}>
