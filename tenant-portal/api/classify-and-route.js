@@ -3,15 +3,12 @@
 // Human-tone rewrite: no hallucinated rent context, match-the-input behavior
 // 4-Tier Escalation: EMERGENCY | TENANT_DAMAGE | MAINTENANCE | DISPUTE
 // Accepts: POST { message: string, tenant_id: string, message_id?: string }
+// Requires: Authorization: Bearer <Supabase session JWT> of the tenant who owns tenant_id (or a landlord)
 
-import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { Resend } from "resend";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
+import { dispatchVendor } from "./_lib/dispatchVendor.js";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -232,10 +229,40 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { message, tenant_id, message_id } = req.body || {};
+  const caller = await requireCaller(req, res);
+  if (!caller) return;
+
+  const { tenant_id, message_id } = req.body || {};
+  let message = req.body?.message;
 
   if (!message || !tenant_id) {
     return res.status(400).json({ error: "message and tenant_id are required" });
+  }
+
+  // ── 0. Authorization: caller must own this tenant record ─
+  const { data: owner } = await supabase
+    .from("tenants")
+    .select("id, user_id")
+    .eq("id", tenant_id)
+    .maybeSingle();
+
+  if (!owner) return res.status(404).json({ error: "Tenant not found" });
+  if (!isLandlord(caller) && owner.user_id !== caller.user.id) {
+    return res.status(403).json({ error: "Not authorized for this tenant" });
+  }
+
+  // If a message_id is supplied it must belong to this tenant thread; use the stored body
+  if (message_id) {
+    const { data: storedMsg } = await supabase
+      .from("messages")
+      .select("id, tenant_id, sender_id, body")
+      .eq("id", message_id)
+      .maybeSingle();
+    if (!storedMsg || storedMsg.tenant_id !== tenant_id ||
+        (!isLandlord(caller) && storedMsg.sender_id !== caller.user.id)) {
+      return res.status(403).json({ error: "Message does not belong to this tenant" });
+    }
+    message = storedMsg.body;
   }
 
   try {
@@ -390,17 +417,11 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
 
       if (classification.dispatch_vendor && ticketId) {
         try {
-          await fetch(`https://getmodusam.com/api/dispatch-vendor`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ticket_id: ticketId,
-              tenant_id: tenant_id,
-              description: message,
-              priority: classification.urgency,
-              unit: tenant?.units?.unit_number,
-              property: tenant?.units?.properties?.name,
-            }),
+          await dispatchVendor({
+            ticket_id: ticketId,
+            description: message,
+            unit: tenant?.units?.unit_number,
+            property: tenant?.units?.properties?.name,
           });
         } catch (dispatchErr) {
           console.warn("Vendor dispatch failed (non-fatal):", dispatchErr.message);

@@ -1,31 +1,64 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient, corsHeaders, getCaller, json } from "../_shared/security.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const MAX_AMOUNT_CENTS = 10_000_000; // $100,000 sanity cap
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
 
   try {
-    const { tenant_id, unit_id, amount_cents, payment_method_id, customer_id } = await req.json();
+    const body = await req.json();
+    const { tenant_id, payment_method_id, customer_id } = body;
+    // Client sends rentAmount * 100, which can carry float error (e.g. 123455.99999)
+    const amount_cents = Math.round(Number(body.amount_cents));
 
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeSecretKey) throw new Error("STRIPE_SECRET_KEY not set");
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = adminClient();
+
+    // ── Authorization: caller must be the signed-in tenant who owns tenant_id ──
+    const caller = await getCaller(req, supabase);
+    if (!caller?.user) return json(req, { error: "Authentication required" }, 401);
+
+    if (!tenant_id || !customer_id || !payment_method_id) {
+      return json(req, { error: "tenant_id, customer_id and payment_method_id are required" }, 400);
+    }
+    if (!Number.isFinite(amount_cents) || amount_cents <= 0 || amount_cents > MAX_AMOUNT_CENTS) {
+      return json(req, { error: "Invalid amount" }, 400);
+    }
 
     // Look up the property owner's Stripe Connect account via: tenant → unit → property → landlord
     const { data: tenant } = await supabase
       .from("tenants")
-      .select("unit_id, property_id")
+      .select("unit_id, property_id, user_id")
       .eq("id", tenant_id)
-      .single();
+      .maybeSingle();
+
+    if (!tenant || tenant.user_id !== caller.user.id) {
+      return json(req, { error: "Not authorized for this tenant" }, 403);
+    }
+
+    // The Stripe customer must belong to this tenant (created by create-setup-intent
+    // with metadata.tenant_id, or recorded in tenant_payment_methods).
+    const customerRes = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customer_id)}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    const customer = await customerRes.json();
+    let ownsCustomer = !customer.error && customer?.metadata?.tenant_id === tenant_id;
+    if (!ownsCustomer) {
+      const { data: savedMethod } = await supabase
+        .from("tenant_payment_methods")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("stripe_customer_id", customer_id)
+        .limit(1)
+        .maybeSingle();
+      ownsCustomer = !!savedMethod;
+    }
+    if (!ownsCustomer) return json(req, { error: "Payment method does not belong to this tenant" }, 403);
+
+    const unit_id = tenant.unit_id || null;
 
     const { data: property } = await supabase
       .from("properties")
@@ -91,17 +124,12 @@ serve(async (req) => {
       source: "ach",
     });
 
-    return new Response(JSON.stringify({
+    return json(req, {
       payment_intent_id: paymentIntent.id,
       status: paymentIntent.status,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json(req, { error: err.message }, 400);
   }
 });

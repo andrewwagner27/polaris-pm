@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "./supabase";
 import { notifyVendorComplete, notifyQuoteReceived } from "./notifications";
+import { getVendorSession, vendorCall, uploadVendorFile, VendorAuthError } from "./vendorApi";
 
 const C = {
   bg:        "#0A0B0D",
@@ -68,54 +68,38 @@ export default function VendorTicket() {
   const quotePhotoRef                           = useRef(null);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("vendor_token");
-    if (savedToken !== token) { navigate(`/vendor/${token}`); return; }
+    // Having a session in sessionStorage is not authorization — the server verifies it on every call
+    if (!getVendorSession(token)) { navigate(`/vendor/${token}`); return; }
     fetchTicket();
   }, [token]);
 
+  // Runs a vendor API call; on an invalid/expired session, sends the vendor back to the PIN screen.
+  async function guarded(fn) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof VendorAuthError) { navigate(`/vendor/${token}`); return null; }
+      console.warn("Vendor action failed:", err.message);
+      return null;
+    }
+  }
+
   async function fetchTicket() {
     setLoading(true);
-    const { data: ticketData } = await supabase
-      .from("maintenance_requests")
-      .select("*")
-      .eq("vendor_token", token)
-      .single();
-
-    if (!ticketData) { navigate(`/vendor/${token}`); return; }
-    setTicket(ticketData);
-    setVendorName(ticketData.vendor_name || "Vendor");
-
-    const { data: commentsData } = await supabase
-      .from("maintenance_comments")
-      .select("*")
-      .eq("request_id", ticketData.id)
-      .order("created_at", { ascending: true });
-    setComments(commentsData || []);
-
-    const { data: files } = await supabase.storage
-      .from("maintenance-photos")
-      .list(ticketData.id);
-    if (files) {
-      const urls = await Promise.all(files.map(async f => {
-        const { data } = supabase.storage.from("maintenance-photos").getPublicUrl(`${ticketData.id}/${f.name}`);
-        return { name: f.name, url: data.publicUrl };
-      }));
-      setPhotos(urls);
-    }
+    const data = await guarded(() => vendorCall(token, "get"));
+    if (!data?.ticket) { setLoading(false); return; }
+    setTicket(data.ticket);
+    setVendorName(data.ticket.vendor_name || "Vendor");
+    setComments(data.comments || []);
+    setPhotos(data.photos || []);
     setLoading(false);
   }
 
   async function sendComment() {
     if (!comment.trim() || !ticket) return;
     setSending(true);
-    await supabase.from("maintenance_comments").insert({
-      request_id:  ticket.id,
-      body:        comment.trim(),
-      author_type: "vendor",
-      author_name: vendorName,
-      visible_to_tenant: false,
-    });
-    setComment("");
+    const ok = await guarded(() => vendorCall(token, "comment", { body: comment.trim() }));
+    if (ok) setComment("");
     await fetchTicket();
     setSending(false);
   }
@@ -124,9 +108,7 @@ export default function VendorTicket() {
     const file = e.target.files?.[0];
     if (!file || !ticket) return;
     setUploading(true);
-    const ext  = file.name.split(".").pop();
-    const path = `${ticket.id}/vendor-${Date.now()}.${ext}`;
-    await supabase.storage.from("maintenance-photos").upload(path, file);
+    await guarded(() => uploadVendorFile(token, "photo", file));
     await fetchTicket();
     setUploading(false);
   }
@@ -135,27 +117,16 @@ export default function VendorTicket() {
     if (!quoteAmount || !ticket) return;
     setSubmittingQuote(true);
 
-    // Upload quote photos
+    // Upload quote photos through server-issued signed upload URLs
     for (const photo of quotePhotos) {
-      const ext  = photo.file.name.split(".").pop();
-      const path = `${ticket.id}/quote-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
+      await guarded(() => uploadVendorFile(token, "quote", photo.file));
     }
 
-    await supabase.from("maintenance_requests").update({
-      quote_amount:       parseFloat(quoteAmount),
-      quote_notes:        quoteNotes,
-      quote_submitted_at: new Date().toISOString(),
-      status:             "quote_submitted",
-    }).eq("id", ticket.id);
-
-    await supabase.from("maintenance_comments").insert({
-      request_id:        ticket.id,
-      body:              `Quote submitted: $${quoteAmount}${quoteNotes ? `. Notes: ${quoteNotes}` : ""}`,
-      author_type:       "vendor",
-      author_name:       vendorName,
-      visible_to_tenant: false,
-    });
+    const ok = await guarded(() => vendorCall(token, "submit_quote", {
+      amount: parseFloat(quoteAmount),
+      notes:  quoteNotes,
+    }));
+    if (!ok) { setSubmittingQuote(false); return; }
 
     // Notify PM
     notifyQuoteReceived({
@@ -164,6 +135,7 @@ export default function VendorTicket() {
       quoteAmount,
       quoteNotes,
       propertyName: "",
+      vendorToken:  token,
     });
 
     await fetchTicket();
@@ -176,36 +148,20 @@ export default function VendorTicket() {
     if (!ticket) return;
     setCompleting(true);
 
-    // Upload invoice if provided
+    // Upload invoice if provided (stores the object PATH — bucket is/will be private)
     let invoiceUrl = null;
     if (invoiceFile) {
       setUploadingInvoice(true);
-      const ext  = invoiceFile.name.split(".").pop();
-      const path = `${ticket.id}/invoice-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("maintenance-photos")
-        .upload(path, invoiceFile, { contentType: invoiceFile.type });
-      if (!uploadError) {
-        const { data } = supabase.storage.from("maintenance-photos").getPublicUrl(path);
-        invoiceUrl = data.publicUrl;
-      }
+      invoiceUrl = await guarded(() => uploadVendorFile(token, "invoice", invoiceFile));
       setUploadingInvoice(false);
     }
 
-    // Move to pending_review instead of resolved
-    await supabase.from("maintenance_requests").update({
-      status:        "pending_review",
-      invoice_url:   invoiceUrl,
+    // Move to pending_review instead of resolved (server writes status, invoice and audit comment)
+    const ok = await guarded(() => vendorCall(token, "complete", {
+      invoice_path:  invoiceUrl,
       invoice_notes: invoiceNotes || null,
-    }).eq("id", ticket.id);
-
-    await supabase.from("maintenance_comments").insert({
-      request_id:        ticket.id,
-      body:              `${vendorName} marked work as complete and submitted for review.${invoiceNotes ? ` Notes: ${invoiceNotes}` : ""}`,
-      author_type:       "vendor",
-      author_name:       vendorName,
-      visible_to_tenant: false,
-    });
+    }));
+    if (!ok) { setCompleting(false); return; }
 
     notifyVendorComplete({
       vendorName,
@@ -213,6 +169,7 @@ export default function VendorTicket() {
       ticketId:    ticket.id,
       hasInvoice:  !!invoiceUrl,
       invoiceNotes,
+      vendorToken: token,
     });
 
     await fetchTicket();

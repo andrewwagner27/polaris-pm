@@ -1,19 +1,19 @@
 // rent-reminders/index.ts
 // Invoked by Supabase cron every day at 9 AM ET.
 // Sends reminder emails to tenants whose rent is due in 5 days or 1 day.
+// Auth: caller must send "Authorization: Bearer <service_role key>" or "x-cron-secret: <CRON_SECRET>".
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isCronRequest } from "../_shared/security.ts";
 
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FROM_EMAIL           = "Modus Property Management <notifications@getmodusam.com>";
 const RESEND_API_KEY       = Deno.env.get("RESEND_API_KEY")!;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Server-to-server only (cron) — no browser CORS access.
+const corsHeaders = {};
 
 async function sendEmail(to: string, subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
@@ -69,6 +69,13 @@ function reminderHtml(name: string, amount: number, dueLabel: string, portalUrl:
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!isCronRequest(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   try {

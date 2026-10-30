@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 import { notifyLandlordTenantComment } from "./notifications";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:       "#F5F3EE",
@@ -50,6 +51,16 @@ function useWindowWidth() {
   return w;
 }
 
+// Resolves a stored photo (bare path or legacy public URL) to a displayable URL, or null.
+async function resolvePhotoUrl(urlOrPath) {
+  if (!urlOrPath) return null;
+  if (urlOrPath.startsWith("http") && !urlOrPath.includes("supabase")) return urlOrPath;
+  let signed;
+  try { signed = await getSignedStorageUrl("maintenance-photos", urlOrPath); } catch { signed = null; }
+  // Legacy public URLs keep working while the bucket is still public
+  return signed || (urlOrPath.startsWith("http") ? urlOrPath : null);
+}
+
 function Badge({ config }) {
   if (!config) return null;
   return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: config.bg, color: config.color, whiteSpace: "nowrap" }}>{config.label}</span>;
@@ -68,9 +79,21 @@ export default function TenantMaintenanceDetail() {
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting]       = useState(false);
   const [lightbox, setLightbox]     = useState(null);
+  const [signedPhotos, setSignedPhotos] = useState({ ticket: null, urls: [] });
 
   useEffect(() => { fetchTicket(); }, [id]);
   useEffect(() => { if (ticket) fetchComments(); }, [ticket?.id]);
+
+  // Sign every photo once per ticket load; thumbnails and the lightbox reuse the result
+  useEffect(() => {
+    const photos = ticket?.photos || [];
+    if (!photos.length) return;
+    let cancelled = false;
+    Promise.all(photos.map(resolvePhotoUrl)).then(urls => { if (!cancelled) setSignedPhotos({ ticket, urls }); });
+    return () => { cancelled = true; };
+  }, [ticket]);
+  // Index-aligned with ticket.photos; undefined = still loading, null = unavailable
+  const photoUrls = signedPhotos.ticket === ticket ? signedPhotos.urls : [];
 
   async function fetchTicket() {
     setLoading(true);
@@ -187,10 +210,14 @@ export default function TenantMaintenanceDetail() {
               <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 20px" }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Photos ({ticket.photos.length})</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {ticket.photos.map((url, i) => (
-                    <img key={i} src={url} alt={`photo-${i}`}
-                      onClick={() => setLightbox({ urls: ticket.photos, index: i })}
+                  {ticket.photos.map((_, i) => photoUrls[i] ? (
+                    <img key={i} src={photoUrls[i]} alt={`photo-${i}`}
+                      onClick={() => setLightbox({ urls: photoUrls, index: i })}
                       style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, border: `1px solid ${C.border}`, cursor: "pointer" }} />
+                  ) : (
+                    <div key={i} style={{ width: 80, height: 80, borderRadius: 7, border: `1px solid ${C.border}`, background: C.raised, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.textMuted, textAlign: "center" }}>
+                      {photoUrls[i] === null ? "Unavailable" : "…"}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -296,7 +323,9 @@ export default function TenantMaintenanceDetail() {
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
-          <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
+          {lightbox.urls[lightbox.index]
+            ? <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
+            : <div onClick={e => e.stopPropagation()} style={{ width: 160, height: 120, background: C.raised, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 12 }}>Photo unavailable</div>}
           <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index + 1) % l.urls.length })); }} style={{ position: "absolute", right: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
           <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: C.raised, border: `1px solid ${C.border}`, color: C.textSub, fontSize: 13, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
           <div style={{ position: "absolute", bottom: 20, color: C.textSub, fontSize: 13 }}>{lightbox.index + 1} / {lightbox.urls.length}</div>

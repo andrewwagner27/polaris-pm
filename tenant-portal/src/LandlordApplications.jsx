@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "./supabase";
+import { supabase, authHeaders } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:       "#0C0E12",
@@ -158,12 +159,12 @@ export default function LandlordApplications() {
     const path = `${appId}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from("screening-reports").upload(path, file, { upsert: true });
     if (upErr) { showToast("Upload failed", true); setUploadingReport(false); return; }
-    const { data: { publicUrl } } = supabase.storage.from("screening-reports").getPublicUrl(path);
-    const { error: dbErr } = await supabase.from("applications").update({ screening_report_url: publicUrl }).eq("id", appId);
+    // Store the object PATH in DB (not a public URL) — bucket is/will be private
+    const { error: dbErr } = await supabase.from("applications").update({ screening_report_url: path }).eq("id", appId);
     if (dbErr) { showToast("Failed to save report", true); setUploadingReport(false); return; }
     showToast("Report uploaded successfully");
     setUploadingReport(false);
-    const updated = { ...selected, screening_report_url: publicUrl };
+    const updated = { ...selected, screening_report_url: path };
     setSelected(updated);
     setApplications(prev => prev.map(a => a.id === appId ? updated : a));
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -265,7 +266,7 @@ export default function LandlordApplications() {
       try {
         await fetch("/api/send-email", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await authHeaders(),
           body: JSON.stringify({
             to: app.email,
             subject: "Your rental application — update",
@@ -476,8 +477,11 @@ export default function LandlordApplications() {
                       <span style={{ fontSize:16 }}>📄</span>
                       <div>
                         <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Report uploaded</div>
-                        <a href={selected.screening_report_url} target="_blank" rel="noreferrer"
-                          style={{ fontSize:12,color:C.blue,textDecoration:"none" }}>View report →</a>
+                        <a href="#" onClick={async e => {
+                            e.preventDefault();
+                            const signed = await getSignedStorageUrl("screening-reports", selected.screening_report_url);
+                            if (signed) window.open(signed, "_blank");
+                          }} style={{ fontSize:12,color:C.blue,textDecoration:"none" }}>View report →</a>
                       </div>
                     </div>
                     <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.green}15`,color:C.green }}>On file</span>

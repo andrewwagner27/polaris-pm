@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "./supabase";
+import { supabase, authHeaders } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:       "#0C0E12",
@@ -32,6 +33,31 @@ const DEFAULT_ROOMS = [
 
 const STATUS_OPTS  = ["Good","Fair","Poor","N/A"];
 const STATUS_COLOR = { Good:C.green, Fair:C.amber, Poor:C.red, "N/A":C.textMuted };
+
+// ─── SignedPhoto — renders an inspection photo from a stored path or legacy URL ─
+function SignedPhoto({ urlOrPath, style, captionStyle, room, caption }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    if (!urlOrPath) return;
+    // If it's already an http URL and not a Supabase storage URL, use directly
+    if (urlOrPath.startsWith("http") && !urlOrPath.includes("supabase")) {
+      setSrc(urlOrPath);
+      return;
+    }
+    getSignedStorageUrl("inspection-photos", urlOrPath).then(s => setSrc(s));
+  }, [urlOrPath]);
+  if (!src) return (
+    <div style={{ ...style, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <span style={{ fontSize:9, color:"#5C6270" }}>…</span>
+    </div>
+  );
+  return (
+    <div>
+      <img src={src} alt="" style={style} onClick={() => window.open(src, "_blank")} />
+      {(room||caption) && <div style={captionStyle}>{room}{caption?` · ${caption}`:""}</div>}
+    </div>
+  );
+}
 
 // ─── helpers ───────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -118,7 +144,12 @@ function PhotoUploader({ photos, setPhotos, rooms, label = "Add Photos" }) {
         : <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
             {photos.map((p,i) => (
               <div key={i} style={{ position:"relative", width:110 }}>
-                <img src={p.preview||p.url} alt="" style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, display:"block" }} />
+                {p.preview
+                  ? <img src={p.preview} alt="" style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, display:"block" }} />
+                  : <SignedPhoto urlOrPath={p.url}
+                      style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, display:"block" }}
+                      captionStyle={{ display:"none" }} />
+                }
                 <div style={{ fontSize:9, color:C.textSub, marginTop:3, textAlign:"center", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
                   {p.room}{p.caption ? ` · ${p.caption}` : ""}
                 </div>
@@ -211,7 +242,7 @@ async function sendInspectionEmail({ to, subject, html }) {
   try {
     await fetch("/api/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify({ to, subject, html }),
     });
   } catch (e) { console.warn("Email send failed", e); }
@@ -280,8 +311,8 @@ export default function LandlordInspection() {
       const path = `${inspectionId}/${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from("inspection-photos").upload(path, p.file);
       if (!error) {
-        const { data:urlData } = supabase.storage.from("inspection-photos").getPublicUrl(path);
-        urls.push({ url:urlData.publicUrl, room:p.room, caption:p.caption });
+        // Store the object PATH (not a public URL) — bucket is/will be private
+        urls.push({ url: path, room:p.room, caption:p.caption });
       }
     }
     return urls;
@@ -604,11 +635,9 @@ export default function LandlordInspection() {
               <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:10 }}>Landlord Photos (Pre-Move-In)</div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
                 {lPhotos.map((p,i)=>(
-                  <div key={i} style={{ width:110 }}>
-                    <img src={p.url} alt="" style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
-                      onClick={()=>window.open(p.url,"_blank")} />
-                    {(p.room||p.caption)&&<div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{p.room}{p.caption?` · ${p.caption}`:""}</div>}
-                  </div>
+                  <SignedPhoto key={i} urlOrPath={p.url} room={p.room} caption={p.caption}
+                    style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
+                    captionStyle={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }} />
                 ))}
               </div>
             </div>
@@ -679,11 +708,9 @@ export default function LandlordInspection() {
                   <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:10 }}>Tenant Photos</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
                     {tPhotos.map((p,i)=>(
-                      <div key={i} style={{ width:110 }}>
-                        <img src={p.url} alt="" style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
-                          onClick={()=>window.open(p.url,"_blank")} />
-                        {(p.room||p.caption)&&<div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{p.room}{p.caption?` · ${p.caption}`:""}</div>}
-                      </div>
+                      <SignedPhoto key={i} urlOrPath={p.url} room={p.room} caption={p.caption}
+                        style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
+                        captionStyle={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }} />
                     ))}
                   </div>
                 </div>
@@ -711,11 +738,9 @@ export default function LandlordInspection() {
                   <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:10 }}>Move-Out Photos</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
                     {moPhotosView.map((p,i)=>(
-                      <div key={i} style={{ width:110 }}>
-                        <img src={p.url} alt="" style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
-                          onClick={()=>window.open(p.url,"_blank")} />
-                        {(p.room||p.caption)&&<div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{p.room}{p.caption?` · ${p.caption}`:""}</div>}
-                      </div>
+                      <SignedPhoto key={i} urlOrPath={p.url} room={p.room} caption={p.caption}
+                        style={{ width:110, height:80, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }}
+                        captionStyle={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }} />
                     ))}
                   </div>
                 </div>

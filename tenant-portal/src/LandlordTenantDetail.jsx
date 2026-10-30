@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import { getSignedStorageUrl, extractStoragePath } from "./storageUtils";
 import LandlordLayout from "./LandlordLayout";
 
 const C = {
@@ -428,12 +429,23 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
     lease_end_action: tenant.lease_end_action||"month_to_month",
     security_deposit: tenant.security_deposit||tenant.raw?.security_deposit||"",
   });
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
-  const [leaseDocUrl,  setLeaseDocUrl]  = useState(tenant.lease_document_url||"");
-  const [uploading,    setUploading]    = useState(false);
-  const [uploadMsg,    setUploadMsg]    = useState("");
-  const [uploadErr,    setUploadErr]    = useState("");
+  const [saving,          setSaving]          = useState(false);
+  const [saved,           setSaved]           = useState(false);
+  // leaseDocUrl holds a short-lived signed URL for display only (not stored in DB)
+  const [leaseDocUrl,     setLeaseDocUrl]     = useState("");
+  // leaseDocStored tracks whether a document path is on file (truthy = yes)
+  const [leaseDocStored,  setLeaseDocStored]  = useState(!!(tenant.lease_document_url));
+  const [uploading,       setUploading]       = useState(false);
+  const [uploadMsg,       setUploadMsg]       = useState("");
+  const [uploadErr,       setUploadErr]       = useState("");
+
+  // On mount: if tenant has a stored path/URL, generate a signed URL for display
+  useEffect(() => {
+    if (tenant.lease_document_url) {
+      getSignedStorageUrl("lease-documents", tenant.lease_document_url)
+        .then(signed => { if (signed) setLeaseDocUrl(signed); });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
 
@@ -445,10 +457,13 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
     const path = `${tenant.id}/lease-${Date.now()}.pdf`;
     const { error: upErr } = await supabase.storage.from("lease-documents").upload(path, file, { upsert: true, contentType: "application/pdf" });
     if (upErr) { setUploadErr(upErr.message); setUploading(false); return; }
-    const { data: { publicUrl } } = supabase.storage.from("lease-documents").getPublicUrl(path);
-    const { error: dbErr } = await supabase.from("tenants").update({ lease_document_url: publicUrl }).eq("id", tenant.id);
+    // Store the object PATH in DB (not a public URL) — bucket is/will be private
+    const { error: dbErr } = await supabase.from("tenants").update({ lease_document_url: path }).eq("id", tenant.id);
     if (dbErr) { setUploadErr(dbErr.message); setUploading(false); return; }
-    setLeaseDocUrl(publicUrl);
+    // Generate a short-lived signed URL for immediate display
+    const signed = await getSignedStorageUrl("lease-documents", path);
+    setLeaseDocUrl(signed || "");
+    setLeaseDocStored(true);
     setUploadMsg("Lease uploaded — tenant can now view it in their portal.");
     setUploading(false);
     setTimeout(() => setUploadMsg(""), 5000);
@@ -457,6 +472,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
   async function removeLeaseDoc() {
     await supabase.from("tenants").update({ lease_document_url: null }).eq("id", tenant.id);
     setLeaseDocUrl("");
+    setLeaseDocStored(false);
     setUploadMsg("Lease document removed.");
     setTimeout(() => setUploadMsg(""), 3000);
   }
@@ -583,7 +599,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
           </div>
         )}
 
-        {leaseDocUrl ? (
+        {leaseDocStored ? (
           <div>
             <div style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:C.raised,borderRadius:8,border:`1px solid ${C.border}`,marginBottom:12 }}>
               <div style={{ width:36,height:36,borderRadius:7,background:`rgba(74,154,232,0.12)`,border:`1px solid rgba(74,154,232,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>📄</div>
@@ -591,10 +607,14 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
                 <div style={{ fontSize:13,fontWeight:500,color:C.text }}>Lease Agreement</div>
                 <div style={{ fontSize:11,color:C.textSub }}>Visible to tenant in their portal</div>
               </div>
-              <a href={leaseDocUrl} target="_blank" rel="noreferrer"
-                style={{ fontSize:12,color:C.blue,textDecoration:"none",fontWeight:500,flexShrink:0 }}>
-                View →
-              </a>
+              {leaseDocUrl ? (
+                <a href={leaseDocUrl} target="_blank" rel="noreferrer"
+                  style={{ fontSize:12,color:C.blue,textDecoration:"none",fontWeight:500,flexShrink:0 }}>
+                  View →
+                </a>
+              ) : (
+                <span style={{ fontSize:12,color:C.textMuted,flexShrink:0 }}>Loading…</span>
+              )}
             </div>
             <div style={{ display:"flex",gap:8 }}>
               <label style={{ flex:1,padding:"10px 14px",background:"rgba(201,169,110,0.08)",border:`1px solid ${C.gold}`,borderRadius:7,fontSize:12,fontWeight:500,color:C.gold,cursor:"pointer",textAlign:"center",display:"block" }}>

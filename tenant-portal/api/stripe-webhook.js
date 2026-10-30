@@ -1,11 +1,8 @@
 import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin as supabase } from "./_lib/auth.js";
+import { sendEmail } from "./_lib/email.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 export const config = { api: { bodyParser: false } };
 
@@ -21,15 +18,21 @@ async function getRawBody(req) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("STRIPE_WEBHOOK_SECRET not set — rejecting webhook");
+    return res.status(500).json({ error: "Webhook not configured" });
+  }
+
   const rawBody = await getRawBody(req);
   const sig = req.headers["stripe-signature"];
+  if (!sig) return res.status(400).json({ error: "Missing Stripe-Signature header" });
 
   let event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("Webhook signature error:", err.message);
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: "Invalid signature" });
   }
 
   const paymentIntent = event.data.object;
@@ -46,10 +49,7 @@ export default async function handler(req, res) {
       .single();
 
     if (payment?.tenants?.email) {
-      await fetch(`${process.env.VITE_APP_URL || "https://getmodusam.com"}/api/send-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await sendEmail({
           to: payment.tenants.email,
           subject: `✓ Rent payment confirmed — $${((payment.amount_cents || 0) / 100).toLocaleString()}`,
           html: `
@@ -79,7 +79,6 @@ export default async function handler(req, res) {
               </div>
             </div>
           `,
-        }),
       });
     }
   }

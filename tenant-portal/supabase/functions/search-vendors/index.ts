@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { adminClient, corsHeaders as buildCors, getCaller, isLandlord } from "../_shared/security.ts";
 
 const TRADE_MAP: Record<string, string> = {
   plumbing:   "plumber",
@@ -16,20 +12,26 @@ const TRADE_MAP: Record<string, string> = {
 };
 
 serve(async (req) => {
+  const corsHeaders = buildCors(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { category, address } = await req.json();
-    
-    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
-    console.log("API key present:", !!GOOGLE_API_KEY);
-    console.log("category:", category, "address:", address);
+    // ── Authorization: landlord only (protects Google Places quota) ──
+    const caller = await getCaller(req, adminClient());
+    if (!isLandlord(caller)) {
+      return new Response(JSON.stringify({ error: caller ? "Landlord access required" : "Authentication required" }), {
+        status: caller ? 403 : 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
+    const { category, address } = await req.json();
+
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
     if (!GOOGLE_API_KEY) throw new Error("GOOGLE_PLACES_API_KEY not set");
 
     const trade = TRADE_MAP[category] || "contractor";
     const query = `${trade} near ${address}`;
-    console.log("Search query:", query);
 
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
     const res = await fetch(url);

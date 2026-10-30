@@ -1,21 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { adminClient, corsHeaders as buildCors, getCaller, isLandlord } from "../_shared/security.ts";
 
 serve(async (req) => {
+  const corsHeaders = buildCors(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const { tenant_id, tenant_name, tenant_email, unit_number, property_name, landlord_name } = await req.json();
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseAdmin = adminClient();
+
+    // ── Authorization: landlord only ──
+    const caller = await getCaller(req, supabaseAdmin);
+    if (!isLandlord(caller)) {
+      return new Response(JSON.stringify({ error: caller ? "Landlord access required" : "Authentication required" }), {
+        status: caller ? 403 : 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").eq("id", tenant_id).maybeSingle();
+    if (!tenantRow) throw new Error("Tenant not found");
 
     // Generate magic invite link
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({

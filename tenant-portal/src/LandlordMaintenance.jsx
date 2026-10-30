@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import AssignVendorModal from "./AssignVendorModal";
 import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:       "#0C0E12",
@@ -40,6 +41,83 @@ const CATEGORY_ICONS = {
   plumbing: "🚿", electrical: "⚡", hvac: "🌡️",
   appliance: "🍳", pest: "🐛", other: "🔧",
 };
+
+// ─── LightboxView — navigable full-screen photo viewer with signed URLs ──────
+function LightboxView({ lightbox, setLightbox }) {
+  const { paths, index } = lightbox;
+  const [src, setSrc] = useState(lightbox.src || null);
+  const [curIndex, setCurIndex] = useState(index);
+
+  useEffect(() => {
+    const p = paths[curIndex];
+    if (!p) return;
+    if (p.startsWith("http") && !p.includes("supabase")) { setSrc(p); return; }
+    setSrc(null);
+    getSignedStorageUrl("maintenance-photos", p).then(s => setSrc(s));
+  }, [curIndex, paths]);
+
+  const prev = e => { e.stopPropagation(); setCurIndex(i => (i - 1 + paths.length) % paths.length); };
+  const next = e => { e.stopPropagation(); setCurIndex(i => (i + 1) % paths.length); };
+
+  return (
+    <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <button onClick={prev} style={{ position: "absolute", left: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
+      {src
+        ? <img src={src} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
+        : <div style={{ width: 120, height: 120, background: C.raised, borderRadius: 10, display:"flex", alignItems:"center", justifyContent:"center", color: C.textMuted, fontSize: 12 }}>Loading…</div>
+      }
+      <button onClick={next} style={{ position: "absolute", right: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
+      <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: C.raised, border: `1px solid ${C.border}`, color: C.textSub, fontSize: 13, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
+      <div style={{ position: "absolute", bottom: 20, color: C.textSub, fontSize: 13 }}>{curIndex + 1} / {paths.length}</div>
+    </div>
+  );
+}
+
+// ─── SignedMaintenancePhoto — renders a photo stored as a path or legacy URL ─
+function SignedMaintenancePhoto({ urlOrPath, onClick, style }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    if (!urlOrPath) return;
+    if (urlOrPath.startsWith("http") && !urlOrPath.includes("supabase")) { setSrc(urlOrPath); return; }
+    getSignedStorageUrl("maintenance-photos", urlOrPath).then(s => setSrc(s));
+  }, [urlOrPath]);
+  if (!src) return <div style={{ ...style, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <span style={{ fontSize:10, color:"#5C6270" }}>…</span></div>;
+  return <img src={src} alt="" style={style} onClick={() => onClick?.(src)} />;
+}
+
+// ─── SignedInvoiceLink — opens an invoice stored as a path or legacy URL ─────
+// Signs on click (not on render) so the link never serves an expired signed URL.
+function SignedInvoiceLink({ urlOrPath, style, children }) {
+  const [state, setState] = useState("idle"); // idle | loading | error
+
+  async function open(e) {
+    e.preventDefault();
+    if (state === "loading") return;
+    // Open the tab synchronously so popup blockers allow it, then point it at the signed URL
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
+    setState("loading");
+    let url;
+    if (urlOrPath.startsWith("http") && !urlOrPath.includes("supabase")) {
+      url = urlOrPath;
+    } else {
+      try { url = await getSignedStorageUrl("maintenance-photos", urlOrPath); } catch { url = null; }
+    }
+    // Legacy public URLs keep working while the bucket is still public
+    if (!url && urlOrPath.startsWith("http")) url = urlOrPath;
+    if (!url) { win?.close(); setState("error"); return; }
+    if (win) win.location.href = url; else window.location.href = url;
+    setState("idle");
+  }
+
+  return (
+    <>
+      <a href="#" onClick={open} style={style}>{state === "loading" ? "Opening invoice…" : children}</a>
+      {state === "error" && <div style={{ fontSize: 11, color: C.red, marginTop: 4, marginBottom: 8 }}>Could not open the invoice. Please try again.</div>}
+    </>
+  );
+}
 
 function useWindowWidth() {
   const [w, setW] = useState(window.innerWidth);
@@ -579,8 +657,9 @@ export default function LandlordMaintenance() {
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Photos ({selected.photos.length})</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {selected.photos.map((url, i) => (
-                      <img key={i} src={url} alt={`photo-${i}`} onClick={() => setLightbox({ urls: selected.photos, index: i })}
+                    {selected.photos.map((urlOrPath, i) => (
+                      <SignedMaintenancePhoto key={i} urlOrPath={urlOrPath}
+                        onClick={src => setLightbox({ paths: selected.photos, src, index: i })}
                         style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, border: `1px solid ${C.border}`, cursor: "pointer" }} />
                     ))}
                   </div>
@@ -598,9 +677,9 @@ export default function LandlordMaintenance() {
                     </div>
                   )}
                   {selected.invoice_url && (
-                    <a href={selected.invoice_url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8, fontSize: 13, color: C.blue, textDecoration: "none" }}>
+                    <SignedInvoiceLink urlOrPath={selected.invoice_url} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8, fontSize: 13, color: C.blue, textDecoration: "none" }}>
                       📄 View invoice photo →
-                    </a>
+                    </SignedInvoiceLink>
                   )}
                 </div>
               )}
@@ -651,9 +730,9 @@ export default function LandlordMaintenance() {
                     {field(selected, "status") === "pending_review" && (
                       <div style={{ width:"100%" }}>
                         {selected.invoice_url && (
-                          <a href={selected.invoice_url} target="_blank" rel="noreferrer" style={{ display:"block", marginBottom:8, padding:"8px 14px", background:`${C.blue}0F`, border:`1px solid ${C.blue}33`, borderRadius:7, fontSize:12, color:C.blue, textDecoration:"none" }}>
+                          <SignedInvoiceLink urlOrPath={selected.invoice_url} style={{ display:"block", marginBottom:8, padding:"8px 14px", background:`${C.blue}0F`, border:`1px solid ${C.blue}33`, borderRadius:7, fontSize:12, color:C.blue, textDecoration:"none" }}>
                             📄 View invoice →
-                          </a>
+                          </SignedInvoiceLink>
                         )}
                         {selected.invoice_notes && (
                           <div style={{ marginBottom:8, padding:"8px 14px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, color:C.textSub }}>
@@ -732,13 +811,7 @@ export default function LandlordMaintenance() {
 
       {/* Lightbox */}
       {lightbox && (
-        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length })); }} style={{ position: "absolute", left: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>‹</button>
-          <img src={lightbox.urls[lightbox.index]} alt="" style={{ maxHeight: "85vh", maxWidth: "85vw", borderRadius: 10 }} onClick={e => e.stopPropagation()} />
-          <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: (l.index + 1) % l.urls.length })); }} style={{ position: "absolute", right: 24, background: C.raised, border: `1px solid ${C.border}`, color: C.text, fontSize: 22, borderRadius: "50%", width: 44, height: 44, cursor: "pointer" }}>›</button>
-          <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: C.raised, border: `1px solid ${C.border}`, color: C.textSub, fontSize: 13, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>✕</button>
-          <div style={{ position: "absolute", bottom: 20, color: C.textSub, fontSize: 13 }}>{lightbox.index + 1} / {lightbox.urls.length}</div>
-        </div>
+        <LightboxView lightbox={lightbox} setLightbox={setLightbox} />
       )}
 
       {/* Confirm comment */}

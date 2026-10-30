@@ -1,34 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function generateToken(length = 12) {
-  const chars = "abcdefghijkmnpqrstuvwxyz23456789";
-  let token = "";
-  for (let i = 0; i < length; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return token;
-}
-
-function generatePin() {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
+import {
+  adminClient, corsHeaders as buildCors, generatePin, generateToken, getCaller, isLandlord,
+} from "../_shared/security.ts";
 
 serve(async (req) => {
+  const corsHeaders = buildCors(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const { request_id, vendor_name, vendor_phone } = await req.json();
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = adminClient();
+
+    // ── Authorization: landlord only ──
+    const caller = await getCaller(req, supabase);
+    if (!isLandlord(caller)) {
+      return new Response(JSON.stringify({ error: caller ? "Landlord access required" : "Authentication required" }), {
+        status: caller ? 403 : 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!request_id) throw new Error("request_id required");
 
     const token   = generateToken();
     const pin     = generatePin();

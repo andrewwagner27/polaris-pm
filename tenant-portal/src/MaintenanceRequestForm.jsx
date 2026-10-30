@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { supabase } from "./supabase";
 import { useTenant } from "./useTenant";
 import { notifyNewMaintenanceTicket } from "./notifications";
+import { getSignedStorageUrl } from "./storageUtils";
 import TenantLayout from "./TenantLayout";
 
 const C = {
@@ -123,8 +124,8 @@ export default function MaintenanceRequestForm() {
       const path = `${requestId}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
       if (!error) {
-        const { data } = supabase.storage.from("maintenance-photos").getPublicUrl(path);
-        urls.push(data.publicUrl);
+        // Store the object PATH (not a public URL) — bucket is/will be private
+        urls.push(path);
       }
     }
     return urls;

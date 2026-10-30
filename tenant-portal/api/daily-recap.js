@@ -1,14 +1,18 @@
 // api/daily-recap.js
 // Sends the landlord a morning summary of everything needing attention.
 // Call this from a Vercel cron job (vercel.json) at 8am ET daily.
-// ENV vars: RESEND_API_KEY, LANDLORD_EMAIL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// ENV vars: RESEND_API_KEY, LANDLORD_EMAIL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
+// Auth: Vercel Cron sends "Authorization: Bearer <CRON_SECRET>"; a signed-in landlord may also trigger it manually.
+
+import { hasCronSecret, getCaller, isLandlord } from "./_lib/auth.js";
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  if (req.method === "OPTIONS") return res.status(200).end();
-
   // Allow GET (cron) or POST (manual trigger)
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).end();
+
+  if (!hasCronSecret(req) && !isLandlord(await getCaller(req))) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const SUPABASE_URL  = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;

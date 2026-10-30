@@ -1,17 +1,19 @@
 // api/sms-escalate.js
-// Called server-side to send an SMS via Twilio
+// Sends an SMS via Twilio. Requires a signed-in user.
+// Non-landlord callers can only text LANDLORD_PHONE; a custom "to" is honored for landlords only.
 // ENV vars needed in Vercel:
 //   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM, LANDLORD_PHONE
 
+import { requireCaller, isLandlord } from "./_lib/auth.js";
+
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).end();
 
+  const caller = await requireCaller(req, res);
+  if (!caller) return;
+
   const { to, message } = req.body || {};
-  const toNumber   = to || process.env.LANDLORD_PHONE;
+  const toNumber   = (isLandlord(caller) && to) ? to : process.env.LANDLORD_PHONE;
   const fromNumber = process.env.TWILIO_FROM;
   const sid        = process.env.TWILIO_ACCOUNT_SID;
   const token      = process.env.TWILIO_AUTH_TOKEN;
@@ -21,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-  const body = new URLSearchParams({ To: toNumber, From: fromNumber, Body: message });
+  const body = new URLSearchParams({ To: toNumber, From: fromNumber, Body: String(message).slice(0, 1600) });
 
   const response = await fetch(url, {
     method: "POST",
@@ -34,7 +36,7 @@ export default async function handler(req, res) {
 
   const data = await response.json();
   if (!response.ok) {
-    console.error("Twilio error:", data);
+    console.error("Twilio error:", data?.code, data?.message);
     return res.status(response.status).json({ error: data });
   }
   return res.status(200).json({ success: true, sid: data.sid });

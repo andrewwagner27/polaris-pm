@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "./supabase";
+import { supabase, authHeaders } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:"#F5F3EE", surface:"#FFFFFF", raised:"#F8F7F4", border:"#E4E1DA",
@@ -12,12 +13,32 @@ const C = {
 };
 
 
+// ─── SignedInspectionPhoto — renders a photo stored as a path or legacy URL ─
+function SignedInspectionPhoto({ urlOrPath, caption }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    if (!urlOrPath) return;
+    if (urlOrPath.startsWith("http") && !urlOrPath.includes("supabase")) { setSrc(urlOrPath); return; }
+    getSignedStorageUrl("inspection-photos", urlOrPath).then(s => setSrc(s));
+  }, [urlOrPath]);
+  return (
+    <div style={{ width:100 }}>
+      {src
+        ? <img src={src} alt="" onClick={() => window.open(src, "_blank")}
+            style={{ width:100, height:72, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }} />
+        : <div style={{ width:100, height:72, background:C.raised, borderRadius:6, border:`1px solid ${C.border}` }} />
+      }
+      {caption && <div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{caption}</div>}
+    </div>
+  );
+}
+
 // ─── email helper ─────────────────────────────────────
 async function sendEmail({ to, subject, html }) {
   try {
     await fetch("/api/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify({ to, subject, html }),
     });
   } catch (e) { console.warn("Inspection email failed", e); }
@@ -89,8 +110,8 @@ export default function MoveInInspection() {
         const path = `inspections/${inspection.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: upErr } = await supabase.storage.from("inspection-photos").upload(path, p.file);
         if (!upErr) {
-          const { data: urlData } = supabase.storage.from("inspection-photos").getPublicUrl(path);
-          photoUrls.push(urlData.publicUrl);
+          // Store the object PATH (not a public URL) — bucket is/will be private
+          photoUrls.push(path);
         }
       }
 
@@ -242,14 +263,10 @@ export default function MoveInInspection() {
                 <div style={{ fontSize:11, color:C.textMuted, marginBottom:10, letterSpacing:1 }}>YOUR PHOTOS</div>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
                   {(inspection.tenant_photos||[]).map((p,i) => {
-                    const url = typeof p === "string" ? p : p.url;
+                    const urlOrPath = typeof p === "string" ? p : p.url;
                     const caption = typeof p === "string" ? "" : (p.caption||p.room||"");
                     return (
-                      <div key={i} style={{ width:100 }}>
-                        <img src={url} alt="" onClick={()=>window.open(url,"_blank")}
-                          style={{ width:100, height:72, objectFit:"cover", borderRadius:6, border:`1px solid ${C.border}`, cursor:"pointer", display:"block" }} />
-                        {caption && <div style={{ fontSize:9, color:C.textMuted, marginTop:3, textAlign:"center" }}>{caption}</div>}
-                      </div>
+                      <SignedInspectionPhoto key={i} urlOrPath={urlOrPath} caption={caption} />
                     );
                   })}
                 </div>

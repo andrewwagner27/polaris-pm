@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "./supabase";
+import { vendorPreview, vendorVerifyPin, vendorCall, clearLegacyVendorStorage, VendorAuthError } from "./vendorApi";
 
 const C = {
   bg:        "#0A0B0D",
@@ -32,32 +32,30 @@ function Spinner() {
 }
 
 // ── Work Order Screen ─────────────────────────────────────────────────────
-function WorkOrderScreen({ ticket, vendorName, onAccept }) {
+function WorkOrderScreen({ token, ticket, vendorName, onAccept, onSessionExpired }) {
   const [sigName, setSigName]   = useState("");
   const [signing, setSigning]   = useState(false);
   const [vendorEmail, setVendorEmail] = useState("");
   const [agreed, setAgreed]     = useState(false);
+  const [signError, setSignError] = useState("");
   const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
 
   async function handleAccept() {
     if (!sigName.trim()) return;
-    setSigning(true);
+    setSigning(true); setSignError("");
 
-    // Store e-sig: name + timestamp (IP captured server-side if needed)
-    await supabase.from("maintenance_requests").update({
-      work_order_accepted_at: new Date().toISOString(),
-      work_order_accepted_by: sigName.trim(),
-      vendor_email: vendorEmail.trim() || null,
-    }).eq("id", ticket.id);
-
-    // Log as comment
-    await supabase.from("maintenance_comments").insert({
-      request_id:        ticket.id,
-      body:              `Work order accepted and signed by ${sigName.trim()} on ${today}.`,
-      author_type:       "vendor",
-      author_name:       vendorName,
-      visible_to_tenant: false,
-    });
+    // E-sig (name + server timestamp) and the audit comment are written server-side
+    try {
+      await vendorCall(token, "accept_work_order", {
+        signature_name: sigName.trim(),
+        vendor_email:   vendorEmail.trim() || null,
+      });
+    } catch (err) {
+      setSigning(false);
+      if (err instanceof VendorAuthError) { onSessionExpired(); return; }
+      setSignError(err.message || "Could not save your signature. Please try again.");
+      return;
+    }
 
     setSigning(false);
     onAccept();
@@ -206,6 +204,7 @@ function WorkOrderScreen({ ticket, vendorName, onAccept }) {
             style={{ width:"100%", padding:"13px", background:sigName.trim() && agreed ? C.goldDim : C.raised, border:`1px solid ${sigName.trim() && agreed ? C.goldDim : C.border}`, borderRadius:8, fontSize:14, fontWeight:500, color:sigName.trim() && agreed ? C.text : C.textMuted, cursor:sigName.trim() && agreed ? "pointer" : "not-allowed", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8, transition:"all 0.15s" }}>
             {signing ? <><Spinner/> Signing…</> : "Accept & proceed to ticket →"}
           </button>
+          {signError && <div style={{ fontSize:12, color:C.red, marginTop:8 }}>{signError}</div>}
         </div>
 
         <div style={{ fontSize:11, color:C.textMuted, textAlign:"center", lineHeight:1.6 }}>
@@ -229,16 +228,13 @@ export default function VendorAccess() {
   const [showWorkOrder, setShowWorkOrder] = useState(false);
 
   useEffect(() => {
+    clearLegacyVendorStorage();
     async function checkToken() {
-      const { data } = await supabase
-        .from("maintenance_requests")
-        .select("id, title, description, category, priority, scheduled_date, scheduled_time, vendor_token_expires_at, status, work_order_accepted_at, vendor_name")
-        .eq("vendor_token", token)
-        .single();
-
-      if (!data) { setValid(false); setChecking(false); return; }
-      if (new Date(data.vendor_token_expires_at) < new Date()) { setValid(false); setChecking(false); return; }
-      setTicket(data);
+      // Server-side link check; returns only { valid, title } before the PIN is entered
+      let data = null;
+      try { data = await vendorPreview(token); } catch { /* treated as invalid */ }
+      if (!data?.valid) { setValid(false); setChecking(false); return; }
+      setTicket({ title: data.title });
       setValid(true);
       setChecking(false);
     }
@@ -249,27 +245,31 @@ export default function VendorAccess() {
     if (pin.length !== 4) { setError("Enter a 4-digit PIN."); return; }
     setLoading(true); setError("");
 
-    const { data } = await supabase
-      .from("maintenance_requests")
-      .select("id, vendor_pin, work_order_accepted_at")
-      .eq("vendor_token", token)
-      .single();
+    // PIN is checked server-side; on success the server issues a signed vendor session
+    let data = null;
+    try { data = await vendorVerifyPin(token, pin); } catch { /* network error falls through */ }
 
-    if (!data || data.vendor_pin !== pin) {
+    if (!data?.ok) {
       setError("Incorrect PIN. Please try again.");
       setLoading(false); return;
     }
 
-    localStorage.setItem("vendor_token", token);
-    localStorage.setItem("vendor_ticket_id", data.id);
-    setLoading(false);
-
     // If work order already signed, go straight to ticket
     if (data.work_order_accepted_at) {
+      setLoading(false);
       navigate(`/vendor/ticket/${token}`);
-    } else {
-      setShowWorkOrder(true);
+      return;
     }
+
+    // Load the work-order details through the session-authorized API
+    try {
+      const { ticket: details } = await vendorCall(token, "get");
+      setTicket(details);
+      setShowWorkOrder(true);
+    } catch {
+      setError("Could not load the work order. Please try again.");
+    }
+    setLoading(false);
   }
 
   if (checking) return (
@@ -280,9 +280,11 @@ export default function VendorAccess() {
 
   if (showWorkOrder && ticket) return (
     <WorkOrderScreen
+      token={token}
       ticket={ticket}
       vendorName={ticket.vendor_name || "Vendor"}
       onAccept={() => navigate(`/vendor/ticket/${token}`)}
+      onSessionExpired={() => { setShowWorkOrder(false); setPin(""); setError("Your session expired. Please re-enter your PIN."); }}
     />
   );
 

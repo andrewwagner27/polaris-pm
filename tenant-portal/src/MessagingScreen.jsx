@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "./supabase";
+import { supabase, authHeaders } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 
@@ -133,7 +133,7 @@ export default function MessagingScreen() {
       setAwaitingReply(true);
       fetch("/api/classify-and-route", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           message: text.trim(),
           tenant_id: tenantIdRef.current,

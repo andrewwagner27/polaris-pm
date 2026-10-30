@@ -3,6 +3,7 @@ import { useTenant } from "./useTenant";
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:"#F5F3EE", surface:"#FFFFFF", raised:"#F8F7F4", border:"#E4E1DA",
@@ -209,7 +210,15 @@ export default function HomeDashboard() {
 
             {/* Lease docs */}
             <button
-              onClick={() => tenant?.lease_document_url ? window.open(tenant.lease_document_url, "_blank") : navigate("/account")}
+              onClick={async () => {
+                if (tenant?.lease_document_url) {
+                  const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
+                  if (signed) { window.open(signed, "_blank"); }
+                  else { navigate("/account"); }
+                } else {
+                  navigate("/account");
+                }
+              }}
               className="t-action-btn"
               style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${tenant?.lease_document_url ? C.blue : C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ width:30, height:30, borderRadius:7, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>

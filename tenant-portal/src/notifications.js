@@ -1,12 +1,14 @@
-import { supabase } from "./supabase";
+import { supabase, authHeaders } from "./supabase";
 
 const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
 const APP_URL = "https://www.getmodusam.com";
 
-async function sendEmail({ to, subject, html }) {
+// vendorToken: vendors have no Supabase session, so the edge function
+// authorizes them by their (unexpired) vendor access token instead.
+async function sendEmail({ to, subject, html, vendorToken }) {
   try {
     const { data, error } = await supabase.functions.invoke("send-email", {
-      body: { to, subject, html },
+      body: { to, subject, html, ...(vendorToken ? { vendor_token: vendorToken } : {}) },
     });
     if (error) console.error("Edge Function error:", error);
     return data;
@@ -158,8 +160,9 @@ export async function notifyLandlordTenantComment({ tenantName, title, commentBo
 }
 
 // ── Notify PM: vendor marked ticket complete ──
-export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId, hasInvoice, invoiceNotes }) {
+export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId, hasInvoice, invoiceNotes, vendorToken }) {
   return sendEmail({
+    vendorToken,
     to: LANDLORD_EMAIL,
     subject: `✅ ${vendorName} completed: ${ticketTitle}`,
     html: `
@@ -265,8 +268,9 @@ export async function notifyVendorMoreWork({ vendorEmail, vendorName, ticketTitl
 }
 
 // ── Notify PM: vendor submitted a quote ──
-export async function notifyQuoteReceived({ vendorName, ticketTitle, quoteAmount, quoteNotes, propertyName }) {
+export async function notifyQuoteReceived({ vendorName, ticketTitle, quoteAmount, quoteNotes, propertyName, vendorToken }) {
   return sendEmail({
+    vendorToken,
     to: LANDLORD_EMAIL,
     subject: `💰 Quote received from ${vendorName}: ${ticketTitle}`,
     html: `
@@ -306,7 +310,7 @@ async function sendSms(message) {
   try {
     await fetch("/api/sms-escalate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify({ message }),
     });
   } catch (e) { console.warn("SMS send failed", e); }
