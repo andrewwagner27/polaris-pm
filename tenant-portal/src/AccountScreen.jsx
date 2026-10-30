@@ -85,32 +85,29 @@ export default function AccountScreen() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
         *,*::before,*::after{box-sizing:border-box;}
-        @media(max-width:767px){.acct-layout{flex-direction:column!important;} .acct-sidebar{width:100%!important;border-right:none!important;border-bottom:1px solid ${C.border}!important;flex-direction:row!important;gap:4px!important;padding:10px 8px!important;overflow-x:auto!important;} .acct-wrap{padding:16px 14px 80px!important;}}
       `}</style>
 
-      <div className="acct-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 80px" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"24px 16px 80px" }}>
 
         {/* Header */}
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:12,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 }}>Account</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:34,fontWeight:600,color:C.text,lineHeight:1 }}>{tenant?.name||"Tenant"}</div>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5 }}>Account</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.text,lineHeight:1 }}>{tenant?.name||"Tenant"}</div>
           <div style={{ fontSize:13,color:C.textSub,marginTop:4 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
         </div>
 
-        <div className="acct-layout" style={{ display:"flex",gap:20,alignItems:"flex-start" }}>
+        {/* Top tab bar */}
+        <div style={{ display:"flex",gap:4,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px",marginBottom:20,overflowX:"auto" }}>
+          {VIEWS.map(v => (
+            <button key={v} onClick={()=>setView(v)}
+              style={{ flex:1,padding:"10px 12px",textAlign:"center",background:view===v?`rgba(139,105,20,0.08)`:"transparent",border:`1px solid ${view===v?C.goldDim:"transparent"}`,borderRadius:7,color:view===v?C.gold:C.textSub,fontSize:13,fontWeight:view===v?500:400,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s",whiteSpace:"nowrap",minWidth:0 }}>
+              {v}
+            </button>
+          ))}
+        </div>
 
-          {/* Sub-nav sidebar */}
-          <div className="acct-sidebar" style={{ width:180,flexShrink:0,display:"flex",flexDirection:"column",gap:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px",position:"sticky",top:20 }}>
-            {VIEWS.map(v => (
-              <button key={v} onClick={()=>setView(v)}
-                style={{ padding:"11px 14px",textAlign:"left",background:view===v?`rgba(201,169,110,0.08)`:"transparent",border:`1px solid ${view===v?C.goldDim:"transparent"}`,borderRadius:7,color:view===v?C.gold:C.textSub,fontSize:13,fontWeight:view===v?500:400,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s" }}>
-                {v}
-              </button>
-            ))}
-          </div>
-
-          {/* Main panel */}
-          <div style={{ flex:1,minWidth:0 }}>
+        {/* Main panel */}
+        <div>
 
             {/* ── Settings & Profile ── */}
             {view === "Settings & Profile" && (
@@ -129,7 +126,7 @@ export default function AccountScreen() {
                   <InputField label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="(555) 000-0000" />
                   <InputField label="Email" value={email} readOnly placeholder="—" />
                   <button onClick={saveProfile} disabled={saving}
-                    style={{ padding:"10px 20px",background:C.gold,border:"none",borderRadius:8,color:C.text,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1 }}>
+                    style={{ padding:"10px 20px",background:C.gold,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1 }}>
                     {saving?"Saving…":saved?"Saved ✓":"Save Changes"}
                   </button>
                 </div>
@@ -202,7 +199,6 @@ export default function AccountScreen() {
                 </button>
               </div>
             )}
-          </div>
         </div>
       </div>
     </TenantLayout>
