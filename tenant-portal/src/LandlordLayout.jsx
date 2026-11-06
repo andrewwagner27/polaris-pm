@@ -32,6 +32,7 @@ const NAV = [
   { section: "PORTFOLIO", items: [
     { label: "Dashboard",    path: "/landlord"              },
     { label: "Financial Overview", path: "/landlord/snapshot" },
+    { label: "Budget vs Actual",   path: "/landlord/budgets"  },
     { label: "Properties",   path: "/landlord/properties"   },
     { label: "Tenants",      path: "/landlord/tenants"      },
     { label: "Applications", path: "/landlord/applications" },
