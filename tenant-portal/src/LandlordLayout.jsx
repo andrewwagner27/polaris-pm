@@ -31,6 +31,7 @@ function ModusMark({ size = 32 }) {
 const NAV = [
   { section: "PORTFOLIO", items: [
     { label: "Dashboard",    path: "/landlord"              },
+    { label: "Financial Snapshot", path: "/landlord/snapshot" },
     { label: "Properties",   path: "/landlord/properties"   },
     { label: "Tenants",      path: "/landlord/tenants"      },
     { label: "Applications", path: "/landlord/applications" },

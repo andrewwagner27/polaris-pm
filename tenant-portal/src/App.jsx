@@ -18,6 +18,7 @@ import ProtectedLandlordRoute from "./ProtectedLandlordRoute";
 import LandlordAgentCenter    from "./LandlordAgentCenter";
 import EvictionWatch          from "./EvictionWatch";
 import LandlordInspection    from "./LandlordInspection";
+import FinancialSnapshot     from "./FinancialSnapshot";
 
 // Tenant
 import LoginScreen            from "./LoginScreen";
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="/landlord/financials/:tenantId"   element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/messages"        element={<ProtectedLandlordRoute><LandlordMessages/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/reports"         element={<ProtectedLandlordRoute><LandlordReports/></ProtectedLandlordRoute>}/>
+        <Route path="/landlord/snapshot"        element={<ProtectedLandlordRoute><FinancialSnapshot/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/agent"           element={<ProtectedLandlordRoute><LandlordAgentCenter/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/settings"        element={<ProtectedLandlordRoute><LandlordSettings/></ProtectedLandlordRoute>}/>
         <Route path="/landlord/evictions"       element={<ProtectedLandlordRoute><EvictionWatch/></ProtectedLandlordRoute>}/>
