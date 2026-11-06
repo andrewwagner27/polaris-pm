@@ -115,8 +115,6 @@ function LinkBankForm({ tenant, user, onLinked }) {
 function WalletContent({ tenant, user }) {
   const [methods,        setMethods]        = useState([]);
   const [loading,        setLoading]        = useState(true);
-  const [autopay,        setAutopay]        = useState(false);
-  const [autopayLoading, setAutopayLoading] = useState(false);
   const [removing,       setRemoving]       = useState(null);
   const [showLink,       setShowLink]       = useState(false);
   const [successMsg,     setSuccessMsg]     = useState("");
@@ -128,18 +126,11 @@ function WalletContent({ tenant, user }) {
 
   async function loadData() {
     setLoading(true);
-    const [methodsRes, tenantRes] = await Promise.all([
-      supabase.from("tenant_payment_methods")
-        .select("*")
-        .eq("tenant_id", tenant.id)
-        .order("created_at", { ascending: false }),
-      supabase.from("tenants")
-        .select("autopay_enabled")
-        .eq("id", tenant.id)
-        .single(),
-    ]);
+    const methodsRes = await supabase.from("tenant_payment_methods")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false });
     setMethods(methodsRes.data || []);
-    setAutopay(!!tenantRes.data?.autopay_enabled);
     setLoading(false);
   }
 
@@ -148,12 +139,6 @@ function WalletContent({ tenant, user }) {
     await supabase.from("tenant_payment_methods")
       .update({ status: "removed" })
       .eq("id", method.id);
-
-    // If this was the active method and autopay was on, disable autopay
-    if (method.status === "active" && autopay) {
-      await supabase.from("tenants").update({ autopay_enabled: false }).eq("id", tenant.id);
-      setAutopay(false);
-    }
 
     setMethods(prev => prev.filter(m => m.id !== method.id));
     setRemoving(null);
@@ -170,20 +155,6 @@ function WalletContent({ tenant, user }) {
     setMethods(prev => prev.map(m => ({ ...m, status: m.id === method.id ? "active" : (m.status === "active" ? "inactive" : m.status) })));
     setSuccessMsg("Default bank account updated.");
     setTimeout(() => setSuccessMsg(""), 3000);
-  }
-
-  async function toggleAutopay() {
-    const activeMethod = methods.find(m => m.status === "active");
-    if (!activeMethod && !autopay) {
-      setSuccessMsg(""); return;
-    }
-    setAutopayLoading(true);
-    const next = !autopay;
-    await supabase.from("tenants").update({ autopay_enabled: next }).eq("id", tenant.id);
-    setAutopay(next);
-    setAutopayLoading(false);
-    setSuccessMsg(next ? "Autopay enabled — rent will be paid automatically on the 1st." : "Autopay disabled.");
-    setTimeout(() => setSuccessMsg(""), 4000);
   }
 
   function handleLinked(newMethod) {
@@ -251,53 +222,15 @@ function WalletContent({ tenant, user }) {
         </div>
       )}
 
-      {/* Autopay toggle */}
+      {/* Nothing collects rent automatically yet, so this is a notice and not a setting. */}
       <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:20 }}>
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
           <div>
             <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-            <div style={{ fontSize:11,color:C.textSub }}>
-              {autopay
-                ? "Rent paid automatically on the 1st each month"
-                : activeMethods.length > 0
-                  ? "Auto-pay rent on the 1st using your default account"
-                  : "Link a bank account to enable autopay"}
-            </div>
+            <div style={{ fontSize:11,color:C.textSub }}>Automatic rent payments aren't available yet. Rent is only paid when you submit a payment on the Pay Rent screen.</div>
           </div>
-          <button
-            onClick={toggleAutopay}
-            disabled={autopayLoading || activeMethods.length === 0}
-            style={{
-              position:"relative",
-              width:44, height:24,
-              borderRadius:12,
-              border:"none",
-              cursor: (autopayLoading || activeMethods.length === 0) ? "not-allowed" : "pointer",
-              background: autopay ? C.green : C.raised,
-              transition:"background 0.2s",
-              flexShrink:0,
-              outline:"none",
-              padding:0,
-              opacity: activeMethods.length === 0 ? 0.4 : 1,
-            }}
-            aria-label={autopay ? "Disable autopay" : "Enable autopay"}
-          >
-            <span style={{
-              position:"absolute",
-              top:3, left: autopay ? 23 : 3,
-              width:18, height:18,
-              borderRadius:"50%",
-              background:C.text,
-              transition:"left 0.2s",
-              display:"block",
-            }}/>
-          </button>
+          <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:C.raised,color:C.textSub,border:`1px solid ${C.border}`,borderRadius:20,flexShrink:0 }}>Not available yet</span>
         </div>
-        {autopay && (
-          <div style={{ marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,fontSize:11,color:C.textMuted }}>
-            ✓ Autopay active · Charges your default bank account on the 1st · Cancel anytime
-          </div>
-        )}
       </div>
 
       {/* Other saved accounts */}
@@ -337,7 +270,7 @@ function WalletContent({ tenant, user }) {
           <div style={{ width:56,height:56,borderRadius:"50%",background:`${C.blue}18`,border:`1px solid ${C.blue}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24 }}>🏦</div>
           <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No bank accounts saved</div>
           <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6 }}>
-            Link a bank account to pay rent and enable autopay.
+            Link a bank account to pay rent.
           </div>
         </div>
       )}

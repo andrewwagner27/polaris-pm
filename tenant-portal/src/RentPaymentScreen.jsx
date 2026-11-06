@@ -5,6 +5,7 @@ import { Elements, useStripe } from "@stripe/react-stripe-js";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
+import { A3_ENABLED } from "./lib/release";
 
 const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K58bFR0ys4gCdjTCxnMsAExjdp7LtwsINYkqq500qtDctcti";
 const stripePromise = loadStripe(STRIPE_PK);
@@ -30,99 +31,28 @@ function Spinner() {
   return <span style={{ width:16,height:16,border:"2px solid rgba(201,169,110,0.3)",borderTopColor:C.gold,borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite" }}/>;
 }
 
-function AutopayToggle({ tenantId, savedMethod }) {
-  const [enabled, setEnabled]   = useState(false);
-  const [loading, setLoading]   = useState(true);
-  const [saving,  setSaving]    = useState(false);
-  const [error,   setError]     = useState("");
+const money = (cents) => {
+  const n = Number(cents) || 0;
+  return `$${(n / 100).toLocaleString("en-US", { minimumFractionDigits: n % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+};
+const monthOf = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  useEffect(() => {
-    async function fetchAutopay() {
-      if (!tenantId) { setLoading(false); return; }
-      const { data } = await supabase
-        .from("tenants")
-        .select("autopay_enabled")
-        .eq("id", tenantId)
-        .single();
-      setEnabled(!!data?.autopay_enabled);
-      setLoading(false);
-    }
-    fetchAutopay();
-  }, [tenantId]);
-
-  async function toggle() {
-    if (!savedMethod) {
-      setError("Link a bank account first before enabling autopay.");
-      return;
-    }
-    const next = !enabled;
-    setSaving(true); setError("");
-    const { error: dbErr } = await supabase
-      .from("tenants")
-      .update({ autopay_enabled: next })
-      .eq("id", tenantId);
-    if (dbErr) {
-      setError("Could not save autopay preference. Please try again.");
-    } else {
-      setEnabled(next);
-    }
-    setSaving(false);
-  }
-
-  if (loading) return null;
-
+// Nothing collects rent automatically yet, so this is a notice and not a setting.
+function AutopayUnavailable() {
   return (
     <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:16 }}>
-      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
         <div>
           <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-          <div style={{ fontSize:11,color:C.textSub }}>
-            {enabled
-              ? "Rent is automatically paid on the 1st each month"
-              : savedMethod
-                ? "Automatically pay rent on the 1st each month"
-                : "Link a bank account to enable autopay"}
-          </div>
-          {error && <div style={{ fontSize:11,color:C.red,marginTop:4 }}>{error}</div>}
+          <div style={{ fontSize:11,color:C.textSub }}>Automatic rent payments aren't available yet. Rent is only paid when you submit a payment here.</div>
         </div>
-        <button
-          onClick={toggle}
-          disabled={saving}
-          style={{
-            position:"relative",
-            width:44, height:24,
-            borderRadius:12,
-            border:"none",
-            cursor: saving ? "wait" : "pointer",
-            background: enabled ? C.green : C.raised,
-            transition:"background 0.2s",
-            flexShrink:0,
-            outline:"none",
-            padding:0,
-          }}
-          aria-label={enabled ? "Disable autopay" : "Enable autopay"}
-        >
-          <span style={{
-            position:"absolute",
-            top:3, left: enabled ? 23 : 3,
-            width:18, height:18,
-            borderRadius:"50%",
-            background:C.text,
-            transition:"left 0.2s",
-            display:"block",
-          }}/>
-        </button>
+        <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:C.raised,color:C.textSub,border:`1px solid ${C.border}`,borderRadius:20,flexShrink:0 }}>Not available yet</span>
       </div>
-      {enabled && (
-        <div style={{ marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,fontSize:11,color:C.textMuted }}>
-          ✓ Autopay active · Uses bank account on file · Cancel anytime
-        </div>
-      )}
     </div>
   );
 }
 
-function ACHForm({ tenant, user, rentAmount }) {
+function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
   const stripe   = useStripe();
   const navigate = useNavigate();
 
@@ -212,7 +142,8 @@ function ACHForm({ tenant, user, rentAmount }) {
       body: {
         tenant_id:         tenant.id,
         unit_id:           tenant.unit_id,
-        amount_cents:      rentAmount * 100,
+        amount_cents:      payableCents,   // the server refuses anything but the ledger's own figure
+        purpose:           "rent",   // explicit Pay Rent workflow → categorised as Rent server-side
         payment_method_id: pmId,
         customer_id:       custId,
       }
@@ -220,7 +151,9 @@ function ACHForm({ tenant, user, rentAmount }) {
 
     if (fnError || data?.error) {
       setError(fnError?.message || data?.error);
-      setStep(savedMethod ? "idle" : "linked"); return;
+      setStep(savedMethod ? "idle" : "linked");
+      onAmountChanged();
+      return;
     }
 
     setStep("success");
@@ -234,7 +167,7 @@ function ACHForm({ tenant, user, rentAmount }) {
     <div style={{ textAlign:"center",padding:"32px 0" }}>
       <div style={{ width:64,height:64,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px",fontSize:26,color:C.green }}>✓</div>
       <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
-      <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>${rentAmount.toLocaleString()} via ACH bank transfer</div>
+      <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>{money(payableCents)} via ACH bank transfer</div>
       <div style={{ fontSize:12,color:C.textMuted,marginBottom:28 }}>ACH transfers take 2–3 business days to settle.</div>
       <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
         ← Back to home
@@ -260,8 +193,8 @@ function ACHForm({ tenant, user, rentAmount }) {
             </div>
             <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",background:`${C.green}15`,color:C.green,borderRadius:5 }}>Linked</span>
           </div>
-          <button onClick={payNow} style={{ width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em",marginBottom:10 }}>
-            Pay ${rentAmount.toLocaleString()} →
+          <button onClick={payNow} disabled={!(payableCents > 0)} style={{ opacity:payableCents > 0 ? 1 : 0.5,width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em",marginBottom:10 }}>
+            Pay {money(payableCents)} →
           </button>
           {savedMethod && (
             <button onClick={()=>{ setSavedMethod(null); setStep("idle"); }} style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
@@ -305,22 +238,26 @@ function ACHForm({ tenant, user, rentAmount }) {
 
 export default function RentPaymentScreen() {
   const { tenant, user } = useTenant();
-  // Use recurring charges total if set, otherwise fall back to unit base rent
-  const recurringTotal = tenant?.recurringCharges?.length > 0
-    ? tenant.recurringCharges.reduce((s, c) => s + parseFloat(c.amount || 0), 0)
-    : 0;
-  const rentAmount = recurringTotal > 0 ? recurringTotal : (tenant?.rent || 0);
-  const [savedMethod, setSavedMethod] = useState(null);
+  const [due, setDue] = useState(null);   // from the tenant's ledger; null while loading
+
+  async function loadDue() {
+    const { data, error } = A3_ENABLED
+      ? await supabase.rpc("a3_pay_rent_due", { p_tenant: tenant.id })
+      : await supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id });
+    setDue(error || !data ? { ledger_active: false } : data);   // no ledger figure, no online payment
+  }
 
   useEffect(() => {
-    async function checkSaved() {
-      if (!tenant?.id) return;
-      const { data } = await supabase.from("tenant_payment_methods")
-        .select("*").eq("tenant_id", tenant.id).eq("status", "active").single();
-      if (data) setSavedMethod(data);
-    }
-    checkSaved();
+    if (tenant?.id) loadDue();
   }, [tenant?.id]);
+
+  const payableCents = Number(due?.payable_cents) || 0;
+  const pendingCents = Number(due?.pending_cents) || 0;
+  const creditApplied = Number(due?.credit_applied_cents) || 0;
+  const creditWaiting = Number(due?.credit_waiting_cents) || 0;
+  const pastDueCents = Number(due?.past_due_cents) || 0;
+  const rentLines = due?.rent_lines || [];
+  const otherLines = due?.other_lines || [];
 
   return (
     <TenantLayout tenantName={tenant?.name}>
@@ -345,26 +282,59 @@ export default function RentPaymentScreen() {
             <div>
               <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Amount due</div>
               <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:600,color:C.gold,lineHeight:1 }}>
-                {rentAmount>0?`$${rentAmount.toLocaleString()}`:"—"}
+                {due?.ledger_active ? money(payableCents) : "—"}
               </div>
+              {due?.ledger_active && payableCents===0 && <div style={{ fontSize:12,color:C.green,marginTop:6 }}>{pendingCents>0 ? `Your ${money(pendingCents)} payment is processing. Nothing more to pay right now.` : "Nothing to pay right now."}</div>}
               <div style={{ fontSize:12,color:C.textSub,marginTop:6 }}>
                 Unit {tenant?.unit||"—"} · {tenant?.property||"—"}
               </div>
             </div>
-            <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:"rgba(240,164,48,0.13)",color:C.amber,borderRadius:20 }}>Due 1st</span>
+            {payableCents>0&&<span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:pastDueCents>0?"rgba(220,38,38,0.1)":"rgba(240,164,48,0.13)",color:pastDueCents>0?C.red:C.amber,borderRadius:20 }}>{pastDueCents>0?"Past due":"Due 1st"}</span>}
           </div>
+          {due?.ledger_active && (rentLines.length>0 || pendingCents>0 || creditApplied>0 || creditWaiting>0 || otherLines.length>0) && (
+            <div style={{ marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`,fontSize:12,color:C.textSub,lineHeight:1.7 }}>
+              {rentLines.map(l=>(
+                <div key={l.charge_id} style={{ display:"flex",justifyContent:"space-between",gap:12 }}>
+                  <span>{monthOf(l.due_date)} rent{l.past_due?" (past due)":""}{l.open_cents<l.amount_cents?` · ${money(l.amount_cents)} less ${money(l.amount_cents-l.open_cents)} already applied`:""}</span>
+                  <span style={{ color:C.text }}>{money(l.open_cents)}</span>
+                </div>
+              ))}
+              {pendingCents>0&&payableCents>0&&(
+                <div style={{ display:"flex",justifyContent:"space-between",gap:12 }}><span>Payment still processing</span><span style={{ color:C.text }}>−{money(pendingCents)}</span></div>
+              )}
+              {creditApplied>0&&<div style={{ color:C.green }}>Includes a {money(creditApplied)} rental credit against this month's rent.</div>}
+              {creditWaiting>0&&<div style={{ color:C.green }}>A {money(creditWaiting)} credit on your account will apply to your next rent charge.</div>}
+              {otherLines.length>0&&(
+                <div style={{ marginTop:8 }}>
+                  <div style={{ fontWeight:600,color:C.text }}>Not included in this payment</div>
+                  {otherLines.map(l=>(
+                    <div key={l.category} style={{ display:"flex",justifyContent:"space-between",gap:12 }}><span>{l.category}{l.past_due?" (past due)":""}</span><span style={{ color:C.text }}>{money(l.open_cents)}</span></div>
+                  ))}
+                  <div style={{ color:C.textMuted,fontSize:11 }}>This screen pays rent only. Please pay these to your property manager.</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Autopay toggle */}
-        {tenant?.id && (
-          <AutopayToggle tenantId={tenant.id} savedMethod={savedMethod} />
-        )}
+        <AutopayUnavailable/>
 
         {/* Payment form */}
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 22px" }}>
-          <Elements stripe={stripePromise}>
-            <ACHForm tenant={tenant} user={user} rentAmount={rentAmount}/>
-          </Elements>
+          {!due ? (
+            <div style={{ textAlign:"center",padding:"40px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
+          ) : !due.ledger_active ? (
+            <div style={{ textAlign:"center",padding:"24px 0",color:C.textSub,fontSize:13,lineHeight:1.6 }}>Online rent payment isn't available yet. Please contact your property manager.</div>
+          ) : due.online_available === false ? (
+            <div role="status" style={{ textAlign:"center",padding:"24px 8px",fontSize:13,lineHeight:1.6 }}>
+              <div style={{ fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't set up for your property yet</div>
+              <div style={{ color:C.textSub }}>Your property manager is still finishing setup with our payment processor. Until then, please pay your rent to your property manager directly. Nothing has been charged.</div>
+            </div>
+          ) : (
+            <Elements stripe={stripePromise}>
+              <ACHForm tenant={tenant} user={user} payableCents={payableCents} onAmountChanged={loadDue}/>
+            </Elements>
+          )}
         </div>
 
         {/* Wallet link */}

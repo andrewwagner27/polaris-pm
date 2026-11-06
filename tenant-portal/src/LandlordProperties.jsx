@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { paymentCents } from "./lib/accounting";
 
 const C = {
   bg:       "#0C0E12",
@@ -227,7 +228,7 @@ export default function LandlordProperties() {
     setProperties(propsData || []);
     setUnits(unitsData || []);
     setTenants(tenantsData || []);
-    setPayments(paymentsData || []);
+    setPayments((paymentsData || []).filter(p => !p.voided_at));
     setMaintenance(maintData || []);
     setLoading(false);
   }
@@ -244,7 +245,7 @@ export default function LandlordProperties() {
   function propMaintFor(id)    { return maintenance.filter(m => propUnitsFor(id).some(u => u.id === m.unit_id)); }
   function propCollectedFor(id) {
     const ids = propUnitsFor(id).map(u => u.id);
-    return payments.filter(p => ids.includes(p.unit_id) && p.status === "paid").reduce((s, p) => s + (p.amount_cents || 0), 0) / 100;
+    return payments.filter(p => ids.includes(p.unit_id) && p.status === "paid").reduce((s, p) => s + paymentCents(p), 0) / 100;
   }
   function unitRosterFor(id) {
     return propUnitsFor(id).map(unit => {

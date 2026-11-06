@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { EXPENSE_CATEGORIES, paidAtFromDate, paymentCents, paymentAmountConflict, expenseRowFromForm, expenseStatus, fmtCents, todayNY, paymentChannel, isCollected, netPaymentCents, refundsByPayment, receiptLinesFromForm } from "./lib/accounting";
+import Receivables from "./Receivables";
+import Collections from "./Collections";
+import OwnerCash from "./OwnerCash";
+import { A3_ENABLED } from "./lib/release";
+import PaymentRouteWarning from "./PaymentRouteWarning";
+import PaymentLinesField from "./PaymentLinesField";
+import PaymentActions from "./PaymentActions";
 
 const C = {
   bg:       "#0C0E12",
@@ -77,33 +85,41 @@ function Badge({ status }) {
     pending: { bg:"rgba(240,164,48,0.13)",  color:C.amber,  label:"Pending" },
     failed:  { bg:"rgba(224,85,85,0.13)",   color:C.red,    label:"Failed"  },
     late:    { bg:"rgba(224,85,85,0.13)",   color:C.red,    label:"Late"    },
+    unpaid:  { bg:"rgba(240,164,48,0.13)",  color:C.amber,  label:"Unpaid"  },
+    void:    { bg:"rgba(92,98,112,0.13)",   color:C.textSub,label:"Void"    },
+    returned:{ bg:"rgba(224,85,85,0.13)",   color:C.red,    label:"Returned"},
   };
   const cfg = map[status] || { bg:"rgba(92,98,112,0.13)", color:C.textSub, label:status||"—" };
   return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color }}>{cfg.label}</span>;
 }
 
 const fmt = (n) => `$${parseFloat(n||0).toLocaleString("en-US",{minimumFractionDigits:2})}`;
+const fmtDay  = (d) => d ? fmtDate(`${String(d).slice(0,10)}T12:00:00`) : "—";   // date-only values, no TZ shift
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
 
 // ─── Record Payment Modal ──────────────────────────────────────────────────
-function RecordPaymentModal({ tenants, onClose, onSaved }) {
-  const [form, setForm]   = useState({ tenant_id:"", amount:"", paid_at:new Date().toISOString().slice(0,10), method:"ach", note:"" });
+function RecordPaymentModal({ tenants, initialTenant, onClose, onSaved }) {
+  const [form, setForm]   = useState({ tenant_id:initialTenant||"", lines:[{ category:"", amount:"" }], paid_at:"", method:"ach" });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const update = (k,v) => setForm(f=>({...f,[k]:v}));
 
   async function submit() {
     if (!form.tenant_id) { setError("Select a tenant."); return; }
-    if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Enter a valid amount."); return; }
+    const { lines, error:invalid } = receiptLinesFromForm(form.lines);
+    if (invalid) { setError(invalid); return; }
+    if (!paidAtFromDate(form.paid_at)) { setError("Enter the date the payment was actually received."); return; }
     setSaving(true); setError("");
-    const { error:err } = await supabase.from("payments").insert({
-      tenant_id: form.tenant_id,
-      amount:    parseFloat(form.amount),
-      paid_at:   form.paid_at ? new Date(form.paid_at).toISOString() : new Date().toISOString(),
-      method:    form.method,
-      status:    "paid",
-      note:      form.note||null,
-    });
+    // One receipt per category (one statement, so all lines save or none do).
+    const { error:err } = await supabase.from("payments").insert(lines.map(l=>({
+      tenant_id:    form.tenant_id,
+      unit_id:      tenants.find(t=>t.id===form.tenant_id)?.unit_id || null,   // the unit it is for, recorded now
+      category:     l.category,
+      amount_cents: l.cents,
+      paid_at:      paidAtFromDate(form.paid_at),
+      source:       form.method,
+      status:       "paid",
+    })));
     if (err) { setError(err.message); setSaving(false); return; }
     setSaving(false);
     onSaved();
@@ -125,31 +141,21 @@ function RecordPaymentModal({ tenants, onClose, onSaved }) {
               {tenants.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
           </div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+          <PaymentLinesField tenantId={form.tenant_id} lines={form.lines} onChange={lines=>update("lines",lines)}/>
+          <div style={{ marginBottom:12 }}>
             <div>
-              <FieldLabel>Amount *</FieldLabel>
-              <div style={{ position:"relative" }}>
-                <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.textSub,fontSize:13 }}>$</span>
-                <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder="0.00" style={{ paddingLeft:24 }}/>
-              </div>
-            </div>
-            <div>
-              <FieldLabel>Date</FieldLabel>
-              <Input type="date" value={form.paid_at} onChange={e=>update("paid_at",e.target.value)}/>
+              <FieldLabel>Date received *</FieldLabel>
+              <Input type="date" value={form.paid_at} onChange={e=>update("paid_at",e.target.value)} style={{ colorScheme:"dark" }}/>
             </div>
           </div>
-          <div style={{ marginBottom:12 }}>
-            <FieldLabel>Method</FieldLabel>
+          <div style={{ marginBottom:4 }}>
+            <FieldLabel>Method (recorded offline)</FieldLabel>
             <Select value={form.method} onChange={e=>update("method",e.target.value)}>
               <option value="ach">ACH / Bank Transfer</option>
               <option value="check">Check</option>
               <option value="cash">Cash</option>
               <option value="other">Other</option>
             </Select>
-          </div>
-          <div style={{ marginBottom:4 }}>
-            <FieldLabel>Note (optional)</FieldLabel>
-            <Input value={form.note} onChange={e=>update("note",e.target.value)} placeholder="e.g. March rent"/>
           </div>
         </div>
         <div style={{ padding:"14px 24px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,justifyContent:"flex-end" }}>
@@ -325,20 +331,24 @@ function RecurringChargesTab({ charges, tenantMap, onRefresh }) {
 }
 
 // ─── Payments Tab ──────────────────────────────────────────────────────────
-function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
+function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
   const [showRecord, setShowRecord] = useState(false);
   const [filter, setFilter]         = useState("all");
 
-  const filtered = filter==="all" ? payments : payments.filter(p=>p.status===filter);
+  const filtered = filter==="all" ? payments
+    : filter==="paid" ? payments.filter(isCollected)
+    : filter==="void" ? payments.filter(p=>p.voided_at)
+    : payments.filter(p=>p.status===filter&&!p.voided_at);
 
-  const totalPaid = payments.filter(p=>p.status==="paid").reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const totalPending = payments.filter(p=>p.status==="pending").reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const refunded = refundsByPayment(refunds);
+  const totalPaid = payments.reduce((s,p)=>s+netPaymentCents(p,refunded),0);
+  const totalPending = payments.filter(p=>p.status==="pending"&&!p.voided_at).reduce((s,p)=>s+paymentCents(p),0);
 
   return (
     <div>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10 }}>
         <div style={{ display:"flex",gap:8 }}>
-          {["all","paid","pending","failed"].map(f=>(
+          {["all","paid","pending","failed","returned","void"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
               style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
@@ -351,12 +361,12 @@ function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
       {/* Summary strip */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18 }}>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Paid (all time)</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.green }}>{fmt(totalPaid)}</div>
+          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Paid, net of refunds (all time)</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.green }}>{fmtCents(totalPaid)}</div>
         </div>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
           <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Pending</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.amber }}>{fmt(totalPending)}</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.amber }}>{fmtCents(totalPending)}</div>
         </div>
       </div>
 
@@ -367,7 +377,7 @@ function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:C.raised }}>
-                <TH>Tenant</TH><TH>Amount</TH><TH>Date</TH><TH>Method</TH><TH>Status</TH><TH>Note</TH>
+                <TH>Tenant</TH><TH>For</TH><TH>Amount</TH><TH>Date</TH><TH>Received through</TH><TH>Status</TH><TH>Note</TH><TH></TH>
               </tr>
             </thead>
             <tbody>
@@ -379,11 +389,16 @@ function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
                     onMouseOver={e=>e.currentTarget.style.background=C.raised}
                     onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                     <TD bold>{tenant?.name||"—"}</TD>
-                    <TD bold>{fmt(p.amount)}</TD>
+                    <TD>{p.category||"—"}</TD>
+                    <TD bold>
+                      {fmtCents(paymentCents(p))}{paymentAmountConflict(p)&&<span title="amount and amount_cents disagree — see Reports → Income Statement → reconciliation" style={{ marginLeft:6,color:C.amber }}>⚠</span>}
+                      {refunded[p.id]>0&&<div style={{ fontSize:10,fontWeight:400,color:C.blue,marginTop:2 }}>{fmtCents(refunded[p.id])} refunded</div>}
+                    </TD>
                     <TD>{fmtDate(p.paid_at||p.created_at)}</TD>
-                    <TD>{p.method||"—"}</TD>
-                    <TD><Badge status={p.status}/></TD>
-                    <TD muted>{p.note||"—"}</TD>
+                    <TD>{paymentChannel(p)}</TD>
+                    <TD><Badge status={p.voided_at?"void":p.status}/></TD>
+                    <TD muted>{p.voided_at?`Void: ${p.void_reason}`:"—"}</TD>
+                    <TD><PaymentActions payment={p} refundedCents={refunded[p.id]||0} onDone={onRefresh}/></TD>
                   </tr>
                 );
               })}
@@ -403,6 +418,231 @@ function PaymentsTab({ payments, tenantMap, onRefresh, tenants }) {
   );
 }
 
+// ─── Record Expense Modal ──────────────────────────────────────────────────
+function RecordExpenseModal({ properties, units, onClose, onSaved }) {
+  const today = todayNY();
+  const [form, setForm]     = useState({ property_id:"", unit_id:"", category:"", amount:"", date:today, paid:true, paid_at:today, vendor_name:"", description:"" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const update = (k,v) => setForm(f=>({...f,[k]:v}));
+  const propUnits = units.filter(u=>u.property_id===form.property_id);
+
+  async function submit() {
+    const { row, error:invalid } = expenseRowFromForm(form);
+    if (invalid) { setError(invalid); return; }
+    setSaving(true); setError("");
+    const { error:err } = await supabase.from("expenses").insert(row);
+    if (err) { setError(err.message); setSaving(false); return; }
+    setSaving(false);
+    onSaved();
+  }
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }} onClick={onClose}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:480,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ padding:"20px 24px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <div style={{ fontSize:15,fontWeight:600,color:C.text }}>Record expense</div>
+          <button onClick={onClose} style={{ background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textSub }}>✕</button>
+        </div>
+        <div style={{ padding:"18px 24px" }}>
+          {error&&<div style={{ background:"rgba(224,85,85,0.1)",color:C.red,fontSize:12,padding:"10px 12px",borderRadius:7,marginBottom:14,border:`1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+            <div>
+              <FieldLabel>Property *</FieldLabel>
+              <Select value={form.property_id} onChange={e=>setForm(f=>({...f,property_id:e.target.value,unit_id:""}))}>
+                <option value="">Select property…</option>
+                {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              </Select>
+            </div>
+            <div>
+              <FieldLabel>Unit</FieldLabel>
+              <Select value={form.unit_id} onChange={e=>update("unit_id",e.target.value)} disabled={propUnits.length===0}>
+                <option value="">Whole property</option>
+                {propUnits.map(u=><option key={u.id} value={u.id}>{u.unit_number}</option>)}
+              </Select>
+            </div>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+            <div>
+              <FieldLabel>Category *</FieldLabel>
+              <Select value={form.category} onChange={e=>update("category",e.target.value)}>
+                <option value="">Select category…</option>
+                {EXPENSE_CATEGORIES.map(c=><option key={c.value} value={c.value}>{c.value}</option>)}
+              </Select>
+            </div>
+            <div>
+              <FieldLabel>Amount *</FieldLabel>
+              <div style={{ position:"relative" }}>
+                <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.textSub,fontSize:13 }}>$</span>
+                <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder="0.00" style={{ paddingLeft:24 }}/>
+              </div>
+            </div>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
+            <div>
+              <FieldLabel>Vendor</FieldLabel>
+              <Input value={form.vendor_name} onChange={e=>update("vendor_name",e.target.value)} placeholder="e.g. AEP Ohio"/>
+            </div>
+            <div>
+              <FieldLabel>Invoice / bill date *</FieldLabel>
+              <Input type="date" value={form.date} onChange={e=>update("date",e.target.value)} style={{ colorScheme:"dark" }}/>
+            </div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <FieldLabel>Description</FieldLabel>
+            <Input value={form.description} onChange={e=>update("description",e.target.value)} placeholder="e.g. October electric — common areas"/>
+          </div>
+          <div style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px" }}>
+            <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.text,cursor:"pointer" }}>
+              <input type="checkbox" checked={form.paid} onChange={e=>update("paid",e.target.checked)} style={{ accentColor:C.gold }}/>
+              Already paid
+            </label>
+            {form.paid?(
+              <div style={{ marginTop:10 }}>
+                <FieldLabel>Date paid *</FieldLabel>
+                <Input type="date" value={form.paid_at} onChange={e=>update("paid_at",e.target.value)} style={{ colorScheme:"dark" }}/>
+              </div>
+            ):(
+              <div style={{ fontSize:11,color:C.textSub,marginTop:8,lineHeight:1.5 }}>Unpaid bills are not on the cash-basis income statement until you mark them paid.</div>
+            )}
+          </div>
+        </div>
+        <div style={{ padding:"14px 24px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,justifyContent:"flex-end" }}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={submit} disabled={saving}>{saving?"Saving…":"Record expense"}</PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Expenses Tab ──────────────────────────────────────────────────────────
+function ExpensesTab({ expenses, properties, units, onRefresh }) {
+  const [showRecord, setShowRecord] = useState(false);
+  const [propFilter, setPropFilter] = useState("all");
+  const [filter, setFilter]         = useState("all");
+  const [payingId, setPayingId]     = useState(null);
+  const [paidDate, setPaidDate]     = useState(todayNY());
+  const [actionError, setActionError] = useState("");
+
+  const propMap = {};
+  properties.forEach(p => { propMap[p.id] = p; });
+  const byProp   = propFilter==="all" ? expenses : expenses.filter(e=>e.property_id===propFilter);
+  const filtered = filter==="all" ? byProp : byProp.filter(e=>expenseStatus(e)===filter);
+  const sumCents = (list) => list.reduce((s,e)=>s+Math.round(parseFloat(e.amount||0)*100),0);
+  const paidCents   = sumCents(byProp.filter(e=>expenseStatus(e)==="paid"));
+  const unpaidCents = sumCents(byProp.filter(e=>expenseStatus(e)==="unpaid"));
+
+  async function markPaid(e) {
+    setActionError("");
+    const { error } = await supabase.from("expenses").update({ paid_at:paidDate }).eq("id",e.id);
+    if (error) { setActionError(error.message); return; }
+    setPayingId(null); onRefresh();
+  }
+  async function voidExpense(e) {
+    if (!window.confirm("Void this expense? It stays on record; if it was paid, the ledger records a reversal.")) return;
+    setActionError("");
+    const { error } = await supabase.from("expenses").update({ voided_at:new Date().toISOString() }).eq("id",e.id);
+    if (error) { setActionError(error.message); return; }
+    onRefresh();
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10 }}>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+          {["all","paid","unpaid","void"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)}
+              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
+              {f.charAt(0).toUpperCase()+f.slice(1)}
+            </button>
+          ))}
+          <select value={propFilter} onChange={e=>setPropFilter(e.target.value)} aria-label="Property"
+            style={{ padding:"5px 10px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,background:C.surface,color:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif" }}>
+            <option value="all">All properties</option>
+            {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <PrimaryBtn small onClick={()=>setShowRecord(true)}>+ Record expense</PrimaryBtn>
+      </div>
+
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18 }}>
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
+          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Paid (all time)</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text }}>{fmtCents(paidCents)}</div>
+        </div>
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
+          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Unpaid — not yet on the income statement</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.amber }}>{fmtCents(unpaidCents)}</div>
+        </div>
+      </div>
+
+      {actionError&&<div style={{ background:"rgba(224,85,85,0.1)",color:C.red,fontSize:12,padding:"10px 12px",borderRadius:7,marginBottom:14 }}>{actionError}</div>}
+
+      {filtered.length===0?(
+        <div style={{ textAlign:"center",padding:"40px 20px",color:C.textSub,fontSize:13 }}>No expenses match this filter.</div>
+      ):(
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"auto" }}>
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead>
+              <tr style={{ background:C.raised }}>
+                <TH>Date</TH><TH>Property</TH><TH>Category</TH><TH>Vendor / description</TH><TH right>Amount</TH><TH>Status</TH><TH>Actions</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(e=>{
+                const status = expenseStatus(e);
+                return (
+                  <tr key={e.id}
+                    style={{ transition:"background 0.1s",opacity:status==="void"?0.55:1 }}
+                    onMouseOver={ev=>ev.currentTarget.style.background=C.raised}
+                    onMouseOut={ev=>ev.currentTarget.style.background="transparent"}>
+                    <TD>{fmtDay(e.date)}</TD>
+                    <TD bold>{propMap[e.property_id]?.name||"—"}</TD>
+                    <TD>{e.category||"—"}</TD>
+                    <TD>{[e.vendor_name,e.description].filter(Boolean).join(" · ")||"—"}</TD>
+                    <TD right bold>{fmt(e.amount)}</TD>
+                    <TD>
+                      <Badge status={status}/>
+                      {status==="paid"&&<div style={{ fontSize:10,color:C.textMuted,marginTop:3 }}>{fmtDay(e.paid_at)}</div>}
+                    </TD>
+                    <TD>
+                      {status==="unpaid"&&(payingId===e.id?(
+                        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                          <input type="date" value={paidDate} onChange={ev=>setPaidDate(ev.target.value)} aria-label="Date paid"
+                            style={{ padding:"3px 6px",fontSize:11,background:C.raised,color:C.text,border:`1px solid ${C.border}`,borderRadius:5,colorScheme:"dark" }}/>
+                          <PrimaryBtn small onClick={()=>markPaid(e)}>Save</PrimaryBtn>
+                        </div>
+                      ):(
+                        <PrimaryBtn small onClick={()=>{ setPayingId(e.id); setPaidDate(todayNY()); }}>Mark paid</PrimaryBtn>
+                      ))}
+                      {status!=="void"&&(
+                        <button onClick={()=>voidExpense(e)}
+                          style={{ marginLeft:6,background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                          Void
+                        </button>
+                      )}
+                    </TD>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showRecord&&(
+        <RecordExpenseModal
+          properties={properties}
+          units={units}
+          onClose={()=>setShowRecord(false)}
+          onSaved={()=>{ setShowRecord(false); onRefresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordFinancials() {
   const { tenantId: paramTenantId } = useParams();
@@ -413,9 +653,12 @@ export default function LandlordFinancials() {
   const [properties,       setProperties]       = useState([]);
   const [payments,         setPayments]         = useState([]);
   const [recurringCharges, setRecurringCharges] = useState([]);
+  const [expenses,         setExpenses]         = useState([]);
+  const [refunds,          setRefunds]          = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [activeTab,        setActiveTab]        = useState("payments");
   const [tenantFilter,     setTenantFilter]     = useState(paramTenantId||"all");
+  const [recordFor,        setRecordFor]        = useState(null);   // Collections → Record payment
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -425,18 +668,24 @@ export default function LandlordFinancials() {
       { data:propsData },
       { data:paymentsData },
       { data:chargesData },
+      { data:expensesData },
+      { data:refundsData },
     ] = await Promise.all([
       supabase.from("tenants").select("*").eq("archived",false),
       supabase.from("units").select("*"),
       supabase.from("properties").select("*"),
       supabase.from("payments").select("*").order("created_at",{ ascending:false }),
       supabase.from("recurring_charges").select("*").order("created_at",{ ascending:false }),
+      supabase.from("expenses").select("*").order("date",{ ascending:false }),
+      supabase.from("payment_refunds").select("*"),   // not there before A2 is applied: treated as none
     ]);
     setTenants(tenantsData||[]);
     setUnits(unitsData||[]);
     setProperties(propsData||[]);
     setPayments(paymentsData||[]);
     setRecurringCharges(chargesData||[]);
+    setExpenses(expensesData||[]);
+    setRefunds(refundsData||[]);
     setLoading(false);
   }, []);
 
@@ -452,23 +701,25 @@ export default function LandlordFinancials() {
 
   // Portfolio-level stats
   const now       = new Date();
+  const refunded  = refundsByPayment(refunds);
   const thisMonth = payments.filter(p=>{
-    if (p.status!=="paid") return false;
+    if (!isCollected(p)) return false;
     const d = new Date(p.paid_at||p.created_at);
     return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
   });
-  const collectedThisMonth = thisMonth.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const collectedThisMonth = thisMonth.reduce((s,p)=>s+netPaymentCents(p,refunded),0)/100;
   const monthlyRecurring   = recurringCharges.reduce((s,c)=>s+parseFloat(c.amount||0),0);
   const outstandingTenants = tenants.filter(t=>{
     const hasPaid = payments.some(p=>{
-      if (p.tenant_id!==t.id||p.status!=="paid") return false;
+      if (p.tenant_id!==t.id||!isCollected(p)) return false;
       const d = new Date(p.paid_at||p.created_at);
       return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
     });
     return !hasPaid;
   });
 
-  const TABS = ["payments","recurring"];
+  const TABS = ["payments","collections","receivables","recurring","expenses","owner"].filter(t => A3_ENABLED || !["collections","owner"].includes(t));
+  const TAB_LABELS = { payments:"Payment History", collections:"Collections", receivables:"Receivables", recurring:"Recurring Charges", expenses:"Expenses", owner:"Owner & Cash" };
 
   return (
     <LandlordLayout>
@@ -497,6 +748,8 @@ export default function LandlordFinancials() {
           </select>
         </div>
 
+        <PaymentRouteWarning/>
+
         {/* Stats */}
         {!loading&&(
           <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:28 }}>
@@ -517,7 +770,7 @@ export default function LandlordFinancials() {
         <div style={{ borderBottom:`1px solid ${C.border}`,marginBottom:24 }}>
           <div style={{ display:"flex",gap:0 }}>
             {TABS.map(tab=>{
-              const label = tab==="payments"?"Payment History":"Recurring Charges";
+              const label = TAB_LABELS[tab];
               const active = activeTab===tab;
               return (
                 <button key={tab} onClick={()=>setActiveTab(tab)}
@@ -535,8 +788,22 @@ export default function LandlordFinancials() {
         ):activeTab==="payments"?(
           <PaymentsTab
             payments={filteredPayments}
+            refunds={refunds}
             tenantMap={tenantMap}
             tenants={tenants}
+            onRefresh={fetchAll}
+          />
+        ):activeTab==="collections"?(
+          <Collections onRecordPayment={setRecordFor}/>
+        ):activeTab==="owner"?(
+          <OwnerCash properties={properties} tenants={tenants} units={units} onChanged={fetchAll}/>
+        ):activeTab==="receivables"?(
+          <Receivables tenants={tenants} onChanged={fetchAll}/>
+        ):activeTab==="expenses"?(
+          <ExpensesTab
+            expenses={expenses}
+            properties={properties}
+            units={units}
             onRefresh={fetchAll}
           />
         ):(
@@ -545,6 +812,9 @@ export default function LandlordFinancials() {
             tenantMap={tenantMap}
             onRefresh={fetchAll}
           />
+        )}
+        {recordFor&&(
+          <RecordPaymentModal tenants={tenants} initialTenant={recordFor} onClose={()=>setRecordFor(null)} onSaved={()=>{ setRecordFor(null); fetchAll(); }}/>
         )}
       </div>
     </LandlordLayout>

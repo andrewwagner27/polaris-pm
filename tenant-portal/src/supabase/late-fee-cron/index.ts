@@ -1,38 +1,59 @@
 // supabase/functions/late-fee-cron/index.ts
-// Runs on the 6th of every month at 00:00:01 AM
-// Cron schedule (set in Supabase Dashboard): 1 0 6 * *
+// NOT SCHEDULED. Scheduling is a production change that needs separate owner approval.
+// If approved, use cron "1 5 6-31 * *": cron runs in UTC, and that is 12:01 am EST / 1:01 am EDT in New York.
+// The month's first run is the full assessment; later runs only re-check charges deferred for a pending payment.
+// ("1 0 6 * *" would fire on the evening of the 5th in New York, and the database would refuse the run.)
 //
+// With receivables installed, this job only calls a2_assess_late_fees(), which uses today's New York date and
+// does all the work: one $50 fee per eligible rent charge, idempotent, exemptions respected, every decision audited.
+// The original logic below runs only against a database without receivables:
 // What it does:
 //  1. Finds all Rent rows in `payments` that are still unpaid/overdue
 //  2. Inserts a $50 Late Fee row for each tenant
 //  3. Marks the rent row as 'Overdue'
 //  4. Sets eviction_watch = true and eviction_flagged_at = now() on tenants
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient, getCaller, isCronRequest, isLandlord } from "../_shared/security.ts";
 
 const LATE_FEE_AMOUNT = 50;
 
 Deno.serve(async (req: Request) => {
   try {
-    // Auth: only allow calls with the service role key
-    const authHeader = req.headers.get("Authorization");
-    if (
-      !authHeader ||
-      authHeader !== `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
-    ) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
+    const supabase = adminClient();
+
+    // Authorization, before anything else: the scheduler (service-role key or CRON_SECRET) or a landlord.
+    // The landlord check reads profiles.role on the server. A valid JWT alone is never enough: the public
+    // anon key is a valid JWT, and so is every tenant's session.
+    if (!isCronRequest(req) && !isLandlord(await getCaller(req, supabase))) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { persistSession: false } }
-    );
-
     const now = new Date();
+
+    const { data: a2, error: a2Error } = await supabase.rpc("a2_status");
+    const a2Installed = !a2Error;
+    if (a2Error && a2Error.code !== "PGRST202") {   // PGRST202: the function doesn't exist (receivables not installed)
+      console.error("[late-fee-cron] a2_status:", a2Error.message);
+      return new Response(JSON.stringify({ error: a2Error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
+    if (a2Installed && !a2?.active) {
+      // Installed but no cutover date yet: there is nothing to assess, and no charge rows are ever written to payments.
+      console.log("[late-fee-cron] receivables not active; nothing to do");
+      return new Response(JSON.stringify({ mode: "inactive", processed: 0 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (a2Installed) {
+      const { data, error } = await supabase.rpc("a2_assess_late_fees");
+      if (error) {
+        console.error("[late-fee-cron] a2_assess_late_fees:", error.message);
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+      const charged = (data ?? []).filter((r: { outcome: string }) => r.outcome === "late fee charged").length;
+      console.log(`[late-fee-cron] receivables: ${charged} late fee(s) charged`);
+      return new Response(JSON.stringify({ mode: "receivables", results: data }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
 
     // First of the current month — rent was due on this date (or earlier)
     const currentMonthFirst = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -108,6 +129,7 @@ Deno.serve(async (req: Request) => {
           lease_id: row.lease_id ?? null,
           category: "Late Fee",
           amount: LATE_FEE_AMOUNT,
+          amount_cents: LATE_FEE_AMOUNT * 100,   // as in the deployed version
           balance_due: LATE_FEE_AMOUNT,
           due_date: now.toISOString().split("T")[0],
           status: "Unpaid",

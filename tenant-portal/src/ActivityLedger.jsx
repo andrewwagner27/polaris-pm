@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { useTenant } from "./useTenant";
 import TenantLayout from "./TenantLayout";
+import { ledgerToActivity } from "./lib/accounting";
 
 const C = {
   bg:"#F5F3EE",surface:"#FFFFFF",raised:"#F8F7F4",border:"#E4E1DA",
@@ -31,6 +32,15 @@ export default function ActivityLedger() {
 
   async function fetchLedger() {
     setFetching(true);
+
+    // Receivables active: the real tenant ledger, with no invented charges.
+    const { data: a2 } = await supabase.rpc("a2_status");
+    if (a2?.active) {
+      const { data: rows } = await supabase.rpc("a2_tenant_ledger", { p_tenant: null });
+      setEntries(ledgerToActivity(rows));
+      setFetching(false);
+      return;
+    }
 
     // Try ledger_entries table first; fall back to payments table
     const { data: ledger, error: ledgerErr } = await supabase

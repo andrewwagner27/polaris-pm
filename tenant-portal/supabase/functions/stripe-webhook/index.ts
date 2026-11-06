@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyStripeSignature } from "../_shared/security.ts";
+import { applyStripePaymentEvent, stripeGetter, STRIPE_PAYMENT_EVENTS } from "../_shared/stripe-events.js";
 
 serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -31,18 +32,16 @@ serve(async (req) => {
 
   const obj = event.data?.object;
 
-  // ── Rent payment succeeded ──────────────────────────────────────────────
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntentId = obj?.id;
-    await supabase.from("payments")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("stripe_payment_intent_id", paymentIntentId);
-
-    const { data: payment } = await supabase.from("payments")
-      .select("tenant_id, amount_cents")
-      .eq("stripe_payment_intent_id", paymentIntentId)
-      .single();
-
+  // ── Payments: succeeded (Stripe timestamp + fee), failed, refunds — shared with api/stripe-webhook.js ──
+  if (STRIPE_PAYMENT_EVENTS.includes(event.type)) {
+    let result;
+    try {
+      result = await applyStripePaymentEvent(event, { db: supabase, stripeGet: stripeGetter(Deno.env.get("STRIPE_SECRET_KEY")!) });
+    } catch (err) {
+      console.error("[stripe-webhook]", event.type, err.message);
+      return new Response("Processing failed", { status: 500 });   // Stripe retries; handling is idempotent
+    }
+    const payment = result.action === "paid" ? result.payment : null;
     if (payment) {
       await supabase.functions.invoke("send-email", {
         body: {
@@ -52,13 +51,6 @@ serve(async (req) => {
         }
       });
     }
-  }
-
-  // ── Rent payment failed ─────────────────────────────────────────────────
-  if (event.type === "payment_intent.payment_failed") {
-    await supabase.from("payments")
-      .update({ status: "failed" })
-      .eq("stripe_payment_intent_id", obj?.id);
   }
 
   // ── Stripe Connect: landlord completed onboarding ───────────────────────

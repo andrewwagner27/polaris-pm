@@ -286,8 +286,6 @@ export default function LandlordTenants() {
     const isRegistered = !!t.user_id;
     const isInvited    = !t.user_id && !!t.invite_sent_at;
 
-    // Autopay
-    const autopayOn = t.autopay_enabled === true;
 
     // Lease timing
     const leaseEnd   = t.lease_end   ? new Date(t.lease_end)   : null;
@@ -311,7 +309,7 @@ export default function LandlordTenants() {
       property:    property?.name||"—",
       property_id: property?.id,
       rent:        rentAmount,
-      isRegistered, isInvited, autopayOn,
+      isRegistered, isInvited,
       daysLeft, isEndingSoon, isNewMoveIn,
       payStatus, isLate, hasPaidThisMonth,
       lastPaid:  latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
@@ -503,11 +501,7 @@ export default function LandlordTenants() {
                           </div>
                           {/* Three status badges */}
                           <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-                            {/* Autopay */}
-                            {t.autopayOn
-                              ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Autopay On</span>
-                              : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.08)",color:"#A0556A",border:"1px solid rgba(224,85,85,0.15)" }}>✕ Autopay Off</span>
-                            }
+                            <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.12)",color:C.textSub,border:`1px solid ${C.border}` }}>Autopay not available yet</span>
                             {/* Registration */}
                             {t.isRegistered
                               ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Registered</span>

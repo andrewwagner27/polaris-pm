@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { paymentCents } from "./lib/accounting";
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
 const C = {
@@ -166,7 +167,7 @@ export default function LandlordDashboard() {
     setProperties(props || []);
     setUnits(units || []);
     setTenants(tenants || []);
-    setPayments(payments || []);
+    setPayments((payments || []).filter(p => !p.voided_at));
     setMaintenance(maint || []);
     setLoading(false);
   }
@@ -180,7 +181,7 @@ export default function LandlordDashboard() {
     const d = new Date(p.created_at);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
-  const collected      = (thisMonth.filter(p => p.status === "paid").reduce((s, p) => s + (p.amount_cents || 0), 0) / 100).toLocaleString("en-US");
+  const collected      = (thisMonth.filter(p => p.status === "paid").reduce((s, p) => s + paymentCents(p), 0) / 100).toLocaleString("en-US");
   const expected       = (units.reduce((s, u) => s + ((u.rent_amount || 0) * 100), 0) / 100).toLocaleString("en-US");
   const openMaint      = maintenance.filter(m => m.status !== "resolved");
 
@@ -196,7 +197,7 @@ export default function LandlordDashboard() {
   const filteredRoll   = rentFilter === "all" ? rentRollRows : rentRollRows.filter(r => r.status === rentFilter);
   const recentActivity = payments.slice(0, 4).map(p => ({
     paid: p.status === "paid",
-    text: `${p.tenants?.name || "Tenant"} ${p.status === "paid" ? "paid" : "payment failed"} $${((p.amount_cents || 0) / 100).toLocaleString()} — Unit ${p.units?.unit_number || ""} · ${p.units?.properties?.name || ""}`,
+    text: `${p.tenants?.name || "Tenant"} ${p.status === "paid" ? "paid" : "payment failed"} $${(paymentCents(p) / 100).toLocaleString()} — Unit ${p.units?.unit_number || ""} · ${p.units?.properties?.name || ""}`,
     time: new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
   }));
 
@@ -276,7 +277,7 @@ export default function LandlordDashboard() {
                 const pct          = total > 0 ? Math.round((occ / total) * 100) : 0;
                 const color        = PROP_COLORS[i % PROP_COLORS.length];
                 const propPaid     = payments.filter(p => propUnits.some(u => u.id === p.unit_id) && p.status === "paid");
-                const propTotal    = (propPaid.reduce((s, p) => s + (p.amount_cents || 0), 0) / 100).toLocaleString();
+                const propTotal    = (propPaid.reduce((s, p) => s + paymentCents(p), 0) / 100).toLocaleString();
                 return (
                   <div key={prop.id} className="m-prop" style={{
                     background: C.surface, border: `1px solid ${C.border}`,

@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { supabaseAdmin as supabase } from "./_lib/auth.js";
 import { sendEmail } from "./_lib/email.js";
+import { applyStripePaymentEvent, stripeGetter, STRIPE_PAYMENT_EVENTS } from "../supabase/functions/_shared/stripe-events.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -35,17 +36,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid signature" });
   }
 
-  const paymentIntent = event.data.object;
+  // Payments: succeeded (Stripe timestamp + fee), failed, refunds — shared with the Supabase Edge Function.
+  let result = null;
+  if (STRIPE_PAYMENT_EVENTS.includes(event.type)) {
+    try {
+      result = await applyStripePaymentEvent(event, { db: supabase, stripeGet: stripeGetter(process.env.STRIPE_SECRET_KEY) });
+    } catch (err) {
+      console.error("[stripe-webhook]", event.type, err.message);
+      return res.status(500).json({ error: "Processing failed" });   // Stripe retries; handling is idempotent
+    }
+  }
 
-  if (event.type === "payment_intent.succeeded") {
-    await supabase.from("payments")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("stripe_payment_intent_id", paymentIntent.id);
-
+  if (result?.action === "paid") {
     // Get tenant info for receipt email
     const { data: payment } = await supabase.from("payments")
       .select("tenant_id, amount_cents, tenants(name, email)")
-      .eq("stripe_payment_intent_id", paymentIntent.id)
+      .eq("stripe_payment_intent_id", result.paymentIntentId)
       .single();
 
     if (payment?.tenants?.email) {
@@ -81,12 +87,6 @@ export default async function handler(req, res) {
           `,
       });
     }
-  }
-
-  if (event.type === "payment_intent.payment_failed") {
-    await supabase.from("payments")
-      .update({ status: "failed" })
-      .eq("stripe_payment_intent_id", paymentIntent.id);
   }
 
   return res.status(200).json({ received: true });

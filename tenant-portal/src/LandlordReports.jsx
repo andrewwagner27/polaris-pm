@@ -4,6 +4,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import IncomeStatement from "./IncomeStatement";
+import DelinquencyReport from "./DelinquencyReport";
+import { A3_ENABLED } from "./lib/release";
+import { BalanceSheet, TrialBalance } from "./FinancialPosition";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -31,14 +35,16 @@ const STATUS = {
 
 const REPORT_CARDS = [
   { id: "rentroll",    title: "Rent Roll",          sub: "Current payment status for all units",      status: "live",   accent: C.blue },
-  { id: "delinquency", title: "Delinquency Report", sub: "Late & pending payments with aging",        status: "live",   accent: C.red },
+  { id: "delinquency", title: "Delinquency Report", sub: "Tenants with an open balance, with CSV",    status: "live",   accent: C.red },
   { id: "vacancy",     title: "Vacancy Report",     sub: "Vacant units and lost revenue",             status: "live",   accent: C.amber },
   { id: "expiry",      title: "Lease Expiration",   sub: "Leases expiring in the next 180 days",      status: "live",   accent: C.green },
-  { id: "income",      title: "Income Statement",   sub: "Revenue vs expenses by property",           status: "coming", accent: C.textMuted },
+  { id: "income",      title: "Income Statement",   sub: "Cash-basis income & expenses by property, owner or books, with period comparison", status: "live", accent: C.gold },
+  { id: "balance",     title: "Balance Sheet",      sub: "Cash, deposits held, amounts owed and equity, as of any date", status: "live", accent: C.gold },
+  { id: "trial",       title: "Trial Balance",      sub: "Every account's debit and credit, checked against the Income Statement", status: "live", accent: C.gold },
   { id: "cashflow",    title: "Cash Flow Report",   sub: "Monthly cash in vs cash out",               status: "coming", accent: C.textMuted },
   { id: "maintenance", title: "Maintenance Cost",   sub: "Spend by vendor, property, category",      status: "coming", accent: C.textMuted },
   { id: "yearend",     title: "Year-End Summary",   sub: "CPA-ready annual income & expense report",  status: "coming", accent: C.textMuted },
-];
+].filter(c => A3_ENABLED || !["balance", "trial"].includes(c.id));
 
 function useWindowWidth() {
   const [w, setW] = useState(window.innerWidth);
@@ -167,6 +173,7 @@ export default function LandlordReports() {
   const [units, setUnits]               = useState([]);
   const [tenants, setTenants]           = useState([]);
   const [payments, setPayments]         = useState([]);
+  const [receivablesActive, setReceivablesActive] = useState(false);
 
   const month = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
@@ -183,7 +190,9 @@ export default function LandlordReports() {
     setProperties(propsData || []);
     setUnits(unitsData || []);
     setTenants(tenantsData || []);
-    setPayments(paymentsData || []);
+    setPayments((paymentsData || []).filter(p => !p.voided_at));
+    const { data: a2 } = await supabase.rpc("a2_status");
+    setReceivablesActive(!!a2?.active);
     setLoading(false);
   }
 
@@ -342,7 +351,8 @@ export default function LandlordReports() {
             )}
 
             {/* ── Delinquency ── */}
-            {activeReport === "delinquency" && (
+            {activeReport === "delinquency" && receivablesActive && <DelinquencyReport properties={properties}/>}
+            {activeReport === "delinquency" && !receivablesActive && (
               <>
                 <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Delinquency Report — {month}</div>
@@ -405,6 +415,11 @@ export default function LandlordReports() {
                 )}
               </>
             )}
+
+            {/* ── Income Statement ── */}
+            {activeReport === "income" && <IncomeStatement properties={properties} />}
+            {activeReport === "balance" && <BalanceSheet />}
+            {activeReport === "trial" && <TrialBalance />}
 
             {/* ── Lease Expiry ── */}
             {activeReport === "expiry" && (

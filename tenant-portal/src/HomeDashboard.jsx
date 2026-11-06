@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { ledgerBalanceCents } from "./lib/accounting";
 import { useTenant } from "./useTenant";
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
@@ -69,6 +70,13 @@ export default function HomeDashboard() {
   }
 
   async function fetchBalance() {
+    // Receivables active: the real tenant ledger balance.
+    const { data: a2 } = await supabase.rpc("a2_status");
+    if (a2?.active) {
+      const { data: rows } = await supabase.rpc("a2_tenant_ledger", { p_tenant: null });
+      setBalanceInfo(ledgerBalanceCents(rows) / 100);
+      return;
+    }
     const { data: charges } = await supabase.from("ledger_entries").select("amount,type").eq("tenant_id", tenant.id);
     if (charges) {
       let bal = 0;

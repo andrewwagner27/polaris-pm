@@ -9,6 +9,8 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { tenant_id, payment_method_id, customer_id } = body;
+    // Only the tenant Pay Rent screen sends purpose "rent"; only then is the payment categorised as Rent.
+    const isPayRent = body.purpose === "rent";
     // Client sends rentAmount * 100, which can carry float error (e.g. 123455.99999)
     const amount_cents = Math.round(Number(body.amount_cents));
 
@@ -31,13 +33,30 @@ serve(async (req) => {
     // Look up the property owner's Stripe Connect account via: tenant → unit → property → landlord
     const { data: tenant } = await supabase
       .from("tenants")
-      .select("unit_id, property_id, user_id")
+      .select("unit_id, user_id")
       .eq("id", tenant_id)
       .maybeSingle();
 
     if (!tenant || tenant.user_id !== caller.user.id) {
       return json(req, { error: "Not authorized for this tenant" }, 403);
     }
+
+    // The ledger sets the amount. The client's figure must match it, so a stale screen or an edited request can't overcharge.
+    if (!isPayRent) return json(req, { error: "Only rent can be paid here" }, 400);
+    const { data: due, error: dueError } = await supabase.rpc("a2_pay_rent_internal", { p_tenant: tenant_id });
+    if (dueError || !due?.ledger_active) {
+      return json(req, { error: "Online rent payment isn't available yet. Please contact your property manager." }, 409);
+    }
+    const payableCents = Number(due.payable_cents);
+    if (!(payableCents > 0)) return json(req, { error: "There's no rent to pay right now." }, 409);
+    if (amount_cents !== payableCents) {
+      return json(req, { error: "The amount due has changed. Please review it and try again." }, 409);
+    }
+    const { count: paymentCount, error: countError } = await supabase
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenant_id);
+    if (countError) return json(req, { error: "Could not check your balance. Please try again." }, 409);
 
     // The Stripe customer must belong to this tenant (created by create-setup-intent
     // with metadata.tenant_id, or recorded in tenant_payment_methods).
@@ -60,19 +79,22 @@ serve(async (req) => {
 
     const unit_id = tenant.unit_id || null;
 
-    const { data: property } = await supabase
-      .from("properties")
-      .select("landlord_id")
-      .eq("id", tenant?.property_id || unit_id)
-      .single();
-
-    const { data: landlord } = await supabase
-      .from("landlords")
-      .select("stripe_account_id, stripe_onboarded")
-      .eq("id", property?.landlord_id)
-      .single();
+    // The owner's Stripe account: tenant → unit → property → properties.owner_email → landlords.email.
+    const { data: unit } = unit_id
+      ? await supabase.from("units").select("property_id").eq("id", unit_id).maybeSingle()
+      : { data: null };
+    const { data: property } = unit?.property_id
+      ? await supabase.from("properties").select("owner_email").eq("id", unit.property_id).maybeSingle()
+      : { data: null };
+    const { data: landlord } = property?.owner_email
+      ? await supabase.from("landlords").select("stripe_account_id, stripe_onboarded").eq("email", property.owner_email).eq("stripe_onboarded", true).maybeSingle()
+      : { data: null };
 
     const ownerStripeAccountId = landlord?.stripe_onboarded ? landlord?.stripe_account_id : null;
+    // Never collect rent that has no route to the owner.
+    if (!ownerStripeAccountId) {
+      return json(req, { error: "Online rent payment isn't set up for your property yet, so nothing was charged. Please pay your property manager directly for now." }, 409);
+    }
 
     // 5% platform fee
     const platformFee = Math.round(amount_cents * 0.05);
@@ -90,6 +112,7 @@ serve(async (req) => {
       "mandate_data[customer_acceptance][online][user_agent]": "Modus PM",
       "metadata[tenant_id]": tenant_id,
       "metadata[unit_id]": unit_id || "",
+      ...(isPayRent ? { "metadata[purpose]": "rent" } : {}),
     };
 
     // If owner has a connected Stripe account, route funds there minus 5%
@@ -100,11 +123,17 @@ serve(async (req) => {
       params["metadata[platform_fee_cents]"] = String(platformFee);
     }
 
+    // Two simultaneous requests read the same ledger state, so they share a key and Stripe makes one payment.
+    // The row count changes once a payment exists; the 10-minute bucket keeps a saved Stripe error from blocking a later retry.
+    const idempotencyKey = ["payrent", tenant_id, payment_method_id, amount_cents, due.open_rent_cents, due.pending_cents, paymentCount ?? 0,
+      Math.floor(Date.now() / 600_000)].join(":");
+
     const paymentRes = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        "Idempotency-Key": idempotencyKey,
       },
       body: new URLSearchParams(params),
     });
@@ -112,8 +141,8 @@ serve(async (req) => {
     const paymentIntent = await paymentRes.json();
     if (paymentIntent.error) throw new Error(paymentIntent.error.message);
 
-    // Record pending payment
-    await supabase.from("payments").insert({
+    // Record pending payment, once: Stripe replays the same payment intent for a repeated request, and the index enforces one row.
+    await supabase.from("payments").upsert([{
       tenant_id,
       unit_id,
       amount_cents,
@@ -122,7 +151,8 @@ serve(async (req) => {
       status: "pending",
       stripe_payment_intent_id: paymentIntent.id,
       source: "ach",
-    });
+      ...(isPayRent ? { category: "Rent", origin: "tenant_pay_rent" } : {}),
+    }], { onConflict: "stripe_payment_intent_id", ignoreDuplicates: true });
 
     return json(req, {
       payment_intent_id: paymentIntent.id,

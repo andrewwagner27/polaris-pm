@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import { getSignedStorageUrl, extractStoragePath } from "./storageUtils";
 import LandlordLayout from "./LandlordLayout";
+import { paidAtFromDate, paymentCents, fmtCents, receiptLinesFromForm, refundsByPayment, paymentChannel } from "./lib/accounting";
+import PaymentLinesField from "./PaymentLinesField";
+import PaymentActions from "./PaymentActions";
+import TenantLedger from "./TenantLedger";
 
 const C = {
   bg:       "#0C0E12",
@@ -32,7 +36,7 @@ const STATUS = {
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
 };
 
-const TABS = ["Overview","Payments","Recurring","Maintenance","Lease","Inspections","Notes"];
+const TABS = ["Overview","Ledger","Payments","Recurring","Maintenance","Lease","Inspections","Notes"];
 const AVATAR_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
 
 const ROOM_LABELS = {
@@ -138,23 +142,27 @@ const TD = ({ children, right, bold, color }) => (
 
 // ─── Record Payment Modal ──────────────────────────────────────────────────
 function RecordPaymentModal({ tenantId, unit, onClose, onSaved }) {
-  const [form, setForm] = useState({ amount:"", method:"cash", date:new Date().toISOString().split("T")[0], notes:"" });
+  const [form, setForm] = useState({ lines:[{ category:"", amount:"" }], method:"cash", date:"" });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
   const update = (k,v) => setForm(f=>({ ...f,[k]:v }));
 
   async function submit() {
-    if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Enter a valid amount."); return; }
+    const { lines, error:invalid } = receiptLinesFromForm(form.lines);
+    if (invalid) { setError(invalid); return; }
+    if (!paidAtFromDate(form.date)) { setError("Enter the date the payment was actually received."); return; }
     setSaving(true); setError("");
-    const { error:err } = await supabase.from("payments").insert({
+    // One receipt per category (one statement, so all lines save or none do).
+    const { error:err } = await supabase.from("payments").insert(lines.map(l=>({
       tenant_id:    tenantId,
-      amount_cents: Math.round(parseFloat(form.amount)*100),
+      unit_id:      unit?.id || null,   // the unit it is for, recorded now
+      category:     l.category,
+      amount_cents: l.cents,
       status:       "paid",
       source:       form.method,
-      paid_at:      form.date ? new Date(form.date).toISOString() : new Date().toISOString(),
-      notes:        form.notes||null,
-    });
+      paid_at:      paidAtFromDate(form.date),
+    })));
     if (err) { setError(err.message); setSaving(false); return; }
     setSaving(false);
     onSaved();
@@ -169,10 +177,7 @@ function RecordPaymentModal({ tenantId, unit, onClose, onSaved }) {
         </div>
         <div style={{ padding:"16px 22px" }}>
           {error&&<div style={{ background:"rgba(224,85,85,0.1)",color:C.red,fontSize:12,padding:"10px 12px",borderRadius:7,marginBottom:14,border:`1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
-          <div style={{ marginBottom:12 }}>
-            <FieldLabel>Amount ($) *</FieldLabel>
-            <Input type="number" value={form.amount} onChange={e=>update("amount",e.target.value)} placeholder={`${unit?.rent_amount||"0"}.00`}/>
-          </div>
+          <PaymentLinesField tenantId={tenantId} lines={form.lines} onChange={lines=>update("lines",lines)}/>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12 }}>
             <div>
               <FieldLabel>Payment Method</FieldLabel>
@@ -186,13 +191,9 @@ function RecordPaymentModal({ tenantId, unit, onClose, onSaved }) {
               </SelectField>
             </div>
             <div>
-              <FieldLabel>Payment Date</FieldLabel>
+              <FieldLabel>Date Received *</FieldLabel>
               <Input type="date" value={form.date} onChange={e=>update("date",e.target.value)}/>
             </div>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <FieldLabel>Notes</FieldLabel>
-            <Input value={form.notes} onChange={e=>update("notes",e.target.value)} placeholder="Optional note…"/>
           </div>
         </div>
         <div style={{ padding:"12px 22px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,justifyContent:"flex-end" }}>
@@ -659,10 +660,12 @@ export default function LandlordTenantDetail() {
   const [unit,         setUnit]         = useState(null);
   const [property,     setProperty]     = useState(null);
   const [payments,     setPayments]     = useState([]);
+  const [refunded,     setRefunded]     = useState({});
   const [maintenance,  setMaintenance]  = useState([]);
   const [checklist,    setChecklist]    = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [activeTab,    setActiveTab]    = useState("Overview");
+  const [searchParams] = useSearchParams();
+  const [activeTab,    setActiveTab]    = useState(TABS.includes(searchParams.get("tab")) ? searchParams.get("tab") : "Overview");
   const [notes,        setNotes]        = useState("");
   const [noteSaved,    setNoteSaved]    = useState(false);
   const [savingNotes,  setSavingNotes]  = useState(false);
@@ -688,6 +691,8 @@ export default function LandlordTenantDetail() {
     setUnit(unitData||null);
     setProperty(unitData?.properties||null);
     setPayments(paymentsData||[]);
+    const { data:refundsData } = await supabase.from("payment_refunds").select("*");   // not there before A2: treated as none
+    setRefunded(refundsByPayment(refundsData));
     setMaintenance(maintData||[]);
     setChecklist(checklistData||[]);
     setLoading(false);
@@ -827,11 +832,7 @@ export default function LandlordTenantDetail() {
                   ? <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(74,154,232,0.1)",color:C.blue,border:"1px solid rgba(74,154,232,0.2)" }}>✉ Invite Sent</span>
                   : <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Not Invited</span>
               }
-              {/* Autopay */}
-              {tenant.autopay_enabled
-                ? <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Autopay On</span>
-                : <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(92,98,112,0.12)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Autopay Off</span>
-              }
+              <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(92,98,112,0.12)",color:C.textSub,border:`1px solid ${C.border}` }}>Autopay not available yet</span>
               {/* Lease countdown */}
               {daysLeft!==null&&daysLeft>0&&daysLeft<=90&&(
                 <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(240,164,48,0.13)",color:C.amber,border:"1px solid rgba(240,164,48,0.2)" }}>⚠ Lease: {daysLeft}d</span>
@@ -914,6 +915,9 @@ export default function LandlordTenantDetail() {
           </div>
         )}
 
+        {/* ── Ledger ── */}
+        {activeTab==="Ledger"&&<TenantLedger tenantId={id}/>}
+
         {/* ── Payments ── */}
         {activeTab==="Payments"&&(
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
@@ -928,14 +932,19 @@ export default function LandlordTenantDetail() {
               <div style={{ textAlign:"center",padding:32,color:C.textSub,fontSize:13 }}>No payment history yet.</div>
             ):(
               <table style={{ width:"100%",borderCollapse:"collapse" }}>
-                <thead><tr><TH>Date</TH><TH right>Amount</TH><TH>Status</TH><TH>Source</TH></tr></thead>
+                <thead><tr><TH>Date</TH><TH>For</TH><TH right>Amount</TH><TH>Status</TH><TH>Received through</TH><TH></TH></tr></thead>
                 <tbody>
                   {payments.map((p,i)=>(
                     <tr key={i} className="m-row">
-                      <TD>{new Date(p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</TD>
-                      <TD right bold>${((p.amount_cents||0)/100).toLocaleString("en-US",{minimumFractionDigits:2})}</TD>
-                      <TD><Badge status={p.status}/></TD>
-                      <TD>{p.source||"—"}</TD>
+                      <TD>{new Date(p.paid_at||p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</TD>
+                      <TD>{p.category||"—"}</TD>
+                      <TD right bold>
+                        {fmtCents(paymentCents(p))}
+                        {refunded[p.id]>0&&<div style={{ fontSize:10,fontWeight:400,color:C.blue,marginTop:2 }}>{fmtCents(refunded[p.id])} refunded</div>}
+                      </TD>
+                      <TD>{p.voided_at?<span style={{ fontSize:10,fontWeight:600,color:C.textSub }} title={p.void_reason}>VOID</span>:<Badge status={p.status}/>}</TD>
+                      <TD>{paymentChannel(p)}</TD>
+                      <TD><PaymentActions payment={p} refundedCents={refunded[p.id]||0} onDone={fetchAll}/></TD>
                     </tr>
                   ))}
                 </tbody>
