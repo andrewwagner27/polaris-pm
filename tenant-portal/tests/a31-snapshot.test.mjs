@@ -125,6 +125,52 @@ test("portfolio: totals cover only available properties, ratios come from the su
   assert.equal(portfolioSnapshot([]).metrics.noi.available, false);
 });
 
+test("chart series: monthly buckets over the period, in-scope properties only, partial months flagged", async () => {
+  const { monthlySeries } = await import("../src/lib/snapshot.js");
+  const lines = [
+    { property_id: "A", entry_date: "2026-02-01", account_type: "income", debit_cents: 0, credit_cents: 100000 },
+    { property_id: "A", entry_date: "2026-02-10", account_type: "expense", debit_cents: 30000, credit_cents: 0 },
+    { property_id: "A", entry_date: "2026-02-11", account_type: "asset", debit_cents: 100000, credit_cents: 0 },      // cash side: ignored
+    { property_id: "A", entry_date: "2026-03-01", account_type: "income", debit_cents: 100000, credit_cents: 0 },     // a reversal
+    { property_id: "B", entry_date: "2026-02-01", account_type: "income", debit_cents: 0, credit_cents: 999999 },     // out of scope
+  ];
+  const s = monthlySeries(lines, TTM, ["A"]);
+  assert.equal(s.months.length, 13);                                                // Nov 2025 (from the 6th) .. Nov 2026 (to the 5th)
+  assert.ok(s.months[0].partial && s.months[12].partial && !s.months[1].partial);
+  const feb = s.months.find((m) => m.month === "2026-02"), mar = s.months.find((m) => m.month === "2026-03");
+  assert.deepEqual([feb.income, feb.expenses, mar.income], [100000, 30000, -100000]);
+  assert.ok(s.hasData);
+  assert.equal(monthlySeries([], TTM, ["A"]).hasData, false);
+  assert.equal(monthlySeries(lines, snapshotRange("last_year", TODAY), ["A"]).months.length, 12);
+});
+
+test("needs attention: grouped, factual, attention items first", async () => {
+  const { attentionItems } = await import("../src/lib/snapshot.js");
+  const mk = (id, name, opts = {}) => {
+    const property = prop(id, name, opts.books === undefined ? "B" : opts.books);
+    const snap = propertySnapshot({ property, units: [{ rent_amount: 1000, occupied: true }], profile: opts.profile || null, loans: opts.loans || [],
+      ledger: opts.ledger ?? ledger(100000, 0, 300000), history: { first_entry_date: "2020-01-01" }, period: TTM, today: TODAY });
+    return { property, snap, loans: opts.loans || [], profile: opts.profile || null };
+  };
+  const full = { current_value_cents: 1e8, value_as_of: "2024-01-01", value_source: "owner_estimate", no_debt: true, cash_invested_cents: 1e7 };
+  const items = attentionItems([
+    mk("1", "Loss"), mk("2", "NoBooks", { books: null }), mk("3", "Old", { profile: full, ledger: ledger(500000, 0, 100000) }),
+    mk("4", "Maturing", { profile: { ...full, value_as_of: "2026-06-01", no_debt: false }, ledger: ledger(500000, 0, 100000),
+      loans: [{ lender: "Bank", original_amount_cents: 1e7, annual_rate_pct: 5, amortization_months: 120, first_payment_date: "2017-03-01" }] }),
+  ], { today: TODAY });
+  const titles = items.map((i) => i.title);
+  assert.ok(titles.includes("NoBooks isn't assigned to a set of books"));
+  assert.ok(titles.includes("Loss has negative NOI"));
+  assert.ok(titles.some((t) => /Maturing reaches its final scheduled payment on Feb 1, 2027/.test(t)));
+  assert.ok(titles.includes("Loss needs financial details") === false && titles.includes("2 properties need financial details"));  // grouped once
+  assert.ok(titles.includes("Property value over a year old: Old"));
+  assert.ok(!titles.includes("No income or expenses recorded in this period"));
+  const firstInfo = items.findIndex((i) => i.level === "info");
+  assert.ok(items.slice(firstInfo).every((i) => i.level === "info"));
+  const quiet = attentionItems([mk("1", "A", { ledger: [] }), mk("2", "B", { ledger: [] })], { today: TODAY }).map((i) => i.title);
+  assert.ok(quiet.includes("No income or expenses recorded in this period") && !quiet.some((t) => /negative NOI/.test(t)));
+});
+
 test("formatting and form parsing", () => {
   assert.equal(fmtMoney(123456789), "$1,234,568"); assert.equal(fmtMoney(-50000), "($500)"); assert.equal(fmtMoney(null), "—");
   assert.equal(fmtPctValue(0.0725), "7.3%"); assert.equal(fmtRatio(1.25), "1.25×");

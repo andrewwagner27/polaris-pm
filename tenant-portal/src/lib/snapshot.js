@@ -221,7 +221,66 @@ export function portfolioSnapshot(snaps) {
   return out;
 }
 
+// ─── Monthly income vs operating expenses (chart) ───────────────────────────
+// lines: rows from a1_scoped_lines (the same journal the snapshot reads). Only properties in `propertyIds` count.
+// Income = credit − debit on income accounts; expenses = debit − credit on expense accounts (as a31_property_ledger).
+export function monthlySeries(lines, period, propertyIds) {
+  const ids = new Set(propertyIds);
+  const months = [];
+  for (let m = `${period.from.slice(0, 7)}-01`; m <= period.to; m = addMonths(m, 1)) {
+    const start = m < period.from ? period.from : m, end = addDays(addMonths(m, 1), -1);
+    months.push({ month: m.slice(0, 7), from: start, to: end > period.to ? period.to : end, partial: start !== m || end > period.to, income: 0, expenses: 0 });
+  }
+  const at = Object.fromEntries(months.map((x) => [x.month, x]));
+  let entries = 0;
+  for (const l of lines || []) {
+    if (!ids.has(l.property_id)) continue;
+    const b = at[String(l.entry_date).slice(0, 7)];
+    if (!b) continue;
+    if (l.account_type === "income") { b.income += Number(l.credit_cents) - Number(l.debit_cents); entries++; }
+    else if (l.account_type === "expense") { b.expenses += Number(l.debit_cents) - Number(l.credit_cents); entries++; }
+  }
+  return { months, hasData: entries > 0 };
+}
+
+// Scheduled final payment of an amortizing loan (the term entered); interest-only loans have none recorded.
+export const loanFinalPayment = (loan) => (loan.interest_only || !loan.amortization_months ? null : addMonths(loan.first_payment_date, Number(loan.amortization_months) - 1));
+
+// ─── Needs attention ────────────────────────────────────────────────────────
+// rows: [{ property, owner, snap, loans, profile }] in the current scope. Each item is shown once, grouped where it
+// repeats. level "attention" = something to act on; "info" = context. Only facts the data supports: nothing is inferred.
+export function attentionItems(rows, { today }) {
+  const out = [];
+  const names = (rs) => rs.map((r) => r.property.name).join(", ");
+  for (const r of rows.filter((r) => !r.property.accounting_entity_id))
+    out.push({ level: "attention", title: `${r.property.name} isn't assigned to a set of books`, detail: "Its income and expenses can't be recorded, so it's left out of NOI.", propertyId: r.property.id });
+  for (const r of rows.filter((r) => r.snap.metrics.noi.available && r.snap.metrics.noi.value < 0))
+    out.push({ level: "attention", title: `${r.property.name} has negative NOI`, detail: `Operating expenses exceeded income by ${fmtMoney(-r.snap.metrics.noi.value)} in this period.`, propertyId: r.property.id });
+  for (const r of rows.filter((r) => r.snap.metrics.dscr.available && r.snap.metrics.dscr.value < 1))
+    out.push({ level: "attention", title: `${r.property.name}'s NOI doesn't cover its loan payments`, detail: `Debt service coverage is ${fmtRatio(r.snap.metrics.dscr.value)}.`, propertyId: r.property.id });
+  for (const r of rows) for (const l of r.loans || []) {
+    const end = loanFinalPayment(l);
+    if (!l.paid_off_on && end && end >= today && end <= addMonths(today, 12))
+      out.push({ level: "attention", title: `A loan on ${r.property.name} reaches its final scheduled payment on ${fmtDate(end)}`, detail: `${l.lender || "Loan"}, based on the term entered.`, propertyId: r.property.id });
+  }
+  const incomplete = rows.filter((r) => r.snap.missing.some((m) => m !== "set of books"));
+  if (incomplete.length) {
+    const what = [...new Set(incomplete.flatMap((r) => r.snap.missing.filter((m) => m !== "set of books")))];
+    out.push({ level: "info", title: incomplete.length === 1 ? `${incomplete[0].property.name} needs financial details` : `${incomplete.length} properties need financial details`,
+      detail: `Add ${what.join(", ")} to see value, equity and returns${incomplete.length > 1 ? ` (${names(incomplete)})` : ""}.`, propertyId: incomplete.length === 1 ? incomplete[0].property.id : null });
+  }
+  const booked = rows.filter((r) => r.property.accounting_entity_id);
+  if (booked.length && booked.every((r) => r.snap.entries === 0))
+    out.push({ level: "info", title: "No income or expenses recorded in this period", detail: "NOI appears once payments and expenses are recorded in Financials." });
+  const stale = rows.filter((r) => r.profile?.value_as_of && r.profile.value_as_of < addMonths(today, -12));
+  if (stale.length) out.push({ level: "info", title: `Property value over a year old: ${names(stale)}`, detail: "Update it for current equity and cap rate.", propertyId: stale.length === 1 ? stale[0].property.id : null });
+  return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "attention" ? -1 : 1));
+}
+
 // ─── Formatting ─────────────────────────────────────────────────────────────
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const fmtDate = (d) => (d ? `${MONTHS[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}, ${d.slice(0, 4)}` : "—");
+export const fmtMonth = (ym, withYear) => `${MONTHS[Number(ym.slice(5, 7)) - 1]}${withYear ? ` ${ym.slice(2, 4)}` : ""}`;
 export function fmtMoney(cents) {
   if (cents == null) return "—";
   const a = Math.abs(Math.round(cents)) / 100;

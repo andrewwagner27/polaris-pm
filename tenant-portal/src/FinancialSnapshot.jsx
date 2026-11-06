@@ -1,325 +1,396 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { todayNY } from "./lib/accounting";
 import {
   KIND_LABEL, KIND_HELP, VALUE_SOURCES, SNAPSHOT_PERIODS, snapshotRange, propertySnapshot, portfolioSnapshot,
-  loanPayment, loanBalance, fmtMoney, fmtPctValue, fmtRatio, dollarsToCents, centsToDollars,
+  loanPayment, loanBalance, monthlySeries, attentionItems, fmtMoney, fmtPctValue, fmtRatio, fmtDate, fmtMonth,
 } from "./lib/snapshot";
+import { Btn, ProfileModal, LoanModal } from "./FinancialInputs";
+import { C, font } from "./lib/financialTheme";
 
-// ─── A3.1 Financial Snapshot ───────────────────────────────────────────────
-// Portfolio summary and property snapshots. Actuals come from the ledger; value, purchase, cash invested and
-// loans are entered here. Definitions live in lib/snapshot.js, shared by both views.
+// ─── A3.1 Financial Overview ───────────────────────────────────────────────
+// Presentation only. Data and definitions are unchanged: actuals from the ledger (a31_property_ledger, and
+// a1_scoped_lines for the monthly chart), owner-entered inputs, and lib/snapshot.js for every calculation.
 
-const C = {
-  bg: "#0C0E12", surface: "#14181F", raised: "#1A1F29", border: "rgba(255,255,255,0.08)",
-  text: "#EDEAE2", textSub: "#9095A0", textMuted: "#5C6270",
-  gold: "#C9A96E", goldDim: "#6B4F24", blue: "#4A9AE8", green: "#72B02A", red: "#E05555", amber: "#F0A430",
-};
-const KIND_COLOR = { actual: C.green, scheduled: C.blue, entered: C.gold, estimate: C.amber };
-const font = "'DM Sans', sans-serif";
-const field = { width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", fontFamily: font, colorScheme: "dark", boxSizing: "border-box" };
-const selectStyle = { padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: font };
+const serif = "'Cormorant Garamond', serif";
+const KIND_COLOR = { actual: "#7FA35A", scheduled: "#6F8FB8", entered: "#B5893F", estimate: "#A88A5C" };
+const INCOME = "#B5893F", EXPENSE = "#5A8FD6";   // validated pair: dataviz validator, dark mode, surface #14181F
+const selectStyle = { padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: "transparent", color: C.textSub, outline: "none", fontFamily: font, cursor: "pointer" };
+const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 };
 
-// Metric order and formats: the eleven A3.1 metrics, plus occupancy and debt service as context.
-const METRICS = [
-  { key: "noi",           label: "Net operating income", fmt: fmtMoney },
-  { key: "gsr",           label: "Gross scheduled rent (annual)", fmt: fmtMoney },
-  { key: "rentCollected", label: "Rent collected", fmt: fmtMoney },
-  { key: "opex",          label: "Operating expenses", fmt: fmtMoney },
-  { key: "netCashFlow",   label: "Net cash flow", fmt: fmtMoney },
-  { key: "capRate",       label: "Cap rate", fmt: fmtPctValue },
-  { key: "cashOnCash",    label: "Cash-on-cash return", fmt: fmtPctValue },
-  { key: "dscr",          label: "DSCR", fmt: fmtRatio },
-  { key: "value",         label: "Current property value", fmt: fmtMoney },
-  { key: "debt",          label: "Outstanding debt", fmt: fmtMoney },
-  { key: "equity",        label: "Owner equity", fmt: fmtMoney },
-  { key: "debtService",   label: "Debt service", fmt: fmtMoney },
-  { key: "occupancy",     label: "Occupancy", fmt: fmtPctValue },
-];
-const POINT_IN_TIME = new Set(["value", "debt", "equity", "gsr", "occupancy"]);
+const CSS = `
+  .fo-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .fo-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+  .fo-inv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 18px; }
+  .fo-prow { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(3, minmax(0, 1fr)) minmax(0, 0.9fr) 20px; gap: 12px; align-items: center; padding: 16px 22px; border-top: 1px solid ${C.border}; cursor: pointer; transition: background .15s; }
+  .fo-prow:hover { background: rgba(255,255,255,0.025); }
+  .fo-phead { cursor: default; border-top: none; padding-top: 14px; padding-bottom: 10px; }
+  .fo-phead:hover { background: transparent; }
+  .fo-cell { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; color: ${C.text}; }
+  .fo-cell-label { display: none; }
+  .fo-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+  .fo-link { background: none; border: none; color: ${C.gold}; font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+  .fo-link:hover { text-decoration: underline; }
+  @media (max-width: 1100px) { .fo-split { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .fo-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fo-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 720px) {
+    .fo-inv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fo-phead { display: none; }
+    .fo-prow { grid-template-columns: 1fr 1fr; gap: 10px 16px; padding: 16px 18px; }
+    .fo-prow > :first-child { grid-column: 1 / -1; }
+    .fo-prow > :last-child { display: none; }
+    .fo-cell { text-align: left; }
+    .fo-cell-label { display: block; font-size: 10px; color: ${C.textMuted}; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
+  }
+  @media (max-width: 420px) { .fo-kpis { grid-template-columns: 1fr; } }
+  .fo-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+`;
 
-function Btn({ children, onClick, gold, danger, small, disabled }) {
-  const color = danger ? C.red : gold ? C.gold : C.textSub;
-  const border = danger ? "rgba(224,85,85,0.3)" : gold ? C.goldDim : C.border;
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      background: "transparent", border: `1px solid ${border}`, color, fontSize: small ? 11 : 12, fontWeight: 500,
-      padding: small ? "4px 9px" : "7px 14px", borderRadius: 7, cursor: disabled ? "default" : "pointer", fontFamily: font,
-      opacity: disabled ? 0.55 : 1, whiteSpace: "nowrap",
-    }}>{children}</button>
-  );
-}
-
-function KindChip({ kind }) {
+// Provenance: a small dot and word. Present everywhere a figure is, never loud.
+function Prov({ kind }) {
   if (!kind) return null;
-  const c = KIND_COLOR[kind];
-  return <span title={KIND_HELP[kind]} style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 6px", borderRadius: 4, color: c, background: `${c}1A`, border: `1px solid ${c}33`, whiteSpace: "nowrap" }}>{KIND_LABEL[kind]}</span>;
+  return (
+    <span title={KIND_HELP[kind]} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, color: C.textMuted, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+      <span style={{ width: 6, height: 6, borderRadius: 3, background: KIND_COLOR[kind] }} />{KIND_LABEL[kind]}
+    </span>
+  );
 }
 
-function MetricCard({ def, metric, periodLabel }) {
-  const m = metric;
+const fmtShortDate = (d) => fmtDate(d).replace(/, \d{4}$/, "");
+const periodText = (preset, range) => `${SNAPSHOT_PERIODS.find((p) => p.value === preset).label} · ${fmtShortDate(range.from)}, ${range.from.slice(0, 4)} – ${fmtDate(range.to)}`;
+
+// ─── Primary KPI ────────────────────────────────────────────────────────────
+function Kpi({ label, metric, fmt, explain }) {
+  const m = metric, partial = m.available && m.coverage && m.coverage.have < m.coverage.of;
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", minHeight: 104, display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em", lineHeight: 1.4 }}>{def.label}</div>
-        <KindChip kind={m.available ? m.kind : null} />
+    <div style={{ ...card, padding: "22px 22px 18px", display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ fontSize: 12, color: C.textSub, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontFamily: serif, fontSize: 36, fontWeight: 600, lineHeight: 1.05, color: !m.available ? C.textMuted : m.value < 0 ? "#D27C7C" : C.text, fontVariantNumeric: "tabular-nums" }}>
+        {m.available ? fmt(m.value) : "—"}
       </div>
-      {m.available ? (
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: m.value < 0 ? C.red : C.text, lineHeight: 1.1 }}>{def.fmt(m.value)}</div>
-      ) : (
-        <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.1, fontWeight: 600 }}>Not available</div>
-      )}
-      <div style={{ fontSize: 11, color: m.available ? C.textMuted : C.amber, lineHeight: 1.45 }}>
-        {m.available ? (m.note || (POINT_IN_TIME.has(def.key) ? "As of today" : periodLabel)) : m.reason}
+      <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5, minHeight: 36 }}>{m.available ? explain : m.reason?.replace(/^Not available for any property: /, "")}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: "auto", paddingTop: 6 }}>
+        <Prov kind={m.available ? m.kind : null} />
+        {partial && <span title={m.note} style={{ fontSize: 11, color: C.textMuted }}>{m.coverage.have} of {m.coverage.of} properties</span>}
       </div>
     </div>
   );
 }
 
-function MetricGrid({ metrics, periodLabel, keys }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-      {METRICS.filter((d) => !keys || keys.includes(d.key)).map((d) => <MetricCard key={d.key} def={d} metric={metrics[d.key]} periodLabel={periodLabel} />)}
-    </div>
-  );
+// ─── Income vs operating expenses ───────────────────────────────────────────
+const niceStep = (span) => { const p = 10 ** Math.floor(Math.log10(span || 1)), f = span / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; };
+const compact = (cents) => { const d = cents / 100, a = Math.abs(d); const s = a >= 1e6 ? `${+(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${+(a / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : `${Math.round(a)}`; return `${d < 0 ? "−" : ""}$${s}`; };
+function barPath(x, yBase, yVal, w, r) {
+  const h = Math.abs(yBase - yVal); r = Math.min(r, h, w / 2);
+  if (h < 0.5) return "";
+  return yVal < yBase
+    ? `M${x},${yBase}V${yVal + r}Q${x},${yVal} ${x + r},${yVal}H${x + w - r}Q${x + w},${yVal} ${x + w},${yVal + r}V${yBase}Z`
+    : `M${x},${yBase}V${yVal - r}Q${x},${yVal} ${x + r},${yVal}H${x + w - r}Q${x + w},${yVal} ${x + w},${yVal - r}V${yBase}Z`;
 }
 
-function Modal({ title, onClose, children, footer }) {
+function IncomeExpenseChart({ series }) {
+  const ref = useRef(null);
+  const [w, setW] = useState(0);   // measured from the container; the SVG never sets the width itself
+  const [hover, setHover] = useState(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)));
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+  const H = 240, M = { t: 10, r: 8, b: 30, l: 52 };
+  const months = series.months, n = months.length;
+  const vals = months.flatMap((m) => [m.income, m.expenses]);
+  const hi = Math.max(0, ...vals), lo = Math.min(0, ...vals);
+  const step = niceStep((hi - lo) / 4 || 100000);
+  const top = Math.ceil(hi / step) * step || step, bot = Math.floor(lo / step) * step;
+  const ticks = []; for (let v = bot; v <= top + 1e-9; v += step) ticks.push(v);
+  const pw = w - M.l - M.r, ph = H - M.t - M.b, gw = pw / n;
+  const y = (v) => M.t + ph * (1 - (v - bot) / (top - bot));
+  const bw = Math.max(3, Math.min(16, (gw * 0.62 - 2) / 2));
+  const every = gw < 30 ? 3 : gw < 44 ? 2 : 1;
+  const h = hover != null ? months[hover] : null;
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 520, maxWidth: "100%", maxHeight: "92vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ padding: "18px 22px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{title}</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: C.textSub, fontSize: 16, cursor: "pointer" }}>✕</button>
+    <div ref={ref} style={{ position: "relative", width: "100%", minHeight: H, overflow: "hidden" }}>
+      {w > 0 && <svg width={w} height={H} role="img" aria-label="Monthly income and operating expenses" style={{ display: "block" }} onMouseLeave={() => setHover(null)}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={M.l} x2={w - M.r} y1={y(t)} y2={y(t)} stroke={t === 0 ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"} />
+            <text x={M.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill={C.textMuted} fontFamily={font}>{compact(t)}</text>
+          </g>
+        ))}
+        {months.map((m, i) => {
+          const cx = M.l + gw * i + gw / 2;
+          return (
+            <g key={m.month}>
+              {hover === i && <rect x={M.l + gw * i + 1} y={M.t} width={gw - 2} height={ph} fill="rgba(255,255,255,0.035)" rx="4" />}
+              <path d={barPath(cx - bw - 1, y(0), y(m.income), bw, 4)} fill={INCOME} />
+              <path d={barPath(cx + 1, y(0), y(m.expenses), bw, 4)} fill={EXPENSE} />
+              {(i % every === 0) && (
+                <text x={cx} y={H - 10} textAnchor="middle" fontSize="11" fill={C.textMuted} fontFamily={font}>{fmtMonth(m.month, i === 0 || m.month.endsWith("-01"))}</text>
+              )}
+              <rect x={M.l + gw * i} y={M.t} width={gw} height={ph + 20} fill="transparent" onMouseEnter={() => setHover(i)} />
+            </g>
+          );
+        })}
+      </svg>}
+      {h && w > 0 && (
+        <div style={{ position: "absolute", top: 4, left: Math.min(Math.max(M.l + gw * hover + gw / 2 - 90, 0), w - 180), width: 180, pointerEvents: "none", background: "#0F1217", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 12, color: C.text, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+          <div style={{ color: C.textSub, marginBottom: 6 }}>{fmtShortDate(h.from)} – {fmtDate(h.to)}{h.partial ? " (part month)" : ""}</div>
+          {[["Income", h.income, INCOME], ["Operating expenses", h.expenses, EXPENSE]].map(([k, v, c]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 3 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: C.textSub }}><span style={{ width: 8, height: 8, borderRadius: 2, background: c }} />{k}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtMoney(v)}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.border}` }}>
+            <span style={{ color: C.textSub }}>Net</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtMoney(h.income - h.expenses)}</span>
+          </div>
         </div>
-        <div style={{ padding: "16px 22px", overflowY: "auto", display: "grid", gap: 14 }}>{children}</div>
-        <div style={{ padding: "12px 22px 16px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>{footer}</div>
-      </div>
+      )}
+      <table className="fo-sr">
+        <caption>Monthly income and operating expenses</caption>
+        <thead><tr><th>Month</th><th>Income</th><th>Operating expenses</th></tr></thead>
+        <tbody>{months.map((m) => <tr key={m.month}><td>{m.month}</td><td>{fmtMoney(m.income)}</td><td>{fmtMoney(m.expenses)}</td></tr>)}</tbody>
+      </table>
     </div>
   );
 }
 
-function Field({ label, hint, children }) {
+function ChartCard({ series, periodLabel }) {
   return (
-    <label style={{ display: "grid", gap: 6 }}>
-      <span style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em" }}>{label}</span>
-      {children}
-      {hint && <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.45 }}>{hint}</span>}
-    </label>
-  );
-}
-const two = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
-
-// ─── Inputs: value, purchase, cash invested, debt status, owner relationship ──
-function ProfileModal({ property, profile, owner, onClose, onSaved }) {
-  const [f, setF] = useState({
-    current_value: centsToDollars(profile?.current_value_cents), value_as_of: profile?.value_as_of || "", value_source: profile?.value_source || "owner_estimate",
-    purchase_price: centsToDollars(profile?.purchase_price_cents), purchase_date: profile?.purchase_date || "",
-    cash_invested: centsToDollars(profile?.cash_invested_cents), no_debt: !!profile?.no_debt, notes: profile?.notes || "",
-    managed_for_client: !!owner?.managed_for_client,
-  });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
-  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const today = todayNY();
-
-  async function save() {
-    const value = dollarsToCents(f.current_value), price = dollarsToCents(f.purchase_price), cash = dollarsToCents(f.cash_invested);
-    if (value.error || price.error || cash.error) return setErr("Amounts must be dollars, with up to 2 decimals.");
-    if ([value.cents, price.cents, cash.cents].some((c) => c === 0)) return setErr("Leave an amount blank rather than entering $0.");
-    if (value.cents != null && !f.value_as_of) return setErr("Enter the date the value is as of.");
-    if (value.cents == null && f.value_as_of) return setErr("Enter the value, or clear its date.");
-    if (f.value_as_of > today || f.purchase_date > today) return setErr("Dates can't be in the future.");
-    setSaving(true); setErr("");
-    const row = {
-      property_id: property.id, current_value_cents: value.cents, value_as_of: f.value_as_of || null,
-      value_source: value.cents != null ? f.value_source : null, purchase_price_cents: price.cents, purchase_date: f.purchase_date || null,
-      cash_invested_cents: cash.cents, no_debt: f.no_debt, notes: f.notes.trim() || null,
-    };
-    const { error } = await supabase.from("property_financial_profiles").upsert(row, { onConflict: "property_id" });
-    if (error) { setSaving(false); return setErr(error.message); }
-    if (owner && f.managed_for_client !== !!owner.managed_for_client) {
-      const { error: e2 } = await supabase.from("ownership_entities").update({ managed_for_client: f.managed_for_client }).eq("id", owner.id);
-      if (e2) { setSaving(false); return setErr(e2.message); }
-    }
-    setSaving(false); onSaved();
-  }
-
-  return (
-    <Modal title={`Financial details · ${property.name}`} onClose={onClose}
-      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn gold onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn></>}>
-      {err && <div style={{ color: C.red, fontSize: 12 }}>{err}</div>}
-      <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.6 }}>These figures are entered by you and shown as Entered or Estimate. Leave anything you don't know blank: metrics that need it will say so instead of guessing.</div>
-      <div style={two}>
-        <Field label="Current value"><input inputMode="decimal" placeholder="$0" value={f.current_value} onChange={(e) => set("current_value", e.target.value)} style={field} /></Field>
-        <Field label="Value as of"><input type="date" max={today} value={f.value_as_of} onChange={(e) => set("value_as_of", e.target.value)} style={field} /></Field>
+    <div style={{ ...card, padding: "22px 22px 14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Income and operating expenses</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>By month · {periodLabel}</div>
+        </div>
+        <div style={{ display: "flex", gap: 16, fontSize: 12, color: C.textSub, alignItems: "center" }}>
+          {[["Income", INCOME], ["Operating expenses", EXPENSE]].map(([k, c]) => (
+            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: c }} />{k}</span>
+          ))}
+          <Prov kind="actual" />
+        </div>
       </div>
-      <Field label="Value source">
-        <select value={f.value_source} onChange={(e) => set("value_source", e.target.value)} style={field}>
-          {VALUE_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-      </Field>
-      <div style={two}>
-        <Field label="Purchase price"><input inputMode="decimal" placeholder="$0" value={f.purchase_price} onChange={(e) => set("purchase_price", e.target.value)} style={field} /></Field>
-        <Field label="Purchase date" hint="Return ratios start after a full year of ownership."><input type="date" max={today} value={f.purchase_date} onChange={(e) => set("purchase_date", e.target.value)} style={field} /></Field>
-      </div>
-      <Field label="Total cash invested" hint="Down payment, closing costs and capital improvements paid in cash. Used for cash-on-cash return.">
-        <input inputMode="decimal" placeholder="$0" value={f.cash_invested} onChange={(e) => set("cash_invested", e.target.value)} style={field} />
-      </Field>
-      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 12, color: C.textSub, lineHeight: 1.5, cursor: "pointer" }}>
-        <input type="checkbox" checked={f.no_debt} onChange={(e) => set("no_debt", e.target.checked)} style={{ marginTop: 2 }} />
-        <span>This property has no mortgage or other loan. <span style={{ color: C.textMuted }}>Without loans or this confirmation, debt metrics stay unavailable.</span></span>
-      </label>
-      {owner && (
-        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 12, color: C.textSub, lineHeight: 1.5, cursor: "pointer" }}>
-          <input type="checkbox" checked={f.managed_for_client} onChange={(e) => set("managed_for_client", e.target.checked)} style={{ marginTop: 2 }} />
-          <span>{owner.name} is a third-party client you manage for. <span style={{ color: C.textMuted }}>Applies to every property this owner holds.</span></span>
-        </label>
+      {series.hasData ? <IncomeExpenseChart series={series} /> : (
+        <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", color: C.textMuted, fontSize: 13, lineHeight: 1.6, border: `1px dashed ${C.border}`, borderRadius: 10, margin: "4px 0 8px" }}>
+          No income or expenses recorded in this period.<br />The chart fills in as payments and expenses are recorded.
+        </div>
       )}
-      <Field label="Notes"><input value={f.notes} onChange={(e) => set("notes", e.target.value)} style={field} /></Field>
-    </Modal>
+    </div>
   );
 }
 
-function LoanModal({ property, loan, onClose, onSaved }) {
-  const [f, setF] = useState({
-    lender: loan?.lender || "", original_amount: centsToDollars(loan?.original_amount_cents), annual_rate_pct: loan?.annual_rate_pct ?? "",
-    interest_only: !!loan?.interest_only, amortization_years: loan?.amortization_months ? String(loan.amortization_months / 12) : "30",
-    first_payment_date: loan?.first_payment_date || "", monthly_payment: centsToDollars(loan?.monthly_payment_cents),
-    current_balance: centsToDollars(loan?.current_balance_cents), balance_as_of: loan?.balance_as_of || "", paid_off_on: loan?.paid_off_on || "",
-  });
-  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
-  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const today = todayNY();
-
-  async function save() {
-    const amt = dollarsToCents(f.original_amount), pay = dollarsToCents(f.monthly_payment), bal = dollarsToCents(f.current_balance);
-    if (amt.error || pay.error || bal.error) return setErr("Amounts must be dollars, with up to 2 decimals.");
-    if (!amt.cents) return setErr("Enter the original loan amount.");
-    const rate = Number(f.annual_rate_pct);
-    if (f.annual_rate_pct === "" || !(rate >= 0 && rate < 100)) return setErr("Enter the interest rate as a percentage, e.g. 6.25.");
-    const months = Math.round(Number(f.amortization_years) * 12);
-    if (!f.interest_only && !(months >= 1 && months <= 600)) return setErr("Enter the amortization in years (up to 50).");
-    if (!f.first_payment_date) return setErr("Enter the first payment date.");
-    if ((bal.cents != null) !== !!f.balance_as_of) return setErr("Enter the balance and its as-of date together, or leave both blank.");
-    if (f.balance_as_of > today || f.paid_off_on > today) return setErr("Dates can't be in the future.");
-    setSaving(true); setErr("");
-    const row = {
-      property_id: property.id, lender: f.lender.trim() || null, original_amount_cents: amt.cents, annual_rate_pct: rate,
-      interest_only: f.interest_only, amortization_months: f.interest_only ? null : months, first_payment_date: f.first_payment_date,
-      monthly_payment_cents: pay.cents || null, current_balance_cents: bal.cents, balance_as_of: f.balance_as_of || null, paid_off_on: f.paid_off_on || null,
-    };
-    const { error } = loan ? await supabase.from("property_loans").update(row).eq("id", loan.id) : await supabase.from("property_loans").insert(row);
-    setSaving(false);
-    if (error) return setErr(error.message);
-    onSaved();
-  }
-  const preview = (() => {
-    const a = dollarsToCents(f.original_amount).cents, r = Number(f.annual_rate_pct);
-    if (!a || f.annual_rate_pct === "" || !(r >= 0)) return null;
-    return loanPayment({ original_amount_cents: a, annual_rate_pct: r, interest_only: f.interest_only, amortization_months: Math.round(Number(f.amortization_years) * 12) }).cents;
-  })();
-
+// ─── Property performance ───────────────────────────────────────────────────
+function PropertyList({ rows, onOpen }) {
+  const num = (m, label) => (
+    <div className="fo-cell" title={m.available ? "" : m.reason}>
+      <span className="fo-cell-label">{label}</span>
+      <span style={{ color: !m.available ? C.textMuted : m.value < 0 ? "#D27C7C" : C.text }}>{m.available ? fmtMoney(m.value) : "—"}</span>
+    </div>
+  );
   return (
-    <Modal title={`${loan ? "Edit" : "Add"} loan · ${property.name}`} onClose={onClose}
-      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn gold onClick={save} disabled={saving}>{saving ? "Saving…" : "Save loan"}</Btn></>}>
-      {err && <div style={{ color: C.red, fontSize: 12 }}>{err}</div>}
-      <Field label="Lender"><input value={f.lender} onChange={(e) => set("lender", e.target.value)} style={field} /></Field>
-      <div style={two}>
-        <Field label="Original amount *"><input inputMode="decimal" placeholder="$0" value={f.original_amount} onChange={(e) => set("original_amount", e.target.value)} style={field} /></Field>
-        <Field label="Interest rate (%) *"><input inputMode="decimal" placeholder="6.25" value={f.annual_rate_pct} onChange={(e) => set("annual_rate_pct", e.target.value)} style={field} /></Field>
+    <div style={{ ...card, overflow: "hidden" }}>
+      <div style={{ padding: "20px 22px 4px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Property performance</div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>{rows.length} propert{rows.length === 1 ? "y" : "ies"}</div>
       </div>
-      <div style={two}>
-        <Field label="Amortization (years)"><input inputMode="decimal" disabled={f.interest_only} value={f.interest_only ? "" : f.amortization_years} onChange={(e) => set("amortization_years", e.target.value)} style={{ ...field, opacity: f.interest_only ? 0.5 : 1 }} /></Field>
-        <Field label="First payment date *"><input type="date" value={f.first_payment_date} onChange={(e) => set("first_payment_date", e.target.value)} style={field} /></Field>
+      <div className="fo-prow fo-phead" style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.04em" }}>
+        <div>Property</div><div className="fo-cell" style={{ fontSize: 11, color: C.textMuted }}>Rent collected</div>
+        <div className="fo-cell" style={{ fontSize: 11, color: C.textMuted }}>Operating exp.</div><div className="fo-cell" style={{ fontSize: 11, color: C.textMuted }}>NOI</div>
+        <div className="fo-cell" style={{ fontSize: 11, color: C.textMuted }}>Occupancy</div><div />
       </div>
-      <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12, color: C.textSub, cursor: "pointer" }}>
-        <input type="checkbox" checked={f.interest_only} onChange={(e) => set("interest_only", e.target.checked)} /> Interest-only
-      </label>
-      <Field label="Monthly payment (principal & interest)" hint={`Leave blank to calculate from the terms${preview ? `: ${fmtMoney(preview)} a month` : ""}. Don't include escrow for taxes or insurance; those are operating expenses.`}>
-        <input inputMode="decimal" placeholder={preview ? centsToDollars(preview) : "$0"} value={f.monthly_payment} onChange={(e) => set("monthly_payment", e.target.value)} style={field} />
-      </Field>
-      <div style={two}>
-        <Field label="Current balance" hint="From a recent statement. Blank = estimated from the terms."><input inputMode="decimal" placeholder="$0" value={f.current_balance} onChange={(e) => set("current_balance", e.target.value)} style={field} /></Field>
-        <Field label="Balance as of"><input type="date" max={today} value={f.balance_as_of} onChange={(e) => set("balance_as_of", e.target.value)} style={field} /></Field>
+      {rows.length === 0 && <div style={{ padding: "28px 22px", fontSize: 13, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>No properties in this view.</div>}
+      {rows.map((r) => {
+        const m = r.snap.metrics, occ = m.occupancy;
+        return (
+          <div key={r.property.id} className="fo-prow" role="button" tabIndex={0} onClick={() => onOpen(r.property.id)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(r.property.id)}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.property.name}</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {r.owner ? (r.owner.managed_for_client ? `Client · ${r.owner.name}` : r.owner.name) : "No owner assigned"}
+                {r.snap.missing.length > 0 && <span> · <span style={{ color: C.textSub }}>details incomplete</span></span>}
+              </div>
+            </div>
+            {num(m.rentCollected, "Rent collected")}{num(m.opex, "Operating exp.")}{num(m.noi, "NOI")}
+            <div className="fo-cell">
+              <span className="fo-cell-label">Occupancy</span>
+              {occ.available ? <><span>{fmtPctValue(occ.value)}</span><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.snap.occupiedCount}/{r.snap.unitCount} units</div></> : <span style={{ color: C.textMuted }}>—</span>}
+            </div>
+            <div style={{ color: C.textMuted, fontSize: 16, textAlign: "right" }}>›</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Investment metrics (secondary) ─────────────────────────────────────────
+const INVEST = [
+  { key: "value", label: "Portfolio value", fmt: fmtMoney }, { key: "debt", label: "Debt outstanding", fmt: fmtMoney },
+  { key: "equity", label: "Equity", fmt: fmtMoney }, { key: "capRate", label: "Cap rate", fmt: fmtPctValue },
+  { key: "cashOnCash", label: "Cash-on-cash", fmt: fmtPctValue }, { key: "dscr", label: "DSCR", fmt: fmtRatio },
+];
+function InvestmentMetrics({ metrics }) {
+  const gaps = INVEST.filter((d) => !metrics[d.key].available).length;
+  return (
+    <div style={{ ...card, padding: "20px 22px 22px" }}>
+      <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 18 }}>Investment metrics</div>
+      <div className="fo-inv">
+        {INVEST.map((d) => {
+          const m = metrics[d.key], partial = m.available && m.coverage && m.coverage.have < m.coverage.of;
+          return (
+            <div key={d.key} title={m.available ? (partial ? m.note : "") : m.reason} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: C.textSub }}>{d.label}</div>
+              <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, color: m.available ? (m.value < 0 ? "#D27C7C" : C.text) : C.textMuted, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{m.available ? d.fmt(m.value) : "—"}</div>
+              <div style={{ marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Prov kind={m.available ? m.kind : null} />
+                {partial && <span style={{ fontSize: 10, color: C.textMuted }}>{m.coverage.have}/{m.coverage.of} properties</span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <Field label="Paid off on" hint="Leave blank while the loan is outstanding."><input type="date" max={today} value={f.paid_off_on} onChange={(e) => set("paid_off_on", e.target.value)} style={field} /></Field>
-    </Modal>
+      {gaps > 0 && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 18, lineHeight: 1.5 }}>{gaps === INVEST.length ? "These need property values, loans and a full year of recorded income." : "Some figures need more information."} Hover a figure for the reason, or see Needs attention.</div>}
+    </div>
+  );
+}
+
+// ─── Needs attention ────────────────────────────────────────────────────────
+function Attention({ items, onOpen }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, 4);
+  return (
+    <div style={{ ...card, padding: "20px 22px 18px" }}>
+      <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 14 }}>Needs attention</div>
+      {items.length === 0 && <div style={{ fontSize: 13, color: C.textMuted }}>Nothing needs your attention right now.</div>}
+      <div style={{ display: "grid", gap: 14 }}>
+        {shown.map((it, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 12 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 4, marginTop: 6, background: it.level === "attention" ? C.amber : C.textMuted }} aria-label={it.level === "attention" ? "Needs action" : "Information"} />
+            <div>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.45 }}>{it.title}</div>
+              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5, marginTop: 2 }}>{it.detail}</div>
+              {it.propertyId && <button className="fo-link" style={{ marginTop: 4 }} onClick={() => onOpen(it.propertyId)}>Open property</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {items.length > 4 && <button className="fo-link" style={{ marginTop: 14 }} onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show ${items.length - 4} more`}</button>}
+    </div>
   );
 }
 
 // ─── Property detail ────────────────────────────────────────────────────────
-function PropertyDetail({ snap, owner, books, profile, loans, ledger, periodLabel, onEditProfile, onEditLoan, onAddLoan, onDeleteLoan }) {
-  const [confirmDel, setConfirmDel] = useState(null);
-  const today = todayNY();
-  const p = snap.property;
-  const expenses = ledger.filter((r) => r.account_type === "expense");
-  const income = ledger.filter((r) => r.account_type === "income");
-  const line = (label, value, strong) => (
-    <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12, color: strong ? C.text : C.textSub, fontWeight: strong ? 600 : 400 }}>
-      <span>{label}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>
+function Figure({ label, metric, fmt, sub }) {
+  const m = metric;
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 12, color: C.textSub }}>{label}</div>
+      <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 600, marginTop: 4, color: !m.available ? C.textMuted : m.value < 0 ? "#D27C7C" : C.text, fontVariantNumeric: "tabular-nums" }}>{m.available ? fmt(m.value) : "—"}</div>
+      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, lineHeight: 1.45 }}>{m.available ? (sub || m.note || "") : m.reason}</div>
+      <div style={{ marginTop: 6 }}><Prov kind={m.available ? m.kind : null} /></div>
     </div>
   );
+}
+function Section({ title, action, children, note }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.goldDim}`, borderRadius: 12, padding: 20, display: "grid", gap: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>{p.name}</div>
-          <div style={{ fontSize: 12, color: C.textSub, marginTop: 4 }}>
-            {[p.address, p.city, p.state].filter(Boolean).join(", ")} · {owner ? `${owner.name}${owner.managed_for_client ? " (client, managed)" : " (owned)"}` : "No owner assigned"}{books ? ` · ${books.name}` : ""}
-          </div>
-        </div>
-        <Btn gold onClick={onEditProfile}>Edit financial details</Btn>
+    <div style={{ ...card, padding: "22px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div><div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{title}</div>{note && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>{note}</div>}</div>
+        {action}
       </div>
-      {snap.missing.length > 0 && (
-        <div style={{ background: `${C.amber}11`, border: `1px solid ${C.amber}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.amber, lineHeight: 1.5 }}>
-          Missing: {snap.missing.join(", ")}. Metrics that need these show "Not available".
-        </div>
-      )}
-      <MetricGrid metrics={snap.metrics} periodLabel={periodLabel} />
+      {children}
+    </div>
+  );
+}
+const Line = ({ label, value, strong }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: strong ? C.text : C.textSub, fontWeight: strong ? 600 : 400 }}>
+    <span>{label}</span><span style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{value}</span>
+  </div>
+);
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 6 }}>Ledger · {periodLabel} <KindChip kind="actual" /></div>
-          {!p.accounting_entity_id ? <div style={{ fontSize: 12, color: C.amber }}>Assign this property to a set of books to record income and expenses.</div> : ledger.length === 0 ? (
-            <div style={{ fontSize: 12, color: C.textMuted }}>Nothing recorded in this period.</div>
-          ) : (<>
-            {income.map((r) => line(`${r.account_code} ${r.account_name}`, fmtMoney(r.amount_cents)))}
-            {line("Total income", fmtMoney(income.reduce((s, r) => s + Number(r.amount_cents), 0)), true)}
-            {expenses.map((r) => line(`${r.account_code} ${r.account_name}`, fmtMoney(r.amount_cents)))}
-            {line("Total operating expenses", fmtMoney(expenses.reduce((s, r) => s + Number(r.amount_cents), 0)), true)}
-          </>)}
-        </div>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 6 }}>Entered details <KindChip kind="entered" /></div>
-          {line("Purchase price", profile?.purchase_price_cents ? fmtMoney(profile.purchase_price_cents) : "—")}
-          {line("Purchase date", profile?.purchase_date || "—")}
-          {line("Cash invested", profile?.cash_invested_cents ? fmtMoney(profile.cash_invested_cents) : "—")}
-          {line("Current value", profile?.current_value_cents ? `${fmtMoney(profile.current_value_cents)} · ${VALUE_SOURCES.find((s) => s.value === profile.value_source)?.label || ""}, ${profile.value_as_of}` : "—")}
-          {line("Debt", loans.length ? `${loans.length} loan${loans.length === 1 ? "" : "s"}` : profile?.no_debt ? "Confirmed none" : "Not entered")}
-        </div>
-      </div>
-
+function PropertyDetail({ row, periodLabel, onBack, onEditProfile, onEditLoan, onAddLoan, onDeleteLoan }) {
+  const [confirmDel, setConfirmDel] = useState(null);
+  const today = todayNY();
+  const { property: p, owner, books, profile, loans, ledger, snap } = row;
+  const m = snap.metrics;
+  const income = ledger.filter((r) => r.account_type === "income"), expenses = ledger.filter((r) => r.account_type === "expense");
+  const total = (rs) => rs.reduce((s, r) => s + Number(r.amount_cents), 0);
+  const gaps = snap.missing.filter((x) => x !== "set of books");
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em" }}>Loans</div>
-          <Btn small gold onClick={onAddLoan}>+ Add loan</Btn>
+        <button className="fo-link" onClick={onBack} style={{ fontSize: 13 }}>← Financial Overview</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginTop: 14 }}>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 34, fontWeight: 600, color: C.text, lineHeight: 1.1 }}>{p.name}</div>
+            <div style={{ fontSize: 13, color: C.textSub, marginTop: 6 }}>{[p.address, p.city, p.state].filter(Boolean).join(", ")}</div>
+          </div>
+          <Btn gold onClick={onEditProfile}>Edit financial details</Btn>
         </div>
-        {loans.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted }}>{profile?.no_debt ? "Confirmed: no debt on this property." : "No loans entered. Add one, or confirm there's no debt under Edit financial details."}</div> : (
+      </div>
+
+      <Section title="Property overview">
+        <div className="fo-detail-grid">
+          <div><div style={{ fontSize: 12, color: C.textSub }}>Ownership</div><div style={{ fontSize: 14, color: C.text, marginTop: 6 }}>{owner ? (owner.managed_for_client ? "Managed for a client" : "Personally owned") : "No owner assigned"}</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>{owner?.name || ""}{books ? ` · ${books.name}` : ""}</div></div>
+          <Figure label="Occupancy" metric={m.occupancy} fmt={fmtPctValue} />
+          <Figure label="Gross scheduled rent (annual)" metric={m.gsr} fmt={fmtMoney} />
+          <Figure label="Debt service" metric={m.debtService} fmt={fmtMoney} />
+        </div>
+        {gaps.length > 0 && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 18 }}>Missing: {gaps.join(", ")}. <button className="fo-link" onClick={onEditProfile}>Add them</button></div>}
+      </Section>
+
+      <Section title="Operating performance" note={periodLabel}>
+        <div className="fo-detail-grid">
+          <Figure label="Rent collected" metric={m.rentCollected} fmt={fmtMoney} />
+          <Figure label="Other income" metric={m.otherIncome} fmt={fmtMoney} />
+          <Figure label="Operating expenses" metric={m.opex} fmt={fmtMoney} />
+          <Figure label="Net operating income" metric={m.noi} fmt={fmtMoney} sub="Income less operating expenses" />
+        </div>
+        <div style={{ marginTop: 22 }}>
+          {!p.accounting_entity_id ? <div style={{ fontSize: 13, color: C.textMuted }}>Assign this property to a set of books to record its income and expenses.</div>
+            : ledger.length === 0 ? <div style={{ fontSize: 13, color: C.textMuted }}>No income or expenses recorded in this period.</div> : (<>
+              {income.map((r) => <Line key={r.account_code} label={`${r.account_code} ${r.account_name}`} value={fmtMoney(r.amount_cents)} />)}
+              <Line label="Total income" value={fmtMoney(total(income))} strong />
+              {expenses.map((r) => <Line key={r.account_code} label={`${r.account_code} ${r.account_name}`} value={fmtMoney(r.amount_cents)} />)}
+              <Line label="Total operating expenses" value={fmtMoney(total(expenses))} strong />
+            </>)}
+        </div>
+      </Section>
+
+      <Section title="Investment performance" note="Value, debt and equity as of today; returns over the selected period">
+        <div className="fo-detail-grid">
+          <Figure label="Current value" metric={m.value} fmt={fmtMoney}
+            sub={profile?.value_as_of ? `${VALUE_SOURCES.find((s) => s.value === profile.value_source)?.label || "Entered"}, as of ${fmtDate(profile.value_as_of)}${m.value.note?.includes("over a year old") ? " (over a year old)" : ""}` : null} />
+          <Figure label="Debt outstanding" metric={m.debt} fmt={fmtMoney} />
+          <Figure label="Equity" metric={m.equity} fmt={fmtMoney} />
+          <Figure label="Net cash flow" metric={m.netCashFlow} fmt={fmtMoney} />
+          <Figure label="Cap rate" metric={m.capRate} fmt={fmtPctValue} />
+          <Figure label="Cash-on-cash return" metric={m.cashOnCash} fmt={fmtPctValue} />
+          <Figure label="DSCR" metric={m.dscr} fmt={fmtRatio} />
+        </div>
+      </Section>
+
+      <Section title="Debt and loans" action={<Btn small gold onClick={onAddLoan}>+ Add loan</Btn>}>
+        {loans.length === 0 ? <div style={{ fontSize: 13, color: C.textMuted }}>{profile?.no_debt ? "Confirmed: no debt on this property." : "No loans entered. Add one, or confirm there's no debt under Edit financial details."}</div> : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr>{["Lender", "Original", "Rate", "Payment / mo", "Balance today", ""].map((h, i) => (
-                <th key={i} style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "8px 10px", textAlign: i && i < 5 ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised }}>{h}</th>))}</tr></thead>
+                <th key={i} style={{ fontSize: 11, fontWeight: 500, color: C.textMuted, padding: "0 10px 10px", textAlign: i && i < 5 ? "right" : "left", borderBottom: `1px solid ${C.border}` }}>{h}</th>))}</tr></thead>
               <tbody>{loans.map((l) => {
                 const pay = loanPayment(l), bal = loanBalance(l, today);
-                const td = (v, right) => <td style={{ padding: "9px 10px", borderBottom: `1px solid ${C.border}`, color: C.textSub, textAlign: right ? "right" : "left", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{v}</td>;
+                const td = (v, right) => <td style={{ padding: "12px 10px", borderBottom: `1px solid ${C.border}`, color: C.textSub, textAlign: right ? "right" : "left", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{v}</td>;
                 return (
                   <tr key={l.id}>
-                    {td(<>{l.lender || "—"}{l.paid_off_on && <span style={{ color: C.textMuted }}> · paid off {l.paid_off_on}</span>}</>)}
+                    {td(<>{l.lender || "—"}{l.paid_off_on && <span style={{ color: C.textMuted }}> · paid off {fmtDate(l.paid_off_on)}</span>}</>)}
                     {td(fmtMoney(l.original_amount_cents), true)}
                     {td(`${Number(l.annual_rate_pct)}%${l.interest_only ? " IO" : ""}`, true)}
-                    {td(<>{fmtMoney(pay.cents)} <KindChip kind={pay.kind} /></>, true)}
-                    {td(<>{fmtMoney(bal.cents)} <KindChip kind={bal.kind} /></>, true)}
+                    {td(<span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>{fmtMoney(pay.cents)} <Prov kind={pay.kind} /></span>, true)}
+                    {td(<span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>{fmtMoney(bal.cents)} <Prov kind={bal.kind} /></span>, true)}
                     {td(confirmDel === l.id
                       ? <span style={{ display: "inline-flex", gap: 6 }}><Btn small danger onClick={() => { setConfirmDel(null); onDeleteLoan(l); }}>Remove</Btn><Btn small onClick={() => setConfirmDel(null)}>Keep</Btn></span>
                       : <span style={{ display: "inline-flex", gap: 6 }}><Btn small onClick={() => onEditLoan(l)}>Edit</Btn><Btn small danger onClick={() => setConfirmDel(l.id)}>Remove</Btn></span>, true)}
@@ -329,7 +400,15 @@ function PropertyDetail({ snap, owner, books, profile, loans, ledger, periodLabe
             </table>
           </div>
         )}
-      </div>
+      </Section>
+
+      <Section title="Financial inputs" note="Entered by you" action={<Btn small onClick={onEditProfile}>Edit</Btn>}>
+        <Line label="Purchase price" value={profile?.purchase_price_cents ? fmtMoney(profile.purchase_price_cents) : "—"} />
+        <Line label="Purchase date" value={profile?.purchase_date ? fmtDate(profile.purchase_date) : "—"} />
+        <Line label="Cash invested" value={profile?.cash_invested_cents ? fmtMoney(profile.cash_invested_cents) : "—"} />
+        <Line label="Current value" value={profile?.current_value_cents ? `${fmtMoney(profile.current_value_cents)} · ${VALUE_SOURCES.find((s) => s.value === profile.value_source)?.label || ""}, ${fmtDate(profile.value_as_of)}` : "—"} />
+        <Line label="Debt" value={loans.length ? `${loans.length} loan${loans.length === 1 ? "" : "s"}` : profile?.no_debt ? "Confirmed none" : "Not entered"} />
+      </Section>
     </div>
   );
 }
@@ -337,17 +416,17 @@ function PropertyDetail({ snap, owner, books, profile, loans, ledger, periodLabe
 // ─── Page ───────────────────────────────────────────────────────────────────
 export default function FinancialSnapshot() {
   const today = todayNY();
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("property");
   const [preset, setPreset] = useState("ttm");
   const [scope, setScope] = useState("all");
   const [data, setData] = useState(null);       // { properties, units, tenants, books, owners, profiles, loans, history }
-  const [ledger, setLedger] = useState({ key: null, rows: [] });
+  const [ledger, setLedger] = useState({ rows: [], lines: [] });
   const [state, setState] = useState({ loading: true, error: "", missing: false });
-  const [selected, setSelected] = useState(null);
   const [modal, setModal] = useState(null);     // { type: "profile" } | { type: "loan", loan }
   const [rev, setRev] = useState(0);
   const range = useMemo(() => snapshotRange(preset, today), [preset, today]);
-  const periodLabel = `${SNAPSHOT_PERIODS.find((p) => p.value === preset).label} · ${range.from} to ${range.to}`;
-  const rangeKey = `${range.from}|${range.to}|${rev}`;
+  const periodLabel = periodText(preset, range);
 
   useEffect(() => {
     let live = true;
@@ -375,13 +454,17 @@ export default function FinancialSnapshot() {
 
   useEffect(() => {
     let live = true;
-    supabase.rpc("a31_property_ledger", { p_from: range.from, p_to: range.to }).then(({ data: rows, error }) => {
+    Promise.all([
+      supabase.rpc("a31_property_ledger", { p_from: range.from, p_to: range.to }),
+      supabase.rpc("a1_scoped_lines", { p_from: range.from, p_to: range.to, p_scope: "portfolio", p_scope_id: null }),
+    ]).then(([a, b]) => {
       if (!live) return;
-      if (error) setState((s) => ({ ...s, error: s.missing ? s.error : error.message }));
-      setLedger({ key: rangeKey, rows: rows || [] });
+      const err = a.error || b.error;
+      if (err) setState((s) => ({ ...s, error: s.missing ? s.error : err.message }));
+      setLedger({ rows: a.data || [], lines: b.data || [] });
     });
     return () => { live = false; };
-  }, [rangeKey, range.from, range.to]);
+  }, [range.from, range.to, rev]);
 
   const model = useMemo(() => {
     if (!data) return null;
@@ -398,99 +481,87 @@ export default function FinancialSnapshot() {
         property: p, units: data.units.filter((u) => u.property_id === p.id).map((u) => ({ rent_amount: u.rent_amount, occupied: occupied.has(u.id) })),
         profile, loans, ledger: pl, history: data.history.find((h) => h.property_id === p.id) || null, period: range, today,
       });
-      return { p, books, owner, profile, loans, ledger: pl, snap };
+      return { property: p, books, owner, profile, loans, ledger: pl, snap };
     });
     const inScope = rows.filter((r) => scope === "all" || (scope === "owned" ? r.owner && !r.owner.managed_for_client
       : scope === "managed" ? r.owner?.managed_for_client : r.owner?.id === scope));
-    return { rows, inScope, portfolio: portfolioSnapshot(inScope.map((r) => r.snap)) };
-  }, [data, ledger.rows, range, today, scope]);
+    return {
+      rows, inScope, portfolio: portfolioSnapshot(inScope.map((r) => r.snap)),
+      series: monthlySeries(ledger.lines, range, inScope.map((r) => r.property.id)),
+      attention: attentionItems(inScope, { today }),
+    };
+  }, [data, ledger, range, today, scope]);
 
-  const sel = model?.rows.find((r) => r.p.id === selected) || null;
+  const sel = model?.rows.find((r) => r.property.id === selected) || null;
+  const open = (id) => { setParams({ property: id }); window.scrollTo(0, 0); };
+  const back = () => setParams({});
   const reload = () => { setModal(null); setRev((n) => n + 1); };
   async function deleteLoan(l) {
     const { error } = await supabase.from("property_loans").delete().eq("id", l.id);
     if (error) setState((s) => ({ ...s, error: error.message })); else reload();
   }
   const hasClients = data?.owners.some((o) => o.managed_for_client);
-  const scopeLabel = scope === "all" ? "All properties" : scope === "owned" ? "Owned properties" : scope === "managed" ? "Managed for clients" : data?.owners.find((o) => o.id === scope)?.name;
+  const pm = model?.portfolio.metrics;
 
   return (
     <LandlordLayout>
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: font, padding: "clamp(20px, 4vw, 32px) clamp(16px, 4vw, 32px) 56px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, letterSpacing: "0.01em" }}>Financial Snapshot</div>
-            <div style={{ fontSize: 13, color: C.textSub, marginTop: 4 }}>{scopeLabel} · {periodLabel}</div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select aria-label="Period" value={preset} onChange={(e) => setPreset(e.target.value)} style={selectStyle}>
-              {SNAPSHOT_PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-            <select aria-label="Scope" value={scope} onChange={(e) => { setScope(e.target.value); setSelected(null); }} style={selectStyle}>
-              <option value="all">All properties</option>
-              <option value="owned">Owned properties</option>
-              <option value="managed">Managed for clients</option>
-              {data?.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: C.textSub, marginBottom: 18, alignItems: "center" }}>
-          {Object.keys(KIND_LABEL).map((k) => <span key={k} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><KindChip kind={k} />{KIND_HELP[k]}</span>)}
-        </div>
-
-        {state.loading && <div style={{ color: C.textSub, fontSize: 13 }}>Loading…</div>}
-        {state.missing && <div style={{ color: C.amber, fontSize: 13 }}>The financial snapshot isn't installed on this database yet.</div>}
-        {state.error && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{state.error}</div>}
-
-        {model && (<>
-          {scope === "all" && hasClients && (
-            <div style={{ background: `${C.blue}11`, border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.blue, marginBottom: 14 }}>
-              These totals combine your own properties with properties you manage for clients. Choose "Owned properties" for your own portfolio only.
+      <style>{CSS}</style>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: font, padding: "clamp(24px, 4vw, 44px) clamp(16px, 4vw, 44px) 64px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", display: "grid", gap: 24 }}>
+          {!sel && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontFamily: serif, fontSize: "clamp(30px, 4vw, 38px)", fontWeight: 600, letterSpacing: "0.005em", lineHeight: 1.1 }}>Financial Overview</div>
+                <div style={{ fontSize: 14, color: C.textSub, marginTop: 8 }}>Your portfolio's financial health at a glance.</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select aria-label="Period" value={preset} onChange={(e) => setPreset(e.target.value)} style={selectStyle}>
+                  {SNAPSHOT_PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                <select aria-label="Scope" value={scope} onChange={(e) => setScope(e.target.value)} style={selectStyle}>
+                  <option value="all">All properties</option>
+                  <option value="owned">Personally owned</option>
+                  <option value="managed">Managed for clients</option>
+                  {data?.owners.length > 0 && <optgroup label="Owner">{data.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</optgroup>}
+                </select>
+              </div>
             </div>
           )}
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-            Portfolio summary · {model.inScope.length} propert{model.inScope.length === 1 ? "y" : "ies"}
-          </div>
-          <MetricGrid metrics={model.portfolio.metrics} periodLabel={periodLabel} />
 
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", margin: "28px 0 10px" }}>Properties</div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>{["Property", "Owner", "NOI", "Rent collected", "Cap rate", "DSCR", "Equity", "Inputs"].map((h, i) => (
-                <th key={h} style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 14px", textAlign: i >= 2 && i <= 6 ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{h}</th>))}</tr></thead>
-              <tbody>
-                {model.inScope.length === 0 && <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", fontSize: 13, color: C.textSub }}>No properties in this view.</td></tr>}
-                {model.inScope.map((r) => {
-                  const m = r.snap.metrics;
-                  const cell = (metric, fmt) => <td style={{ padding: "11px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, textAlign: "right", fontVariantNumeric: "tabular-nums", color: metric.available ? (metric.value < 0 ? C.red : C.text) : C.textMuted }} title={metric.available ? "" : metric.reason}>{metric.available ? fmt(metric.value) : "—"}</td>;
-                  const active = r.p.id === selected;
-                  return (
-                    <tr key={r.p.id} onClick={() => setSelected(active ? null : r.p.id)} style={{ cursor: "pointer", background: active ? C.raised : "transparent" }}>
-                      <td style={{ padding: "11px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.text, fontWeight: 500 }}>{r.p.name}</td>
-                      <td style={{ padding: "11px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 12, color: C.textSub }}>{r.owner ? `${r.owner.name}${r.owner.managed_for_client ? " · client" : ""}` : "—"}</td>
-                      {cell(m.noi, fmtMoney)}{cell(m.rentCollected, fmtMoney)}{cell(m.capRate, fmtPctValue)}{cell(m.dscr, fmtRatio)}{cell(m.equity, fmtMoney)}
-                      <td style={{ padding: "11px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 11, color: r.snap.missing.length ? C.amber : C.green, whiteSpace: "nowrap" }}>
-                        {r.snap.missing.length ? `${r.snap.missing.length} missing` : "Complete"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Select a property for its full snapshot and to enter its value, purchase details and loans.</div>
+          {state.loading && <div style={{ color: C.textSub, fontSize: 13 }}>Loading…</div>}
+          {state.missing && <div style={{ color: C.textSub, fontSize: 13 }}>The financial overview isn't available on this database yet.</div>}
+          {state.error && <div style={{ color: "#D27C7C", fontSize: 13 }}>{state.error}</div>}
 
-          {sel && (
-            <div style={{ marginTop: 18 }}>
-              <PropertyDetail snap={sel.snap} owner={sel.owner} books={sel.books} profile={sel.profile} loans={sel.loans} ledger={sel.ledger} periodLabel={periodLabel}
-                onEditProfile={() => setModal({ type: "profile" })} onAddLoan={() => setModal({ type: "loan", loan: null })}
-                onEditLoan={(l) => setModal({ type: "loan", loan: l })} onDeleteLoan={deleteLoan} />
-            </div>
+          {model && sel && (
+            <PropertyDetail row={sel} periodLabel={periodLabel} onBack={back}
+              onEditProfile={() => setModal({ type: "profile" })} onAddLoan={() => setModal({ type: "loan", loan: null })}
+              onEditLoan={(l) => setModal({ type: "loan", loan: l })} onDeleteLoan={deleteLoan} />
           )}
-          {sel && modal?.type === "profile" && <ProfileModal property={sel.p} profile={sel.profile} owner={sel.owner} onClose={() => setModal(null)} onSaved={reload} />}
-          {sel && modal?.type === "loan" && <LoanModal property={sel.p} loan={modal.loan} onClose={() => setModal(null)} onSaved={reload} />}
-        </>)}
+
+          {model && !sel && (<>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: -8 }}>
+              {periodLabel}{scope === "all" && hasClients ? " · Includes properties you manage for clients" : ""}
+            </div>
+            <div className="fo-kpis">
+              <Kpi label="Portfolio NOI" metric={pm.noi} fmt={fmtMoney} explain="Income less operating expenses, before loan payments." />
+              <Kpi label="Rent collected" metric={pm.rentCollected} fmt={fmtMoney} explain="Rent actually received in this period." />
+              <Kpi label="Operating expenses" metric={pm.opex} fmt={fmtMoney} explain="Paid in this period. Loan payments aren't included." />
+              <Kpi label="Occupancy" metric={pm.occupancy} fmt={fmtPctValue} explain={pm.occupancy.note || "Units with a current tenant."} />
+            </div>
+            <ChartCard series={model.series} periodLabel={periodLabel} />
+            <PropertyList rows={model.inScope} onOpen={open} />
+            <div className="fo-split">
+              <InvestmentMetrics metrics={pm} />
+              <Attention items={model.attention} onOpen={open} />
+            </div>
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", fontSize: 11, color: C.textMuted }}>
+              {Object.keys(KIND_LABEL).map((k) => <span key={k} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><Prov kind={k} /><span>{KIND_HELP[k]}</span></span>)}
+            </div>
+          </>)}
+
+          {sel && modal?.type === "profile" && <ProfileModal property={sel.property} profile={sel.profile} owner={sel.owner} onClose={() => setModal(null)} onSaved={reload} />}
+          {sel && modal?.type === "loan" && <LoanModal property={sel.property} loan={modal.loan} onClose={() => setModal(null)} onSaved={reload} />}
+        </div>
       </div>
     </LandlordLayout>
   );
