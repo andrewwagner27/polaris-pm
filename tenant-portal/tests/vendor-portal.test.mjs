@@ -39,6 +39,16 @@ function seed() {
         author_name: "Property Manager", author_id: "landlord-uid", visible_to_tenant: false, created_at: "2026-10-01T01:00:00Z" },
       { id: "c2", request_id: "22222222-bbbb-4bbb-8bbb-222222222222", body: "Other ticket secret", author_type: null,
         author_name: "Property Manager", created_at: "2026-10-01T01:00:00Z" },
+      { id: "c3", request_id: "11111111-aaaa-4aaa-8aaa-111111111111", body: "Tenant: water under the sink", author_type: "tenant",
+        author_name: "Tenant One", author_id: "tenant-uid", visible_to_tenant: true, created_at: "2026-10-01T02:00:00Z" },
+      { id: "c4", request_id: "11111111-aaaa-4aaa-8aaa-111111111111", body: "Vendor: arriving Tuesday", author_type: "vendor",
+        author_name: "Acme Plumbing", visible_to_tenant: false, created_at: "2026-10-01T03:00:00Z" },
+      { id: "c5", request_id: "11111111-aaaa-4aaa-8aaa-111111111111", body: "PM requested more work: reseal the trap", author_type: "pm_to_vendor",
+        author_name: "Property Manager", visible_to_tenant: false, created_at: "2026-10-01T04:00:00Z" },
+      { id: "c6", request_id: "11111111-aaaa-4aaa-8aaa-111111111111", body: "System: emergency dispatch triggered", author_type: "system",
+        author_name: "Modus PM", visible_to_tenant: false, created_at: "2026-10-01T05:00:00Z" },
+      { id: "c7", request_id: "11111111-aaaa-4aaa-8aaa-111111111111", body: "Legacy row with unknown visibility", author_type: "tenant",
+        author_name: "Property Manager", visible_to_tenant: null, created_at: "2026-10-01T06:00:00Z" },
     ],
   };
   writes = [];
@@ -393,6 +403,52 @@ describe("supported actions", () => {
     assert.equal(r.code, 200);
     assert.equal(r.body.ticket.title, "Leaky sink");
     assert.equal(r.body.ticket.vendor_name, "Acme Plumbing");
-    assert.equal(r.body.comments.length, 1);
+    // public tenant comment + vendor's own + PM-to-vendor rework request; internal/system/legacy excluded
+    assert.equal(r.body.comments.length, 3);
+  });
+});
+
+// ── comment visibility (internal-only notes never reach vendors) ─────────
+describe("vendor comment visibility", () => {
+  const bodies = async () => (await act(sessionFor(T1), "get")).body.comments.map(c => c.body);
+  test("landlord internal-only note is not returned to the vendor", async () => {
+    assert.ok(!(await bodies()).includes("PM note"));
+  });
+  test("system notes and comments with unknown visibility are not returned", async () => {
+    const b = await bodies();
+    assert.ok(!b.includes("System: emergency dispatch triggered"));
+    assert.ok(!b.includes("Legacy row with unknown visibility"));
+  });
+  test("public (tenant-visible) comments, the vendor's own, and PM-to-vendor requests are returned, in order", async () => {
+    assert.deepEqual(await bodies(), ["Tenant: water under the sink", "Vendor: arriving Tuesday", "PM requested more work: reseal the trap"]);
+  });
+  test("a comment the vendor posts is visible to the vendor afterwards (stored tenant-hidden)", async () => {
+    accept(T1);
+    assert.equal((await act(sessionFor(T1), "comment", { body: "On my way" })).code, 200);
+    assert.ok((await bodies()).includes("On my way"));
+  });
+  test("visibility rule: only visible_to_tenant === true, or vendor / pm_to_vendor authors", async () => {
+    const { isVendorVisibleComment } = await import("../api/vendor-ticket.js");
+    assert.equal(isVendorVisibleComment({ visible_to_tenant: true, author_type: "tenant" }), true);
+    assert.equal(isVendorVisibleComment({ visible_to_tenant: false, author_type: "vendor" }), true);
+    assert.equal(isVendorVisibleComment({ visible_to_tenant: false, author_type: "pm_to_vendor" }), true);
+    for (const c of [{ visible_to_tenant: false, author_type: null }, { visible_to_tenant: false, author_type: "system" },
+                     { visible_to_tenant: false, author_type: "tenant" }, { visible_to_tenant: null }, {}, null]) {
+      assert.equal(isVendorVisibleComment(c), false, JSON.stringify(c));
+    }
+  });
+  test("the landlord's rework request is tagged pm_to_vendor so the vendor still receives it", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../src/LandlordMaintenance.jsx", import.meta.url), "utf8");
+    const block = src.slice(src.indexOf("async function submitRejection"), src.indexOf("// Notify vendor", src.indexOf("async function submitRejection")));
+    assert.match(block, /author_type:\s*"pm_to_vendor"/);
+    assert.match(block, /visible_to_tenant:\s*false/);
+  });
+  test("the landlord's internal-only comment path is not tagged for vendors", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../src/LandlordMaintenance.jsx", import.meta.url), "utf8");
+    const block = src.slice(src.indexOf("async function postComment"), src.indexOf("setNewComment(\"\")", src.indexOf("async function postComment")));
+    assert.doesNotMatch(block, /pm_to_vendor/);
+    assert.match(block, /visible_to_tenant:\s*visibility === "visible"/);
   });
 });

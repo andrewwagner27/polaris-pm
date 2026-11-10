@@ -28,6 +28,14 @@ const TICKET_FIELDS = [
 ];
 const COMMENT_FIELDS = ["id", "body", "author_type", "author_name", "created_at"];
 
+// Comment visibility for vendors: public (tenant-visible) comments, the vendor's own comments, and
+// landlord messages addressed to the vendor (e.g. rework requests). Landlord internal-only notes,
+// system notes and comments with unknown visibility are never sent to the vendor.
+export const VENDOR_VISIBLE_AUTHOR_TYPES = Object.freeze(["vendor", "pm_to_vendor"]);
+export function isVendorVisibleComment(c) {
+  return c?.visible_to_tenant === true || VENDOR_VISIBLE_AUTHOR_TYPES.includes(c?.author_type);
+}
+
 const UPLOAD_KINDS = { photo: "vendor", quote: "quote", invoice: "invoice" };
 const UPLOAD_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "pdf"]);
 
@@ -159,7 +167,7 @@ async function actionGet(ticket) {
 
   return {
     ticket: vendorView(ticket),
-    comments: (comments || []).map(c => pick(c, COMMENT_FIELDS)),
+    comments: (comments || []).filter(isVendorVisibleComment).map(c => pick(c, COMMENT_FIELDS)),
     photos,
   };
 }
