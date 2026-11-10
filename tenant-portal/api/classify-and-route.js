@@ -9,6 +9,7 @@ import OpenAI from "openai";
 import { Resend } from "resend";
 import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
+import { buildRoutingLogRow } from "./_lib/routingLog.js";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -581,26 +582,10 @@ Modus Property Management`;
     }
 
     // ── 9. Log routing decision ──────────────────────────────
+    // Agent Center reads only this table; the row must match its columns exactly (see routingLog.js).
     const { data: logEntry, error: logErr } = await supabase
       .from("ai_routing_logs")
-      .insert({
-        message_id: message_id || null,
-        tenant_id: tenant_id,
-        detected_intent: classification.intent_summary,
-        detected_category: classification.category,
-        confidence_score: classification.confidence,
-        urgency: classification.urgency,
-        action_taken: classification.escalate_to_landlord
-          ? "ESCALATE_LANDLORD"
-          : classification.create_maintenance_ticket
-          ? "CREATE_TICKET"
-          : "AUTO_REPLY",
-        auto_reply_sent: true,
-        ticket_created_id: ticketId,
-        raw_message: message,
-        agent_name: persona.name,
-        raw_openai_response: { tier: classification.tier, category: classification.category },
-      })
+      .insert(buildRoutingLogRow({ classification, tenantId: tenant_id, messageId: message_id, ticketId, message }))
       .select()
       .single();
 
