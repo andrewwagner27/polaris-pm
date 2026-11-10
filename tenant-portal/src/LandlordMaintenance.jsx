@@ -308,6 +308,7 @@ export default function LandlordMaintenance() {
       request_id:        rejectTicket.id,
       body:              `PM requested more work: ${rejectNotes}`,
       author_name:       "Property Manager",
+      author_type:       "pm_to_vendor", // hidden from the tenant, shown to the vendor (api/vendor-ticket.js)
       visible_to_tenant: false,
     });
     setTickets(prev => prev.map(t => t.id === rejectTicket.id ? { ...t, status: "in_progress" } : t));
