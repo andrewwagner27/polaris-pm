@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { buildTenantProfile } from "./tenantProfile";
 
 const CACHE_KEY = "modus_tenant_cache";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -59,31 +60,15 @@ export function useTenant() {
 
         if (!mounted) return;
 
-        const unitData     = unitResult.data;
-        const propertyData = unitData?.properties;
-
-        const result = {
-          id:               tenantId,
-          user_id:          authUser.id,
-          unit_id:          tenantData?.unit_id || null,
-          name:             tenantData?.name     || authUser.user_metadata?.full_name || "Tenant",
-          email:            authUser.email,
-          phone:            tenantData?.phone    || authUser.user_metadata?.phone || "—",
-          unit:             unitData?.unit_number || authUser.user_metadata?.unit_number || "—",
-          property:         propertyData?.name   || "—",
-          address:          propertyData
-            ? `${propertyData.address}, ${propertyData.city} ${propertyData.state}`
-            : "—",
-          rent:             unitData?.rent_amount || 0,
-          leaseStart:       tenantData?.lease_start || null,
-          leaseEnd:         tenantData?.lease_end   || null,
-          security_deposit: tenantData?.security_deposit ?? null,
-          payments:         paymentsResult.data    || [],
-          maintenance:      maintenanceResult.data  || [],
-          recurringCharges: chargesResult.data      || [],
-          raw:              tenantData,
+        const result = buildTenantProfile({
+          authUser,
+          tenantData,
+          unitData:         unitResult.data,
           role,
-        };
+          payments:         paymentsResult.data,
+          maintenance:      maintenanceResult.data,
+          recurringCharges: chargesResult.data,
+        });
 
         writeCache(result);
         setTenant(result);
