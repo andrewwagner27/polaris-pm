@@ -21,6 +21,13 @@ const C = {
   amber:    "#92400E",
 };
 
+// Replies from the assistant (sender_id null or an agent_name) are always shown as the AI,
+// whatever name an older message stored. A person never answers under an AI label.
+const AI_LABEL = "Modus AI Assistant";
+const AI_DISCLOSURE = "You're chatting with the Modus AI Assistant — an automated assistant, not a person. Tap \"Talk to a person\" anytime and management will follow up.";
+const TALK_TO_PERSON_MESSAGE = "I'd like to talk to a person from management, please.";
+const isAiMessage = (m) => m.sender_id === null || !!m.agent_name;
+
 const QUICK_REPLIES = [
   "Is parking available?",
   "When is maintenance coming?",
@@ -172,20 +179,25 @@ export default function MessagingScreen() {
 
         {/* Chat header */}
         <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
-          {/* Stack of agent avatars */}
-          <div style={{ position:"relative", width:36, height:36, flexShrink:0 }}>
-            <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" alt="" style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${C.surface}`, position:"absolute", top:0, left:0, objectFit:"cover" }} />
-            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" alt="" style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${C.surface}`, position:"absolute", top:8, left:8, objectFit:"cover" }} />
-          </div>
+          <div aria-hidden="true" style={{ width:34, height:34, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>AI</div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:14, fontWeight:600, color:C.text }}>Modus Property Management</div>
             <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
               {awaitingReply
-                ? <span style={{ color:C.green }}>● Replying…</span>
-                : "Usually replies within a few hours"
+                ? <span style={{ color:C.green }}>● {AI_LABEL} is replying…</span>
+                : `${AI_LABEL} · automated replies`
               }
             </div>
           </div>
+          <button onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)} disabled={sending}
+            style={{ padding:"7px 12px", background:C.gold, border:"none", borderRadius:16, fontSize:12, fontWeight:600, color:C.text, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+            Talk to a person
+          </button>
+        </div>
+
+        {/* AI disclosure — always visible */}
+        <div role="note" style={{ background:C.raised, borderBottom:`1px solid ${C.border}`, padding:"8px 20px", fontSize:11, color:C.textSub, lineHeight:1.5, flexShrink:0 }}>
+          {AI_DISCLOSURE}
         </div>
 
         {/* Messages */}
@@ -217,17 +229,15 @@ export default function MessagingScreen() {
 
             return (
               <div key={item.id}>
-                {/* Agent name label above management messages */}
-                {fromProperty && item.agent_name && (
+                {/* Sender label above management-side messages: the AI is always labelled as the AI */}
+                {fromProperty && (
                   <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
-                    {item.agent_name} · Modus Property Management
+                    {isAiMessage(item) ? `${AI_LABEL} · AI` : "Modus Property Management"}
                   </div>
                 )}
                 <div style={{ display:"flex", justifyContent:fromProperty?"flex-start":"flex-end", marginBottom:2, alignItems:"flex-end", gap:8 }}>
                   {fromProperty && (
-                    item.agent_photo
-                      ? <img src={item.agent_photo} alt={item.agent_name || "Agent"} style={{ width:26, height:26, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:`1px solid ${C.border}` }} />
-                      : <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0 }}>M</div>
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{isAiMessage(item) ? "AI" : "M"}</div>
                   )}
                   <div style={{ maxWidth:"75%", padding:"10px 14px", borderRadius:fromProperty?"4px 14px 14px 14px":"14px 4px 14px 14px", background:fromProperty?C.surface:C.goldDim, border:fromProperty?`1px solid ${C.border}`:"none", fontSize:13, color:C.text, lineHeight:1.5 }}>
                     {item.body}
@@ -244,10 +254,10 @@ export default function MessagingScreen() {
           {awaitingReply && (
             <div>
               <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
-                Modus Property Management
+                {AI_LABEL} · AI
               </div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0 }}>M</div>
+                <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>AI</div>
                 <div style={{ padding:"10px 16px", borderRadius:"4px 14px 14px 14px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:4 }}>
                   <style>{`
                     @keyframes modus-bounce {
@@ -271,6 +281,10 @@ export default function MessagingScreen() {
 
         {/* Quick replies */}
         <div style={{ padding:"8px 16px 4px", display:"flex", gap:8, overflowX:"auto", flexShrink:0, background:C.surface, borderTop:`1px solid ${C.border}` }}>
+          <button className="t-quick" onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)}
+            style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:14, fontSize:11, color:C.gold, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:600, flexShrink:0 }}>
+            Talk to a person
+          </button>
           {QUICK_REPLIES.map((q, i) => (
             <button key={i} className="t-quick" onClick={() => sendMessage(q)}
               style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:14, fontSize:11, color:C.textSub, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:500, transition:"all 0.12s", flexShrink:0 }}>

@@ -11,6 +11,7 @@ import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/aut
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt } from "./_lib/aiPrompt.js";
+import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides } from "./_lib/aiSafety.js";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -18,33 +19,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
 const FROM_EMAIL = "noreply@getmodusam.com";
 
-// ── Staff persona pool ─────────────────────────────────────
-const STAFF_PERSONAS = [
-  { name: "Sarah M.",  title: "Property Management", photo: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face" },
-  { name: "James T.",  title: "Resident Services",   photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" },
-  { name: "Maria L.",  title: "Property Management", photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face" },
-  { name: "David K.",  title: "Resident Services",   photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face" },
-  { name: "Rachel B.", title: "Property Management", photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face" },
-];
-
-function getPersonaForTenant(tenantId) {
-  let hash = 0;
-  for (let i = 0; i < tenantId.length; i++) {
-    hash = (hash * 31 + tenantId.charCodeAt(i)) >>> 0;
-  }
-  return STAFF_PERSONAS[hash % STAFF_PERSONAS.length];
-}
-
-function getReplyDelay(message, urgency) {
-  if (urgency === "EMERGENCY") return 0;
-  const wordCount = message.trim().split(/\s+/).length;
-  const base = 45000;
-  const extra = Math.min(wordCount * 800, 75000);
-  const jitter = (Math.random() - 0.5) * 20000;
-  return Math.round(base + extra + jitter);
-}
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// AI replies are attributed to the Modus AI assistant (aiSafety.js): no named staff personas,
+// no stock photos and no artificial "human-feeling" delay.
 
 // ── Structured Output Schema ────────────────────────────────
 const CLASSIFICATION_SCHEMA = {
@@ -98,7 +74,7 @@ const CLASSIFICATION_SCHEMA = {
       },
       send_violation_notice: {
         type: "boolean",
-        description: "True only if the offending unit is clearly identified and a formal notice should be sent"
+        description: "Always false. The assistant never issues violation notices; management reviews every complaint."
       },
       offending_unit_hint: {
         type: "string",
@@ -178,29 +154,12 @@ export default async function handler(req, res) {
 
     if (tenantErr) console.error("Tenant load error:", tenantErr);
 
-    // ── 1b. Check rent payment status ───────────────────────
-    // NOTE: rent context is passed to the AI but the system prompt
-    // instructs it to ONLY use this if the tenant brings up payment.
-    const today = new Date();
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const { data: currentPayment } = await supabase
-      .from("rent_payments")
-      .select("id, status, amount_due, amount_paid, due_date, late_fee")
-      .eq("tenant_id", tenant_id)
-      .gte("due_date", firstOfMonth.toISOString().split("T")[0])
-      .order("due_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const rentAmount = tenant?.units?.rent_amount || null;
-    const paymentDueDay = tenant?.units?.payment_due_day || 5;
-    const dayOfMonth = today.getDate();
-    const isPastDue = dayOfMonth > paymentDueDay && (!currentPayment || currentPayment.status === "unpaid" || currentPayment.status === "late");
-
-    // Only surface rent status to AI if it's actually past due (don't inject it otherwise)
-    const rentContext = isPastDue && rentAmount
-      ? `[BACKGROUND CONTEXT — only use if tenant mentions payment]: Rent of $${rentAmount}/month was due on the ${paymentDueDay}th and has not been paid. Do NOT proactively bring this up unless the tenant asks about payment.`
-      : "";
+    // ── 1b. Rent status: only from the active A2 receivables ledger ──
+    // The legacy rent_payments table is not consulted. Inactive ledger, an error, or nothing
+    // past due → no payment-status context, so the AI cannot claim arrears it can't confirm.
+    const { data: due, error: dueErr } = await supabase.rpc("a2_pay_rent_internal", { p_tenant: tenant_id });
+    if (dueErr) console.error("Rent ledger lookup error:", dueErr.message);
+    const rentContext = buildRentContext(dueErr ? null : due);
 
     // ── 2. Load last 10 messages for thread context ──────────
     const { data: threadMessages } = await supabase
@@ -271,10 +230,8 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       };
     }
 
-    // ── 4. Human-feeling delay before reply ──────────────────
-    const persona = getPersonaForTenant(tenant_id);
-    const delayMs = getReplyDelay(message, classification.urgency);
-    if (delayMs > 0) await sleep(delayMs);
+    // ── 4. Safety overrides (no violation notices; complaints and human requests escalate) ──
+    classification = applySafetyOverrides(classification, message);
 
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
@@ -285,8 +242,8 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       tenant_id: tenant_id,
       body: finalReply,
       read: false,
-      agent_name: persona.name,
-      agent_photo: persona.photo,
+      agent_name: AI_ASSISTANT_NAME,
+      agent_photo: null,
     });
 
     if (replyErr) console.error("Tenant reply insert error:", replyErr);
@@ -338,11 +295,13 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     if (classification.create_incident_log) {
       let offendingUnitId = null;
       if (classification.offending_unit_hint) {
+        // Exact match only (a partial match turned "1" into units 10, 11 or 12). Recorded for
+        // management's review; nothing is ever sent to the other unit.
         const { data: offendingUnit } = await supabase
           .from("units")
           .select("id")
           .eq("property_id", tenant?.units?.property_id)
-          .ilike("unit_number", `%${classification.offending_unit_hint}%`)
+          .eq("unit_number", String(classification.offending_unit_hint).trim())
           .maybeSingle();
         offendingUnitId = offendingUnit?.id || null;
       }
@@ -360,7 +319,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
           property_id: tenant?.units?.properties?.id || null,
           offending_unit_id: offendingUnitId,
           category: incidentCategory,
-          status: classification.send_violation_notice ? "notice_sent" : "open",
+          status: "open",   // management decides on any notice; the AI never sends one
           details_json: {
             original_message: message,
             intent_summary: classification.intent_summary,
@@ -378,37 +337,8 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       } else {
         incidentId = incident?.id;
       }
-
-      if (classification.send_violation_notice && offendingUnitId) {
-        const { data: offendingTenant } = await supabase
-          .from("tenants")
-          .select("user_id, name")
-          .eq("unit_id", offendingUnitId)
-          .maybeSingle();
-
-        if (offendingTenant?.user_id) {
-          const violationBody = `NOTICE OF LEASE VIOLATION
-
-Management has received a formal complaint regarding a disturbance originating from your unit. This notice is being issued in accordance with your lease agreement.
-
-Nature of Complaint: ${classification.category.replace(/_/g, " ")}
-Date of Notice: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-
-You are required to remedy this situation immediately. Continued violations may result in formal lease enforcement action, including written warnings, fines, or lease termination proceedings as permitted under your rental agreement.
-
-If you believe this notice was issued in error, please respond to this message within 48 hours.
-
-Modus Property Management`;
-
-          await supabase.from("messages").insert({
-            sender_id: null,
-            recipient_id: offendingTenant.user_id,
-            tenant_id: null,
-            body: violationBody,
-            read: false,
-          });
-        }
-      }
+      // No automatic violation notice: the incident is escalated (applySafetyOverrides) and
+      // management decides whether any notice is warranted.
     }
 
     // ── 7. Emergency email & landlord alerts ─────────────────
@@ -463,25 +393,8 @@ Modus Property Management`;
       }
     }
 
-    // ── 8. Late rent / eviction watch trigger ───────────────
-    if (isPastDue && dayOfMonth >= 6) {
-      await supabase.from("landlord_alerts").insert({
-        type: "late_rent",
-        category: "PAYMENT",
-        tenant_id: tenant_id,
-        urgency: dayOfMonth >= 10 ? "HIGH" : "MEDIUM",
-        summary: `Rent past due — Day ${dayOfMonth} of month. 3-day notice may be required.`,
-        raw_message: message,
-        is_read: false,
-      }).then(({ error }) => { if (error) console.error("Late rent alert error:", error); });
-
-      if (currentPayment && currentPayment.late_fee === 0) {
-        await supabase
-          .from("rent_payments")
-          .update({ late_fee: 50, status: "late" })
-          .eq("id", currentPayment.id);
-      }
-    }
+    // (Former step 8 removed: messaging no longer creates late-rent alerts or late fees.
+    //  Arrears and fees belong to the A2 receivables ledger and its own jobs.)
 
     // ── 9. Log routing decision ──────────────────────────────
     // Agent Center reads only this table; the row must match its columns exactly (see routingLog.js).
