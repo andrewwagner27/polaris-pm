@@ -35,10 +35,12 @@ export default async function handler(req, res) {
     sbFetch("maintenance_requests?select=id,title,priority,status,created_at,tenants(name,units(unit_number))&status=neq.resolved&order=created_at.desc"),
     sbFetch("inspections?select=id,status,inspection_date,tenants(name,units(unit_number))&status=neq.closed&order=created_at.desc"),
     sbFetch("tenants?select=id,name,lease_end,units(unit_number)&archived=eq.false&lease_end=not.is.null"),
-    // Backstop: escalations from the last 24 hours with their email status. Listed only; never re-sent.
-    sbFetch(`ai_routing_logs?select=id,created_at,detected_intent,raw_message,action_taken,raw_openai_response,tenants(name,units(unit_number))&action_taken=eq.ESCALATE_LANDLORD&created_at=gte.${encodeURIComponent(recapSince())}&order=created_at.desc`),
+    // Backstop: escalations and emergencies from the last 24 hours with their email status. Listed only; never re-sent.
+    // Every routing row in the window is read; escalationRecapSection keeps escalations, emergencies (including
+    // those routed as maintenance tickets) and rows with a recorded notification, and drops ordinary replies.
+    sbFetch(`ai_routing_logs?select=id,created_at,detected_intent,raw_message,action_taken,raw_openai_response,tenants(name,units(unit_number))&created_at=gte.${encodeURIComponent(recapSince())}&order=created_at.desc`),
   ]);
-  const escalations = escalationRecapSection(Array.isArray(escalationRows) ? escalationRows : []);
+  const escalations = escalationRecapSection(Array.isArray(escalationRows) ? escalationRows : null);
 
   // ── Categorise ────────────────────────────────────────
   const openTickets    = (tickets||[]).filter(t => t.status === "open");
@@ -91,8 +93,10 @@ export default async function handler(req, res) {
 
   // Sections
   const sectionsHtml = [
-    escalations.count > 0
-      ? section(`🙋 TENANT ESCALATIONS — LAST 24 HOURS${escalations.needsAttention ? ` (${escalations.needsAttention} NOT CONFIRMED EMAILED)` : ""}`, "#E05555", escalations.html)
+    escalations.unavailable
+      ? section("🙋 TENANT ESCALATIONS — COULD NOT BE LOADED", "#E05555", `<p style="color:#EDEAE2;font-size:13px;margin:0">The escalation list could not be read. Check the Agent Center for the last 24 hours.</p>`)
+      : escalations.count > 0
+      ? section(`🙋 TENANT ESCALATIONS &amp; EMERGENCIES — LAST 24 HOURS${escalations.needsAttention ? ` (${escalations.needsAttention} NOT CONFIRMED EMAILED)` : ""}`, "#E05555", escalations.html)
       : "",
     urgentTickets.length > 0
       ? section("🚨 URGENT / HIGH PRIORITY", "#E05555", ticketTable(urgentTickets))
@@ -142,7 +146,7 @@ export default async function handler(req, res) {
       : "",
   ].filter(Boolean).join("");
 
-  const allClear = !escalations.count && !urgentTickets.length && !stalledTickets.length && !openTickets.length && !awaitingTenant.length && !expiringLeases.length;
+  const allClear = !escalations.unavailable && !escalations.count &&!urgentTickets.length && !stalledTickets.length && !openTickets.length && !awaitingTenant.length && !expiringLeases.length;
 
   const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',Arial,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px">

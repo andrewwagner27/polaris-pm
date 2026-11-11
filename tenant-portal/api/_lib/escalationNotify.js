@@ -158,15 +158,30 @@ export function notifyStatusLabel(row) {
   return { label: "not emailed", color: "#F0A430" };
 }
 
+// A routing-log row belongs in the recap when management was (or should have been) notified about it:
+// an escalation, a Tier 1 emergency (including one routed as a maintenance ticket, action_taken
+// CREATE_TICKET), or any row the notifier recorded an outcome on. Ordinary AI replies match none of these.
+export function isRecapEscalation(row) {
+  if (!row) return false;
+  if (row.action_taken === "ESCALATE_LANDLORD") return true;
+  const raw = row.raw_openai_response;
+  if (raw?.tier === "TIER1_EMERGENCY") return true;
+  return Boolean(raw?.notify?.status);
+}
+
+// rows: the last-24-hour ai_routing_logs rows, or null when the query failed — then unavailable: true,
+// so the recap says the list could not be loaded instead of reporting "all clear".
 export function escalationRecapSection(rows) {
-  const list = (rows || []).filter((r) => r?.action_taken === "ESCALATE_LANDLORD");
+  if (!Array.isArray(rows)) return { count: 0, needsAttention: 0, html: "", unavailable: true };
+  const list = rows.filter(isRecapEscalation);
   const failed = list.filter((r) => notifyStatusLabel(r).label !== "emailed" && !String(notifyStatusLabel(r).label).startsWith("duplicate"));
   if (!list.length) return { count: 0, needsAttention: 0, html: "" };
   const rowsHtml = list.map((r) => {
     const st = notifyStatusLabel(r);
     const t = r.tenants || {};
+    const tag = r.raw_openai_response?.tier === "TIER1_EMERGENCY" ? "🚨 EMERGENCY · " : "";
     return `<tr>
-      <td style="padding:7px 12px;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930">${escapeHtml(r.detected_intent || r.raw_message || "Escalation")}</td>
+      <td style="padding:7px 12px;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930">${tag}${escapeHtml(r.detected_intent || r.raw_message || "Escalation")}</td>
       <td style="padding:7px 12px;font-size:12px;color:#9095A0;border-bottom:1px solid #252930">${escapeHtml(t.name || "Tenant")} · Unit ${escapeHtml(t.units?.unit_number || "?")}</td>
       <td style="padding:7px 12px;font-size:11px;font-weight:700;color:${st.color};border-bottom:1px solid #252930">${st.label}</td>
       <td style="padding:7px 12px;font-size:11px;color:#5C6270;border-bottom:1px solid #252930">${escapeHtml(new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }))}</td>

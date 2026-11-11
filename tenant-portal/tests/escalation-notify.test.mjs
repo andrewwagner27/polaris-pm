@@ -16,7 +16,8 @@ process.env.RESEND_API_KEY = "re_test";
 process.env.ESCALATION_NOTIFY_EMAILS = "manager@test.invalid";
 
 // ── network fake: OpenAI + Resend (installed before the handler creates its OpenAI client) ──
-let model = {}, resendMode = "ok", resendCalls = [];
+process.env.CRON_SECRET = "cron-test-secret";
+let model = {}, resendMode = "ok", resendCalls = [], recapQueryFails = false, recapQueries = [];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
@@ -27,12 +28,25 @@ globalThis.fetch = async (url, init = {}) => {
     if (resendMode === "500") return json({ message: "provider error" }, 500);
     return json({ id: `re_${resendCalls.length}` });
   }
+  // Supabase REST, as read by /api/daily-recap (served from the in-memory database below)
+  if (u.startsWith("https://example.supabase.co/rest/v1/")) {
+    const q = new URL(u); const table = q.pathname.split("/").pop();
+    if (table !== "ai_routing_logs") return json([]);
+    if (recapQueryFails) return json({ message: "relation error" }, 400);
+    recapQueries.push(q.search);
+    const since = q.searchParams.get("created_at")?.replace(/^gte\./, "");
+    const action = q.searchParams.get("action_taken")?.replace(/^eq\./, "");
+    return json(db.ai_routing_logs
+      .filter((r) => (!since || r.created_at >= since) && (!action || r.action_taken === action))
+      .map((r) => ({ ...r, tenants: { name: "Test User", units: { unit_number: "2" } } })));
+  }
   throw new Error(`unexpected fetch ${u}`);
 };
 
 const N = await import("../api/_lib/escalationNotify.js");
 const { supabaseAdmin } = await import("../api/_lib/auth.js");
 const handler = (await import("../api/classify-and-route.js")).default;
+const recapHandler = (await import("../api/daily-recap.js")).default;
 
 // ── in-memory database ──
 const T = "6a12a0b4-0000-4000-8000-000000000001", U = "user-1", P = "prop-1";
@@ -41,10 +55,10 @@ function seed() {
   db = {
     profiles: [{ id: U, role: "tenant" }],
     tenants: [{ id: T, user_id: U, name: "Test User", unit_id: "unit-2", units: { unit_number: "2", property_id: P, rent_amount: 1345, properties: { id: P, name: "Clifton Manor" } } }],
-    messages: [{ id: "m1", tenant_id: T, sender_id: U, body: "stored body" }, { id: "m2", tenant_id: T, sender_id: U, body: "stored body 2" }],
+    messages: ["m1", "m2", "m3", "m4"].map((id) => ({ id, tenant_id: T, sender_id: U, body: `stored ${id}` })),
     ai_routing_logs: [], landlord_alerts: [], maintenance_requests: [], incident_logs: [], units: [], maintenance_comments: [], vendors: [],
   };
-  resendCalls = []; resendMode = "ok";
+  resendCalls = []; resendMode = "ok"; recapQueryFails = false; recapQueries = [];
 }
 let seq = 0;
 function from(table) {
@@ -221,13 +235,104 @@ describe("daily recap backstop", () => {
     for (const t of ["Wants a person", "emailed", "Lease dispute", "EMAIL FAILED", "not emailed"]) assert.ok(s.html.includes(t), t);
     assert.ok(!s.html.includes("Quiet hours"));
   });
-  test("the recap queries only the last 24 hours of escalations and never sends per-escalation email", () => {
+  test("the recap queries only the last 24 hours of routing rows and never sends per-escalation email", () => {
     const recap = readFileSync(new URL("../api/daily-recap.js", import.meta.url), "utf8");
-    assert.match(recap, /ai_routing_logs\?select=[^`]*&action_taken=eq\.ESCALATE_LANDLORD&created_at=gte\.\$\{encodeURIComponent\(recapSince\(\)\)\}/);
+    assert.match(recap, /ai_routing_logs\?select=[^`]*raw_openai_response[^`]*&created_at=gte\.\$\{encodeURIComponent\(recapSince\(\)\)\}/);
+    assert.doesNotMatch(recap, /action_taken=eq\./, "emergencies routed as tickets must not be filtered out by the query");
     assert.match(recap, /escalationRecapSection\(/);
     assert.doesNotMatch(recap, /notifyEscalation|sendEmail\(/);
     const since = Date.parse(N.recapSince(Date.parse("2026-11-11T12:00:00Z")));
     assert.equal(since, Date.parse("2026-11-10T12:00:00Z"));
+  });
+});
+
+describe("daily recap includes every notified emergency and escalation (end to end)", () => {
+  const EMERGENCY_AS_TICKET = { tier: "TIER1_EMERGENCY", category: "MAINTENANCE", urgency: "EMERGENCY", create_maintenance_ticket: true, escalate_to_landlord: false };
+  function runRecap() {
+    return new Promise((resolve) => {
+      const res = { code: 200, body: null, status(c) { this.code = c; return this; }, end() { resolve(this); return this; }, json(b) { this.body = b; resolve(this); return this; } };
+      recapHandler({ method: "GET", headers: { authorization: "Bearer cron-test-secret" } }, res);
+    });
+  }
+  async function scenario() {
+    await ask("Water is pouring through my ceiling", "m1", { ...EMERGENCY_AS_TICKET, intent_summary: "Ceiling leak emergency" });
+    await ask("I need to talk to a person about my lease", "m2", { escalate_to_landlord: true, intent_summary: "Lease question for management" });
+    await ask("What are the quiet hours?", "m3", { intent_summary: "Quiet hours question" });
+    resendMode = "500";
+    await ask("Sparks are coming out of the outlet", "m4", { ...EMERGENCY_AS_TICKET, intent_summary: "Electrical emergency" });
+    resendMode = "ok";
+  }
+
+  test("setup reproduces the gap: emergencies routed as tickets are CREATE_TICKET rows, yet were emailed", async () => {
+    await scenario();
+    const byIntent = Object.fromEntries(db.ai_routing_logs.map((r) => [r.detected_intent, r]));
+    assert.equal(byIntent["Ceiling leak emergency"].action_taken, "CREATE_TICKET");
+    assert.equal(byIntent["Ceiling leak emergency"].raw_openai_response.notify.status, "sent");
+    assert.equal(byIntent["Electrical emergency"].action_taken, "CREATE_TICKET");
+    assert.equal(byIntent["Electrical emergency"].raw_openai_response.notify.status, "failed");
+    assert.equal(byIntent["Lease question for management"].action_taken, "ESCALATE_LANDLORD");
+    assert.equal(byIntent["Quiet hours question"].raw_openai_response.notify, undefined);
+  });
+
+  test("emergency-as-ticket, normal escalation and failed emergency are listed with status; the ordinary reply is not", async () => {
+    await scenario();
+    const notificationsBefore = resendCalls.length;   // 3 attempts: m1 sent, m2 sent, m4 failed
+    const r = await runRecap();
+    assert.equal(r.code, 200);
+    assert.equal(resendCalls.length, notificationsBefore + 1, "exactly one email: the recap itself");
+    const recap = resendCalls.at(-1).body;
+    assert.match(recap.subject, /^📋 Daily Recap — 3 escalations, 1 not emailed/);
+    const rowFor = (intent) => recap.html.split("<tr>").find((tr) => tr.includes(intent)) || "";
+    assert.match(rowFor("Ceiling leak emergency"), /🚨 EMERGENCY · Ceiling leak emergency[\s\S]*>emailed</);
+    assert.match(rowFor("Lease question for management"), />emailed</);
+    assert.doesNotMatch(rowFor("Lease question for management"), /EMERGENCY/);
+    assert.match(rowFor("Electrical emergency"), /🚨 EMERGENCY · Electrical emergency[\s\S]*EMAIL FAILED/);
+    assert.ok(!recap.html.includes("Quiet hours question"), "ordinary AI reply is not in the recap");
+    assert.match(recap.html, /TENANT ESCALATIONS &amp; EMERGENCIES — LAST 24 HOURS \(1 NOT CONFIRMED EMAILED\)/);
+  });
+
+  test("the recap never resends or replays: the failed emergency stays failed and no escalation email is sent", async () => {
+    await scenario();
+    const logsBefore = structuredClone(db.ai_routing_logs);
+    const callsBefore = resendCalls.length;
+    await runRecap();
+    await runRecap();
+    const sent = resendCalls.slice(callsBefore);
+    assert.equal(sent.length, 2);
+    for (const c of sent) { assert.match(c.body.subject, /Daily Recap/); assert.equal(c.headers["Idempotency-Key"], undefined); }
+    assert.deepEqual(db.ai_routing_logs, logsBefore, "routing rows are not modified");
+  });
+
+  test("keeps the 24-hour window: older escalations and emergencies are not listed", async () => {
+    db.ai_routing_logs.push(
+      { id: "old-e", action_taken: "CREATE_TICKET", detected_intent: "Old emergency", created_at: new Date(Date.now() - 25 * 3600e3).toISOString(), raw_openai_response: { tier: "TIER1_EMERGENCY", notify: { status: "failed" } } },
+      { id: "old-x", action_taken: "ESCALATE_LANDLORD", detected_intent: "Old escalation", created_at: new Date(Date.now() - 48 * 3600e3).toISOString(), raw_openai_response: {} },
+    );
+    await ask("I need a person", "m2", { escalate_to_landlord: true, intent_summary: "Fresh escalation" });
+    await runRecap();
+    const since = new URLSearchParams(recapQueries[0]).get("created_at").replace(/^gte\./, "");
+    assert.ok(Math.abs(Date.parse(since) - (Date.now() - 24 * 3600e3)) < 60e3, "query starts 24 hours back");
+    const html = resendCalls.at(-1).body.html;
+    assert.ok(html.includes("Fresh escalation"));
+    assert.ok(!html.includes("Old emergency") && !html.includes("Old escalation"));
+  });
+
+  test("if the escalation query fails, the recap says so instead of reporting all clear", async () => {
+    recapQueryFails = true;
+    await runRecap();
+    const recap = resendCalls.at(-1).body;
+    assert.doesNotMatch(recap.subject, /All clear/);
+    assert.match(recap.html, /TENANT ESCALATIONS — COULD NOT BE LOADED/);
+  });
+
+  test("selection rule (unit): escalations, emergencies and notified rows only", () => {
+    assert.equal(N.isRecapEscalation({ action_taken: "ESCALATE_LANDLORD", raw_openai_response: {} }), true);
+    assert.equal(N.isRecapEscalation({ action_taken: "CREATE_TICKET", raw_openai_response: { tier: "TIER1_EMERGENCY" } }), true);
+    assert.equal(N.isRecapEscalation({ action_taken: "AUTO_REPLY", raw_openai_response: { tier: "TIER2_X", notify: { status: "pending" } } }), true);
+    assert.equal(N.isRecapEscalation({ action_taken: "AUTO_REPLY", raw_openai_response: { tier: "TIER3_MAINTENANCE", category: "GENERAL_INQUIRY" } }), false);
+    assert.equal(N.isRecapEscalation({ action_taken: "CREATE_TICKET", raw_openai_response: { tier: "TIER3_MAINTENANCE" } }), false);
+    assert.equal(N.isRecapEscalation(null), false);
+    assert.equal(N.escalationRecapSection(null).unavailable, true);
   });
 });
 
