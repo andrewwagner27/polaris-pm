@@ -21,15 +21,31 @@ export function normalizeRecipients(to) {
   return list.map(e => String(e || "").trim()).filter(Boolean);
 }
 
-export async function sendEmail({ to, subject, html }) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
-  const data = await response.json();
-  return { ok: response.ok, status: response.status, data };
+const DEFAULT_TIMEOUT_MS = 10000;
+
+// Returns { ok, status, data, error? }. Never throws: network errors, timeouts and non-JSON
+// responses come back as ok:false. idempotencyKey is forwarded to Resend as Idempotency-Key,
+// so a repeated call with the same key cannot deliver twice.
+export async function sendEmail({ to, subject, html, text, idempotencyKey, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": String(idempotencyKey).slice(0, 256) } : {}),
+      },
+      body: JSON.stringify({ from: FROM, to, subject, html, ...(text ? { text } : {}) }),
+      signal: controller.signal,
+    });
+    let data = null;
+    try { data = await response.json(); } catch { data = null; }
+    return { ok: response.ok, status: response.status, data, ...(response.ok ? {} : { error: data?.message || data?.error || `HTTP ${response.status}` }) };
+  } catch (err) {
+    return { ok: false, status: 0, data: null, error: err?.name === "AbortError" ? `timed out after ${timeoutMs} ms` : String(err?.message || err) };
+  } finally {
+    clearTimeout(timer);
+  }
 }

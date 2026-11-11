@@ -6,18 +6,15 @@
 // Requires: Authorization: Bearer <Supabase session JWT> of the tenant who owns tenant_id (or a landlord)
 
 import OpenAI from "openai";
-import { Resend } from "resend";
 import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt } from "./_lib/aiPrompt.js";
-import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides } from "./_lib/aiSafety.js";
+import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman } from "./_lib/aiSafety.js";
+import { sendEmail } from "./_lib/email.js";
+import { notifyEscalation } from "./_lib/escalationNotify.js";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const LANDLORD_EMAIL = "moduspropmgmt@gmail.com";
-const FROM_EMAIL = "noreply@getmodusam.com";
 
 // AI replies are attributed to the Modus AI assistant (aiSafety.js): no named staff personas,
 // no stock photos and no artificial "human-feeling" delay.
@@ -341,7 +338,8 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       // management decides whether any notice is warranted.
     }
 
-    // ── 7. Emergency email & landlord alerts ─────────────────
+    // ── 7. Landlord alert (emergencies and escalations). The email goes out in step 10,
+    //       after the escalation is recorded, through the same notifier for both.
     if (classification.tier === "TIER1_EMERGENCY" || classification.escalate_to_landlord) {
       await supabase.from("landlord_alerts").insert({
         type: classification.tier === "TIER1_EMERGENCY" ? "emergency" : "ai_escalation",
@@ -353,44 +351,6 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
         raw_message: message,
         is_read: false,
       }).then(({ error }) => { if (error) console.error("Landlord alert error:", error); });
-
-      if (classification.tier === "TIER1_EMERGENCY") {
-        try {
-          await resend.emails.send({
-            from: FROM_EMAIL,
-            to: LANDLORD_EMAIL,
-            subject: `🚨 EMERGENCY — ${tenant?.units?.properties?.name || "Clifton Manor"} Unit ${tenant?.units?.unit_number || "Unknown"}`,
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background: #c0392b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                  <h1 style="margin: 0; font-size: 22px;">🚨 Emergency Alert — Modus PM</h1>
-                </div>
-                <div style="background: #f8f8f8; padding: 24px; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
-                  <p><strong>Property:</strong> ${tenant?.units?.properties?.name || "Clifton Manor"}</p>
-                  <p><strong>Unit:</strong> ${tenant?.units?.unit_number || "Unknown"}</p>
-                  <p><strong>Tenant:</strong> ${tenant?.name || "Unknown"}</p>
-                  <p><strong>Urgency:</strong> ${classification.urgency}</p>
-                  <p><strong>Category:</strong> ${classification.category}</p>
-                  <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
-                  <p><strong>Tenant Message:</strong></p>
-                  <blockquote style="border-left: 4px solid #c0392b; margin: 0; padding: 12px 16px; background: #fff; color: #333;">
-                    ${message}
-                  </blockquote>
-                  <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
-                  <p><strong>AI Summary:</strong> ${classification.intent_summary}</p>
-                  <p><strong>AI Reply Sent:</strong></p>
-                  <blockquote style="border-left: 4px solid #888; margin: 0; padding: 12px 16px; background: #fff; color: #555;">
-                    ${finalReply}
-                  </blockquote>
-                  <p style="margin-top: 24px; color: #888; font-size: 12px;">Modus Property Management · Automated Emergency Alert</p>
-                </div>
-              </div>
-            `,
-          });
-        } catch (emailErr) {
-          console.error("Emergency email error:", emailErr);
-        }
-      }
     }
 
     // (Former step 8 removed: messaging no longer creates late-rent alerts or late fees.
@@ -406,7 +366,21 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
 
     if (logErr) console.error("Routing log error:", logErr);
 
-    // ── 10. Return result ────────────────────────────────────
+    // ── 10. Notify management of this escalation (once per tenant message; never throws) ──
+    // Runs after the tenant reply, alert and routing log are written, so an email failure
+    // cannot lose either. Only this new escalation is notified; older rows are never replayed.
+    let notification = { status: "not_required" };
+    try {
+      notification = await notifyEscalation({
+        db: supabase, send: sendEmail, log: logEntry || null, tenant, message, reply: finalReply,
+        classification, messageId: message_id || null, humanRequested: wantsHuman(message),
+      });
+    } catch (notifyErr) {
+      console.error("Escalation notification error:", notifyErr);
+      notification = { status: "failed" };
+    }
+
+    // ── 11. Return result ────────────────────────────────────
     return res.status(200).json({
       tier: classification.tier,
       category: classification.category,
@@ -419,6 +393,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       incident_id: incidentId,
       escalated: classification.escalate_to_landlord,
       log_id: logEntry?.id || null,
+      notification: notification.status,
     });
 
   } catch (err) {
