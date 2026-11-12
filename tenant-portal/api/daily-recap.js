@@ -14,7 +14,7 @@ import { hasCronSecret, getCaller, isLandlord } from "./_lib/auth.js";
 import { recapSince } from "./_lib/escalationNotify.js";
 import { buildDailyRecap } from "./_lib/dailyRecap.js";
 import { managementRecipients } from "./_lib/recipients.js";
-import { sendEmailReliably } from "./_lib/email.js";
+import { sendEmailReliably, payloadKey } from "./_lib/email.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).end();
@@ -62,13 +62,15 @@ export default async function handler(req, res) {
 
   const recap = buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, now: new Date() });
   const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  // The scheduled run is once per day (a cron retry can't send twice); a manual run always sends.
-  const key = hasCronSecret(req) ? `daily-recap:${day}` : `daily-recap:manual:${Date.now()}`;
-  const r = await sendEmailReliably({ to: to.recipients, subject: recap.subject, html: recap.html, text: recap.text, idempotencyKey: key });
+  // One key per day AND per content (payloadKey): a repeated scheduled call with the same content can't
+  // send twice; a manual run always sends. A key is never reused with a different payload.
+  const args = { to: to.recipients, subject: recap.subject, html: recap.html, text: recap.text };
+  const key = hasCronSecret(req) ? payloadKey(`daily-recap:${day}`, args) : `daily-recap:manual:${Date.now()}`;
+  const r = await sendEmailReliably({ ...args, idempotencyKey: key });
 
   if (!r.ok) {
-    console.error("[daily-recap] email failed:", r.error);
-    return res.status(r.status && r.status >= 400 ? r.status : 502).json({ error: r.error || "Email failed", attempts: r.attempts });
+    console.error(`[daily-recap] email ${r.result}:`, r.error);
+    return res.status(r.status && r.status >= 400 ? r.status : 502).json({ error: r.error || "Email failed", result: r.result, attempts: r.attempts });
   }
   return res.status(200).json({ success: true, id: r.data?.id ?? null, incomplete: recap.incomplete, attempts: r.attempts });
 }

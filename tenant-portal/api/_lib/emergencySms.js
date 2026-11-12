@@ -31,9 +31,12 @@ export function smsBody(parts, max = 480) {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
-export async function sendEmergencySms({ body, env = globalThis.process?.env ?? {}, fetchImpl = globalThis.fetch, timeoutMs = 10000, now = () => new Date().toISOString() }) {
+// dryRun: report { status: "ready" } when an SMS WOULD be sent, without contacting Twilio — callers use it
+// to decide whether to write a durable "sending" claim first.
+export async function sendEmergencySms({ body, env = globalThis.process?.env ?? {}, fetchImpl = globalThis.fetch, timeoutMs = 10000, now = () => new Date().toISOString(), dryRun = false }) {
   const cfg = emergencySmsConfig(env);
   if (!cfg.enabled) return { status: cfg.status, ...(cfg.missing ? { missing: cfg.missing } : {}), at: now() };
+  if (dryRun) return { status: "ready", at: now() };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

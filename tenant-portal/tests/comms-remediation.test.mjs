@@ -16,16 +16,17 @@ process.env.LANDLORD_EMAIL = "manager@test.invalid";
 delete process.env.ESCALATION_NOTIFY_EMAILS;
 delete process.env.EMERGENCY_SMS_ENABLED;
 
-// ── network fake: Resend + Twilio (recorded, never sent) ──
-let resend = [], twilio = [], resendMode = "ok";
+// ── network fake: Resend (realistic idempotency, tests/helpers/fakeResend.mjs) + Twilio (recorded, never sent) ──
+// resend = every HTTP request made to Resend; fake.sent = what was actually delivered.
+const { FakeResend } = await import("./helpers/fakeResend.mjs");
+let fake = new FakeResend(), resend = fake.calls, twilio = [], resendMode = "ok";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
   if (u.includes("api.resend.com")) {
-    resend.push({ headers: init.headers, body: JSON.parse(init.body) });
-    if (resendMode === "500") return json({ message: "provider error" }, 500);
-    if (resendMode === "422") return json({ message: "invalid from" }, 422);
-    return json({ id: `re_${resend.length}` });
+    if (resendMode === "500") fake.plan("500");
+    if (resendMode === "422") fake.plan("422");
+    return fake.handle(u, init);
   }
   if (u.includes("api.twilio.com")) { twilio.push({ url: u, body: String(init.body) }); return json({ sid: "SM1", status: "queued" }, 201); }
   throw new Error(`unexpected fetch ${u}`);
@@ -66,41 +67,50 @@ function assertInert(html) {
 
 // ── in-memory database ──
 const TENANT_UID = "u-tenant", OTHER_UID = "u-other", LANDLORD_UID = "u-landlord";
+// Real ids are UUIDs; /api/notify rejects anything else with 400.
+const TK = "7c0e1f6a-0000-4000-8000-0000000000a1", IN1 = "7c0e1f6a-0000-4000-8000-0000000000b1";
+const C_TENANT = "7c0e1f6a-0000-4000-8000-0000000000c1", C_PM = "7c0e1f6a-0000-4000-8000-0000000000c2";
+const C_INTERNAL = "7c0e1f6a-0000-4000-8000-0000000000c3", C_REWORK = "7c0e1f6a-0000-4000-8000-0000000000c4";
 let db, seq;
 function seed() {
-  seq = 0; resend = []; twilio = []; resendMode = "ok";
+  seq = 0; fake = new FakeResend(); resend = fake.calls; twilio = []; resendMode = "ok";
   db = {
     profiles: [{ id: TENANT_UID, role: "tenant" }, { id: OTHER_UID, role: "tenant" }, { id: LANDLORD_UID, role: "landlord" }],
     maintenance_requests: [{
-      id: "tk1", tenant_id: "t1", unit_id: "un1", title: `Sink leak ${ATTACKS[0]}`, description: `Drips\n${ATTACKS[1]}`, category: "plumbing", priority: "normal",
+      id: TK, tenant_id: "t1", unit_id: "un1", title: `Sink leak ${ATTACKS[0]}`, description: `Drips\n${ATTACKS[1]}`, category: "plumbing", priority: "normal",
       status: "open", vendor_name: `Acme ${ATTACKS[2]}`, vendor_email: "vendor@acme.test", vendor_token: "tok-1", quote_amount: 350, quote_notes: ATTACKS[5],
-      quote_submitted_at: "2026-11-12T10:00:00Z", quote_approved_at: "2026-11-12T11:00:00Z", invoice_url: "tk1/invoice-1-a.pdf", invoice_notes: ATTACKS[4],
-      updated_at: "2026-11-12T12:00:00Z",
+      quote_submitted_at: "2026-11-12T10:00:00Z", quote_approved_at: "2026-11-12T11:00:00Z", invoice_url: `${TK}/invoice-1-a.pdf`, invoice_notes: ATTACKS[4],
+      updated_at: "2026-11-12T12:00:00Z", created_at: new Date().toISOString(),
       tenants: { id: "t1", name: `Test ${ATTACKS[3]}`, email: "tenant@test.invalid", user_id: TENANT_UID },
       units: { unit_number: "2", properties: { name: "Clifton Manor" } },
     }],
     maintenance_comments: [
-      { id: "c-tenant", request_id: "tk1", author_id: TENANT_UID, author_type: null, body: `Still leaking ${ATTACKS[0]}`, visible_to_tenant: true },
-      { id: "c-pm", request_id: "tk1", author_id: LANDLORD_UID, author_type: null, body: `We'll fix it ${ATTACKS[1]}`, visible_to_tenant: true },
-      { id: "c-internal", request_id: "tk1", author_id: LANDLORD_UID, author_type: null, body: "internal note", visible_to_tenant: false },
-      { id: "c-rework", request_id: "tk1", author_id: LANDLORD_UID, author_type: "pm_to_vendor", body: `PM requested more work: reseal ${ATTACKS[0]}`, visible_to_tenant: false },
+      { id: C_TENANT, request_id: TK, author_id: TENANT_UID, author_type: null, body: `Still leaking ${ATTACKS[0]}`, visible_to_tenant: true },
+      { id: C_PM, request_id: TK, author_id: LANDLORD_UID, author_type: null, body: `We'll fix it ${ATTACKS[1]}`, visible_to_tenant: true },
+      { id: C_INTERNAL, request_id: TK, author_id: LANDLORD_UID, author_type: null, body: "internal note", visible_to_tenant: false },
+      { id: C_REWORK, request_id: TK, author_id: LANDLORD_UID, author_type: "pm_to_vendor", body: `PM requested more work: reseal ${ATTACKS[0]}`, visible_to_tenant: false },
     ],
-    inspections: [{ id: "in1", status: "tenant_complete", tenant_signature: ATTACKS[1], tenant_signed_at: "2026-11-12T12:00:00Z", tenant_photos: ["a", "b"],
+    inspections: [{ id: IN1, status: "tenant_complete", tenant_signature: ATTACKS[1], tenant_signed_at: "2026-11-12T12:00:00Z", tenant_photos: ["a", "b"],
       tenants: { id: "t1", name: "Test User", user_id: TENANT_UID, units: { unit_number: "2", properties: { name: "Clifton Manor" } } } }],
     vendors: [{ name: "Heat Co", email: "heat@vendor.test" }],
   };
 }
 function from(table) {
   const rows = (db[table] ||= []); const filters = []; let op = null, payload = null;
-  const match = () => rows.filter((r) => filters.every(([k, v]) => r[k] === v));
+  // PostgREST column paths ("a->b->c") walk JSON; a missing key is SQL NULL.
+  const at = (r, path) => path.split(/->>?/).reduce((o, k) => (o == null ? undefined : o[k]), r);
+  const match = () => rows.filter((r) => filters.every(([k, v, how]) => (how === "is" ? (v === null ? at(r, k) == null : at(r, k) === v) : r[k] === v)));
   const run = (single) => {
     if (op === "insert") { const row = { id: `${table}-${++seq}`, created_at: new Date().toISOString(), ...payload }; rows.push(row); return { data: row, error: null }; }
+    if (op === "update") { const m = match(); m.forEach((r) => Object.assign(r, structuredClone(payload))); return { data: m.map((r) => structuredClone(r)), error: null }; }
     const m = match(); return { data: single ? (m[0] ? structuredClone(m[0]) : null) : m.map((r) => structuredClone(r)), error: null };
   };
   const b = {
     select: () => b, order: () => b, limit: () => b,
     eq: (k, v) => { filters.push([k, v]); return b; },
+    is: (k, v) => { filters.push([k, v, "is"]); return b; },
     insert: (row) => { op = "insert"; payload = row; return b; },
+    update: (f) => { op = "update"; payload = f; return b; },
     maybeSingle: async () => run(true), single: async () => run(true),
     then: (res, rej) => Promise.resolve(run(false)).then(res, rej),
   };
@@ -110,7 +120,7 @@ const fakeDb = { from };
 const callers = { tenant: { user: { id: TENANT_UID }, role: "tenant" }, other: { user: { id: OTHER_UID }, role: "tenant" }, landlord: { user: { id: LANDLORD_UID }, role: "landlord" } };
 const ENV = { LANDLORD_EMAIL: "manager@test.invalid" };
 const ev = (fn, caller, body, env = ENV) => fn({ db: fakeDb, send: E.sendEmail, env, caller, body, retryDelayMs: 0 });
-const notes = () => db.maintenance_comments.filter((c) => c.author_name === M.NOTE_AUTHOR);
+const notes = () => db.maintenance_comments.filter((c) => c.author_name === M.NOTE_AUTHOR && c.author_type === "system");
 beforeEach(seed);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,15 +162,83 @@ describe("escaping utility", () => {
     assert.equal(resend[0].body.subject, "Hi Bcc: z@z.com");
     assert.equal(resend[0].body.from, "Modus Property Management <noreply@getmodusam.com>");
   });
-  test("sendEmailReliably retries a transient failure once, only with an idempotency key", async () => {
-    resendMode = "500";
-    const keyed = await E.sendEmailReliably({ to: "a@x.com", subject: "s", html: "h", idempotencyKey: "k1" }, { retryDelayMs: 0 });
-    assert.equal(keyed.attempts, 2); assert.equal(resend.length, 2);
-    assert.deepEqual(resend.map((r) => r.headers["Idempotency-Key"]), ["k1", "k1"]);
-    const unkeyed = await E.sendEmailReliably({ to: "a@x.com", subject: "s", html: "h" }, { retryDelayMs: 0 });
-    assert.equal(unkeyed.attempts, 1);
-    resendMode = "422";
-    assert.equal((await E.sendEmailReliably({ to: "a@x.com", subject: "s", html: "h", idempotencyKey: "k2" }, { retryDelayMs: 0 })).attempts, 1, "a permanent 4xx is not retried");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resend outcomes against the realistic fake (documented 409 semantics). "sent" requires an email id.
+describe("email retries and idempotency (B1)", () => {
+  const MSG = { to: "a@x.com", subject: "s", html: "<p>h</p>" };
+  const go = (extra = {}, opts = {}) => E.sendEmailReliably({ ...MSG, idempotencyKey: "k1", ...extra }, { retryDelayMs: 0, ...opts });
+
+  test("provider error then success: retried with the same key AND identical payload; delivered once", async () => {
+    fake.plan("500", "ok");
+    const r = await go();
+    assert.equal(r.result, "sent"); assert.equal(r.attempts, 2);
+    assert.deepEqual(resend.map((c) => c.headers["Idempotency-Key"]), ["k1", "k1"]);
+    assert.equal(new Set(resend.map((c) => JSON.stringify(c.body))).size, 1);
+    assert.equal(fake.sent.length, 1);
+  });
+  test("persistent provider errors: failed after 3 attempts, nothing sent", async () => {
+    fake.plan("500", "429", "500");
+    const r = await go();
+    assert.equal(r.result, "failed"); assert.equal(r.attempts, 3); assert.equal(fake.sent.length, 0);
+  });
+  test("validation error (422): failed immediately, not retried", async () => {
+    fake.plan("422");
+    const r = await go();
+    assert.equal(r.result, "failed"); assert.equal(r.attempts, 1);
+  });
+  test("response lost after acceptance: the retry returns the ORIGINAL response — sent, exactly one email", async () => {
+    fake.plan("timeout-after");
+    const r = await go();
+    assert.equal(r.result, "sent"); assert.equal(r.attempts, 2); assert.equal(r.data.id, fake.sent[0].id);
+    assert.equal(fake.sent.length, 1);
+  });
+  test("never reached Resend, then success: sent once", async () => {
+    fake.plan("net-before", "ok");
+    assert.equal((await go()).result, "sent"); assert.equal(fake.sent.length, 1);
+  });
+  test("ambiguous on every attempt: UNCONFIRMED — never reported as sent", async () => {
+    fake.plan("timeout-after", "net-before", "net-before");
+    const r = await go();
+    assert.equal(r.result, "unconfirmed"); assert.equal(r.ok, false);
+    assert.equal(fake.sent.length, 1, "it may in fact have gone out — which is exactly why it isn't called failed");
+  });
+  test("ambiguous first, then a definite provider error: still unconfirmed (the first may have been accepted)", async () => {
+    fake.plan("net-before", "500", "500");
+    assert.equal((await go()).result, "unconfirmed");
+  });
+  test("delayed (in progress): 409 concurrent_idempotent_requests is retried later and resolves to the original response", async () => {
+    fake.plan({ slowMs: 30 });
+    const [a, b] = await Promise.all([go({}, { retryDelayMs: 25 }), go({}, { retryDelayMs: 25 })]);
+    assert.equal(a.result, "sent"); assert.equal(b.result, "sent");
+    assert.equal(a.data.id, b.data.id, "both report the same single email");
+    assert.equal(fake.sent.length, 1);
+    assert.ok(resend.some((c) => c.key === "k1") && resend.length >= 3, "the second caller saw 409 in-progress and retried");
+  });
+  test("still in progress after every retry: unconfirmed", async () => {
+    fake.plan({ slowMs: 200 });
+    const slow = go({}, { retryDelayMs: 0 });
+    await new Promise((r) => setTimeout(r, 5));
+    const r = await go({}, { retryDelayMs: 1 });
+    assert.equal(r.result, "unconfirmed");
+    await slow;
+  });
+  test("same key, different payload: 409 invalid_idempotent_request → duplicate (another request owns the key), nothing new sent", async () => {
+    await go();
+    const r = await go({ html: "<p>different</p>" });
+    assert.equal(r.result, "duplicate"); assert.equal(r.ok, false); assert.equal(fake.sent.length, 1);
+  });
+  test("payloadKey: identical payloads share a key; any change in content yields a different key", () => {
+    const k1 = E.payloadKey("base", MSG), k2 = E.payloadKey("base", { ...MSG }), k3 = E.payloadKey("base", { ...MSG, html: "<p>x</p>" });
+    assert.equal(k1, k2); assert.notEqual(k1, k3); assert.match(k1, /^base:[0-9a-f]{16}$/);
+  });
+  test("without an idempotency key nothing is retried (a retry could duplicate)", async () => {
+    fake.plan("500");
+    const r = await E.sendEmailReliably(MSG, { retryDelayMs: 0 });
+    assert.equal(r.attempts, 1); assert.equal(r.result, "failed");
+    fake.plan("net-before");
+    assert.equal((await E.sendEmailReliably(MSG, { retryDelayMs: 0 })).result, "unconfirmed");
   });
 });
 
@@ -175,7 +253,7 @@ describe("server templates", () => {
     T.inspectionCompleteEmail({ tenantName: ATTACKS[0], signature: ATTACKS[1], signedAt: ATTACKS[2], photoCount: "<x>", propertyName: ATTACKS[3], unitNumber: "2" }),
     T.emergencyDispatchEmail({ ticket, vendor: { name: ATTACKS[0], phone: ATTACKS[1] }, vendorLink: "https://www.getmodusam.com/vendor/abc", pin: "<1234>" }),
     T.ticketStatusEmail({ tenantName: ATTACKS[1], ticketTitle: ATTACKS[0], status: `x"><script>`, ticketId: `"><script>` }),
-    T.landlordCommentEmail({ tenantName: ATTACKS[1], ticketTitle: ATTACKS[0], commentBody: ATTACKS[5], ticketId: "tk1" }),
+    T.landlordCommentEmail({ tenantName: ATTACKS[1], ticketTitle: ATTACKS[0], commentBody: ATTACKS[5], ticketId: TK }),
     T.vendorApprovedEmail({ vendorName: ATTACKS[2], ticketTitle: ATTACKS[0], propertyName: ATTACKS[3], stage: "quote" }),
     T.vendorMoreWorkEmail({ vendorName: ATTACKS[2], ticketTitle: ATTACKS[0], pmNotes: ATTACKS[5], vendorLink: "javascript:alert(1)" }),
   ];
@@ -201,78 +279,121 @@ describe("recipient routing for every workflow", () => {
     assert.equal(none.ok, false); assert.match(none.error, /LANDLORD_EMAIL/);
   });
   test("new maintenance request → management, from the saved ticket; the owner may raise it, others may not", async () => {
-    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" });
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
     assert.equal(r.status, "sent");
     assert.deepEqual(resend[0].body.to, ["manager@test.invalid"]);
-    assert.equal(resend[0].headers["Idempotency-Key"], "maintenance-created:tk1");
+    assert.match(resend[0].headers["Idempotency-Key"], new RegExp(`^maintenance-created:${TK}:[0-9a-f]{16}$`), "key = base + payload hash");
     assertInert(resend[0].body.html);
     assert.match(notes()[0].body, /^Management emailed about this new request/);
-    await assert.rejects(ev(M.maintenanceCreated, callers.other, { ticket_id: "tk1" }), (e) => e.status === 403);
-    await assert.rejects(ev(M.maintenanceCreated, callers.tenant, { ticket_id: "nope" }), (e) => e.status === 404);
+    await assert.rejects(ev(M.maintenanceCreated, callers.other, { ticket_id: TK }), (e) => e.status === 403);
+    await assert.rejects(ev(M.maintenanceCreated, callers.tenant, { ticket_id: "7c0e1f6a-0000-4000-8000-0000000000ff" }), (e) => e.status === 404);
+  });
+  test("N2: malformed ids are a 400 client error on every event, before any database read", async () => {
+    let reads = 0;
+    const counting = { from: (t) => { reads++; return from(t); } };
+    const cases = [
+      [M.maintenanceCreated, callers.tenant, { ticket_id: "nope" }], [M.maintenanceCreated, callers.tenant, {}],
+      [M.tenantComment, callers.tenant, { ticket_id: TK, comment_id: "1 or 1=1" }], [M.inspectionCompleted, callers.tenant, { inspection_id: "../x" }],
+      [M.ticketStatus, callers.landlord, { ticket_id: 42 }], [M.landlordComment, callers.landlord, { ticket_id: TK, comment_id: "" }],
+      [M.vendorApproved, callers.landlord, { ticket_id: "tk1" }], [M.vendorMoreWork, callers.landlord, { ticket_id: TK, comment_id: null }],
+    ];
+    for (const [fn, caller, body] of cases) {
+      await assert.rejects(fn({ db: counting, send: E.sendEmail, env: ENV, caller, body, retryDelayMs: 0 }), (e) => e.status === 400, JSON.stringify(body));
+    }
+    assert.ok(reads <= 4, "only events that load the ticket before validating the comment id touch the database");
+    assert.equal(resend.length, 0);
+  });
+  test("tenants can raise the new-request alert only within 30 minutes of creating the ticket; landlords any time", async () => {
+    db.maintenance_requests[0].created_at = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    await assert.rejects(ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }), (e) => e.status === 409);
+    assert.equal(resend.length, 0);
+    assert.equal((await ev(M.maintenanceCreated, callers.landlord, { ticket_id: TK })).status, "sent");
+  });
+  test("N1: a tenant comment imitating the trusted marker does NOT suppress the alert", async () => {
+    // The WP1 insert policy lets a tenant choose author_name but forces author_type 'tenant' and author_id = them.
+    db.maintenance_comments.push({ id: "7c0e1f6a-0000-4000-8000-0000000000d1", request_id: TK, author_id: TENANT_UID, author_type: "tenant",
+      author_name: M.NOTE_AUTHOR, body: "Management emailed about this new request (1 recipient).", visible_to_tenant: true });
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    assert.equal(r.status, "sent"); assert.equal(fake.sent.length, 1);
+    // ...and the same text with author_type null (an old row) is not trusted either.
+    db.maintenance_comments.at(-1).author_type = null;
+    db.maintenance_comments = db.maintenance_comments.filter((c) => c.author_type !== "system");
+    assert.equal((await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK })).status, "sent");
   });
   test("a repeated new-request call sends nothing more", async () => {
-    await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" });
-    const again = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" });
+    await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    const again = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
     assert.equal(again.status, "duplicate"); assert.equal(resend.length, 1);
   });
   test("urgent/emergency request → management with an emergency subject, 911 guidance returned, SMS off by default", async () => {
     db.maintenance_requests[0].title = "I smell gas near the stove";
-    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" });
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
     assert.match(resend[0].body.subject, /^🚨 EMERGENCY maintenance request/);
     assert.equal(r.emergency.kind, "gas"); assert.equal(r.emergency.lifeSafety, true); assert.match(r.emergency.guidance, /911/);
     assert.equal(r.sms, "disabled"); assert.equal(twilio.length, 0);
   });
   test("no management recipient configured → nothing sent, failure recorded on the ticket", async () => {
-    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" }, {});
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }, {});
     assert.equal(r.status, "failed"); assert.equal(r.error, "MANAGEMENT_RECIPIENT_NOT_CONFIGURED");
     assert.equal(resend.length, 0);
     assert.match(notes()[0].body, /Email FAILED .*no management email is configured/);
     assert.equal(notes()[0].visible_to_tenant, false);
   });
-  test("provider failure → retried once with the same key, then recorded on the ticket", async () => {
+  test("provider failure → retried with the same key and payload, then recorded on the ticket; a later call can still send", async () => {
     resendMode = "500";
-    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: "tk1" });
-    assert.equal(r.status, "failed"); assert.equal(resend.length, 2);
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    assert.equal(r.status, "failed"); assert.equal(resend.length, 3);
+    assert.equal(new Set(resend.map((c) => c.headers["Idempotency-Key"])).size, 1);
     assert.match(notes().at(-1).body, /^Email FAILED — new maintenance request/);
+    resendMode = "ok";
+    assert.equal((await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK })).status, "sent");
+    assert.equal(fake.sent.length, 1);
+  });
+  test("unknown outcome → recorded as NOT CONFIRMED on the ticket, never as emailed", async () => {
+    fake.plan("net-before", "net-before", "net-before");
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    assert.equal(r.status, "unconfirmed");
+    assert.match(notes().at(-1).body, /^Email NOT CONFIRMED — new maintenance request/);
+    assert.ok(!notes().some((n) => n.body.startsWith("Management emailed")), "no 'emailed' marker without evidence");
   });
   test("tenant reply → management; only the ticket owner's own tenant-visible comment", async () => {
-    const r = await ev(M.tenantComment, callers.tenant, { ticket_id: "tk1", comment_id: "c-tenant" });
+    const r = await ev(M.tenantComment, callers.tenant, { ticket_id: TK, comment_id: C_TENANT });
     assert.equal(r.status, "sent"); assert.deepEqual(resend[0].body.to, ["manager@test.invalid"]);
     assertInert(resend[0].body.html); assert.match(resend[0].body.html, /Still leaking &lt;script&gt;/);
-    for (const [caller, comment] of [[callers.other, "c-tenant"], [callers.tenant, "c-pm"], [callers.tenant, "c-internal"]]) {
-      await assert.rejects(ev(M.tenantComment, caller, { ticket_id: "tk1", comment_id: comment }), (e) => e.status === 403);
+    for (const [caller, comment] of [[callers.other, C_TENANT], [callers.tenant, C_PM], [callers.tenant, C_INTERNAL]]) {
+      await assert.rejects(ev(M.tenantComment, caller, { ticket_id: TK, comment_id: comment }), (e) => e.status === 403);
     }
   });
   test("vendor quote and completion → management (server-side, from the saved ticket)", async () => {
-    await M.vendorQuoteSubmitted({ db: fakeDb, send: E.sendEmail, env: ENV, ticket: { id: "tk1" }, retryDelayMs: 0 });
-    await M.vendorWorkCompleted({ db: fakeDb, send: E.sendEmail, env: ENV, ticket: { id: "tk1" }, actionAt: "2026-11-12T13:00:00Z", retryDelayMs: 0 });
+    await M.vendorQuoteSubmitted({ db: fakeDb, send: E.sendEmail, env: ENV, ticket: { id: TK }, retryDelayMs: 0 });
+    await M.vendorWorkCompleted({ db: fakeDb, send: E.sendEmail, env: ENV, ticket: { id: TK }, actionAt: "2026-11-12T13:00:00Z", retryDelayMs: 0 });
     assert.equal(resend.length, 2);
     for (const r of resend) { assert.deepEqual(r.body.to, ["manager@test.invalid"]); assertInert(r.body.html); }
     assert.match(resend[0].body.html, /\$350\.00/);
-    assert.equal(resend[1].headers["Idempotency-Key"], "vendor-complete:tk1:2026-11-12T13:00:00Z");
+    assert.match(resend[1].headers["Idempotency-Key"], new RegExp(`^vendor-complete:${TK}:2026-11-12T13:00:00Z:[0-9a-f]{16}$`));
   });
   test("walkthrough complete → management; only the tenant whose inspection it is", async () => {
-    const r = await ev(M.inspectionCompleted, callers.tenant, { inspection_id: "in1" });
+    const r = await ev(M.inspectionCompleted, callers.tenant, { inspection_id: IN1 });
     assert.equal(r.status, "sent"); assert.deepEqual(resend[0].body.to, ["manager@test.invalid"]); assertInert(resend[0].body.html);
-    await assert.rejects(ev(M.inspectionCompleted, callers.other, { inspection_id: "in1" }), (e) => e.status === 403);
+    await assert.rejects(ev(M.inspectionCompleted, callers.other, { inspection_id: IN1 }), (e) => e.status === 403);
   });
   test("landlord events go to the tenant/vendor on record, never to a caller-supplied address", async () => {
-    await ev(M.ticketStatus, callers.landlord, { ticket_id: "tk1", to: "attacker@evil.example" });
-    await ev(M.landlordComment, callers.landlord, { ticket_id: "tk1", comment_id: "c-pm" });
-    await ev(M.vendorApproved, callers.landlord, { ticket_id: "tk1", stage: "quote" });
-    await ev(M.vendorMoreWork, callers.landlord, { ticket_id: "tk1", comment_id: "c-rework" });
+    await ev(M.ticketStatus, callers.landlord, { ticket_id: TK, to: "attacker@evil.example" });
+    await ev(M.landlordComment, callers.landlord, { ticket_id: TK, comment_id: C_PM });
+    await ev(M.vendorApproved, callers.landlord, { ticket_id: TK, stage: "quote" });
+    await ev(M.vendorMoreWork, callers.landlord, { ticket_id: TK, comment_id: C_REWORK });
     assert.deepEqual(resend.map((r) => r.body.to[0]), ["tenant@test.invalid", "tenant@test.invalid", "vendor@acme.test", "vendor@acme.test"]);
     for (const r of resend) assertInert(r.body.html);
     assert.match(resend[3].body.html, /href="https:\/\/www\.getmodusam\.com\/vendor\/tok-1"/, "vendor link built on the server");
     db.maintenance_requests[0].vendor_email = null; db.maintenance_requests[0].vendor_name = "Heat Co";
-    await ev(M.vendorApproved, callers.landlord, { ticket_id: "tk1", stage: "quote" });
+    await ev(M.vendorApproved, callers.landlord, { ticket_id: TK, stage: "quote" });
     assert.equal(resend.at(-1).body.to[0], "heat@vendor.test");
   });
   test("landlord events are refused for tenants; an internal comment is never emailed to the tenant", async () => {
     for (const fn of [M.ticketStatus, M.landlordComment, M.vendorApproved, M.vendorMoreWork]) {
-      await assert.rejects(ev(fn, callers.tenant, { ticket_id: "tk1", comment_id: "c-pm" }), (e) => e.status === 403);
+      await assert.rejects(ev(fn, callers.tenant, { ticket_id: TK, comment_id: C_PM }), (e) => e.status === 403);
     }
-    await assert.rejects(ev(M.landlordComment, callers.landlord, { ticket_id: "tk1", comment_id: "c-internal" }), (e) => e.status === 409);
+    await assert.rejects(ev(M.landlordComment, callers.landlord, { ticket_id: TK, comment_id: C_INTERNAL }), (e) => e.status === 409);
     assert.equal(resend.length, 0);
   });
   test("no obsolete or personal address is hard-coded anywhere in the app or API", () => {
@@ -311,9 +432,9 @@ describe("HTTP routes: tenants and vendors cannot send arbitrary email or SMS", 
   });
   test("/api/notify: unknown events and caller-chosen recipients are ignored", async () => {
     assert.equal((await call(notifyRoute, { uid: TENANT_UID, body: { event: "send_any", to: "x@y.com", html: "<script>" } })).code, 400);
-    const r = await call(notifyRoute, { uid: TENANT_UID, body: { event: "maintenance_created", ticket_id: "tk1", to: "attacker@evil.example", subject: "x", html: "<script>" } });
+    const r = await call(notifyRoute, { uid: TENANT_UID, body: { event: "maintenance_created", ticket_id: TK, to: "attacker@evil.example", subject: "x", html: "<script>" } });
     assert.equal(r.code, 200); assert.deepEqual(resend[0].body.to, ["manager@test.invalid"]); assertInert(resend[0].body.html);
-    assert.equal((await call(notifyRoute, { uid: OTHER_UID, body: { event: "maintenance_created", ticket_id: "tk1" } })).code, 403);
+    assert.equal((await call(notifyRoute, { uid: OTHER_UID, body: { event: "maintenance_created", ticket_id: TK } })).code, 403);
   });
   test("/api/sms-escalate: tenants refused; landlords get a test SMS only when SMS is enabled and configured", async () => {
     assert.equal((await call(smsRoute, { uid: TENANT_UID, body: { message: "spam", to: "+15550000000" } })).code, 403);
@@ -373,13 +494,80 @@ describe("emergencies", () => {
     assert.match(SMS.smsStatusLabel(ok), /delivery not confirmed/);
     assert.doesNotMatch(JSON.stringify(ok), /tok|AC1/, "no secrets returned");
   });
-  test("an emergency escalation records the SMS outcome next to the email outcome", async () => {
-    const writes = [];
-    const db2 = { from: () => ({ select: () => ({ eq: async () => ({ data: [] }) }), update: (v) => ({ eq: async () => { writes.push(v.raw_openai_response.notify); return { error: null }; } }) }) };
-    const n = await N.notifyEscalation({ db: db2, send: E.sendEmail, log: { id: "L1" }, tenant: {}, message: "gas", reply: "r", messageId: "m1", env: ENV, retryDelayMs: 0,
+  test("an emergency escalation records the SMS outcome next to the email outcome (SMS off by default)", async () => {
+    const row = { id: "L1", message_id: "m1", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    db.ai_routing_logs = [row];
+    const n = await N.notifyEscalation({ db: fakeDb, send: E.sendEmail, log: row, tenant: {}, message: "gas", reply: "r", messageId: "m1", env: ENV, retryDelayMs: 0,
       classification: { tier: "TIER1_EMERGENCY", emergency_kind: "gas", life_safety: true } });
     assert.equal(n.status, "sent"); assert.equal(n.sms.status, "disabled");
-    assert.equal(writes.at(-1).sms.status, "disabled");
+    assert.equal(row.raw_openai_response.notify.sms.status, "disabled");
+    assert.equal(twilio.length, 0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMS ENABLED (test configuration only — production keeps EMERGENCY_SMS_ENABLED unset). Twilio is faked.
+describe("emergency SMS is sent at most once (B2)", () => {
+  const SMS_ENV = { ...ENV, EMERGENCY_SMS_ENABLED: "true", TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "tok", TWILIO_FROM: "+15550001111", LANDLORD_PHONE: "+15550002222" };
+  const emergencyClass = { tier: "TIER1_EMERGENCY", emergency_kind: "gas", life_safety: true, escalate_to_landlord: true };
+  const notifyRow = (row, extra = {}) => N.notifyEscalation({ db: fakeDb, send: E.sendEmail, log: row, tenant: {}, message: "I smell gas", reply: "r", messageId: row.message_id,
+    env: SMS_ENV, retryDelayMs: 0, classification: emergencyClass, ...extra });
+
+  test("escalation: email failing and retried three times → still one SMS", async () => {
+    const row = { id: "L1", message_id: "m1", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    db.ai_routing_logs = [row];
+    resendMode = "500";
+    const first = await notifyRow(row);
+    assert.equal(first.status, "failed"); assert.equal(first.sms.status, "accepted"); assert.equal(twilio.length, 1);
+    for (let i = 0; i < 3; i++) await notifyRow(row);   // what a repeated request does for a failed email
+    assert.equal(twilio.length, 1, "no further SMS");
+    assert.equal(row.raw_openai_response.notify.sms.status, "accepted", "the original SMS record is kept");
+  });
+  test("escalation: two rows for the same message notified concurrently → one SMS", async () => {
+    const a = { id: "LA", message_id: "m2", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    const b = { id: "LB", message_id: "m2", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    db.ai_routing_logs = [a, b];
+    await Promise.all([notifyRow(a), notifyRow(b)]);
+    assert.equal(twilio.length, 1);
+  });
+  test("escalation: the claim is written BEFORE Twilio is called; a crash after the claim leaves 'sending' (unknown), never re-sent", async () => {
+    const row = { id: "L3", message_id: "m3", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    db.ai_routing_logs = [row];
+    let seenClaim = null;
+    const crashing = async (args) => { if (args.dryRun) return { status: "ready" }; seenClaim = row.raw_openai_response.notify?.sms?.status; throw new Error("function killed"); };
+    await notifyRow(row, { sms: crashing });
+    assert.equal(seenClaim, "sending");
+    row.raw_openai_response.notify.sms = { status: "sending" };   // as left behind by a killed function
+    await notifyRow(row);
+    assert.equal(twilio.length, 0, "an unknown SMS outcome is not retried");
+    assert.match((await import("../src/lib/notifyStatus.js")).smsStatusText(row), /SMS status unknown/);
+  });
+  test("escalation: a Twilio failure is recorded and not retried automatically", async () => {
+    const row = { id: "L4", message_id: "m4", raw_openai_response: { tier: "TIER1_EMERGENCY" } };
+    db.ai_routing_logs = [row];
+    const failing = async (args) => (args.dryRun ? { status: "ready" } : { status: "failed", error: "Twilio 400" });
+    const n = await notifyRow(row, { sms: failing });
+    assert.equal(n.sms.status, "failed");
+    await notifyRow(row);
+    assert.equal(twilio.length, 0);
+  });
+  test("maintenance: repeated alert calls for an emergency ticket → one SMS, with a durable note before sending", async () => {
+    db.maintenance_requests[0].title = "I smell gas near the stove";
+    resendMode = "500";                                   // email keeps failing, so the email isn't the dedupe
+    const run = () => M.maintenanceCreated({ db: fakeDb, send: E.sendEmail, env: SMS_ENV, caller: callers.tenant, body: { ticket_id: TK }, retryDelayMs: 0 });
+    const r1 = await run();
+    assert.equal(r1.sms, "accepted"); assert.equal(twilio.length, 1);
+    for (let i = 0; i < 3; i++) assert.equal((await run()).sms, "duplicate");
+    assert.equal(twilio.length, 1);
+    const smsNotes = notes().filter((n) => n.body.startsWith("Emergency SMS"));
+    assert.equal(smsNotes[0].body, "Emergency SMS: sending.");
+    assert.match(smsNotes[1].body, /accepted by Twilio .*delivery not confirmed/);
+  });
+  test("maintenance: SMS disabled → no claim note, nothing sent (so enabling SMS later can't text old tickets is enforced by the 30-minute window)", async () => {
+    db.maintenance_requests[0].title = "I smell gas near the stove";
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    assert.equal(r.sms, "disabled"); assert.equal(twilio.length, 0);
+    assert.ok(!notes().some((n) => n.body.startsWith("Emergency SMS")));
   });
 });
 
@@ -410,9 +598,11 @@ describe("escalation failure paths", () => {
     assert.match(api, /new OpenAI\(\{ apiKey: process\.env\.OPENAI_API_KEY, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 \}\)/);
     assert.match(api, /export const OPENAI_TIMEOUT_MS = 20000;/);
   });
-  test("the tenant chat retries once and tells the tenant when the assistant didn't respond", () => {
+  test("B3: the tenant chat sends the AI request exactly once — no automatic retry — and tells the tenant if it failed", () => {
     const ui = read("src/MessagingScreen.jsx");
-    assert.match(ui, /\.catch\(\(\) => new Promise\(r => setTimeout\(r, 3000\)\)\.then\(route\)\)/);
+    const send = ui.slice(ui.indexOf("async function sendMessage"), ui.indexOf("// Group messages by date"));
+    assert.equal((send.match(/fetch\("\/api\/classify-and-route"/g) || []).length, 1);
+    assert.doesNotMatch(send, /setTimeout|retry\(|\.then\(route\)/);
     assert.match(ui, /the assistant didn't respond/);
   });
   test("the Agent Center shows each escalation's email outcome", () => {

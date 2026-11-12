@@ -19,16 +19,19 @@ process.env.LANDLORD_EMAIL = "landlord@test.invalid";
 
 // ── network fake: OpenAI + Resend (installed before the handler creates its OpenAI client) ──
 process.env.CRON_SECRET = "cron-test-secret";
-let model = {}, resendMode = "ok", resendCalls = [], recapQueryFails = false, recapQueries = [];
+// Resend is the realistic fake (tests/helpers/fakeResend.mjs): it enforces the documented idempotency rules,
+// so a retry that changed the payload under the same key would fail here exactly as it would in production.
+// resendMode "500" / "throw" makes every new request fail that way; resendCalls is every HTTP request made.
+const { FakeResend } = await import("./helpers/fakeResend.mjs");
+let model = {}, resendMode = "ok", resend = new FakeResend(), resendCalls = resend.calls, recapQueryFails = false, recapQueries = [];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
   if (u.includes("api.openai.com")) return json({ id: "c1", object: "chat.completion", created: 0, model: "gpt-4o", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(model) } }] });
   if (u.includes("api.resend.com")) {
-    resendCalls.push({ headers: init.headers, body: JSON.parse(init.body) });
-    if (resendMode === "throw") throw new Error("network down");
-    if (resendMode === "500") return json({ message: "provider error" }, 500);
-    return json({ id: `re_${resendCalls.length}` });
+    if (resendMode === "500") resend.plan("500");
+    if (resendMode === "throw") resend.plan("net-before");
+    return resend.handle(u, init);
   }
   // Supabase REST, as read by /api/daily-recap (served from the in-memory database below)
   if (u.startsWith("https://example.supabase.co/rest/v1/")) {
@@ -60,12 +63,14 @@ function seed() {
     messages: ["m1", "m2", "m3", "m4"].map((id) => ({ id, tenant_id: T, sender_id: U, body: `stored ${id}` })),
     ai_routing_logs: [], landlord_alerts: [], maintenance_requests: [], incident_logs: [], units: [], maintenance_comments: [], vendors: [],
   };
-  resendCalls = []; resendMode = "ok"; recapQueryFails = false; recapQueries = [];
+  resend = new FakeResend(); resendCalls = resend.calls; resendMode = "ok"; recapQueryFails = false; recapQueries = [];
 }
 let seq = 0;
 function from(table) {
   const rows = (db[table] ||= []); const filters = []; let op = null, payload = null;
-  const match = () => rows.filter((r) => filters.every(([k, v]) => r[k] === v));
+  // PostgREST column paths: "raw_openai_response->notify->sms" walks JSON; a missing key is SQL NULL.
+  const at = (r, path) => path.split(/->>?/).reduce((o, k) => (o == null ? undefined : o[k]), r);
+  const match = () => rows.filter((r) => filters.every(([k, v, op2]) => (op2 === "is" ? (v === null ? at(r, k) == null : at(r, k) === v) : r[k] === v)));
   const run = (single) => {
     if (op === "insert") { const row = { id: `${table}-${++seq}`, created_at: new Date().toISOString(), ...payload }; rows.push(row); op = null; return { data: row, error: null }; }
     if (op === "update") { const m = match(); m.forEach((r) => Object.assign(r, structuredClone(payload))); op = null; return { data: m, error: null }; }
@@ -74,6 +79,7 @@ function from(table) {
   const b = {
     select: () => b, order: () => b, limit: () => b, gte: () => b,
     eq: (k, v) => { filters.push([k, v]); return b; },
+    is: (k, v) => { filters.push([k, v, "is"]); return b; },
     insert: (row) => { op = "insert"; payload = row; return b; },
     update: (f) => { op = "update"; payload = f; return b; },
     maybeSingle: async () => run(true), single: async () => run(true),
@@ -175,25 +181,86 @@ describe("end to end through /api/classify-and-route", () => {
     assert.equal(n.status, "failed"); assert.equal(n.http_status, 500); assert.match(n.error, /provider error/);
   });
 
-  test("provider unreachable (network error): same guarantees", async () => {
+  test("provider unreachable (network error): same guarantees, recorded as UNCONFIRMED — not failed, never sent", async () => {
+    // The client can't tell "never arrived" from "arrived, response lost", so it must not claim either.
     resendMode = "throw";
     const r = await ask("I want to speak to a real person", "m1", { escalate_to_landlord: true });
     assert.equal(r.code, 200);
-    assert.equal(r.body.notification, "failed");
+    assert.equal(r.body.notification, "unconfirmed");
     assert.equal(replies().length, 1);
-    assert.match(notifyOf(db.ai_routing_logs[0]).error, /network down/);
+    const n = notifyOf(db.ai_routing_logs[0]);
+    assert.equal(n.status, "unconfirmed"); assert.match(n.error, /fetch failed/);
+    assert.equal(N.notifyStatusLabel(db.ai_routing_logs[0]).label, "EMAIL NOT CONFIRMED");
+    assert.equal(resend.sent.length, 0);
   });
 
   test("a failed attempt does not block a later retry of the same message", async () => {
     resendMode = "500"; await ask("person please", "m1", { escalate_to_landlord: true });
-    const failedCalls = resendCalls.length;   // the first attempt plus its one automatic retry
-    assert.equal(failedCalls, 2);
+    const failedCalls = resendCalls.length;   // every automatic attempt (same key, same payload)
+    assert.equal(failedCalls, 3);
+    assert.equal(resend.sent.length, 0);
     resendMode = "ok"; const r = await ask("person please", "m1", { escalate_to_landlord: true });
     assert.equal(r.body.notification, "sent");
     assert.equal(resendCalls.length, failedCalls + 1);
     assert.equal(new Set(resendCalls.map((c) => c.headers["Idempotency-Key"])).size, 1, "every attempt uses the same key");
     assert.equal(notifyOf(db.ai_routing_logs[0]).status, "sent", "the original row is updated from failed to sent");
     assert.equal(replies().length, 1, "the retry does not write a second AI reply");
+    // The retry replayed the stored payload: one key, one payload — the realistic fake would 409 otherwise.
+    assert.equal(new Set(resendCalls.map((c) => JSON.stringify(c.body))).size, 1, "every attempt sent the identical payload");
+    assert.equal(resend.sent.length, 1, "delivered exactly once");
+  });
+
+  test("response lost after Resend accepted (timeout): unconfirmed, then a later retry proves it was sent — no second email", async () => {
+    resend.plan("timeout-after", "net-before", "net-before");
+    const first = await ask("person please", "m1", { escalate_to_landlord: true });
+    assert.equal(first.body.notification, "unconfirmed", "no evidence yet, so no success claimed");
+    assert.equal(resend.sent.length, 1, "it actually went out");
+    const again = await ask("person please", "m1", { escalate_to_landlord: true });
+    assert.equal(again.body.notification, "sent", "Resend returned the original response for the same key + payload");
+    assert.equal(notifyOf(db.ai_routing_logs[0]).provider_id, resend.sent[0].id);
+    assert.equal(resend.sent.length, 1, "still exactly one email");
+  });
+
+  test("if Resend keeps a failed request's key (undocumented), the retry is reported failed again — never sent", async () => {
+    resend = new FakeResend({ storeFailures: true }); resendCalls = resend.calls;
+    resend.plan("500");
+    await ask("person please", "m1", { escalate_to_landlord: true });
+    const again = await ask("person please", "m1", { escalate_to_landlord: true });
+    assert.notEqual(again.body.notification, "sent");
+    assert.equal(resend.sent.length, 0);
+    assert.notEqual(notifyOf(db.ai_routing_logs[0]).status, "sent");
+  });
+
+  test("concurrent duplicate notifications: two rows for one message, two senders racing — one email, one owner", async () => {
+    // Two routing rows for the same message (as two overlapping requests would create), notified at once.
+    const rowA = { id: "LA", message_id: "m1", raw_openai_response: { tier: "TIER4_DISPUTE" } };
+    const rowB = { id: "LB", message_id: "m1", raw_openai_response: { tier: "TIER4_DISPUTE" } };
+    db.ai_routing_logs.push(rowA, rowB);
+    resend.plan({ slowMs: 40 });
+    const common = { db: { from }, send: undefined, tenant: db.tenants[0], message: "help", classification: { escalate_to_landlord: true }, messageId: "m1", env: process.env, retryDelayMs: 5 };
+    const { sendEmail } = await import("../api/_lib/email.js");
+    const [a, b] = await Promise.all([
+      N.notifyEscalation({ ...common, send: sendEmail, log: rowA, reply: "reply A" }),
+      N.notifyEscalation({ ...common, send: sendEmail, log: rowB, reply: "reply B (different wording)" }),
+    ]);
+    assert.equal(resend.sent.length, 1, "only one email reaches management");
+    const statuses = [a.status, b.status].sort();
+    assert.ok(statuses.includes("sent"), JSON.stringify(statuses));
+    assert.ok(["duplicate", "unconfirmed"].includes(statuses.find((s) => s !== "sent")), JSON.stringify(statuses));
+    assert.ok(!(a.status === "sent" && b.status === "sent"), "never two 'sent' for one message");
+  });
+
+  test("a sibling row that already owns the notification makes a later row a recorded duplicate (duplicate_of)", async () => {
+    await ask("Talk to a person please", "m1", { escalate_to_landlord: true });
+    const rowB = { id: "LB2", message_id: "m1", raw_openai_response: { tier: "TIER4_DISPUTE" } };
+    db.ai_routing_logs.push(rowB);
+    const { sendEmail } = await import("../api/_lib/email.js");
+    const n = await N.notifyEscalation({ db: { from }, send: sendEmail, log: rowB, tenant: db.tenants[0], message: "x", reply: "y",
+      classification: { escalate_to_landlord: true }, messageId: "m1", env: process.env, retryDelayMs: 0 });
+    assert.equal(n.status, "duplicate");
+    assert.equal(n.duplicate_of, db.ai_routing_logs[0].id);
+    assert.equal(notifyOf(rowB).duplicate_of, db.ai_routing_logs[0].id, "recorded on the row");
+    assert.equal(resend.sent.length, 1);
   });
 
   test("historical escalations are never replayed", async () => {
@@ -204,6 +271,47 @@ describe("end to end through /api/classify-and-route", () => {
     assert.equal(resendCalls.length, 1);
     assert.equal(resendCalls[0].headers["Idempotency-Key"], "escalation:m2");
     assert.equal(db.ai_routing_logs.find((r) => r.id === "old-1").raw_openai_response.notify, undefined);
+  });
+});
+
+describe("concurrent and interrupted processing (B3)", () => {
+  test("two overlapping requests for one message: management gets ONE email; the second AI reply is the documented limitation", async () => {
+    const [a, b] = await Promise.all([
+      ask("I need to talk to a person about my lease", "m1", { escalate_to_landlord: true }),
+      ask("I need to talk to a person about my lease", "m1", { escalate_to_landlord: true }),
+    ]);
+    assert.equal(a.code, 200); assert.equal(b.code, 200);
+    assert.equal(resend.sent.length, 1, "one management email");
+    // Every row that says "sent" points at that one email (same provider id) — no row invents a second.
+    const ids = new Set(db.ai_routing_logs.filter((r) => notifyOf(r)?.status === "sent").map((r) => notifyOf(r).provider_id));
+    assert.deepEqual([...ids], [resend.sent[0].id]);
+    // The recap counts the message once.
+    const section = N.escalationRecapSection(db.ai_routing_logs.map((r) => ({ ...r, tenants: { name: "Test User", units: { unit_number: "2" } } })));
+    assert.equal(section.count, 1); assert.equal(section.needsAttention, 0);
+    // Known limitation (no atomic claim without a migration): both runs wrote an AI reply. The browser no
+    // longer retries automatically, so this needs two deliberate simultaneous submissions.
+    assert.ok(replies().length <= 2);
+  });
+  test("a request arriving after the first finished writes nothing new (no second reply, row or email)", async () => {
+    await ask("I need to talk to a person", "m1", { escalate_to_landlord: true });
+    const again = await ask("I need to talk to a person", "m1", { escalate_to_landlord: true });
+    assert.equal(again.body.duplicate, true);
+    assert.equal(replies().length, 1); assert.equal(db.ai_routing_logs.length, 1); assert.equal(resend.sent.length, 1);
+  });
+  test("processing interrupted by an error: the tenant's message is kept, the escalation is recorded and management is emailed once", async () => {
+    const realFrom = supabaseAdmin.from;
+    supabaseAdmin.from = (t) => { if (t === "incident_logs") throw new Error("database unavailable"); return realFrom(t); };
+    try {
+      const r = await ask("My neighbor keeps threatening to key my car, I want to file a complaint", "m1", { create_incident_log: true, escalate_to_landlord: true, intent_summary: "Complaint" });
+      assert.equal(r.code, 500);
+      assert.equal(r.body.escalated, true);
+      assert.ok(db.messages.some((m) => m.id === "m1"), "the tenant's message is preserved");
+      assert.equal(replies().length, 1, "the AI reply written before the error is not duplicated");
+      const row = db.ai_routing_logs.find((x) => x.action_taken === "ESCALATE_LANDLORD");
+      assert.ok(row, "the escalation is recorded for the Agent Center and recap");
+      assert.equal(notifyOf(row).status, "sent");
+      assert.equal(resend.sent.length, 1);
+    } finally { supabaseAdmin.from = realFrom; }
   });
 });
 
@@ -330,7 +438,7 @@ describe("daily recap includes every notified emergency and escalation (end to e
     const sent = resendCalls.slice(callsBefore);
     assert.equal(sent.length, 2);
     // Only recap emails are sent; their key is the recap's own (one per day), never an escalation key.
-    for (const c of sent) { assert.match(c.body.subject, /Daily Recap/); assert.match(c.headers["Idempotency-Key"], /^daily-recap:\d{4}-\d{2}-\d{2}$/); }
+    for (const c of sent) { assert.match(c.body.subject, /Daily Recap/); assert.match(c.headers["Idempotency-Key"], /^daily-recap:\d{4}-\d{2}-\d{2}:[0-9a-f]{16}$/); }
     assert.deepEqual(db.ai_routing_logs, logsBefore, "routing rows are not modified");
   });
 
@@ -380,7 +488,7 @@ describe("wiring", () => {
     assert.ok(api.indexOf('from("messages").insert(') < main);
     assert.ok(api.indexOf("insertRoutingLog(buildRoutingLogRow(") < main);
     assert.ok(api.indexOf('from("landlord_alerts")') < main);
-    const retry = api.indexOf('if (status === "failed") {');
+    const retry = api.indexOf('if (status === "failed" || status === "unconfirmed") {');
     assert.ok(retry > 0 && retry < api.indexOf("notifyEscalation({"), "the retry path re-sends only a recorded failure");
     assert.ok(api.indexOf("export async function failSafeEscalation") < api.lastIndexOf("notifyEscalation({"));
   });

@@ -143,21 +143,26 @@ export default async function handler(req, res) {
     }
     message = storedMsg.body;
 
-    // Idempotent per message: a retried request (browser retry, double submit) for a message that was
-    // already processed never writes a second AI reply, alert or routing row. If that message's
-    // management email failed, the retry re-sends it (same key, so it can't duplicate a delivered one).
+    // Idempotent per message once processing has COMPLETED: a repeated request (double submit, manual
+    // resend) for a message that already has a routing row writes no second AI reply, alert or row.
+    // If that message's management email "failed" or is "unconfirmed", the repeat replays the stored
+    // payload under the same key: Resend sends it once, or returns the original response if it was
+    // already accepted. Requests that overlap an IN-PROGRESS run are not caught here (no atomic claim
+    // without a migration); the browser therefore never retries automatically. See docs/comms-remediation.
     const { data: done } = await supabase.from("ai_routing_logs")
       .select("id, message_id, action_taken, detected_intent, detected_category, urgency, raw_openai_response").eq("message_id", message_id);
     if (Array.isArray(done) && done.length) {
-      const prior = done[0];
+      // The row that owns the notification (not one marked as a duplicate of another).
+      const prior = done.find((r) => r.raw_openai_response?.notify?.status && r.raw_openai_response.notify.status !== "duplicate") || done[0];
       const status = prior.raw_openai_response?.notify?.status;
-      let notification = status === "sent" || status === "pending" || status === "duplicate" ? "duplicate" : "not_required";
+      let notification = status ? (status === "sent" || status === "duplicate" ? "duplicate" : status) : "not_required";
       const classification = {
         tier: prior.raw_openai_response?.tier, category: prior.detected_category, urgency: prior.urgency,
         intent_summary: prior.detected_intent, escalate_to_landlord: prior.action_taken === "ESCALATE_LANDLORD",
       };
-      // Only a recorded failure is retried: rows with no outcome (older than Release B) are never replayed.
-      if (status === "failed") {
+      // Only a recorded failure or unconfirmed send is retried: rows with no outcome (older than Release B)
+      // are never replayed, and the emergency SMS is never re-sent (escalationNotify.claimAndSendSms).
+      if (status === "failed" || status === "unconfirmed") {
         const { data: tenant } = await supabase.from("tenants")
           .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))").eq("id", tenant_id).maybeSingle();
         notification = (await notifyEscalation({

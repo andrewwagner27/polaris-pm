@@ -161,6 +161,10 @@ export default function MaintenanceRequestForm() {
 
     if (error) { setLoading(false); alert("Failed to submit. Please try again."); return; }
 
+    // Alert management as soon as the ticket exists — before photo uploads, which can be slow or be cut
+    // short if the tenant leaves the page. The server builds and addresses the alert from the saved ticket.
+    const notifying = notifyNewMaintenanceTicket({ ticketId: data.id });
+
     if (photos.length > 0) {
       const photoUrls = await uploadPhotos(data.id);
       if (photoUrls.length > 0) {
@@ -172,9 +176,7 @@ export default function MaintenanceRequestForm() {
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
 
-    // Server builds and addresses the alert from the saved ticket; we only show the outcome.
-    const result = await notifyNewMaintenanceTicket({ ticketId: data.id });
-    setNotice(result);
+    setNotice(await notifying);
   }
 
   if (submitted) return (

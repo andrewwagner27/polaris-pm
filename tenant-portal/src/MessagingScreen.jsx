@@ -137,19 +137,18 @@ export default function MessagingScreen() {
         return [...prev, data];
       });
 
-      // Fire AI routing — non-blocking, show typing indicator while waiting.
-      // The server is idempotent per message_id, so one retry after a network failure can't double-reply.
-      // If it still fails, say so: the message is saved and appears in management's daily recap.
+      // Fire AI routing once — non-blocking, typing indicator while waiting. NO automatic retry: a request
+      // that failed in the browser may still be running on the server, and a second one would race it
+      // (duplicate AI reply / ticket). If it fails, say so: the message is saved, and a message the AI never
+      // processed is listed in management's daily recap.
       setAwaitingReply(true);
       setAssistantIssue(false);
-      const route = async () => fetch("/api/classify-and-route", {
+      fetch("/api/classify-and-route", {
         method: "POST",
         headers: await authHeaders(),
         body: JSON.stringify({ message: text.trim(), tenant_id: tenantIdRef.current, message_id: data.id }),
-      });
-      route()
-        .catch(() => new Promise(r => setTimeout(r, 3000)).then(route))
-        .then(res => { if (!res?.ok) setAssistantIssue(true); })
+      })
+        .then(res => { if (!res.ok) setAssistantIssue(true); })
         .catch(() => setAssistantIssue(true))
         .finally(() => setAwaitingReply(false));
     }

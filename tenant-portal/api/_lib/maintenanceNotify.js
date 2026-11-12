@@ -5,30 +5,53 @@
 //   1. checks the caller may raise it (tenant owns the ticket/inspection; landlord for landlord events),
 //   2. loads every value it shows from the database,
 //   3. resolves the recipient here (management via recipients.js; tenant/vendor from their records),
-//   4. sends once per idempotency key (Resend Idempotency-Key, one safe retry on transient failure),
-//   5. records failures — and new-request notifications — as an internal ticket note
-//      (maintenance_comments, author "Modus notifications", visible_to_tenant false, hidden from vendors),
-//      so a failed email is visible to management in the ticket thread. No migration needed.
-// Every function returns { status, ... } and never throws. "sent" means Resend accepted the email.
+//   4. sends with an idempotency key that includes a hash of the exact payload (email.payloadKey), so one
+//      key is only ever used with one payload; transient failures are retried with the same key+payload,
+//   5. records failures, unconfirmed sends and new-request notifications as an internal ticket note
+//      (maintenance_comments, author_type "system", author "Modus notifications", visible_to_tenant
+//      false, hidden from vendors), so problems are visible to management in the ticket thread.
+// Trusted markers are only notes with author_type "system" and no author_id: tenants can't write those
+// (WP1 insert policy requires author_type 'tenant' and author_id = auth.uid()). No migration needed.
+// Every function returns { status, ... } and never throws except NotifyError for bad/unauthorized requests.
+// "sent" means Resend returned an email id; "unconfirmed" means the outcome is unknown.
 
 import { detectEmergency } from "./aiSafety.js";
 import { managementRecipients } from "./recipients.js";
-import { sendEmailReliably } from "./email.js";
+import { sendEmailReliably, payloadKey } from "./email.js";
 import { sendEmergencySms, smsBody } from "./emergencySms.js";
 import { isValidEmail, APP_URL } from "../../src/lib/emailSafety.js";
 import * as T from "./notificationTemplates.js";
 
 export const NOTE_AUTHOR = "Modus notifications";
 const CREATED_NOTE = "Management emailed about this new request";
+const SMS_NOTE = "Emergency SMS";
+// A tenant may raise the new-request alert only shortly after creating the ticket (the form calls it
+// immediately); older tickets can't be used to re-trigger alerts or SMS. Landlords are not limited.
+export const TENANT_ALERT_WINDOW_MS = 30 * 60 * 1000;
 
 export class NotifyError extends Error { constructor(status, message) { super(message); this.status = status; } }
 
 const isLandlord = (caller) => caller?.role === "landlord";
 const uid = (caller) => caller?.user?.id || null;
 const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Malformed ids are the client's error (400), not a database failure (500).
+export function requireUuid(value, name) {
+  const v = str(value);
+  if (!v) throw new NotifyError(400, `${name} is required`);
+  if (!UUID_RE.test(v)) throw new NotifyError(400, `${name} is not a valid id`);
+  return v;
+}
+// Notes only the service role can have written (see header).
+const isTrustedNote = (c) => c?.author_type === "system" && c?.author_name === NOTE_AUTHOR && !c?.author_id;
+async function trustedNotes(db, ticketId) {
+  const { data } = await db.from("maintenance_comments").select("id, body, author_type, author_name, author_id")
+    .eq("request_id", ticketId).eq("author_type", "system").eq("author_name", NOTE_AUTHOR);
+  return (data || []).filter(isTrustedNote);
+}
 
 async function loadTicket(db, ticketId) {
-  if (!str(ticketId)) throw new NotifyError(400, "ticket_id is required");
+  ticketId = requireUuid(ticketId, "ticket_id");
   const { data, error } = await db.from("maintenance_requests")
     .select("*, tenants(id, name, email, user_id), units(unit_number, properties(name))")
     .eq("id", ticketId).maybeSingle();
@@ -51,15 +74,23 @@ async function note(db, ticketId, body) {
   } catch (e) { console.error("[notify] could not record ticket note:", e?.message || e); }
 }
 
-// Sends one email and returns { status: "sent" | "failed", ... }. Records a ticket note on failure
-// (and on success when successNote is given). label is the human name of the notification.
+// Sends one email and returns { status: "sent" | "failed" | "unconfirmed" | "duplicate", ... }.
+// key is a base ("maintenance-created:<id>"); the payload hash is appended here, so a changed payload can
+// never reuse a key. Records a ticket note unless sent (and on success when successNote is given).
 async function deliver({ db, send, ticketId, to, email, key, label, successNote = null, retryDelayMs }) {
-  const r = await sendEmailReliably({ to, subject: email.subject, html: email.html, text: email.text, idempotencyKey: key }, { send, retryDelayMs });
+  const args = { to, subject: email.subject, html: email.html, text: email.text };
+  const r = await sendEmailReliably({ ...args, idempotencyKey: payloadKey(key, args) }, { send, retryDelayMs });
   if (r.ok) {
     if (ticketId && successNote) await note(db, ticketId, successNote);
     return { status: "sent", provider_id: r.data?.id ?? null, attempts: r.attempts };
   }
   const error = String(r.error || "send failed").slice(0, 200);
+  if (r.result === "duplicate") return { status: "duplicate", attempts: r.attempts };
+  if (r.result === "unconfirmed") {
+    console.error(`[notify] ${label} email unconfirmed:`, error);
+    if (ticketId) await note(db, ticketId, `Email NOT CONFIRMED — ${label}: ${error}. It may or may not have arrived; check the inbox and follow up directly.`);
+    return { status: "unconfirmed", error, attempts: r.attempts };
+  }
   console.error(`[notify] ${label} email failed:`, error);
   if (ticketId) await note(db, ticketId, `Email FAILED — ${label}: ${error}. Follow up directly.`);
   return { status: "failed", error, attempts: r.attempts };
@@ -77,33 +108,54 @@ async function toManagement({ db, env, ticketId, label }) {
 // ── Tenant events ────────────────────────────────────────────
 
 // A tenant submitted a ticket (or a landlord asks to re-send the alert for one).
-export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env, caller, body, retryDelayMs }) {
+export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env, caller, body, retryDelayMs, now = () => Date.now() }) {
   const t = await loadTicket(db, body?.ticket_id);
-  if (!isLandlord(caller) && t.tenants?.user_id !== uid(caller)) throw new NotifyError(403, "Not your ticket");
+  if (!isLandlord(caller)) {
+    if (t.tenants?.user_id !== uid(caller)) throw new NotifyError(403, "Not your ticket");
+    const created = Date.parse(t.created_at);
+    if (!Number.isFinite(created) || now() - created > TENANT_ALERT_WINDOW_MS) throw new NotifyError(409, "This request's alert can no longer be raised from the tenant portal");
+  }
 
   const detected = detectEmergency(`${t.title || ""}\n${t.description || ""}`);
   const emergency = detected || (t.is_emergency ? { kind: "reported", lifeSafety: false } : null);
   const guidance = detected ? { kind: detected.kind, lifeSafety: detected.lifeSafety, guidance: detected.guidance } : null;
 
-  // Already emailed for this ticket (a retried or repeated call): nothing more is sent.
-  const { data: prior } = await db.from("maintenance_comments").select("id, body").eq("request_id", t.id).eq("author_name", NOTE_AUTHOR);
-  if ((prior || []).some((c) => String(c.body || "").startsWith(CREATED_NOTE))) return { status: "duplicate", emergency: guidance };
+  const notes = await trustedNotes(db, t.id);
+  // Already emailed for this ticket (a retried or repeated call): no second email.
+  const emailed = notes.some((c) => String(c.body || "").startsWith(CREATED_NOTE));
 
-  const label = emergency ? "emergency maintenance alert" : "new maintenance request";
-  const to = await toManagement({ db, env, ticketId: t.id, label });
-  const result = to.ok
-    ? await deliver({ db, send, ticketId: t.id, to: to.recipients, key: `maintenance-created:${t.id}`, label, retryDelayMs,
-        email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
-    : { status: "failed", error: to.code };
-
-  let smsResult = null;
-  if (emergency) {
-    const v = ticketView(t);
-    smsResult = await sms({ env, body: smsBody(["[Modus] EMERGENCY maintenance", String(emergency.kind).replace(/_/g, " "), [v.propertyName, v.unitNumber && `Unit ${v.unitNumber}`].filter(Boolean).join(" "), v.tenantName, v.title, `${APP_URL}/landlord/maintenance`]) });
-    if (smsResult.status === "accepted") await note(db, t.id, "Emergency SMS accepted by Twilio for delivery (delivery not confirmed).");
-    else if (smsResult.status === "failed") await note(db, t.id, `Emergency SMS FAILED: ${smsResult.error || "unknown error"}. Call management directly.`);
+  let result = { status: "duplicate" };
+  if (!emailed) {
+    const label = emergency ? "emergency maintenance alert" : "new maintenance request";
+    const to = await toManagement({ db, env, ticketId: t.id, label });
+    result = to.ok
+      ? await deliver({ db, send, ticketId: t.id, to: to.recipients, key: `maintenance-created:${t.id}`, label, retryDelayMs,
+          email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
+      : { status: "failed", error: to.code };
   }
-  return { ...result, emergency: guidance, ...(smsResult ? { sms: smsResult.status } : {}) };
+
+  // Emergency SMS: at most one attempt per ticket. The "sending" note is written BEFORE Twilio is called;
+  // any earlier trusted SMS note (sending, accepted, failed, not sent) means no further SMS for this ticket.
+  // Residual race (documented): two requests overlapping within milliseconds could both pass this check;
+  // the tenant window above and the single call from the form keep that to an edge case.
+  let smsStatus = null;
+  if (emergency && !notes.some((c) => String(c.body || "").startsWith(SMS_NOTE))) {
+    const v = ticketView(t);
+    const smsArgs = { env, body: smsBody(["[Modus] EMERGENCY maintenance", String(emergency.kind).replace(/_/g, " "), [v.propertyName, v.unitNumber && `Unit ${v.unitNumber}`].filter(Boolean).join(" "), v.tenantName, v.title, `${APP_URL}/landlord/maintenance`]) };
+    const cfgProbe = await sms({ ...smsArgs, dryRun: true });   // disabled / not_configured → no claim, no send
+    if (cfgProbe?.status === "ready") {
+      await note(db, t.id, `${SMS_NOTE}: sending.`);
+      const r = await sms(smsArgs);
+      smsStatus = r.status;
+      if (r.status === "accepted") await note(db, t.id, `${SMS_NOTE} accepted by Twilio for delivery (delivery not confirmed).`);
+      else await note(db, t.id, `${SMS_NOTE} FAILED: ${r.error || r.status}. Call management directly.`);
+    } else {
+      smsStatus = cfgProbe?.status || "not_sent";
+    }
+  } else if (emergency) {
+    smsStatus = "duplicate";
+  }
+  return { ...result, emergency: guidance, ...(smsStatus ? { sms: smsStatus } : {}) };
 }
 
 // A tenant replied on their own ticket. The comment must exist, be theirs, and be tenant-visible.
@@ -121,8 +173,7 @@ export async function tenantComment({ db, send, env, caller, body, retryDelayMs 
 
 // A tenant completed their move-in walkthrough.
 export async function inspectionCompleted({ db, send, env, caller, body, retryDelayMs }) {
-  const id = str(body?.inspection_id);
-  if (!id) throw new NotifyError(400, "inspection_id is required");
+  const id = requireUuid(body?.inspection_id, "inspection_id");
   const { data: i, error } = await db.from("inspections")
     .select("id, status, tenant_signature, tenant_signed_at, tenant_photos, tenants(id, name, user_id, units(unit_number, properties(name)))")
     .eq("id", id).maybeSingle();
@@ -139,7 +190,7 @@ export async function inspectionCompleted({ db, send, env, caller, body, retryDe
 }
 
 async function loadComment(db, commentId, ticketId) {
-  if (!str(commentId)) throw new NotifyError(400, "comment_id is required");
+  commentId = requireUuid(commentId, "comment_id");
   const { data, error } = await db.from("maintenance_comments").select("*").eq("id", commentId).maybeSingle();
   if (error) throw new NotifyError(500, "Could not load the comment");
   if (!data || data.request_id !== ticketId) throw new NotifyError(404, "Comment not found on this ticket");

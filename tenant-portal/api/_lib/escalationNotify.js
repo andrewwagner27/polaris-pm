@@ -5,14 +5,17 @@
 // - Recipient: api/_lib/recipients.js, purpose "escalation": ESCALATION_NOTIFY_EMAILS, else LANDLORD_EMAIL.
 //   Nothing is hard-coded: with neither configured nothing is sent and the outcome is recorded as
 //   failed (MANAGEMENT_RECIPIENT_NOT_CONFIGURED), so the Agent Center and the recap show it.
-// - Idempotency: one notification per tenant message (key "escalation:<message_id>"). A retried request
-//   creates a second routing-log row; it is marked "duplicate" and nothing is sent. The same key is sent
-//   to Resend as Idempotency-Key, which also absorbs concurrent retries and makes the single automatic
-//   retry of a transient send failure safe.
+// - Idempotency: one notification per tenant message (key "escalation:<message_id>"), and one payload per
+//   key: the payload is stored on the row before the first attempt and replayed unchanged on retries.
+//   A second routing row for the same message (concurrent processing) is marked "duplicate" and sends
+//   nothing; if both rows race past that check, Resend's key handling stops the second email
+//   (409 → recorded "duplicate" or "unconfirmed", never "sent").
 // - Emergencies (tier TIER1_EMERGENCY) also try the emergency SMS (api/_lib/emergencySms.js), which is off
-//   unless explicitly enabled. Its outcome is recorded as notify.sms; "accepted" never means delivered.
+//   unless explicitly enabled. At most one SMS attempt per message (claimAndSendSms). "accepted" never
+//   means delivered.
 // - Outcome: raw_openai_response.notify on the routing-log row (no migration):
-//   { status: "pending" | "sent" | "failed" | "duplicate", key, recipients, provider_id?, error?, attempts?, sms?, at }.
+//   { status: "pending" | "sent" | "failed" | "unconfirmed" | "duplicate", key, recipients, email, provider_id?,
+//     error?, attempts?, sms?, at }. "sent" only when Resend returned an email id.
 // - If the routing-log row could not be written (log is null) the email is still sent and says the
 //   escalation is missing from the Agent Center, so management can act on it from the email.
 // - Never throws: a notification failure cannot block the tenant's reply or lose the escalation
@@ -26,7 +29,9 @@ import { sendEmailReliably } from "./email.js";
 import { sendEmergencySms, smsBody } from "./emergencySms.js";
 
 export const APP_URL = SHARED_APP_URL;
-const ACTIVE_STATUSES = new Set(["pending", "sent"]);
+// A sibling row in one of these states owns this message's notification: "unconfirmed" may already have
+// been delivered, so another row must not send a second (differently worded) email.
+const ACTIVE_STATUSES = new Set(["pending", "sent", "unconfirmed"]);
 
 // { ok, recipients, source } or { ok: false, code, error } (see recipients.js).
 export function managementRecipients(env = globalThis.process?.env ?? {}) {
@@ -102,25 +107,97 @@ export function notificationKey({ messageId, logId }) {
   return null;
 }
 
+// Writes notify onto the row. Re-reads the row first so an SMS claim written by another request (on this
+// row as the canonical row) is never dropped by this write.
 async function recordOutcome(db, log, notify) {
   if (!log?.id) return;
   try {
-    const base = log.raw_openai_response && typeof log.raw_openai_response === "object" ? log.raw_openai_response : {};
-    const merged = { ...base, notify };
+    let current = null;
+    try {
+      const { data } = await db.from("ai_routing_logs").select("raw_openai_response").eq("id", log.id).maybeSingle();
+      current = data?.raw_openai_response ?? null;
+    } catch { current = null; }
+    const base = current && typeof current === "object" ? current
+      : (log.raw_openai_response && typeof log.raw_openai_response === "object" ? log.raw_openai_response : {});
+    const keepSms = !notify?.sms && base.notify?.sms ? { sms: base.notify.sms } : {};
+    const merged = { ...base, notify: { ...notify, ...keepSms } };
     const { error } = await db.from("ai_routing_logs").update({ raw_openai_response: merged }).eq("id", log.id);
     if (error) console.error("[escalation-notify] could not record outcome:", error.message || error);
     else log.raw_openai_response = merged;
   } catch (e) { console.error("[escalation-notify] could not record outcome:", e.message); }
 }
 
-// Called once, right after the escalation's routing-log row is written. Never throws.
-//   send: (args) => { ok, status, data, error }   (api/_lib/email.js sendEmail)
-//   sms:  ({ body, env }) => { status, ... }       (api/_lib/emergencySms.js sendEmergencySms)
+// The emergency SMS for one tenant message is attempted at most once, durably:
+//   1. if this row or any other routing row for the same message already has notify.sms, nothing is sent;
+//   2. otherwise this row is CLAIMED with a single conditional UPDATE (only if notify.sms is still absent),
+//      writing { status: "sending" } BEFORE Twilio is called. Only the request whose UPDATE matched sends.
+//   3. the outcome replaces "sending". A crash between 2 and 3 leaves "sending", shown as
+//      "SMS status unknown" — never retried, never shown as delivered.
+// Without a routing row (log null) there is nowhere durable to record it: the SMS is still sent once for
+// this request (an emergency outranks the risk of a duplicate) and marked unrecorded.
+async function claimAndSendSms({ db, log, messageId, sms, body, env, now }) {
+  // SMS off or not configured: record that, claim nothing, contact nobody.
+  const probe = await sms({ body, env, dryRun: true });
+  if (probe?.status !== "ready") return { status: probe?.status || "not_sent", ...(probe?.missing ? { missing: probe.missing } : {}), at: now() };
+  if (!log?.id) {
+    const r = await sms({ body, env });
+    return { ...r, unrecorded: true };
+  }
+  // Every routing row for this message; the claim lives on ONE canonical row (earliest created, then id),
+  // so concurrent requests holding different rows still compete for the same claim.
+  let rows = [{ id: log.id, created_at: log.created_at, raw_openai_response: log.raw_openai_response }];
+  if (messageId) {
+    const { data: siblings } = await db.from("ai_routing_logs").select("id, created_at, raw_openai_response").eq("message_id", messageId);
+    if (Array.isArray(siblings) && siblings.length) rows = siblings.some((r) => r.id === log.id) ? siblings : [...siblings, rows[0]];
+  }
+  const prior = rows.find((r) => r.raw_openai_response?.notify?.sms);
+  if (prior) return { status: "duplicate", duplicate_of: prior.id, at: now() };
+  const canonical = [...rows].sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.id).localeCompare(String(b.id)))[0];
+
+  const base = canonical.raw_openai_response && typeof canonical.raw_openai_response === "object" ? canonical.raw_openai_response : {};
+  const claim = { status: "sending", claimed_by: log.id, at: now() };
+  const claimed = { ...base, notify: { ...(base.notify || {}), sms: claim } };
+  const { data: won, error } = await db.from("ai_routing_logs").update({ raw_openai_response: claimed })
+    .eq("id", canonical.id).is("raw_openai_response->notify->>sms", null).select("id");
+  if (error) return { status: "not_sent", error: `could not record the SMS claim: ${String(error.message || error).slice(0, 150)}`, at: now() };
+  if (!Array.isArray(won) || !won.length) return { status: "duplicate", duplicate_of: canonical.id, at: now() };
+  if (canonical.id === log.id) log.raw_openai_response = claimed;
+
+  let result;
+  try { result = await sms({ body, env }); }
+  catch (e) { result = { status: "failed", error: String(e?.message || e).slice(0, 200), at: now() }; }
+  // Replace the claim on the canonical row with the outcome (this request's own row is written by the caller).
+  if (canonical.id !== log.id) {
+    try {
+      const { data: cur } = await db.from("ai_routing_logs").select("raw_openai_response").eq("id", canonical.id).maybeSingle();
+      const raw = cur?.raw_openai_response && typeof cur.raw_openai_response === "object" ? cur.raw_openai_response : claimed;
+      await db.from("ai_routing_logs").update({ raw_openai_response: { ...raw, notify: { ...(raw.notify || {}), sms: { ...result, claimed_by: log.id } } } }).eq("id", canonical.id);
+    } catch (e) { console.error("[escalation-notify] could not record SMS outcome:", e?.message || e); }
+  }
+  return result;
+}
+
+// Maps an email result (email.js sendEmailReliably) to the recorded notify status. Only "sent" claims sending.
+function emailStatus(result) {
+  if (result?.ok) return "sent";
+  if (result?.result === "duplicate") return "duplicate";
+  if (result?.result === "unconfirmed") return "unconfirmed";
+  return "failed";
+}
+
+// Called once, right after the escalation's routing-log row is written, and again only by a retried request
+// whose recorded outcome was "failed" or "unconfirmed". Never throws.
+//   The email PAYLOAD is stored on the row (notify.email) before the first attempt and replayed unchanged on
+//   every later attempt, so the idempotency key "escalation:<message_id>" is only ever sent with one payload.
+//   If Resend accepted an earlier attempt, the replay returns that original response — evidence, not a guess.
+//   send: (args) => one attempt (api/_lib/email.js sendEmail)
+//   sms:  ({ body, env }) => { status, ... } (api/_lib/emergencySms.js sendEmergencySms)
 export async function notifyEscalation({ db, send, sms = sendEmergencySms, log, tenant, message, reply, classification, messageId, humanRequested = false,
   env = globalThis.process?.env ?? {}, now = () => new Date().toISOString(), retryDelayMs = 750 }) {
   try {
     if (!needsNotification(classification)) return { status: "not_required" };
     const key = notificationKey({ messageId, logId: log?.id });
+    const previous = log?.raw_openai_response?.notify || null;
 
     // Duplicate protection: another routing-log row for the same tenant message already notified (or is notifying).
     if (messageId) {
@@ -134,35 +211,54 @@ export async function notifyEscalation({ db, send, sms = sendEmergencySms, log, 
     }
 
     const emergency = isEmergency(classification);
-    const to = managementRecipients(env);
     let notify;
-    if (!to.ok) {
-      notify = { status: "failed", key, recipients: [], error: to.code, at: now() };
-      console.error("[escalation-notify]", to.error);
-    } else {
-      const email = buildEscalationEmail({
-        propertyName: tenant?.units?.properties?.name, unitNumber: tenant?.units?.unit_number, tenantName: tenant?.name,
-        message, reply, intent: classification?.intent_summary, emergency, unrecorded: !log?.id,
-        reason: escalationReason(classification, { humanRequested }),
-      });
-      await recordOutcome(db, log, { status: "pending", key, recipients: to.recipients, recipient_source: to.source, at: now() });
-
-      let result;
-      try { result = await sendEmailReliably({ to: to.recipients, subject: email.subject, html: email.html, text: email.text, idempotencyKey: key }, { send, retryDelayMs }); }
-      catch (e) { result = { ok: false, status: 0, error: e.message, attempts: 1 }; }
-
-      notify = result?.ok
-        ? { status: "sent", key, recipients: to.recipients, recipient_source: to.source, provider_id: result.data?.id ?? null, attempts: result.attempts ?? 1, at: now() }
-        : { status: "failed", key, recipients: to.recipients, recipient_source: to.source, http_status: result?.status ?? null, attempts: result?.attempts ?? 1,
-            error: String(result?.error || result?.data?.message || result?.data?.error || "send failed").slice(0, 300), at: now() };
-      if (notify.status === "failed") console.error("[escalation-notify] email failed:", notify.error);
+    // Replay: the stored payload and recipients, exactly as first attempted. Otherwise build it now.
+    let payload = previous?.email && previous.email.subject && previous.email.html ? previous.email : null;
+    let recipientSource = previous?.recipient_source ?? null;
+    if (!payload) {
+      const to = managementRecipients(env);
+      if (!to.ok) {
+        console.error("[escalation-notify]", to.error);
+        notify = { status: "failed", key, recipients: [], error: to.code, at: now() };
+      } else {
+        const email = buildEscalationEmail({
+          propertyName: tenant?.units?.properties?.name, unitNumber: tenant?.units?.unit_number, tenantName: tenant?.name,
+          message, reply, intent: classification?.intent_summary, emergency, unrecorded: !log?.id,
+          reason: escalationReason(classification, { humanRequested }),
+        });
+        payload = { to: to.recipients, subject: email.subject, html: email.html, text: email.text };
+        recipientSource = to.source;
+      }
     }
 
+    if (payload) {
+      await recordOutcome(db, log, { status: "pending", key, recipients: payload.to, recipient_source: recipientSource, email: payload, at: now() });
+      let result;
+      try { result = await sendEmailReliably({ ...payload, idempotencyKey: key }, { send, retryDelayMs }); }
+      catch (e) { result = { ok: false, result: "unconfirmed", status: 0, error: e.message, attempts: 1 }; }
+      const status = emailStatus(result);
+      notify = { status, key, recipients: payload.to, recipient_source: recipientSource, email: payload, attempts: result?.attempts ?? 1, at: now(),
+        ...(status === "sent" ? { provider_id: result.data?.id ?? null } : { http_status: result?.status ?? null, error: String(result?.error || "send failed").slice(0, 300) }) };
+      if (status !== "sent") console.error(`[escalation-notify] email ${status}:`, notify.error);
+      // Two rows for one message can both get Resend's response for the SAME email (identical payload under
+      // the same key). Only the first row owns it; the other records itself as a duplicate of that row.
+      if (status === "sent" && messageId && notify.provider_id) {
+        try {
+          const { data: siblings } = await db.from("ai_routing_logs").select("id, created_at, raw_openai_response").eq("message_id", messageId);
+          const owner = (siblings || []).filter((r) => r.id !== log?.id && r.raw_openai_response?.notify?.provider_id === notify.provider_id)[0];
+          if (owner) notify = { status: "duplicate", key, duplicate_of: owner.id, provider_id: notify.provider_id, at: now() };
+        } catch { /* keep "sent": the email id is still the evidence */ }
+      }
+    }
+
+    if (previous?.sms) notify.sms = previous.sms;   // keep the earlier SMS record on a replay
     if (emergency) {
-      try {
-        const where = [tenant?.units?.properties?.name, tenant?.units?.unit_number && `Unit ${tenant.units.unit_number}`].filter(Boolean).join(" ");
-        notify.sms = await sms({ body: smsBody(["[Modus] EMERGENCY", classification?.emergency_kind ? String(classification.emergency_kind).replace(/_/g, " ") : null, where, tenant?.name, classification?.intent_summary, `${APP_URL}/landlord/agent`]), env });
-      } catch (e) { notify.sms = { status: "failed", error: String(e?.message || e).slice(0, 200), at: now() }; }
+      const where = [tenant?.units?.properties?.name, tenant?.units?.unit_number && `Unit ${tenant.units.unit_number}`].filter(Boolean).join(" ");
+      const body = smsBody(["[Modus] EMERGENCY", classification?.emergency_kind ? String(classification.emergency_kind).replace(/_/g, " ") : null, where, tenant?.name, classification?.intent_summary, `${APP_URL}/landlord/agent`]);
+      // Record the email outcome first so the SMS claim merges onto it.
+      await recordOutcome(db, log, notify);
+      const smsResult = await claimAndSendSms({ db, log, messageId, sms, body, env, now });
+      if (smsResult.status !== "duplicate") notify.sms = smsResult;
     }
 
     await recordOutcome(db, log, notify);
@@ -191,7 +287,16 @@ export const isRecapEscalation = isEscalationRow;
 // so the recap says the list could not be loaded instead of reporting "all clear".
 export function escalationRecapSection(rows) {
   if (!Array.isArray(rows)) return { count: 0, needsAttention: 0, html: "", unavailable: true };
-  const list = rows.filter(isRecapEscalation);
+  // One entry per tenant message: overlapping requests can leave two rows for one message. Keep the row
+  // with the best-evidenced outcome (sent > duplicate > unconfirmed > pending > failed > none).
+  const rank = { sent: 5, duplicate: 4, unconfirmed: 3, pending: 2, failed: 1 };
+  const byMessage = new Map();
+  for (const r of rows.filter(isRecapEscalation)) {
+    const k = r.message_id || `row:${r.id}`;
+    const cur = byMessage.get(k);
+    if (!cur || (rank[r.raw_openai_response?.notify?.status] || 0) > (rank[cur.raw_openai_response?.notify?.status] || 0)) byMessage.set(k, r);
+  }
+  const list = [...byMessage.values()];
   const failed = list.filter((r) => !sharedNotifyStatusLabel(r).ok);
   if (!list.length) return { count: 0, needsAttention: 0, html: "" };
   const rowsHtml = list.map((r) => {

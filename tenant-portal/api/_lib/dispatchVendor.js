@@ -4,7 +4,7 @@
 // Finds the best available vendor for the category, assigns them, and sends notification.
 
 import { supabaseAdmin as supabase, generateToken, generatePin } from "./auth.js";
-import { sendEmailReliably } from "./email.js";
+import { sendEmailReliably, payloadKey } from "./email.js";
 import { managementRecipients } from "./recipients.js";
 import { emergencyDispatchEmail } from "./notificationTemplates.js";
 import { APP_URL } from "../../src/lib/emailSafety.js";
@@ -73,13 +73,17 @@ export async function dispatchVendor({ ticket_id, description, unit, property })
       ticket: { title: ticket.title, description, propertyName: property, unitNumber: unit },
       vendor: vendor ? { name: vendor.name, phone: vendor.phone } : null, vendorLink, pin,
     });
-    const r = await sendEmailReliably({ to: to.recipients, subject: email.subject, html: email.html, text: email.text, idempotencyKey: `emergency-dispatch:${ticket_id}:${token}` });
-    notification = r.ok ? "sent" : "failed";
-    if (!r.ok) console.warn("Emergency dispatch email failed (non-fatal):", r.error);
+    const args = { to: to.recipients, subject: email.subject, html: email.html, text: email.text };
+    const r = await sendEmailReliably({ ...args, idempotencyKey: payloadKey(`emergency-dispatch:${ticket_id}:${token}`, args) });
+    notification = r.ok ? "sent" : r.result === "unconfirmed" ? "unconfirmed" : "failed";
+    if (!r.ok) console.warn(`Emergency dispatch email ${notification} (non-fatal):`, r.error);
   }
   if (notification !== "sent") {
     await supabase.from("maintenance_comments").insert({
-      request_id: ticket_id, body: "Email FAILED — emergency dispatch alert to management. Follow up directly.",
+      request_id: ticket_id,
+      body: notification === "unconfirmed"
+        ? "Email NOT CONFIRMED — emergency dispatch alert to management may not have arrived. Follow up directly."
+        : "Email FAILED — emergency dispatch alert to management. Follow up directly.",
       author_type: "system", author_name: "Modus notifications", visible_to_tenant: false,
     });
   }
