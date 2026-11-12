@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ledgerBalanceCents } from "./lib/accounting";
+import { fetchTenantBalance, balancePresentation, monthlyChargesSummary, formatCents } from "./lib/tenantFinancials";
 import { useTenant } from "./useTenant";
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
@@ -22,10 +22,6 @@ function fmt(n) {
 function fmtDate(d) {
   if (!d) return "—";
   return new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-}
-function isRentDue(leaseStart) {
-  if (!leaseStart) return true;
-  return new Date(leaseStart+"T00:00:00") <= new Date();
 }
 
 function Card({ children, style = {}, onClick }) {
@@ -56,7 +52,8 @@ export default function HomeDashboard() {
   const { tenant, user, loading } = useTenant();
   const [messages, setMessages]     = useState([]);
   const [msgsLoading, setMsgsLoading] = useState(true);
-  const [balanceInfo, setBalanceInfo] = useState(null);
+  // { state: "loading" | "available" | "unavailable", cents?, reason? } — see lib/tenantFinancials.js
+  const [balance, setBalance] = useState({ state: "loading" });
 
   useEffect(() => {
     if (user && tenant?.id) { fetchMessages(); fetchBalance(); }
@@ -70,22 +67,10 @@ export default function HomeDashboard() {
   }
 
   async function fetchBalance() {
-    // Receivables active: the real tenant ledger balance.
-    const { data: a2 } = await supabase.rpc("a2_status");
-    if (a2?.active) {
-      const { data: rows } = await supabase.rpc("a2_tenant_ledger", { p_tenant: null });
-      setBalanceInfo(ledgerBalanceCents(rows) / 100);
-      return;
-    }
-    const { data: charges } = await supabase.from("ledger_entries").select("amount,type").eq("tenant_id", tenant.id);
-    if (charges) {
-      let bal = 0;
-      charges.forEach(e => {
-        if (e.type === "charge") bal += Number(e.amount);
-        else if (e.type === "payment") bal -= Number(e.amount);
-      });
-      setBalanceInfo(bal);
-    }
+    // Balance due comes only from the active receivables ledger. Inactive receivables or any
+    // failure → "Balance unavailable"; rent and recurring charges are never shown in its place.
+    setBalance({ state: "loading" });
+    setBalance(await fetchTenantBalance(supabase));
   }
 
   if (loading) return (
@@ -102,22 +87,16 @@ export default function HomeDashboard() {
   const openMaintenance = maintenance.filter(m => m.status !== "resolved");
   const leaseDaysLeft   = tenant?.leaseEnd ? Math.ceil((new Date(tenant.leaseEnd+"T00:00:00") - new Date()) / (1000*60*60*24)) : null;
   const showLeaseAlert  = leaseDaysLeft !== null && leaseDaysLeft < 60 && leaseDaysLeft >= 0;
-  const rentDue         = isRentDue(tenant?.leaseStart);
-  const rentAmount      = tenant?.rent || 0;
-  const totalMonthly    = tenant?.recurringCharges?.length > 0
-    ? tenant.recurringCharges.reduce((s,c) => s + parseFloat(c.amount||0), 0)
-    : rentAmount;
+  const baseRent        = tenant?.rent ? Number(tenant.rent) : null;   // units.rent_amount, shown only as rent
+  const monthly         = monthlyChargesSummary(tenant?.recurringCharges);
 
   const now       = new Date();
   const nextDue   = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > 1 ? 1 : 0), 1);
   const nextDueStr = nextDue.toLocaleDateString("en-US",{month:"long",day:"numeric"});
   const daysUntilDue = Math.ceil((nextDue - now) / (1000*60*60*24));
 
-  const balanceIsKnown  = balanceInfo != null;
-  const balanceColor    = !balanceIsKnown ? C.text : balanceInfo > 0 ? C.red : C.green;
-  const balanceLabel    = !balanceIsKnown ? (rentDue ? "Monthly Rent" : "—")
-                        : balanceInfo > 0 ? "Amount due" : balanceInfo < 0 ? "Credit on account" : "Account current";
-  const balanceDisplay  = balanceIsKnown ? fmt(Math.abs(balanceInfo)) : (rentDue ? fmt(rentAmount) : "—");
+  const bal             = balancePresentation(balance);
+  const balanceColor    = bal.tone === "due" ? C.red : bal.tone === "clear" ? C.green : C.textSub;
 
   return (
     <TenantLayout tenantName={tenant?.name || "Tenant"} unreadMessages={unreadCount}>
@@ -156,7 +135,7 @@ export default function HomeDashboard() {
         {/* ══════════════════════════════════════════════════════
             HERO CARD — the 5 key tenant questions
         ══════════════════════════════════════════════════════ */}
-        <Card style={{ padding:"24px 28px", marginBottom:16, borderColor: balanceInfo > 0 ? "#FCA5A5" : C.border }}>
+        <Card style={{ padding:"24px 28px", marginBottom:16, borderColor: bal.tone === "due" ? "#FCA5A5" : C.border }}>
 
           {/* Top row: balance + pay button */}
           <div className="hero-card" style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:24, marginBottom:20 }}>
@@ -164,10 +143,16 @@ export default function HomeDashboard() {
             {/* Balance */}
             <div style={{ flex:1 }}>
               <Label>Balance Due</Label>
-              <div className="hero-amount" style={{ fontFamily:"'DM Mono',monospace", fontSize:48, fontWeight:500, color:balanceColor, lineHeight:1, letterSpacing:"-0.02em", marginBottom:6 }}>
-                {balanceDisplay}
-              </div>
-              <div style={{ fontSize:13, color:C.textSub }}>{balanceLabel}</div>
+              {bal.available ? (
+                <div className="hero-amount" style={{ fontFamily:"'DM Mono',monospace", fontSize:48, fontWeight:500, color:balanceColor, lineHeight:1, letterSpacing:"-0.02em", marginBottom:6 }}>
+                  {bal.amountText}
+                </div>
+              ) : (
+                <div data-balance-state={balance.state} style={{ fontSize:22, fontWeight:600, color:balanceColor, lineHeight:1.2, marginBottom:6 }}>
+                  {bal.amountText}
+                </div>
+              )}
+              <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textSub, maxWidth:420 }}>{bal.detail}</div>
             </div>
 
             {/* Due date + Pay CTA */}
@@ -247,23 +232,34 @@ export default function HomeDashboard() {
 
           {/* Upcoming Charges */}
           <Card style={{ padding:"20px 22px" }}>
-            <Label>Upcoming Charges</Label>
-            {(tenant?.recurringCharges?.length > 0
-              ? tenant.recurringCharges
-              : [{ category:"Monthly Rent", amount:rentAmount, _isDefault:true }]
-            ).map((c, i, arr) => (
-              <div key={c.id || "default"} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{c.category || "Monthly Rent"}</div>
-                  <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>Due {nextDueStr}</div>
+            <Label>Monthly Recurring Charges</Label>
+            <div style={{ fontSize:11, color:C.textMuted, marginBottom:6 }}>
+              Scheduled each month. This is not your balance due.
+            </div>
+            {monthly.hasCharges ? (
+              <>
+                {monthly.items.map((c, i, arr) => (
+                  <div key={c.id || `charge-${i}`} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{c.label}</div>
+                      <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
+                        {c.isRent ? "Rent" : "Additional recurring charge"}{c.note ? ` · ${c.note}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>
+                      {c.cents == null ? "—" : formatCents(c.cents)}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:10, marginTop:2, borderTop:`1px solid ${C.border}` }}>
+                  <span style={{ fontSize:11, color:C.textMuted, fontWeight:600 }}>Total monthly charges</span>
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:600, color:C.gold }}>{formatCents(monthly.totalCents)}</span>
                 </div>
-                <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>{fmt(parseFloat(c.amount||0))}</div>
-              </div>
-            ))}
-            {tenant?.recurringCharges?.length > 0 && (
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:10, marginTop:2 }}>
-                <span style={{ fontSize:11, color:C.textMuted, fontWeight:600 }}>Total / mo</span>
-                <span style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:600, color:C.gold }}>{fmt(totalMonthly)}</span>
+                <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>Next scheduled: {nextDueStr}</div>
+              </>
+            ) : (
+              <div style={{ fontSize:13, color:C.textSub, padding:"9px 0" }}>
+                No recurring charges are set up on your account. Contact management with any billing questions.
               </div>
             )}
           </Card>
@@ -275,11 +271,11 @@ export default function HomeDashboard() {
               ["Unit",        `Unit ${tenant?.unit||"—"} · ${tenant?.property||"—"}`],
               ["Lease Start", fmtDate(tenant?.leaseStart)],
               ["Lease End",   fmtDate(tenant?.leaseEnd)],
-              ["Monthly",     fmt(totalMonthly)],
+              ["Base rent on file", baseRent != null ? fmt(baseRent) : "—"],
             ].map(([k, v], i, arr) => (
               <div key={k} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
                 <span style={{ fontSize:12, color:C.textMuted }}>{k}</span>
-                <span style={{ fontSize:13, fontWeight: k === "Monthly" ? 600 : 400, color: k === "Monthly" ? C.gold : C.text, fontFamily: k === "Monthly" ? "'DM Mono',monospace" : "inherit" }}>{v}</span>
+                <span style={{ fontSize:13, fontWeight: k === "Base rent on file" ? 600 : 400, color: k === "Base rent on file" ? C.gold : C.text, fontFamily: k === "Base rent on file" ? "'DM Mono',monospace" : "inherit" }}>{v}</span>
               </div>
             ))}
           </Card>

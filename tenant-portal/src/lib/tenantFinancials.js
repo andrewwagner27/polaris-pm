@@ -1,0 +1,94 @@
+// src/lib/tenantFinancials.js
+// What the tenant Home dashboard shows about money. Pure helpers plus one read-only fetch; no writes.
+//
+// Three separate concepts, never substituted for one another:
+//   1. Base rent on file   — units.rent_amount. Shown only as rent, never as an amount owed.
+//   2. Recurring charges   — active recurring_charges rows (rent, parking, storage, pets…): the
+//                            scheduled monthly charges. Not an amount currently owed.
+//   3. Balance due         — posted charges minus payments, credits and adjustments, from the
+//                            authoritative receivables ledger (a2_tenant_ledger, integer cents).
+//                            When receivables are inactive or the ledger can't be read, the balance
+//                            is "unavailable": no rent or charge total is ever shown in its place.
+//
+// ledger_entries is not read: nothing posts to it yet, and it is not the receivables source of truth.
+
+// ── Recurring charges ──────────────────────────────────────────────────────
+
+const isActiveCharge = (c) => c && c.active !== false && (c.status == null || String(c.status).toLowerCase() === "active");
+
+// Integer cents for one recurring charge: amount (dollars) when set, else amount_cents. null if neither.
+export function chargeCents(c) {
+  if (c?.amount != null && c.amount !== "" && Number.isFinite(Number(c.amount))) return Math.round(Number(c.amount) * 100);
+  if (c?.amount_cents != null && Number.isFinite(Number(c.amount_cents))) return Math.round(Number(c.amount_cents));
+  return null;
+}
+
+// Rent-category charges are listed as rent; everything else is an additional recurring charge.
+// The category is taken as recorded; nothing is inferred to be rent.
+export const isRentCharge = (c) => String(c?.category || "").trim().toLowerCase() === "rent";
+
+export function monthlyChargesSummary(charges) {
+  const items = (charges || []).filter(isActiveCharge).map((c) => {
+    const cents = chargeCents(c);
+    return {
+      id: c.id ?? null,
+      label: String(c.category || "").trim() || "Recurring charge",
+      note: c.note ? String(c.note) : "",
+      cents,
+      isRent: isRentCharge(c),
+      startDate: c.start_date || null,
+    };
+  });
+  // Rent first, then the rest in their recorded order.
+  const ordered = [...items.filter((i) => i.isRent), ...items.filter((i) => !i.isRent)];
+  const totalCents = ordered.reduce((s, i) => s + (i.cents ?? 0), 0);
+  return { items: ordered, totalCents, hasCharges: ordered.length > 0, missingAmounts: ordered.some((i) => i.cents == null) };
+}
+
+// ── Balance due ────────────────────────────────────────────────────────────
+
+// statusResult / ledgerResult are Supabase responses: { data, error }.
+export function resolveBalance({ statusResult, ledgerResult }) {
+  if (!statusResult || statusResult.error || !statusResult.data) return { state: "unavailable", reason: "error" };
+  if (statusResult.data.active !== true) return { state: "unavailable", reason: "receivables_inactive" };
+  if (!ledgerResult || ledgerResult.error || !Array.isArray(ledgerResult.data)) return { state: "unavailable", reason: "error" };
+  const rows = ledgerResult.data;
+  const last = rows.length ? Number(rows[rows.length - 1].balance_cents) : 0;
+  if (!Number.isFinite(last)) return { state: "unavailable", reason: "error" };
+  return { state: "available", cents: Math.round(last) };
+}
+
+// Read-only: a2_status, then (only if receivables are active) the caller's own a2_tenant_ledger.
+// Never throws.
+export async function fetchTenantBalance(client) {
+  try {
+    const statusResult = await client.rpc("a2_status");
+    if (statusResult?.error || statusResult?.data?.active !== true) return resolveBalance({ statusResult });
+    const ledgerResult = await client.rpc("a2_tenant_ledger", { p_tenant: null });
+    return resolveBalance({ statusResult, ledgerResult });
+  } catch {
+    return { state: "unavailable", reason: "error" };
+  }
+}
+
+export const formatCents = (cents) =>
+  `$${(Math.abs(Number(cents)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// What the Balance Due card says. tone: "neutral" | "due" | "clear".
+export function balancePresentation(balance) {
+  if (!balance || balance.state === "loading") return { amountText: "…", detail: "Loading your balance…", tone: "neutral", available: false };
+  if (balance.state !== "available") {
+    return {
+      amountText: "Balance unavailable",
+      detail: balance.reason === "receivables_inactive"
+        ? "Your account balance isn't available online yet. Contact management to confirm what you owe."
+        : "We couldn't load your balance right now. Refresh the page, or contact management to confirm what you owe.",
+      tone: "neutral",
+      available: false,
+    };
+  }
+  const c = balance.cents;
+  if (c > 0) return { amountText: formatCents(c), detail: "Amount due", tone: "due", available: true };
+  if (c < 0) return { amountText: formatCents(c), detail: "Credit on account", tone: "clear", available: true };
+  return { amountText: formatCents(0), detail: "Account current", tone: "clear", available: true };
+}
