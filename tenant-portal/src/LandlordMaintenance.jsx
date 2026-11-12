@@ -239,17 +239,8 @@ export default function LandlordMaintenance() {
     }).eq("id", ticket.id);
     setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: "in_progress", quote_approved_at: new Date().toISOString(), nte_amount: ticket.quote_amount } : t));
     if (selected?.id === ticket.id) setSelected(prev => ({ ...prev, status: "in_progress", quote_approved_at: new Date().toISOString() }));
-    // Re-fetch fresh ticket for vendor email
-    const { data: freshQuoteTicket } = await supabase.from("maintenance_requests").select("vendor_email, vendor_name, title, units(properties(name))").eq("id", ticket.id).single();
-    const vendorEmail = freshQuoteTicket?.vendor_email;
-    if (vendorEmail) {
-      notifyVendorApproved({
-        vendorEmail,
-        vendorName:   freshQuoteTicket.vendor_name,
-        ticketTitle:  freshQuoteTicket.title,
-        propertyName: freshQuoteTicket.units?.properties?.name || "",
-      });
-    }
+    // The server emails the vendor on record (or skips if there is none).
+    notifyVendorApproved({ ticketId: ticket.id, stage: "quote" });
   }
 
   async function approveTicket(ticket) {
@@ -278,51 +269,24 @@ export default function LandlordMaintenance() {
       });
     }
 
-    // Notify vendor - use fresh ticket data
-    const vendorEmail = freshTicket?.vendor_email;
-    if (vendorEmail) {
-      notifyVendorApproved({
-        vendorEmail,
-        vendorName:   freshTicket.vendor_name,
-        ticketTitle:  freshTicket.title,
-        propertyName: freshTicket.units?.properties?.name || "",
-      });
-    } else if (freshTicket?.vendor_name) {
-      const { data: vendorData } = await supabase.from("vendors").select("email").eq("name", freshTicket.vendor_name).maybeSingle();
-      if (vendorData?.email) {
-        notifyVendorApproved({
-          vendorEmail:  vendorData.email,
-          vendorName:   freshTicket.vendor_name,
-          ticketTitle:  freshTicket.title,
-          propertyName: freshTicket.units?.properties?.name || "",
-        });
-      }
-    }
+    // The server emails the vendor on record (ticket vendor_email, else the vendors table), or skips.
+    if (freshTicket?.vendor_name || freshTicket?.vendor_email) notifyVendorApproved({ ticketId: ticket.id, stage: "work" });
   }
 
   async function submitRejection() {
     if (!rejectTicket) return;
     setRejecting(true);
     await supabase.from("maintenance_requests").update({ status: "in_progress" }).eq("id", rejectTicket.id);
-    await supabase.from("maintenance_comments").insert({
+    const { data: rework } = await supabase.from("maintenance_comments").insert({
       request_id:        rejectTicket.id,
       body:              `PM requested more work: ${rejectNotes}`,
       author_name:       "Property Manager",
       author_type:       "pm_to_vendor", // hidden from the tenant, shown to the vendor (api/vendor-ticket.js)
       visible_to_tenant: false,
-    });
+    }).select("id").single();
     setTickets(prev => prev.map(t => t.id === rejectTicket.id ? { ...t, status: "in_progress" } : t));
-    // Notify vendor
-    const { data: vendorData } = await supabase.from("vendors").select("email, name").eq("name", rejectTicket.vendor_name).maybeSingle();
-    if (vendorData?.email) {
-      notifyVendorMoreWork({
-        vendorEmail:  vendorData.email,
-        vendorName:   rejectTicket.vendor_name,
-        ticketTitle:  field(rejectTicket, "title"),
-        pmNotes:      rejectNotes,
-        vendorLink:   `${window.location.origin}/vendor/${rejectTicket.vendor_token}`,
-      });
-    }
+    // The server emails the vendor the saved request with the vendor link it builds itself.
+    if (rework?.id) notifyVendorMoreWork({ ticketId: rejectTicket.id, commentId: rework.id });
     setRejecting(false);
     setRejectTicket(null);
     setRejectNotes("");
@@ -335,10 +299,7 @@ export default function LandlordMaintenance() {
       setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
       if (selected?.id === id) setSelected(prev => ({ ...prev, status: newStatus }));
       const ticket = tickets.find(t => t.id === id);
-      if (ticket?.tenants?.name) {
-        const { data: tenantAuth } = await supabase.from("tenants").select("email").eq("id", ticket.tenant_id).maybeSingle();
-        notifyTicketStatusUpdate({ tenantEmail: tenantAuth?.email, tenantName: ticket.tenants?.name, title: ticket.title, newStatus, ticketId: id });
-      }
+      if (ticket?.tenant_id) notifyTicketStatusUpdate({ ticketId: id });
     }
   }
 
@@ -351,15 +312,12 @@ export default function LandlordMaintenance() {
   async function postComment() {
     setShowConfirm(false); setPosting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("maintenance_comments").insert({
+    const { data: saved } = await supabase.from("maintenance_comments").insert({
       request_id: selected.id, author_id: user.id,
       author_name: "Property Manager", body: newComment.trim(),
       visible_to_tenant: visibility === "visible",
-    });
-    if (visibility === "visible" && selected.tenants?.name) {
-      const { data: tenantAuth } = await supabase.from("tenants").select("email").eq("id", selected.tenant_id).maybeSingle();
-      notifyTenantNewComment({ tenantEmail: tenantAuth?.email, tenantName: selected.tenants?.name, title: selected.title, commentBody: newComment.trim(), ticketId: selected.id });
-    }
+    }).select("id").single();
+    if (visibility === "visible" && saved?.id && selected.tenant_id) notifyTenantNewComment({ ticketId: selected.id, commentId: saved.id });
     setNewComment("");
     await fetchComments(selected.id);
     setPosting(false);

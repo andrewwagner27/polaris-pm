@@ -14,6 +14,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
 process.env.OPENAI_API_KEY = "sk-test";
 process.env.RESEND_API_KEY = "re_test";
 process.env.ESCALATION_NOTIFY_EMAILS = "manager@test.invalid";
+// The daily recap and maintenance mail go to LANDLORD_EMAIL (api/_lib/recipients.js); there is no built-in default.
+process.env.LANDLORD_EMAIL = "landlord@test.invalid";
 
 // ── network fake: OpenAI + Resend (installed before the handler creates its OpenAI client) ──
 process.env.CRON_SECRET = "cron-test-secret";
@@ -133,7 +135,11 @@ describe("end to end through /api/classify-and-route", () => {
     const again = await ask("Talk to a person please", "m1", { escalate_to_landlord: true });
     assert.equal(resendCalls.length, 1);
     assert.equal(again.body.notification, "duplicate");
-    assert.equal(notifyOf(db.ai_routing_logs[1]).duplicate_of, db.ai_routing_logs[0].id);
+    assert.equal(again.body.duplicate, true);
+    // The retry is answered from the recorded outcome: no second AI reply, alert or routing row.
+    assert.equal(replies().length, 1, "the tenant gets one AI reply, not two");
+    assert.equal(db.landlord_alerts.length, 1);
+    assert.equal(db.ai_routing_logs.length, 1);
   });
 
   test("a different tenant message escalates and emails separately", async () => {
@@ -180,9 +186,14 @@ describe("end to end through /api/classify-and-route", () => {
 
   test("a failed attempt does not block a later retry of the same message", async () => {
     resendMode = "500"; await ask("person please", "m1", { escalate_to_landlord: true });
+    const failedCalls = resendCalls.length;   // the first attempt plus its one automatic retry
+    assert.equal(failedCalls, 2);
     resendMode = "ok"; const r = await ask("person please", "m1", { escalate_to_landlord: true });
     assert.equal(r.body.notification, "sent");
-    assert.equal(resendCalls.length, 2);
+    assert.equal(resendCalls.length, failedCalls + 1);
+    assert.equal(new Set(resendCalls.map((c) => c.headers["Idempotency-Key"])).size, 1, "every attempt uses the same key");
+    assert.equal(notifyOf(db.ai_routing_logs[0]).status, "sent", "the original row is updated from failed to sent");
+    assert.equal(replies().length, 1, "the retry does not write a second AI reply");
   });
 
   test("historical escalations are never replayed", async () => {
@@ -197,15 +208,29 @@ describe("end to end through /api/classify-and-route", () => {
 });
 
 describe("notifier unit behaviour", () => {
-  test("recipients: ESCALATION_NOTIFY_EMAILS, then LANDLORD_EMAIL, then the existing management default — never the tenant allow-list", () => {
-    assert.deepEqual(N.managementRecipients({ ESCALATION_NOTIFY_EMAILS: " A@x.com , b@x.com,a@x.com" }), { recipients: ["a@x.com", "b@x.com"], source: "ESCALATION_NOTIFY_EMAILS" });
-    assert.deepEqual(N.managementRecipients({ LANDLORD_EMAIL: "l@x.com" }), { recipients: ["l@x.com"], source: "LANDLORD_EMAIL" });
-    assert.deepEqual(N.managementRecipients({ LANDLORD_NOTIFY_EMAILS: "tenant@x.com" }), { recipients: ["moduspropmgmt@gmail.com"], source: "default" });
+  test("recipients: ESCALATION_NOTIFY_EMAILS, then LANDLORD_EMAIL — never the tenant allow-list, never a hard-coded default", () => {
+    assert.deepEqual(N.managementRecipients({ ESCALATION_NOTIFY_EMAILS: " A@x.com , b@x.com,a@x.com" }), { ok: true, recipients: ["a@x.com", "b@x.com"], source: "ESCALATION_NOTIFY_EMAILS" });
+    assert.deepEqual(N.managementRecipients({ LANDLORD_EMAIL: "l@x.com" }), { ok: true, recipients: ["l@x.com"], source: "LANDLORD_EMAIL" });
+    const none = N.managementRecipients({ LANDLORD_NOTIFY_EMAILS: "tenant@x.com" });
+    assert.equal(none.ok, false);
+    assert.equal(none.code, "MANAGEMENT_RECIPIENT_NOT_CONFIGURED");
+    assert.deepEqual(none.recipients, []);
+    assert.equal(N.managementRecipients({ ESCALATION_NOTIFY_EMAILS: "not-an-email" }).ok, false, "invalid addresses are not used");
+  });
+  test("no configured recipient: nothing is sent and the failure is recorded (visible in the Agent Center and recap)", async () => {
+    const writes = []; let sends = 0;
+    const fakeDb = { from: () => ({ select: () => ({ eq: async () => ({ data: [] }) }), update: (v) => ({ eq: async () => { writes.push(v.raw_openai_response.notify); return { error: null }; } }) }) };
+    const r = await N.notifyEscalation({ db: fakeDb, send: async () => { sends++; return { ok: true }; }, log: { id: "L1" }, tenant: {}, message: "x", reply: "y",
+      classification: { escalate_to_landlord: true }, messageId: "m9", env: {} });
+    assert.equal(sends, 0);
+    assert.equal(r.status, "failed");
+    assert.equal(r.error, "MANAGEMENT_RECIPIENT_NOT_CONFIGURED");
+    assert.deepEqual(writes.map((w) => w.status), ["failed"]);
   });
   test("outcome is recorded as pending before sending, then sent with the provider id", async () => {
     const writes = []; const fakeDb = { from: () => ({ select: () => ({ eq: async () => ({ data: [] }) }), update: (v) => ({ eq: async () => { writes.push(v.raw_openai_response.notify.status); return { error: null }; } }) }) };
     const r = await N.notifyEscalation({ db: fakeDb, send: async () => ({ ok: true, data: { id: "re_9" } }), log: { id: "L1", raw_openai_response: { tier: "T" } },
-      tenant: {}, message: "x", reply: "y", classification: { escalate_to_landlord: true }, messageId: "m9", env: {} });
+      tenant: {}, message: "x", reply: "y", classification: { escalate_to_landlord: true }, messageId: "m9", env: { LANDLORD_EMAIL: "l@x.com" } });
     assert.deepEqual(writes, ["pending", "sent"]);
     assert.equal(r.provider_id, "re_9");
   });
@@ -239,8 +264,13 @@ describe("daily recap backstop", () => {
     const recap = readFileSync(new URL("../api/daily-recap.js", import.meta.url), "utf8");
     assert.match(recap, /ai_routing_logs\?select=[^`]*raw_openai_response[^`]*&created_at=gte\.\$\{encodeURIComponent\(recapSince\(\)\)\}/);
     assert.doesNotMatch(recap, /action_taken=eq\./, "emergencies routed as tickets must not be filtered out by the query");
-    assert.match(recap, /escalationRecapSection\(/);
-    assert.doesNotMatch(recap, /notifyEscalation|sendEmail\(/);
+    // The recap body is built by api/_lib/dailyRecap.js, which uses escalationRecapSection.
+    const builder = readFileSync(new URL("../api/_lib/dailyRecap.js", import.meta.url), "utf8");
+    assert.match(recap, /buildDailyRecap\(/);
+    assert.match(builder, /escalationRecapSection\(/);
+    // It sends exactly one email (the recap itself) and never a per-escalation notification.
+    for (const src of [recap, builder]) assert.doesNotMatch(src, /notifyEscalation|sendEmail\(/);
+    assert.equal((recap.match(/sendEmailReliably\(/g) || []).length, 1);
     const since = Date.parse(N.recapSince(Date.parse("2026-11-11T12:00:00Z")));
     assert.equal(since, Date.parse("2026-11-10T12:00:00Z"));
   });
@@ -299,7 +329,8 @@ describe("daily recap includes every notified emergency and escalation (end to e
     await runRecap();
     const sent = resendCalls.slice(callsBefore);
     assert.equal(sent.length, 2);
-    for (const c of sent) { assert.match(c.body.subject, /Daily Recap/); assert.equal(c.headers["Idempotency-Key"], undefined); }
+    // Only recap emails are sent; their key is the recap's own (one per day), never an escalation key.
+    for (const c of sent) { assert.match(c.body.subject, /Daily Recap/); assert.match(c.headers["Idempotency-Key"], /^daily-recap:\d{4}-\d{2}-\d{2}$/); }
     assert.deepEqual(db.ai_routing_logs, logsBefore, "routing rows are not modified");
   });
 
@@ -339,11 +370,19 @@ describe("daily recap includes every notified emergency and escalation (end to e
 describe("wiring", () => {
   const api = readFileSync(new URL("../api/classify-and-route.js", import.meta.url), "utf8");
   test("the notifier is called exactly once, after the reply and the routing log are written", () => {
-    assert.equal((api.match(/notifyEscalation\(/g) || []).length, 1);
-    const at = api.indexOf("notifyEscalation({");
-    assert.ok(api.indexOf('from("messages").insert(') < at);
-    assert.ok(api.indexOf('from("ai_routing_logs")') < at);
-    assert.ok(api.indexOf('from("landlord_alerts")') < at);
+    // Three call sites, each on its own path, all keyed "escalation:<message_id>":
+    //   1. the normal path, after the reply, alert and routing row are written;
+    //   2. a retried request whose recorded email FAILED (re-sends; writes no new reply or row);
+    //   3. failSafeEscalation, only when processing threw.
+    assert.equal((api.match(/notifyEscalation\(\{/g) || []).length, 3);
+    const main = api.indexOf("notification = await notifyEscalation({");
+    assert.ok(main > 0);
+    assert.ok(api.indexOf('from("messages").insert(') < main);
+    assert.ok(api.indexOf("insertRoutingLog(buildRoutingLogRow(") < main);
+    assert.ok(api.indexOf('from("landlord_alerts")') < main);
+    const retry = api.indexOf('if (status === "failed") {');
+    assert.ok(retry > 0 && retry < api.indexOf("notifyEscalation({"), "the retry path re-sends only a recorded failure");
+    assert.ok(api.indexOf("export async function failSafeEscalation") < api.lastIndexOf("notifyEscalation({"));
   });
   test("no separate emergency email implementation remains", () => {
     assert.doesNotMatch(api, /from "resend"|resend\.emails|new Resend/);

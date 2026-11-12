@@ -71,9 +71,12 @@ describe("wiring", () => {
   const agentCenter = readFileSync(new URL("../src/LandlordAgentCenter.jsx", import.meta.url), "utf8");
 
   test("classify-and-route builds the routing-log row with buildRoutingLogRow", () => {
-    const block = api.slice(api.indexOf('.from("ai_routing_logs")'), api.indexOf("if (logErr)"));
-    assert.match(block, /\.insert\(buildRoutingLogRow\(/);
-    assert.doesNotMatch(block, /agent_name/);
+    // Every routing row is built by buildRoutingLogRow and written by insertRoutingLog (one retry).
+    const inserts = api.match(/from\("ai_routing_logs"\)\.insert\([^)]*\)/g) || [];
+    assert.deepEqual(inserts, ['from("ai_routing_logs").insert(row)'], "the only insert is insertRoutingLog's");
+    const calls = (api.match(/insertRoutingLog\([^;]*/g) || []).filter((c) => !c.startsWith("insertRoutingLog(row"));
+    assert.ok(calls.length >= 2, "main path and fail-safe both write a routing row");
+    for (const c of calls) assert.match(c, /^insertRoutingLog\(buildRoutingLogRow\(/, c);
   });
 
   test("every column Agent Center selects from ai_routing_logs exists", () => {

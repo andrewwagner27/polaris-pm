@@ -110,16 +110,13 @@ export default function TenantMaintenanceDetail() {
   async function postComment() {
     if (!newComment.trim() || !user) return;
     setPosting(true);
-    await supabase.from("maintenance_comments").insert({
+    const { data: saved } = await supabase.from("maintenance_comments").insert({
       request_id: id, author_id: user.id,
       author_name: tenant?.name || user.email,
       body: newComment.trim(), visible_to_tenant: true,
-    });
-    notifyLandlordTenantComment({
-      tenantName: tenant?.name || user.email,
-      title: ticket?.title || "Maintenance request",
-      commentBody: newComment.trim(), ticketId: id,
-    });
+    }).select("id").single();
+    // The server reads the saved comment and emails management; nothing is sent if it didn't save.
+    if (saved?.id) notifyLandlordTenantComment({ ticketId: id, commentId: saved.id });
     setNewComment("");
     await fetchComments();
     setPosting(false);

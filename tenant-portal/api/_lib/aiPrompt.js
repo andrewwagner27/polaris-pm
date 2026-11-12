@@ -86,9 +86,12 @@ ${propertyKnowledge(property)}
 Crime / Break-ins / Domestic disputes / Self-harm threats:
 → Tell them to call 911 immediately, lock doors/windows, document everything for management
 
-Gas leaks / Fire / Smoke / Major water line breaks:
-→ Prioritize life safety. Evacuate if needed. Set escalate_to_landlord: true immediately
-→ [24/7 emergency line to be added — escalate to landlord for now]
+Fire / Smoke / Gas smell / Carbon monoxide / Sparking or burning electrical / Anyone hurt:
+→ Life safety first: tell them to get out and call 911 (for gas, from outside the building). Set tier TIER1_EMERGENCY and escalate_to_landlord: true
+
+Flooding or an active water leak / No heat / A door that won't lock or a broken window:
+→ Property emergency: give simple safety steps, set escalate_to_landlord: true. If anyone is at risk from cold or feels unsafe, tell them to call 911
+→ There is no 24/7 emergency phone line yet. Never give a phone number, and never say management has been reached, called or will arrive by a certain time — say it has been flagged to management as an emergency
 
 Cross-unit leaks:
 → Acknowledge urgently. Escalate immediately. Do not speculate on source.

@@ -1,43 +1,26 @@
 // api/sms-escalate.js
-// Sends an SMS via Twilio. Requires a signed-in user.
-// Non-landlord callers can only text LANDLORD_PHONE; a custom "to" is honored for landlords only.
-// ENV vars needed in Vercel:
-//   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM, LANDLORD_PHONE
+// LANDLORD ONLY: sends one test SMS to the designated emergency phone (LANDLORD_PHONE), so management can
+// confirm the number is monitored and receives texts before turning emergency SMS on.
+//
+// Tenants and anyone else are refused (403/401): previously any signed-in tenant could text arbitrary
+// content to LANDLORD_PHONE. Emergency SMS itself is sent only by the server (api/_lib/emergencySms.js),
+// never from the browser, and only when EMERGENCY_SMS_ENABLED="true" and Twilio is fully configured.
+// The destination is never taken from the request.
+// Response: { status: "accepted" | "failed" | "disabled" | "not_configured" }. "accepted" means Twilio
+// accepted the message; confirm on the phone that it arrived.
 
+/* global process */
 import { requireCaller, isLandlord } from "./_lib/auth.js";
+import { sendEmergencySms } from "./_lib/emergencySms.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const caller = await requireCaller(req, res);
   if (!caller) return;
+  if (!isLandlord(caller)) return res.status(403).json({ error: "Landlord access required" });
 
-  const { to, message } = req.body || {};
-  const toNumber   = (isLandlord(caller) && to) ? to : process.env.LANDLORD_PHONE;
-  const fromNumber = process.env.TWILIO_FROM;
-  const sid        = process.env.TWILIO_ACCOUNT_SID;
-  const token      = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!toNumber || !fromNumber || !sid || !token || !message) {
-    return res.status(400).json({ error: "Missing required fields or env vars" });
-  }
-
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-  const body = new URLSearchParams({ To: toNumber, From: fromNumber, Body: String(message).slice(0, 1600) });
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Authorization": "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"),
-    },
-    body,
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    console.error("Twilio error:", data?.code, data?.message);
-    return res.status(response.status).json({ error: data });
-  }
-  return res.status(200).json({ success: true, sid: data.sid });
+  const result = await sendEmergencySms({ body: "[Modus] Test of the emergency SMS line. No reply is needed.", env: process.env });
+  const code = result.status === "accepted" ? 200 : result.status === "failed" ? 502 : 409;
+  return res.status(code).json({ status: result.status, ...(result.missing ? { missing: result.missing } : {}), ...(result.provider_status ? { provider_status: result.provider_status } : {}), ...(result.error ? { error: result.error } : {}) });
 }

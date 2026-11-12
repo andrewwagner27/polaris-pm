@@ -1,11 +1,15 @@
 // rent-reminders/index.ts
-// Invoked by Supabase cron (job 2) on the 1st of each month at 9 AM America/New_York.
-// Sends each active tenant with rent to pay one "rent is due today" email; any other date sends nothing.
-// The amount comes from the receivables ledger through a3_pay_rent_internal, the same figure as Pay Rent.
-// Each run first generates any scheduled charges due (idempotent), so charges always exist before the ledger is read.
-// Deploying this therefore makes the existing cron job generate rent charges monthly: the owner must approve that knowingly.
-// Requires A1, A2, A3 and a receivables cutover: do not deploy this before them (see releases/rent-reminder-ledger-fix/).
+// Invoked by Supabase cron (job 2, rent-reminders-daily — PAUSED) on the 1st of each month at 9 AM
+// America/New_York. Sends each active tenant with rent due on the ledger one "rent is due today" email.
+//
+// NOT DEPLOYED. Replaces the deployed version that emailed unit rent / recurring-charge settings as the
+// amount due. Before deploying, follow docs/comms-remediation/RENT_REMINDERS.md: it is safe to deploy while
+// receivables are inactive (it sends nothing), but the cron job stays paused until the activation steps.
+//
+// Read-only: it calls only a2_status (via a2_settings), tenant_charges (count), tenants (select) and
+// a2_pay_rent_internal (STABLE). It never calls a2_generate_charges or writes any table.
 // Auth: caller must send "Authorization: Bearer <service_role key>" or "x-cron-secret: <CRON_SECRET>".
+// ENV: RENT_REMINDERS_ENABLED must be "true" or nothing is sent (second gate after the paused cron job).
 // Logic lives in handler.ts (unit tested); this file wires the real Supabase / Resend deps.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -37,10 +41,11 @@ serve((req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   return handleRentReminders(req, {
     isAuthorized: isCronRequest,
-    generateCharges: async (asOf) => {
-      const { data, error } = await supabase.rpc("a2_generate_charges", { p_as_of: asOf });
-      if (error) throw new Error("Charge generation failed: " + error.message);
-      return data || [];
+    enabled: Deno.env.get("RENT_REMINDERS_ENABLED") === "true",
+    receivablesActive: async () => {
+      const { data, error } = await supabase.from("a2_settings").select("cutover_date").limit(1).maybeSingle();
+      if (error) throw new Error("DB error: " + error.message);
+      return !!data?.cutover_date;
     },
     rentChargesGenerated: async (firstOfMonth) => {
       const { count, error } = await supabase
@@ -60,7 +65,7 @@ serve((req) => {
       return (data || []) as Tenant[];
     },
     loadRentDue: async (tenantId) => {
-      const { data, error } = await supabase.rpc("a3_pay_rent_internal", { p_tenant: tenantId });
+      const { data, error } = await supabase.rpc("a2_pay_rent_internal", { p_tenant: tenantId });
       if (error) throw new Error("DB error: " + error.message);
       return data;
     },

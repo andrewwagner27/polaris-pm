@@ -10,11 +10,14 @@ import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/aut
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt } from "./_lib/aiPrompt.js";
-import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman } from "./_lib/aiSafety.js";
+import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Bounded so a slow model fails into the fallback escalation below instead of outliving the function
+// (the SDK default is a 10-minute timeout with 2 retries, longer than any Vercel function may run).
+export const OPENAI_TIMEOUT_MS = 20000;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
 
 // AI replies are attributed to the Modus AI assistant (aiSafety.js): no named staff personas,
 // no stock photos and no artificial "human-feeling" delay.
@@ -139,8 +142,34 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Message does not belong to this tenant" });
     }
     message = storedMsg.body;
+
+    // Idempotent per message: a retried request (browser retry, double submit) for a message that was
+    // already processed never writes a second AI reply, alert or routing row. If that message's
+    // management email failed, the retry re-sends it (same key, so it can't duplicate a delivered one).
+    const { data: done } = await supabase.from("ai_routing_logs")
+      .select("id, message_id, action_taken, detected_intent, detected_category, urgency, raw_openai_response").eq("message_id", message_id);
+    if (Array.isArray(done) && done.length) {
+      const prior = done[0];
+      const status = prior.raw_openai_response?.notify?.status;
+      let notification = status === "sent" || status === "pending" || status === "duplicate" ? "duplicate" : "not_required";
+      const classification = {
+        tier: prior.raw_openai_response?.tier, category: prior.detected_category, urgency: prior.urgency,
+        intent_summary: prior.detected_intent, escalate_to_landlord: prior.action_taken === "ESCALATE_LANDLORD",
+      };
+      // Only a recorded failure is retried: rows with no outcome (older than Release B) are never replayed.
+      if (status === "failed") {
+        const { data: tenant } = await supabase.from("tenants")
+          .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))").eq("id", tenant_id).maybeSingle();
+        notification = (await notifyEscalation({
+          db: supabase, send: sendEmail, log: prior, tenant, message, classification, messageId: message_id,
+          humanRequested: wantsHuman(message), reply: "(Already answered — see the Messages thread for the AI reply.)",
+        })).status;
+      }
+      return res.status(200).json({ duplicate: true, log_id: prior.id, escalated: classification.escalate_to_landlord, notification });
+    }
   }
 
+  let replyAttempted = false;
   try {
     // ── 1. Load tenant info ──────────────────────────────────
     const { data: tenant, error: tenantErr } = await supabase
@@ -224,6 +253,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
         offending_unit_hint: "",
         dispatch_vendor: false,
         escalate_to_landlord: true,
+        ai_unavailable: true,
       };
     }
 
@@ -233,6 +263,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
 
+    replyAttempted = true;
     const { error: replyErr } = await supabase.from("messages").insert({
       sender_id: null,
       recipient_id: tenant?.user_id || null,
@@ -358,13 +389,9 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
 
     // ── 9. Log routing decision ──────────────────────────────
     // Agent Center reads only this table; the row must match its columns exactly (see routingLog.js).
-    const { data: logEntry, error: logErr } = await supabase
-      .from("ai_routing_logs")
-      .insert(buildRoutingLogRow({ classification, tenantId: tenant_id, messageId: message_id, ticketId, message }))
-      .select()
-      .single();
-
-    if (logErr) console.error("Routing log error:", logErr);
+    // One retry: a failed insert would hide the escalation from the Agent Center and the recap.
+    // If both attempts fail the notifier still emails management, and the email says the row is missing.
+    const logEntry = await insertRoutingLog(buildRoutingLogRow({ classification, tenantId: tenant_id, messageId: message_id, ticketId, message }));
 
     // ── 10. Notify management of this escalation (once per tenant message; never throws) ──
     // Runs after the tenant reply, alert and routing log are written, so an email failure
@@ -398,6 +425,62 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
 
   } catch (err) {
     console.error("Reasoning engine error:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    // The tenant's message is already stored. Never let it disappear: record it as an escalation,
+    // notify management, and (if no reply was written yet) tell the tenant a person will read it.
+    const fallback = await failSafeEscalation({ tenantId: tenant_id, messageId: message_id || null, message, replyAttempted });
+    return res.status(500).json({ error: "The assistant could not process this message", escalated: true, notification: fallback.status, log_id: fallback.logId });
+  }
+}
+
+// ── Failure handling ─────────────────────────────────────────
+
+async function insertRoutingLog(row, db = supabase) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { data, error } = await db.from("ai_routing_logs").insert(row).select().single();
+      if (!error && data) return data;
+      console.error(`Routing log error (attempt ${attempt}):`, error?.message || error);
+    } catch (e) {
+      console.error(`Routing log error (attempt ${attempt}):`, e?.message || e);
+    }
+  }
+  return null;
+}
+
+// Last resort when processing threw after the tenant's message was stored. Never throws.
+// Records an ESCALATE_LANDLORD routing row, emails management (same notifier, same per-message key,
+// so it cannot duplicate an email the normal path already sent), and gives the tenant a reply that
+// claims nothing beyond "passed to management" — with the fixed 911 guidance for an emergency.
+export async function failSafeEscalation({ tenantId, messageId, message, replyAttempted, db = supabase, send = sendEmail }) {
+  try {
+    const emergency = detectEmergency(message);
+    const classification = {
+      tier: emergency ? "TIER1_EMERGENCY" : "TIER4_DISPUTE", category: "GENERAL_INQUIRY", confidence: 0,
+      urgency: emergency ? "EMERGENCY" : "MEDIUM", intent_summary: "AI processing failed — tenant message needs a person",
+      escalate_to_landlord: true, create_maintenance_ticket: false, ai_unavailable: true,
+      ...(emergency ? { emergency_kind: emergency.kind, life_safety: emergency.lifeSafety } : {}),
+    };
+    const reply = emergency
+      ? [emergency.guidance, FLAGGED_LINE].join("\n\n")
+      : "Thanks for your message. I couldn't process it automatically, so I've passed it to Modus management to read.";
+    const { data: tenant } = await db.from("tenants")
+      .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))")
+      .eq("id", tenantId).maybeSingle();
+    if (!replyAttempted) {
+      const { error } = await db.from("messages").insert({
+        sender_id: null, recipient_id: tenant?.user_id || null, tenant_id: tenantId, body: reply,
+        read: false, agent_name: AI_ASSISTANT_NAME, agent_photo: null,
+      });
+      if (error) console.error("Fallback reply insert error:", error.message || error);
+    }
+    const log = await insertRoutingLog(buildRoutingLogRow({ classification, tenantId, messageId, ticketId: null, message }), db);
+    const notify = await notifyEscalation({
+      db, send, log, tenant, message, classification, messageId, humanRequested: wantsHuman(message),
+      reply: replyAttempted ? "(The AI reply could not be confirmed — check the Messages thread.)" : reply,
+    });
+    return { status: notify.status, logId: log?.id || null };
+  } catch (e) {
+    console.error("Fallback escalation failed:", e?.message || e);
+    return { status: "failed", logId: null };
   }
 }

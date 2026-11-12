@@ -1,332 +1,38 @@
-import { supabase, authHeaders } from "./supabase";
+// src/notifications.js
+// Browser side of maintenance and inspection notifications. The browser only names the event and the
+// record ids; /api/notify checks ownership, builds the email on the server (escaped template) and
+// chooses the recipient (management from LANDLORD_EMAIL, or the tenant/vendor on record).
+// No address, subject or HTML is ever composed here.
+//
+// Every function resolves to { status, ... } and never throws:
+//   "sent" | "duplicate" | "skipped"  — fine
+//   "failed"                           — the server recorded the failure on the ticket for management
+//   "unreachable"                      — the request didn't complete; the caller should tell the user
+// Vendor quote/completion emails are sent by /api/vendor-ticket itself, and emergency SMS only by the
+// server: nothing here sends them.
 
-const LANDLORD_EMAIL = "capitalpathwaysapw@gmail.com";
-const APP_URL = "https://www.getmodusam.com";
+import { authHeaders } from "./supabase";
 
-// vendorToken: vendors have no Supabase session, so the edge function
-// authorizes them by their (unexpired) vendor access token instead.
-async function sendEmail({ to, subject, html, vendorToken }) {
+export async function notify(event, ids) {
   try {
-    const { data, error } = await supabase.functions.invoke("send-email", {
-      body: { to, subject, html, ...(vendorToken ? { vendor_token: vendorToken } : {}) },
-    });
-    if (error) console.error("Edge Function error:", error);
-    return data;
+    const res = await fetch("/api/notify", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ event, ...ids }) });
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (!res.ok) { console.error(`notify ${event} refused:`, res.status, data?.error); return { status: "failed", error: data?.error || `HTTP ${res.status}` }; }
+    return data || { status: "failed" };
   } catch (err) {
-    console.error("Failed to send email:", err);
+    console.error(`notify ${event} failed:`, err);
+    return { status: "unreachable" };
   }
 }
 
-export async function notifyNewMaintenanceTicket({ tenantName, title, unit, property, ticketId, priority }) {
-  const priorityColors = { urgent: "#E05555", high: "#F0A430", normal: "#4A9AE8", low: "#72B02A" };
-  const priorityColor  = priorityColors[priority] || "#4A9AE8";
-  return sendEmail({
-    to: LANDLORD_EMAIL,
-    subject: `${priority === "urgent" ? "🚨" : priority === "high" ? "⚠️" : "🔧"} New maintenance request: ${title}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">New Maintenance Request</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                ${[["Tenant", tenantName], ["Issue", title], ["Property", property], ["Unit", `Unit ${unit}`]].map(([k,v]) => `
-                <tr>
-                  <td style="padding:8px 0;color:#9095A0;font-size:13px;border-bottom:1px solid #252930;width:100px;">${k}</td>
-                  <td style="padding:8px 0;font-weight:500;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930;">${v}</td>
-                </tr>`).join("")}
-                <tr>
-                  <td style="padding:8px 0;color:#9095A0;font-size:13px;">Priority</td>
-                  <td style="padding:8px 0;"><span style="display:inline-block;padding:3px 10px;background:${priorityColor}22;color:${priorityColor};border-radius:5px;font-size:12px;font-weight:600;">${(priority || "normal").charAt(0).toUpperCase() + (priority || "normal").slice(1)}</span></td>
-                </tr>
-              </table>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;margin-top:24px;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">View ticket →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
+// Tenant
+export const notifyNewMaintenanceTicket = ({ ticketId }) => notify("maintenance_created", { ticket_id: ticketId });
+export const notifyLandlordTenantComment = ({ ticketId, commentId }) => notify("tenant_comment", { ticket_id: ticketId, comment_id: commentId });
+export const notifyInspectionCompleted = ({ inspectionId }) => notify("inspection_completed", { inspection_id: inspectionId });
 
-export async function notifyTicketStatusUpdate({ tenantEmail, tenantName, title, newStatus, ticketId }) {
-  if (!tenantEmail) return;
-  const statusLabels = { in_progress: "In Progress", resolved: "Resolved ✓", open: "Open" };
-  const statusColors = { in_progress: "#4A9AE8", resolved: "#72B02A", open: "#F0A430" };
-  const label = statusLabels[newStatus] || newStatus;
-  const color = statusColors[newStatus] || "#4A9AE8";
-  return sendEmail({
-    to: tenantEmail,
-    subject: `Update on your maintenance request: ${title}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Maintenance Update</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${tenantName}, your maintenance request has been updated.</p>
-              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:20px;">
-                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Request</div>
-                <div style="font-size:15px;font-weight:500;color:#EDEAE2;margin-bottom:12px;">${title}</div>
-                <div style="font-size:12px;color:#5C6270;margin-bottom:6px;">New Status</div>
-                <span style="display:inline-block;padding:4px 12px;background:${color}22;color:${color};border-radius:5px;font-size:12px;font-weight:600;">${label}</span>
-              </div>
-              <a href="${APP_URL}/maintenance/${ticketId}" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">View request →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-export async function notifyTenantNewComment({ tenantEmail, tenantName, title, commentBody, ticketId }) {
-  if (!tenantEmail) return;
-  return sendEmail({
-    to: tenantEmail,
-    subject: `New message on your maintenance request: ${title}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">New Message</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${tenantName}, your property manager left a message on <strong style="color:#EDEAE2;">${title}</strong>.</p>
-              <div style="background:#181C21;border-left:3px solid #C9A96E;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:20px;">
-                <p style="font-size:14px;color:#EDEAE2;margin:0;line-height:1.6;">${commentBody}</p>
-              </div>
-              <a href="${APP_URL}/maintenance/${ticketId}" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Reply →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-export async function notifyLandlordTenantComment({ tenantName, title, commentBody, ticketId }) {
-  return sendEmail({
-    to: LANDLORD_EMAIL,
-    subject: `💬 ${tenantName} replied on: ${title}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Tenant Reply</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${tenantName}</strong> replied on <strong style="color:#EDEAE2;">${title}</strong>.</p>
-              <div style="background:#181C21;border-left:3px solid #4A9AE8;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:20px;">
-                <p style="font-size:14px;color:#EDEAE2;margin:0;line-height:1.6;">${commentBody}</p>
-              </div>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">View ticket →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-// ── Notify PM: vendor marked ticket complete ──
-export async function notifyVendorComplete({ vendorName, ticketTitle, ticketId, hasInvoice, invoiceNotes, vendorToken }) {
-  return sendEmail({
-    vendorToken,
-    to: LANDLORD_EMAIL,
-    subject: `✅ ${vendorName} completed: ${ticketTitle}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Work Complete</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${vendorName}</strong> has submitted work for review on the following ticket.</p>
-              ${hasInvoice ? `<div style="background:#181C21;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#4A9AE8;">📄 Invoice attached — review in Modus</div>` : ""}
-              ${invoiceNotes ? `<div style="background:#181C21;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#EDEAE2;">${invoiceNotes}</div>` : ""}
-              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
-                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Ticket</div>
-                <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
-              </div>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#72B02A;color:#fff;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">✓ Review & approve →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-// ── Notify vendor: work approved ──
-export async function notifyVendorApproved({ vendorEmail, vendorName, ticketTitle, propertyName }) {
-  if (!vendorEmail) return;
-  return sendEmail({
-    to: vendorEmail,
-    subject: `✅ Work approved: ${ticketTitle}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Work Approved</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${vendorName}, your work has been reviewed and approved.</p>
-              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
-                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Job</div>
-                <div style="font-size:15px;font-weight:500;color:#EDEAE2;">${ticketTitle}</div>
-                ${propertyName ? `<div style="font-size:12px;color:#5C6270;margin-top:8px;">Property: <span style="color:#9095A0;">${propertyName}</span></div>` : ""}
-              </div>
-              <div style="background:rgba(114,176,42,0.08);border:1px solid rgba(114,176,42,0.2);border-radius:8px;padding:14px 16px;font-size:13px;color:#72B02A;">
-                ✓ Payment will be processed per your work order terms.
-              </div>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-// ── Notify vendor: more work requested ──
-export async function notifyVendorMoreWork({ vendorEmail, vendorName, ticketTitle, pmNotes, vendorLink }) {
-  if (!vendorEmail) return;
-  return sendEmail({
-    to: vendorEmail,
-    subject: `↩ Additional work needed: ${ticketTitle}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Additional Work Needed</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${vendorName}, the property manager has reviewed your submission on <strong style="color:#EDEAE2;">${ticketTitle}</strong> and is requesting additional work.</p>
-              ${pmNotes ? `
-              <div style="background:#181C21;border-left:3px solid #F0A430;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:24px;">
-                <div style="font-size:11px;color:#F0A430;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">PM Notes</div>
-                <p style="font-size:13px;color:#EDEAE2;margin:0;line-height:1.6;">${pmNotes}</p>
-              </div>` : ""}
-              <a href="${vendorLink}" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Return to ticket →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-// ── Notify PM: vendor submitted a quote ──
-export async function notifyQuoteReceived({ vendorName, ticketTitle, quoteAmount, quoteNotes, propertyName, vendorToken }) {
-  return sendEmail({
-    vendorToken,
-    to: LANDLORD_EMAIL,
-    subject: `💰 Quote received from ${vendorName}: ${ticketTitle}`,
-    html: `
-      <!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0B0D;font-family:'Helvetica Neue',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0B0D;padding:32px 20px;">
-        <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#111316;border:1px solid #252930;border-radius:12px;overflow:hidden;max-width:560px;width:100%;">
-            <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-              <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Quote Received</h2>
-            </td></tr>
-            <tr><td style="padding:24px 32px;">
-              <p style="color:#9095A0;font-size:14px;margin:0 0 20px;"><strong style="color:#EDEAE2;">${vendorName}</strong> has submitted a quote for your review.</p>
-              <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Job</div>
-                <div style="font-size:15px;font-weight:500;color:#EDEAE2;margin-bottom:12px;">${ticketTitle}</div>
-                ${propertyName ? `<div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Property</div><div style="font-size:13px;color:#9095A0;margin-bottom:12px;">${propertyName}</div>` : ""}
-                <div style="font-size:12px;color:#5C6270;margin-bottom:4px;">Quote amount</div>
-                <div style="font-size:28px;font-weight:600;color:#C9A96E;font-family:Georgia,serif;">$${parseFloat(quoteAmount).toLocaleString()}</div>
-                ${quoteNotes ? `<div style="font-size:12px;color:#5C6270;margin-top:12px;margin-bottom:4px;">Notes</div><div style="font-size:13px;color:#9095A0;">${quoteNotes}</div>` : ""}
-              </div>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Review & approve →</a>
-            </td></tr>
-            <tr><td style="padding:16px 32px;border-top:1px solid #252930;">
-              <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      </body></html>
-    `,
-  });
-}
-
-// ─── SMS escalation ───────────────────────────────────
-async function sendSms(message) {
-  try {
-    await fetch("/api/sms-escalate", {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify({ message }),
-    });
-  } catch (e) { console.warn("SMS send failed", e); }
-}
-
-export async function escalateStaleTicket({ tenantName, title, unit, property, ticketId, hoursOpen }) {
-  return sendSms(
-    `[Modus] Maintenance ticket open ${hoursOpen}h with no response:\n` +
-    `"${title}" — ${tenantName}, Unit ${unit}${property ? ", " + property : ""}.\n` +
-    `View: https://www.getmodusam.com/landlord/maintenance`
-  );
-}
-
-export async function notifyUrgentTicketSms({ tenantName, title, unit, property }) {
-  return sendSms(
-    `[Modus] URGENT maintenance: "${title}" — ${tenantName}, Unit ${unit}${property ? ", " + property : ""}.\n` +
-    `View: https://www.getmodusam.com/landlord/maintenance`
-  );
-}
+// Landlord
+export const notifyTicketStatusUpdate = ({ ticketId }) => notify("ticket_status", { ticket_id: ticketId });
+export const notifyTenantNewComment = ({ ticketId, commentId }) => notify("landlord_comment", { ticket_id: ticketId, comment_id: commentId });
+export const notifyVendorApproved = ({ ticketId, stage }) => notify("vendor_approved", { ticket_id: ticketId, stage });
+export const notifyVendorMoreWork = ({ ticketId, commentId }) => notify("vendor_more_work", { ticket_id: ticketId, comment_id: commentId });

@@ -80,6 +80,7 @@ export default function MaintenanceRequestForm() {
   const [loading, setLoading]     = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [ticket, setTicket]       = useState("");
+  const [notice, setNotice]       = useState(null);   // /api/notify result for the new ticket
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
 
@@ -171,15 +172,9 @@ export default function MaintenanceRequestForm() {
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
 
-    const { data: tenantData } = await supabase.from("tenants").select("name, units(unit_number, properties(name))").eq("id", tenantId).maybeSingle();
-    notifyNewMaintenanceTicket({
-      tenantName: tenantData?.name || authUser.email,
-      title, priority,
-      unit:         tenantData?.units?.unit_number || "—",
-      property:     tenantData?.units?.properties?.name || "—",
-      ticketId:     data.id,
-      availability,
-    });
+    // Server builds and addresses the alert from the saved ticket; we only show the outcome.
+    const result = await notifyNewMaintenanceTicket({ ticketId: data.id });
+    setNotice(result);
   }
 
   if (submitted) return (
@@ -188,7 +183,17 @@ export default function MaintenanceRequestForm() {
         <div style={{ width:"100%", maxWidth:420, textAlign:"center" }}>
           <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:26, color:C.green }}>✓</div>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
-          <div style={{ fontSize:14, color:C.textSub, marginBottom:28 }}>We'll be in touch shortly to confirm a time.</div>
+          <div style={{ fontSize:14, color:C.textSub, marginBottom:notice?.emergency || (notice && !["sent","duplicate"].includes(notice.status)) ? 14 : 28 }}>We'll be in touch shortly to confirm a time.</div>
+          {notice?.emergency && (
+            <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
+              <strong style={{ color:C.red }}>Safety first.</strong> {notice.emergency.guidance}
+            </div>
+          )}
+          {notice && !["sent","duplicate"].includes(notice.status) && (
+            <div role="status" style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginBottom:24, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
+              Your request was saved, but we couldn't confirm that management was alerted. If it's urgent, contact management directly. If anyone is in danger, call 911.
+            </div>
+          )}
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px", marginBottom:24, textAlign:"left" }}>
             {[["Ticket #", ticket], ["Category", CATEGORIES.find(c=>c.id===category)?.label], ["Issue", title], ["Priority", PRIORITIES.find(p=>p.id===priority)?.label]].map(([k,v],i,arr)=>(
               <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
@@ -248,6 +253,9 @@ export default function MaintenanceRequestForm() {
 
         {/* Priority */}
         <SectionLabel>Priority</SectionLabel>
+        <div role="note" data-emergency-banner style={{ background:`${C.red}0F`, border:`1px solid ${C.red}33`, borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12, color:C.text, lineHeight:1.5 }}>
+          <strong style={{ color:C.red }}>Fire, smoke, gas smell, sparking electrical, or anyone in danger? Call 911 first.</strong> For gas, leave the building and call from outside. Then submit this request. There is no 24/7 emergency phone line yet.
+        </div>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {PRIORITIES.map(p => (
             <button key={p.id} onClick={() => setPriority(p.id)}
@@ -271,7 +279,7 @@ export default function MaintenanceRequestForm() {
 
         {priority === "urgent" && (
           <div style={{ background:`${C.red}0F`, border:`1px solid ${C.red}33`, borderRadius:8, padding:"12px 14px", marginBottom:12, fontSize:13, color:C.amber }}>
-            ⚠ For urgent/safety issues we may need emergency access including weekends. We will contact you immediately to coordinate.
+            ⚠ For urgent/safety issues we may need emergency access including weekends. Management will be alerted as soon as you submit.
           </div>
         )}
 

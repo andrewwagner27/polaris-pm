@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase, authHeaders } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { getSignedStorageUrl } from "./storageUtils";
+import { escapeHtml, textToHtml } from "./lib/emailSafety";
 
 const C = {
   bg:       "#0C0E12",
@@ -358,7 +359,7 @@ export default function LandlordInspection() {
         to: tenantRec.email,
         subject: "Your Move-In Inspection Is Ready — Please Complete Your Walkthrough",
         html: inspectionEmailBase(`
-          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${tenantRec.name?.split(" ")[0] || "there"},</p>
+          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tenantRec.name?.split(" ")[0] || "there")},</p>
           <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:16px">
             Your property manager has completed the pre-move-in inspection for your unit.
             Please log in to the tenant portal and complete your own walkthrough to confirm the unit's condition.
@@ -368,7 +369,7 @@ export default function LandlordInspection() {
               Complete My Walkthrough →
             </a>
           </div>
-          <p style="color:#5C6270;font-size:12px">Inspection date: ${fDate}</p>
+          <p style="color:#5C6270;font-size:12px">Inspection date: ${escapeHtml(fDate)}</p>
         `),
       });
     }
@@ -419,12 +420,12 @@ export default function LandlordInspection() {
       const totalDed   = deductions.reduce((s,d)=>s+(parseFloat(d.amount)||0),0);
       const dep        = parseFloat(moDeposit)||0;
       const refundAmt  = Math.max(0, dep - totalDed);
-      const deductRows = deductions.map(d=>`<tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">${d.description}</td><td style="padding:5px 8px;color:#E05555;font-size:13px;text-align:right">-$${parseFloat(d.amount).toFixed(2)}</td></tr>`).join("");
+      const deductRows = deductions.map(d=>`<tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">${escapeHtml(d.description)}</td><td style="padding:5px 8px;color:#E05555;font-size:13px;text-align:right">-$${parseFloat(d.amount).toFixed(2)}</td></tr>`).join("");
       await sendInspectionEmail({
         to: tRec.email,
         subject: "Move-Out Inspection Complete — Deposit Summary",
         html: inspectionEmailBase(`
-          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${tRec.name?.split(" ")[0] || "there"},</p>
+          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tRec.name?.split(" ")[0] || "there")},</p>
           <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:20px">
             Your move-out inspection has been completed. Here is your deposit summary:
           </p>
@@ -434,7 +435,7 @@ export default function LandlordInspection() {
             ${deductRows}
             <tr style="background:#181C21"><td style="padding:8px;color:#EDEAE2;font-size:14px;font-weight:700">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#E05555"};font-size:14px;font-weight:700;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
           </table>
-          ${moNotes ? `<p style="color:#5C6270;font-size:12px;line-height:1.5">${moNotes}</p>` : ""}
+          ${moNotes ? `<p style="color:#5C6270;font-size:12px;line-height:1.5">${textToHtml(moNotes)}</p>` : ""}
           <p style="color:#5C6270;font-size:12px;margin-top:12px">Please contact us with any questions about this summary.</p>
         `),
       });

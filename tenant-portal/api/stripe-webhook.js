@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { supabaseAdmin as supabase } from "./_lib/auth.js";
 import { sendEmail } from "./_lib/email.js";
+import { escapeHtml } from "../src/lib/emailSafety.js";
 import { applyStripePaymentEvent, stripeGetter, STRIPE_PAYMENT_EVENTS } from "../supabase/functions/_shared/stripe-events.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
                   <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Payment Confirmed</h2>
                 </div>
                 <div style="padding:24px 32px;">
-                  <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${payment.tenants.name}, your rent payment has been received.</p>
+                  <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${escapeHtml(payment.tenants.name)}, your rent payment has been received.</p>
                   <div style="background:#181C21;border-radius:8px;padding:16px;margin-bottom:24px;">
                     <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #252930;">
                       <span style="font-size:13px;color:#9095A0;">Amount</span>

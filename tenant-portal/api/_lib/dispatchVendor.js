@@ -4,9 +4,10 @@
 // Finds the best available vendor for the category, assigns them, and sends notification.
 
 import { supabaseAdmin as supabase, generateToken, generatePin } from "./auth.js";
-import { sendEmail } from "./email.js";
-
-const APP_URL = "https://www.getmodusam.com";
+import { sendEmailReliably } from "./email.js";
+import { managementRecipients } from "./recipients.js";
+import { emergencyDispatchEmail } from "./notificationTemplates.js";
+import { APP_URL } from "../../src/lib/emailSafety.js";
 
 export async function dispatchVendor({ ticket_id, description, unit, property }) {
   // 1. Get ticket to determine category and property
@@ -60,32 +61,28 @@ export async function dispatchVendor({ ticket_id, description, unit, property })
     visible_to_tenant: false,
   });
 
-  // 6. Send email to landlord for emergency escalation
+  // 6. Email management (recipients.js: LANDLORD_EMAIL; nothing hard-coded). Escaped server template.
+  //    A failure is logged and recorded on the ticket; it never undoes the dispatch.
   const vendorLink = `${APP_URL}/vendor/${token}`;
-  try {
-    await sendEmail({
-      to: "moduspropmgmt@gmail.com",
-      subject: `🚨 Emergency dispatch: ${ticket.title || description}`,
-      html: `
-        <div style="background:#0A0B0D;padding:32px 20px;font-family:'Helvetica Neue',sans-serif;">
-          <div style="background:#111316;border:1px solid #E05555;border-radius:12px;max-width:560px;margin:0 auto;overflow:hidden;">
-            <div style="padding:20px 28px;border-bottom:1px solid #252930;">
-              <p style="margin:0;font-size:11px;font-weight:600;color:#E05555;letter-spacing:0.16em;text-transform:uppercase;">🚨 EMERGENCY DISPATCH</p>
-              <h2 style="margin:8px 0 0;font-size:20px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">${ticket.title || description}</h2>
-            </div>
-            <div style="padding:20px 28px;">
-              <p style="color:#9095A0;font-size:13px;margin:0 0 16px;">Unit ${unit || "—"} · ${property || "—"}</p>
-              ${vendor ? `<p style="color:#EDEAE2;font-size:13px;margin:0 0 8px;"><strong>Vendor assigned:</strong> ${vendor.name}${vendor.phone ? ` · ${vendor.phone}` : ""}</p>` : `<p style="color:#F0A430;font-size:13px;margin:0 0 8px;">⚠️ No vendor on file — please dispatch manually.</p>`}
-              <p style="color:#9095A0;font-size:13px;margin:0 0 16px;">Vendor access link: <a href="${vendorLink}" style="color:#C9A96E;">${vendorLink}</a><br>PIN: <strong style="color:#EDEAE2;">${pin}</strong></p>
-              <a href="${APP_URL}/landlord/maintenance" style="display:inline-block;padding:11px 22px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:13px;">Review ticket →</a>
-            </div>
-          </div>
-        </div>
-      `,
+  let notification = "failed";
+  const to = managementRecipients();
+  if (!to.ok) {
+    console.error("[dispatch-vendor]", to.error);
+  } else {
+    const email = emergencyDispatchEmail({
+      ticket: { title: ticket.title, description, propertyName: property, unitNumber: unit },
+      vendor: vendor ? { name: vendor.name, phone: vendor.phone } : null, vendorLink, pin,
     });
-  } catch (emailErr) {
-    console.warn("Emergency email failed (non-fatal):", emailErr.message);
+    const r = await sendEmailReliably({ to: to.recipients, subject: email.subject, html: email.html, text: email.text, idempotencyKey: `emergency-dispatch:${ticket_id}:${token}` });
+    notification = r.ok ? "sent" : "failed";
+    if (!r.ok) console.warn("Emergency dispatch email failed (non-fatal):", r.error);
+  }
+  if (notification !== "sent") {
+    await supabase.from("maintenance_comments").insert({
+      request_id: ticket_id, body: "Email FAILED — emergency dispatch alert to management. Follow up directly.",
+      author_type: "system", author_name: "Modus notifications", visible_to_tenant: false,
+    });
   }
 
-  return { status: 200, body: { dispatched: true, vendor: vendor?.name || null, token, pin } };
+  return { status: 200, body: { dispatched: true, vendor: vendor?.name || null, token, pin, notification } };
 }

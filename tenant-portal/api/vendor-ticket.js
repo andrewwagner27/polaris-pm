@@ -9,11 +9,23 @@
 // The ticket id is ALWAYS taken from the verified session — never from the request body.
 // ENV: VENDOR_SESSION_SECRET (required — fails closed with 500 if missing).
 
+/* global process */
 import crypto from "node:crypto";
 import { supabaseAdmin as supabase, timingSafeEqualStr } from "./_lib/auth.js";
 import {
   verifyVendorSession, hashVendorToken, isVendorSessionConfigured,
 } from "./_lib/vendorSession.js";
+import { sendEmail } from "./_lib/email.js";
+import { vendorQuoteSubmitted, vendorWorkCompleted } from "./_lib/maintenanceNotify.js";
+
+// Management is emailed from here, after the vendor's change is saved: the vendor's browser never
+// sends email or chooses a recipient. A notification failure never fails the vendor's action; it is
+// recorded on the ticket (api/_lib/maintenanceNotify.js) and returned as `notification`.
+export const notifyDeps = { send: sendEmail };
+async function notifyManagement(fn, args) {
+  try { return (await fn({ db: supabase, send: notifyDeps.send, env: process.env, ...args })).status; }
+  catch (e) { console.error("vendor-ticket notification error:", e?.message || e); return "failed"; }
+}
 
 const BUCKET = "maintenance-photos";
 const SIGNED_URL_TTL = 600; // 10 minutes, matches src/storageUtils.js
@@ -211,7 +223,8 @@ async function actionSubmitQuote(ticket, body) {
     status:             "quote_submitted",
   });
   await addVendorComment(ticket, `Quote submitted: $${rounded}${notes ? `. Notes: ${notes}` : ""}`);
-  return { ok: true };
+  const notification = await notifyManagement(vendorQuoteSubmitted, { ticket });
+  return { ok: true, notification };
 }
 
 async function actionComplete(ticket, body) {
@@ -238,7 +251,8 @@ async function actionComplete(ticket, body) {
   });
   const name = ticket.vendor_name || "Vendor";
   await addVendorComment(ticket, `${name} marked work as complete and submitted for review.${notes ? ` Notes: ${notes}` : ""}`);
-  return { ok: true, invoice_path: invoicePath };
+  const notification = await notifyManagement(vendorWorkCompleted, { ticket, actionAt: new Date().toISOString() });
+  return { ok: true, invoice_path: invoicePath, notification };
 }
 
 async function actionUploadUrl(ticket, body) {

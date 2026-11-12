@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { notifyVendorComplete, notifyQuoteReceived } from "./notifications";
 import { getVendorSession, vendorCall, uploadVendorFile, VendorAuthError } from "./vendorApi";
 
 const C = {
@@ -127,16 +126,7 @@ export default function VendorTicket() {
       notes:  quoteNotes,
     }));
     if (!ok) { setSubmittingQuote(false); return; }
-
-    // Notify PM
-    notifyQuoteReceived({
-      vendorName,
-      ticketTitle:  ticket.title,
-      quoteAmount,
-      quoteNotes,
-      propertyName: "",
-      vendorToken:  token,
-    });
+    // Management is emailed by /api/vendor-ticket after the quote is saved.
 
     await fetchTicket();
     setSubmittingQuote(false);
@@ -162,15 +152,7 @@ export default function VendorTicket() {
       invoice_notes: invoiceNotes || null,
     }));
     if (!ok) { setCompleting(false); return; }
-
-    notifyVendorComplete({
-      vendorName,
-      ticketTitle: ticket.title,
-      ticketId:    ticket.id,
-      hasInvoice:  !!invoiceUrl,
-      invoiceNotes,
-      vendorToken: token,
-    });
+    // Management is emailed by /api/vendor-ticket after the completion is saved.
 
     await fetchTicket();
     setCompleting(false);

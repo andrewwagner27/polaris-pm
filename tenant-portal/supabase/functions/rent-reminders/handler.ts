@@ -1,6 +1,17 @@
 // rent-reminders/handler.ts
 // Request logic for rent-reminders, with all I/O injected so it can be unit tested
 // (tests/rent-reminders.test.mjs). No Deno or remote imports here; index.ts wires the real deps.
+//
+// Financial safety rules (each enforced here, before any email):
+//   1. Off unless RENT_REMINDERS_ENABLED is "true" (deps.enabled). The paused cron job is the first gate;
+//      this is the second, so re-activating the job alone sends nothing.
+//   2. Read-only. This function never generates, posts, voids or changes charges or payments.
+//   3. Fail closed: receivables inactive (no cutover), the status unreadable, this month's scheduled rent
+//      charges absent, or any tenant's ledger unreadable → no balance-specific email (for that run/tenant).
+//   4. The amount is the ledger's payable figure (a2_pay_rent_internal) and nothing else: open Rent
+//      charges due by today, already net of payments, credits, voids and reversals, less Stripe rent
+//      still settling. Unit rent and recurring-charge settings are never read.
+//   5. Nothing due → no email. Only the 1st (New York date). One email per tenant per month.
 
 export type Tenant = {
   id: string;
@@ -10,9 +21,10 @@ export type Tenant = {
   lease_end: string | null;
 };
 
-// What Pay Rent may collect, from a3_pay_rent_internal. The email quotes this and nothing else.
+// What Pay Rent may collect, from a2_pay_rent_internal. The email quotes this and nothing else.
 export type RentDue = {
   ledger_active: boolean;
+  online_available?: boolean;
   payable_cents?: number;
   past_due_cents?: number;
   pending_cents?: number;
@@ -22,12 +34,13 @@ export type RentDue = {
 
 export type Deps = {
   isAuthorized: (req: Request) => boolean;
-  loadTenants: () => Promise<Tenant[]>;
-  // Creates any scheduled charges due by this date. Idempotent, so an earlier manual run is harmless.
-  // It runs first in every reminder run, so charges always exist before the ledger is read.
-  generateCharges: (asOf: string) => Promise<{ outcome: string }[]>;
-  // True once this month's scheduled charges exist. Without them the ledger would understate what's due.
+  // RENT_REMINDERS_ENABLED === "true". Defaults to false when omitted.
+  enabled?: boolean;
+  // Receivables are active (a cutover date is set). Throws if it can't be read.
+  receivablesActive: () => Promise<boolean>;
+  // True once this month's scheduled rent charges exist. Read-only: nothing here creates them.
   rentChargesGenerated: (firstOfMonth: string) => Promise<boolean>;
+  loadTenants: () => Promise<Tenant[]>;
   loadRentDue: (tenantId: string) => Promise<RentDue>;
   // idempotencyKey is forwarded to the email provider so a repeated run cannot deliver twice.
   sendEmail: (to: string, subject: string, html: string, idempotencyKey: string) => Promise<boolean>;
@@ -48,7 +61,7 @@ export function nyDate(d: Date): string {
   }).format(d);
 }
 
-const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 export function reminderHtml(name: string, due: RentDue, dueLabel: string, portalUrl: string) {
   const fmt = (cents: number) =>
@@ -61,6 +74,12 @@ export function reminderHtml(name: string, due: RentDue, dueLabel: string, porta
     Number(due.pending_cents) > 0 ? `A ${fmt(Number(due.pending_cents))} payment still processing has already been taken off.` : "",
     others.length ? `Not included: ${others.map((l) => `${esc(l.category)} ${fmt(Number(l.open_cents))}`).join(", ")}. Please pay these to your property manager.` : "",
   ].filter(Boolean);
+  // Online payment is offered only when the ledger says this tenant can pay online.
+  const action = due.online_available === true
+    ? `<a href="${portalUrl}" style="display:block;text-align:center;padding:13px 24px;background:#7A5C2E;border-radius:8px;color:#EDEAE2;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:0.02em;">
+        Pay Now &#8594;
+      </a>`
+    : `<p style="color:#EDEAE2;font-size:13px;margin:0;line-height:1.6;">Online payment isn't available for your account yet. Please contact your property manager to arrange payment.</p>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -83,14 +102,12 @@ export function reminderHtml(name: string, due: RentDue, dueLabel: string, porta
         <div style="font-size:12px;color:#5C6270;margin-top:4px;">Due ${dueLabel}</div>
       </div>
       ${notes.map((n) => `<p style="color:#9095A0;font-size:12px;margin:0 0 10px;line-height:1.6;">${n}</p>`).join("")}
-      <a href="${portalUrl}" style="display:block;text-align:center;padding:13px 24px;background:#7A5C2E;border-radius:8px;color:#EDEAE2;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:0.02em;">
-        Pay Now &#8594;
-      </a>
+      ${action}
     </div>
     <div style="padding:20px 32px;border-top:1px solid #252930;">
       <p style="color:#5C6270;font-size:11px;margin:0;line-height:1.6;">
         You are receiving this because you have an active lease managed through Modus Property Management.
-        Log in to your tenant portal to make a payment or view your account.
+        The amount is your account balance for rent as of this morning. If you've just paid, you can ignore this email.
       </p>
     </div>
   </div>
@@ -113,19 +130,21 @@ export async function handleRentReminders(req: Request, deps: Deps): Promise<Res
       return json({ sent: 0, message: `No reminder needed (${today} is not the 1st)` });
     }
 
-    // A failure here reaches the catch below: a 500, and no email.
-    const generation = await deps.generateCharges(today);
-    const charges = { created: 0, exists: 0, skipped: 0 };
-    for (const g of generation || []) {
-      if (g.outcome === "created") charges.created++;
-      else if (g.outcome === "exists") charges.exists++;
-      else if (String(g.outcome).startsWith("skipped")) charges.skipped++;
+    // Kill switch: off unless explicitly enabled.
+    if (deps.enabled !== true) {
+      return json({ sent: 0, blocked: "disabled", date: today, message: "Rent reminders are disabled (RENT_REMINDERS_ENABLED is not \"true\"); nothing sent" });
     }
 
-    // Generation ran and still nothing exists for this month, so the ledger would show only arrears. Send nothing.
+    // Receivables inactive: there is no authoritative balance, so no balance-specific email at all.
+    if (!(await deps.receivablesActive())) {
+      return json({ sent: 0, blocked: "receivables_inactive", date: today, message: "Receivables are not active; no rent reminders sent" });
+    }
+
+    // This month's scheduled charges must already exist (created by the approved charge process, not here).
+    // Without them the ledger would show only arrears. Send nothing.
     if (!(await deps.rentChargesGenerated(`${month}-01`))) {
       console.error(`rent-reminders: no scheduled charges for ${month}; nothing sent`);
-      return json({ sent: 0, blocked: "rent_charges_not_generated", date: today, charges, message: `Rent charges for ${month} have not been generated; no reminders sent` });
+      return json({ sent: 0, blocked: "rent_charges_not_generated", date: today, message: `Rent charges for ${month} have not been generated; no reminders sent` });
     }
 
     const tenants = await deps.loadTenants();
@@ -137,9 +156,9 @@ export async function handleRentReminders(req: Request, deps: Deps): Promise<Res
     const pause     = deps.pause ?? (() => new Promise<void>((r) => setTimeout(r, 120)));
 
     let sent = 0;
-    const results: { name: string | null; email: string; ok: boolean }[] = [];
+    const results: { tenant_id: string; ok: boolean }[] = [];
     const seen = new Set<string>();
-    const skipped = { nothing_due: 0, ledger_inactive: 0, ledger_error: 0 };
+    const skipped = { nothing_due: 0, ledger_inactive: 0, ledger_error: 0, send_failed: 0 };
 
     for (const tenant of tenants) {
       if (!tenant.email || seen.has(tenant.id)) continue; // one reminder per tenant per run
@@ -165,14 +184,15 @@ export async function handleRentReminders(req: Request, deps: Deps): Promise<Res
       const firstName = (tenant.name || "Resident").split(" ")[0];
       const html = reminderHtml(firstName, due, dueLabel, PORTAL_URL);
       const ok   = await deps.sendEmail(tenant.email, subject, html, `rent-due-today/${month}/${tenant.id}`);
-      results.push({ name: tenant.name, email: tenant.email, ok });
-      if (ok) sent++;
+      results.push({ tenant_id: tenant.id, ok });
+      if (ok) sent++; else skipped.send_failed++;
 
       await pause();
     }
 
-    console.log(`rent-reminders: sent=${sent}`, JSON.stringify(charges), JSON.stringify(skipped), JSON.stringify(results));
-    return json({ sent, total: tenants.length, date: today, charges, skipped, results });
+    // Logged by tenant id only: no names, emails or amounts in function logs.
+    console.log(`rent-reminders: sent=${sent}`, JSON.stringify(skipped), JSON.stringify(results));
+    return json({ sent, total: tenants.length, date: today, skipped, results });
   } catch (err) {
     console.error("rent-reminders error:", err);
     return json({ error: String(err) }, 500);

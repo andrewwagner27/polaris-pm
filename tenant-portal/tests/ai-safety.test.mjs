@@ -67,10 +67,15 @@ describe("2. no automatic violation notices; complaints go to a human", () => {
   test("the handler contains no notice text and no message to another tenant", () => {
     assert.doesNotMatch(api, /NOTICE OF LEASE VIOLATION/);
     assert.doesNotMatch(api, /offendingTenant/);
-    assert.equal((api.match(/from\("messages"\)\.insert\(/g) || []).length, 1, "only the reply to the tenant is inserted");
-    const reply = api.slice(api.indexOf('from("messages").insert('), api.indexOf("if (replyErr)"));
-    assert.match(reply, /recipient_id: tenant\?\.user_id/);
-    assert.match(reply, /tenant_id: tenant_id/);
+    // Two inserts exist: the AI reply, and the fail-safe reply written only when processing threw before
+    // any reply was attempted. Both go to the tenant who wrote the message, and to no one else.
+    const inserts = api.split('from("messages").insert(').slice(1).map((s) => s.slice(0, 400));
+    assert.equal(inserts.length, 2, "only replies to the tenant are inserted");
+    for (const ins of inserts) {
+      assert.match(ins, /recipient_id: tenant\?\.user_id/);
+      assert.match(ins, /tenant_id: tenant(_id|Id)\b/);
+    }
+    assert.match(api, /if \(!replyAttempted\) \{\s*const \{ error \} = await db\.from\("messages"\)\.insert\(/, "the fail-safe reply is written only when no reply was attempted");
   });
   test("incidents are recorded as open (never notice_sent), with an exact unit match", () => {
     assert.match(api, /status: "open"/);
@@ -80,7 +85,8 @@ describe("2. no automatic violation notices; complaints go to a human", () => {
   test("overrides are applied before tickets, incidents, alerts and the routing log", () => {
     const at = api.indexOf("classification = applySafetyOverrides(classification, message)");
     assert.ok(at > 0);
-    for (const later of ["create_maintenance_ticket) {", 'from("incident_logs")', 'from("landlord_alerts")', 'from("ai_routing_logs")']) {
+    // (The earlier ai_routing_logs read is the per-message idempotency check; it writes nothing.)
+    for (const later of ["create_maintenance_ticket) {", 'from("incident_logs")', 'from("landlord_alerts")', "insertRoutingLog(buildRoutingLogRow("]) {
       assert.ok(api.indexOf(later) > at, later);
     }
   });

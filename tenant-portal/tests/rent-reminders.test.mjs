@@ -2,7 +2,9 @@
 // Run: npm test   (node --test tests/)
 // Exercises supabase/functions/rent-reminders/handler.ts with in-memory fakes for the tenant
 // queries, the ledger and the Resend API. No network, no database, no emails.
-// The same scenarios run against the real migrations in docs/a3-test-tools/reminder_ledger.mjs.
+// The amount comes only from a2_pay_rent_internal (A2, deployed). The function is read-only: it never
+// generates charges, and it sends nothing unless enabled, receivables are active and this month's
+// scheduled rent charges already exist.
 
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +15,7 @@ const { handleRentReminders, nyDate } = await import("../supabase/functions/rent
 const CRON_SECRET = "test-cron-secret";
 const FIRST_EST   = new Date("2026-11-01T14:00:00Z"); // 09:00 EST, the run the cron guard keeps
 
-let tenants, ledger, generated, outbox, delivered, loads, order;
+let tenants, ledger, generated, active, outbox, delivered, loads, order;
 const dueOf = (payable_cents, extra = {}) => ({ ledger_active: true, payable_cents, past_due_cents: 0, pending_cents: 0, credit_applied_cents: 0, other_lines: [], ...extra });
 
 function seed() {
@@ -26,6 +28,7 @@ function seed() {
   ];
   ledger = { "t-active": dueOf(150000), "t-charges": dueOf(125050), "t-future": dueOf(120000), "t-expired": dueOf(110000), "t-norent": dueOf(0) };
   generated = true;
+  active = true;
   order = [];
   outbox = [];              // every request made to the fake Resend API
   delivered = new Map();    // idempotency key -> delivered email (Resend's 24h de-duplication)
@@ -35,9 +38,10 @@ function seed() {
 function deps(now, overrides = {}) {
   return {
     isAuthorized: (req) => req.headers.get("x-cron-secret") === CRON_SECRET,
+    enabled: true,
     loadTenants: async () => { loads++; return tenants; },
-    generateCharges: async (asOf) => { order.push(`generate:${asOf}`); return [{ outcome: "created" }, { outcome: "exists" }, { outcome: "skipped: tenant archived" }]; },
-    rentChargesGenerated: async () => { order.push("check"); return generated; },
+    receivablesActive: async () => { order.push("status"); return active; },
+    rentChargesGenerated: async (first) => { order.push(`check:${first}`); return generated; },
     loadRentDue: async (id) => { order.push("ledger"); return ledger[id]; },
     sendEmail: async (to, subject, html, key) => {
       outbox.push({ to, subject, html, key });
@@ -162,18 +166,48 @@ describe("the amount comes from the ledger", () => {
     const { body } = await bodyOf("t-active", { ledger_active: true });
     assert.equal(body.sent, 0); assert.equal(body.skipped.ledger_error, 1);
   });
-  test("charges are generated first, for today's New York date, before anything reads the ledger", async () => {
+  test("read-only: receivables status, then this month's charge check, then the ledger — nothing is generated", async () => {
     const { body } = await run(FIRST_EST);
-    assert.equal(order[0], "generate:2026-11-01"); assert.equal(order[1], "check"); assert.equal(order.filter((o) => o.startsWith("generate")).length, 1);
-    assert.deepEqual(body.charges, { created: 1, exists: 1, skipped: 1 });
+    assert.equal(order[0], "status"); assert.equal(order[1], "check:2026-11-01"); assert.ok(order.slice(2).every((o) => o === "ledger"));
+    assert.equal(body.charges, undefined, "no charge generation result exists");
+    const handlerSrc = readFileSync(new URL("../supabase/functions/rent-reminders/handler.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(handlerSrc, /generateCharges/);
   });
-  test("if generation fails: 500, nothing sent, and no ledger read", async () => {
-    const { status } = await run(FIRST_EST, undefined, { generateCharges: async () => { throw new Error("no cutover"); } });
+  test("disabled (RENT_REMINDERS_ENABLED not \"true\"): nothing read, nothing sent", async () => {
+    for (const enabled of [undefined, false]) {
+      seed();
+      const { status, body } = await run(FIRST_EST, undefined, { enabled });
+      assert.equal(status, 200); assert.equal(body.sent, 0); assert.equal(body.blocked, "disabled");
+      assert.equal(outbox.length, 0); assert.equal(loads, 0); assert.deepEqual(order, []);
+    }
+  });
+  test("receivables inactive: no balance-specific email, no tenant or ledger read (fails closed)", async () => {
+    active = false;
+    const { status, body } = await run(FIRST_EST);
+    assert.equal(status, 200); assert.equal(body.sent, 0); assert.equal(body.blocked, "receivables_inactive");
+    assert.equal(outbox.length, 0); assert.equal(loads, 0); assert.deepEqual(order, ["status"]);
+  });
+  test("if the receivables status can't be read: 500, nothing sent, no tenants loaded", async () => {
+    const { status } = await run(FIRST_EST, undefined, { receivablesActive: async () => { throw new Error("db down"); } });
     assert.equal(status, 500); assert.equal(outbox.length, 0); assert.equal(loads, 0); assert.ok(!order.includes("ledger"));
   });
-  test("other dates don't generate anything", async () => {
+  test("other dates read nothing", async () => {
     await run(new Date("2026-11-02T14:00:00Z"));
     assert.deepEqual(order, []);
+  });
+  test("Pay Now is offered only when the ledger says the tenant can pay online", async () => {
+    tenants = tenants.filter((t) => t.id === "t-active");
+    ledger["t-active"] = dueOf(100000, { online_available: false });
+    await run(FIRST_EST);
+    assert.doesNotMatch(outbox[0].html, /Pay Now/); assert.match(outbox[0].html, /contact your property manager to arrange payment/);
+    seed(); tenants = tenants.filter((t) => t.id === "t-active"); ledger["t-active"] = dueOf(100000, { online_available: true });
+    await run(FIRST_EST);
+    assert.match(outbox[0].html, /Pay Now/);
+  });
+  test("a failed send is counted, and logs/results carry tenant ids only (no names, emails or amounts)", async () => {
+    const { body } = await run(FIRST_EST, undefined, { sendEmail: async () => false });
+    assert.equal(body.sent, 0); assert.equal(body.skipped.send_failed, 2);
+    assert.doesNotMatch(JSON.stringify(body.results), /@|Alice|Bob|\$/);
   });
   test("this month's charges not generated: nothing sent, and it says why", async () => {
     generated = false;
@@ -185,11 +219,18 @@ describe("the amount comes from the ledger", () => {
     const { status } = await run(FIRST_EST, undefined, { rentChargesGenerated: async () => { throw new Error("no such table"); } });
     assert.equal(status, 500); assert.equal(outbox.length, 0);
   });
-  test("the function reads the ledger, not recurring charges or unit rent", () => {
+  test("the function reads the deployed A2 ledger, never writes, and never reads recurring charges or unit rent", () => {
     const src = readFileSync(new URL("../supabase/functions/rent-reminders/index.ts", import.meta.url), "utf8");
-    assert.match(src, /supabase\.rpc\("a3_pay_rent_internal"/);
-    assert.match(src, /supabase\.rpc\("a2_generate_charges", \{ p_as_of: asOf \}\)/);
-    assert.doesNotMatch(src, /recurring_charges|rent_amount/);
+    const code = src.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+    assert.match(code, /supabase\.rpc\("a2_pay_rent_internal", \{ p_tenant: tenantId \}\)/, "a2_pay_rent_internal exists in production (A2)");
+    assert.doesNotMatch(code, /a3_pay_rent_internal/, "a3_pay_rent_internal does not exist in production");
+    assert.doesNotMatch(code, /a2_generate_charges|\.insert\(|\.update\(|\.upsert\(|\.delete\(/, "read-only");
+    assert.doesNotMatch(code, /recurring_charges|rent_amount/);
+    assert.match(code, /enabled: Deno\.env\.get\("RENT_REMINDERS_ENABLED"\) === "true"/);
+    // The ledger function the email quotes is defined, STABLE, in the A2 migration.
+    const a2 = readFileSync(new URL("../supabase/migrations/20261104000000_a2_receivables.sql", import.meta.url), "utf8");
+    assert.match(a2, /CREATE FUNCTION public\.a2_pay_rent_internal\(p_tenant uuid\) RETURNS jsonb\s+LANGUAGE plpgsql STABLE/);
+    assert.match(a2, /IF a2_cutover\(\) IS NULL THEN RETURN jsonb_build_object\('ledger_active', false\)/);
   });
 });
 

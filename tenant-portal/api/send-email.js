@@ -1,37 +1,41 @@
 // api/send-email.js
-// Authenticated email relay.
-//   Landlord (profiles.role = 'landlord') → any recipient (applicants, tenants, vendors).
-//   Any other signed-in user (tenant)     → landlord notification addresses only.
+// Free-form email relay for LANDLORDS ONLY (profiles.role = 'landlord'): application decisions and
+// inspection emails the landlord composes in the portal. Landlord pages escape every untrusted value with
+// src/lib/emailSafety.js before building the HTML.
+//
+// Tenants, vendors and anonymous callers are refused (403/401). They used to be able to send any subject
+// and HTML to an allow-list of management addresses; they now raise events through /api/notify, which
+// builds the email on the server and chooses the recipient itself.
 // Same-origin only: no CORS headers are sent.
 
 import { requireCaller, isLandlord } from "./_lib/auth.js";
-import { sendEmail, landlordNotifyEmails, normalizeRecipients } from "./_lib/email.js";
+import { sendEmail, normalizeRecipients } from "./_lib/email.js";
+import { parseEmailList } from "../src/lib/emailSafety.js";
+
+const MAX_RECIPIENTS = 10;
+const MAX_HTML = 200_000;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const caller = await requireCaller(req, res);
   if (!caller) return;
+  if (!isLandlord(caller)) return res.status(403).json({ error: 'Landlord access required' });
 
   const { to, subject, html } = req.body || {};
-  const recipients = normalizeRecipients(to);
+  const { valid, invalid } = parseEmailList(normalizeRecipients(to));
 
-  if (!recipients.length || !subject || !html) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!valid.length || invalid.length || typeof subject !== 'string' || !subject.trim() || typeof html !== 'string' || !html) {
+    return res.status(400).json({ error: 'A valid recipient, subject and html are required' });
   }
+  if (valid.length > MAX_RECIPIENTS || html.length > MAX_HTML) return res.status(413).json({ error: 'Email too large' });
 
-  if (!isLandlord(caller)) {
-    const allowed = landlordNotifyEmails();
-    if (!recipients.every(r => allowed.includes(r.toLowerCase()))) {
-      return res.status(403).json({ error: 'Recipient not allowed' });
-    }
-  }
-
-  const { ok, status, data } = await sendEmail({ to: recipients, subject, html });
+  const { ok, status, data, error } = await sendEmail({ to: valid, subject, html });
 
   if (!ok) {
-    return res.status(status).json({ error: data });
+    console.error('[send-email] failed:', error);
+    return res.status(status && status >= 400 ? status : 502).json({ error: error || 'Email failed' });
   }
 
-  return res.status(200).json({ success: true, id: data.id });
+  return res.status(200).json({ success: true, id: data?.id ?? null });
 }

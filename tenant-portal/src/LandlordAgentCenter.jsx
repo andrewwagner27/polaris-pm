@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { notifyStatusLabel, notifyError, isEscalationRow } from "./lib/notifyStatus";
+
+// Management email (and emergency SMS) outcome recorded on the escalation's routing row. Shown only for
+// escalations and emergencies; an unknown outcome is shown as not confirmed, never as emailed.
+function NotifyBadge({ log }) {
+  if (!isEscalationRow(log)) return null;
+  const st = notifyStatusLabel(log);
+  const err = notifyError(log);
+  const sms = log.raw_openai_response?.notify?.sms?.status;
+  const smsText = sms === "accepted" ? "SMS accepted (delivery not confirmed)" : sms === "failed" ? "SMS FAILED" : "";
+  return (
+    <span data-notify-status={log.raw_openai_response?.notify?.status || "none"} title={err || undefined}
+      style={{ fontSize: 10, fontWeight: 700, color: st.color, padding: "2px 6px", background: `${st.color}18`, borderRadius: 4, whiteSpace: "nowrap" }}>
+      ✉ {st.label}{smsText ? ` · ${smsText}` : ""}
+    </span>
+  );
+}
 
 // ── Design tokens ───────────────────────────────────────────
 const C = {
@@ -505,6 +522,7 @@ export default function LandlordAgentCenter() {
                             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                               <UrgencyDot urgency={log.urgency} />
                               <Badge action={isOverridden ? log.manager_override_action : log.action_taken} />
+                              <NotifyBadge log={log} />
                               {isOverridden && (
                                 <span style={{ fontSize: 10, color: C.gold, fontWeight: 600, padding: "2px 6px", background: `${C.gold}15`, borderRadius: 4 }}>
                                   ✏ Overridden

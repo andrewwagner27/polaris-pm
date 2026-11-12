@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase, authHeaders } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { getSignedStorageUrl } from "./storageUtils";
+import { escapeHtml, textToHtml } from "./lib/emailSafety";
 
 const C = {
   bg:       "#0C0E12",
@@ -278,9 +279,9 @@ export default function LandlordApplications() {
                     <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Application Update</h2>
                   </div>
                   <div style="padding:24px 32px;">
-                    <p style="color:#9095A0;font-size:14px;margin:0 0 16px;">Hi ${app.name},</p>
+                    <p style="color:#9095A0;font-size:14px;margin:0 0 16px;">Hi ${escapeHtml(app.name)},</p>
                     <p style="color:#9095A0;font-size:14px;margin:0 0 16px;">Thank you for your interest in our property. After careful review, we are unable to approve your application at this time.</p>
-                    ${declineReason ? `<p style="color:#9095A0;font-size:14px;margin:0 0 16px;">${declineReason}</p>` : ""}
+                    ${declineReason ? `<p style="color:#9095A0;font-size:14px;margin:0 0 16px;">${textToHtml(declineReason)}</p>` : ""}
                     <p style="color:#9095A0;font-size:14px;margin:0;">If you have any questions, please don't hesitate to reach out.</p>
                   </div>
                   <div style="padding:16px 32px;border-top:1px solid #252930;">

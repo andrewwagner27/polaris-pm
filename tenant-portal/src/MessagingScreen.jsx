@@ -47,6 +47,7 @@ export default function MessagingScreen() {
   const [myUserId, setMyUserId]     = useState(null);   // STATE — drives fromProperty render
   const [tenantId, setTenantId]     = useState(null);
   const [awaitingReply, setAwaitingReply] = useState(false); // typing indicator
+  const [assistantIssue, setAssistantIssue] = useState(false); // last AI request failed (message still saved)
 
   // ── Refs (for async callbacks/closures, no re-render needed) ──
   const myUserIdRef   = useRef(null);   // mirrors myUserId for use inside closures
@@ -136,19 +137,21 @@ export default function MessagingScreen() {
         return [...prev, data];
       });
 
-      // Fire AI routing — non-blocking, show typing indicator while waiting
+      // Fire AI routing — non-blocking, show typing indicator while waiting.
+      // The server is idempotent per message_id, so one retry after a network failure can't double-reply.
+      // If it still fails, say so: the message is saved and appears in management's daily recap.
       setAwaitingReply(true);
-      fetch("/api/classify-and-route", {
+      setAssistantIssue(false);
+      const route = async () => fetch("/api/classify-and-route", {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({
-          message: text.trim(),
-          tenant_id: tenantIdRef.current,
-          message_id: data.id,
-        }),
-      })
-        .then(() => setAwaitingReply(false))
-        .catch(() => setAwaitingReply(false));
+        body: JSON.stringify({ message: text.trim(), tenant_id: tenantIdRef.current, message_id: data.id }),
+      });
+      route()
+        .catch(() => new Promise(r => setTimeout(r, 3000)).then(route))
+        .then(res => { if (!res?.ok) setAssistantIssue(true); })
+        .catch(() => setAssistantIssue(true))
+        .finally(() => setAwaitingReply(false));
     }
 
     setSending(false);
@@ -249,6 +252,12 @@ export default function MessagingScreen() {
               </div>
             );
           })}
+
+          {assistantIssue && !awaitingReply && (
+            <div role="status" data-assistant-issue style={{ margin:"6px 0 4px 34px", padding:"8px 12px", fontSize:12, lineHeight:1.5, color:C.text, background:`${C.gold}12`, border:`1px solid ${C.goldDim}`, borderRadius:8 }}>
+              Your message was saved, but the assistant didn't respond. It will be in management's daily review. If anyone is in danger, call 911.
+            </div>
+          )}
 
           {/* Typing indicator — shown while AI is generating reply */}
           {awaitingReply && (
