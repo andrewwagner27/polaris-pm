@@ -242,9 +242,11 @@ export default function HomeDashboard() {
                   <div key={c.id || `charge-${i}`} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{c.label}</div>
-                      <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
-                        {c.isRent ? "Rent" : "Additional recurring charge"}{c.note ? ` · ${c.note}` : ""}
-                      </div>
+                      {(() => {
+                        // The Rent row's name already says "Rent"; other rows are marked as additional charges.
+                        const sub = [c.isRent ? null : "Additional recurring charge", c.note || null].filter(Boolean).join(" · ");
+                        return sub ? <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>{sub}</div> : null;
+                      })()}
                     </div>
                     <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>
                       {c.cents == null ? "—" : formatCents(c.cents)}

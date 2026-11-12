@@ -113,9 +113,12 @@ describe("tenant Activity screen", () => {
   });
   test("never invents a charge once receivables are active", () => {
     const f = src("src/ActivityLedger.jsx");
-    const i = f.indexOf(`supabase.rpc("a2_status")`), j = f.indexOf("buildFromPayments(payments");
-    assert.ok(i > 0 && i < j, "the real ledger is checked before the legacy fallback");
-    assert.ok(/a2\?\.active[\s\S]{0,260}return;/.test(f), "active receivables return before the fallback");
+    // The real ledger is read first (fetchTenantLedger: a2_status, then a2_tenant_ledger); its rows are the
+    // only source of charges, and payment records are fetched only when the ledger isn't in use.
+    assert.ok(f.includes("await fetchTenantLedger(supabase)"));
+    assert.ok(/isLedger \? ledgerToActivity\(ledger\.rows\)/.test(f));
+    assert.ok(/result\.mode !== "ledger"[\s\S]{0,400}from\("payments"\)/.test(f), "payment records only when the ledger isn't in use");
+    assert.doesNotMatch(f, /buildFromPayments|buildLedger|ledger_entries/, "no legacy reconstruction remains");
   });
 });
 

@@ -7,10 +7,20 @@
 //                            scheduled monthly charges. Not an amount currently owed.
 //   3. Balance due         — posted charges minus payments, credits and adjustments, from the
 //                            authoritative receivables ledger (a2_tenant_ledger, integer cents).
-//                            When receivables are inactive or the ledger can't be read, the balance
-//                            is "unavailable": no rent or charge total is ever shown in its place.
+//                            When receivables are inactive, the ledger can't be read, or it has no
+//                            posted activity, the balance is "unavailable": no rent or charge total is
+//                            ever shown in its place.
+//
+// Evidence for a balance (including $0): the ledger returned at least one posted row. a2_tenant_ledger
+// returns rows only for a tenant it recognises and the caller may see, once receivables are active, so a
+// non-empty result establishes all three. An EMPTY result is ambiguous (unknown tenant, no access, not yet
+// set up, missing opening balance, or genuinely no activity) and is never shown as $0. The tenant cannot
+// read the landlord-only opening-balance confirmations, so a "confirmed zero" with no rows stays unavailable.
 //
 // ledger_entries is not read: nothing posts to it yet, and it is not the receivables source of truth.
+// Legacy payments rows are shown only as records with their own status; they never produce a balance.
+
+import { paymentCents } from "./accounting.js";
 
 // ── Recurring charges ──────────────────────────────────────────────────────
 
@@ -48,27 +58,68 @@ export function monthlyChargesSummary(charges) {
 // ── Balance due ────────────────────────────────────────────────────────────
 
 // statusResult / ledgerResult are Supabase responses: { data, error }.
+// reasons: "error" | "receivables_inactive" | "no_activity".
 export function resolveBalance({ statusResult, ledgerResult }) {
   if (!statusResult || statusResult.error || !statusResult.data) return { state: "unavailable", reason: "error" };
   if (statusResult.data.active !== true) return { state: "unavailable", reason: "receivables_inactive" };
   if (!ledgerResult || ledgerResult.error || !Array.isArray(ledgerResult.data)) return { state: "unavailable", reason: "error" };
   const rows = ledgerResult.data;
-  const last = rows.length ? Number(rows[rows.length - 1].balance_cents) : 0;
-  if (!Number.isFinite(last)) return { state: "unavailable", reason: "error" };
-  return { state: "available", cents: Math.round(last) };
+  if (!rows.length) return { state: "unavailable", reason: "no_activity" };   // ambiguous: never a confirmed $0
+  const last = rows[rows.length - 1]?.balance_cents;
+  if (last == null || last === "" || !Number.isFinite(Number(last))) return { state: "unavailable", reason: "error" };
+  return { state: "available", cents: Math.round(Number(last)) };
 }
 
 // Read-only: a2_status, then (only if receivables are active) the caller's own a2_tenant_ledger.
-// Never throws.
-export async function fetchTenantBalance(client) {
+// Returns { mode, balance, rows }: mode "ledger" when the ledger was read, "legacy" when receivables
+// are inactive, "error" when the status or ledger couldn't be read. rows are the ledger rows (ledger mode
+// only). Home and Activity both use this, so they always show the same balance. Never throws.
+export async function fetchTenantLedger(client) {
   try {
     const statusResult = await client.rpc("a2_status");
-    if (statusResult?.error || statusResult?.data?.active !== true) return resolveBalance({ statusResult });
+    if (statusResult?.error || !statusResult?.data) return { mode: "error", balance: resolveBalance({ statusResult }), rows: [] };
+    if (statusResult.data.active !== true) return { mode: "legacy", balance: resolveBalance({ statusResult }), rows: [] };
     const ledgerResult = await client.rpc("a2_tenant_ledger", { p_tenant: null });
-    return resolveBalance({ statusResult, ledgerResult });
+    const balance = resolveBalance({ statusResult, ledgerResult });
+    if (ledgerResult?.error || !Array.isArray(ledgerResult?.data)) return { mode: "error", balance, rows: [] };
+    return { mode: "ledger", balance, rows: ledgerResult.data };
   } catch {
-    return { state: "unavailable", reason: "error" };
+    return { mode: "error", balance: { state: "unavailable", reason: "error" }, rows: [] };
   }
+}
+
+export async function fetchTenantBalance(client) {
+  return (await fetchTenantLedger(client)).balance;
+}
+
+// ── Legacy payment records (receivables inactive) ─────────────────────────
+// Shown as records only. "received" is true only for status "paid" (any case) that isn't voided; every
+// other status — Unpaid, pending, failed, refunded, unknown — is not money received.
+const STATUS_TEXT = {
+  paid: "Paid", unpaid: "Unpaid — not received", pending: "Processing — not yet received",
+  processing: "Processing — not yet received", failed: "Failed — not received", refunded: "Refunded",
+  canceled: "Canceled — not received", cancelled: "Canceled — not received",
+};
+export function paymentRecordStatus(p) {
+  if (p?.voided_at) return { label: "Voided — not received", received: false };
+  const s = String(p?.status ?? "").trim().toLowerCase();
+  if (s === "paid") return { label: "Paid", received: true };
+  return { label: STATUS_TEXT[s] || (s ? `${p.status} — not confirmed received` : "Status unknown — not confirmed received"), received: false };
+}
+
+export function paymentRecordsView(payments) {
+  return (payments || []).map((p) => {
+    const st = paymentRecordStatus(p);
+    const cents = paymentCents(p);
+    return {
+      id: p.id,
+      date: p.paid_at || p.created_at || null,
+      description: ["Payment record", p.category, p.source || p.method].filter(Boolean).join(" · "),
+      cents: Number.isFinite(cents) ? cents : null,
+      statusLabel: st.label,
+      received: st.received,
+    };
+  }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 }
 
 export const formatCents = (cents) =>
@@ -78,6 +129,9 @@ export const formatCents = (cents) =>
 export function balancePresentation(balance) {
   if (!balance || balance.state === "loading") return { amountText: "…", detail: "Loading your balance…", tone: "neutral", available: false };
   if (balance.state !== "available") {
+    if (balance.reason === "no_activity") {
+      return { amountText: "Balance unavailable — no posted activity yet", detail: "Contact management to confirm what you owe.", tone: "neutral", available: false };
+    }
     return {
       amountText: "Balance unavailable",
       detail: balance.reason === "receivables_inactive"
