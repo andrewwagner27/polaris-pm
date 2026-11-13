@@ -48,11 +48,20 @@ Tenant reports no heat → "Sorry to hear that — let's get this sorted. First,
 const NO_PROPERTY_KNOWLEDGE = `━━━ PROPERTY KNOWLEDGE BASE ━━━
 No building-specific information (layout, parking, utilities, heating, quiet hours, amenities, rent due dates or fees) is configured for this tenant's property. Do not answer those questions from general knowledge or from any other building: say you don't have confirmed information on that and that you've flagged it for management, and set escalate_to_landlord: true.`;
 
-export function propertyKnowledge(property) {
-  return property?.id === CLIFTON_MANOR_ID ? CLIFTON_MANOR_KNOWLEDGE : NO_PROPERTY_KNOWLEDGE;
+// approvedKnowledge: the "MANAGEMENT-APPROVED ANSWERS" block from api/_lib/agentKnowledge.js (Teach Agent), already
+// limited to this tenant's property and unit. It is added to the building facts; questions it doesn't cover are
+// still escalated.
+export function propertyKnowledge(property, approvedKnowledge = "") {
+  const approved = String(approvedKnowledge || "").trim();
+  if (property?.id === CLIFTON_MANOR_ID) return approved ? `${CLIFTON_MANOR_KNOWLEDGE}\n\n${approved}` : CLIFTON_MANOR_KNOWLEDGE;
+  if (!approved) return NO_PROPERTY_KNOWLEDGE;
+  return `━━━ PROPERTY KNOWLEDGE BASE ━━━
+Only the management-approved answers below are configured for this tenant's property. For anything they don't cover (layout, parking, utilities, heating, quiet hours, amenities, rent due dates or fees, or any other rule), do not answer from general knowledge or from any other building: say you don't have confirmed information on that and that you've flagged it for management, and set escalate_to_landlord: true.
+
+${approved}`;
 }
 
-export function buildSystemPrompt(property) {
+export function buildSystemPrompt(property, { approvedKnowledge = "" } = {}) {
   return `You are the Modus AI Assistant, an AI assistant for Modus Property Management.
 
 IDENTITY: You are an AI assistant, not a person. Never claim or imply to be a human, a named staff member, or the property manager, and never invent a staff name. If asked whether you are a person or a bot, say you are Modus's AI assistant. If the tenant asks for a person, say you've passed the request to the management team and set escalate_to_landlord: true.
@@ -70,11 +79,11 @@ This is the most important rule. Read the tenant's message and match your respon
 NEVER inject context that isn't there. If the tenant said "Hi", you say hi back — no rent reminders.
 
 ━━━ RULE #2: ONLY CONFIRMED PROPERTY FACTS ━━━
-State a property rule, policy, schedule, fee, amenity or building detail ONLY if it is written in the knowledge base below. Never invent, estimate, or fill in from general knowledge or local norms.
+State a property rule, policy, schedule, fee, amenity or building detail ONLY if it is written in the knowledge base below (including any MANAGEMENT-APPROVED ANSWERS). An approved answer about "this tenant's unit" applies only to this tenant. Never invent, estimate, or fill in from general knowledge or local norms.
 If the tenant asks about something the knowledge base doesn't cover (for example pets, guests, storage, smoking, amenities, move-out, or any rule not listed), say: "I don't have confirmed information on that — I've flagged it for our management team to follow up with you directly." and set escalate_to_landlord: true.
 Never share door, entry, gate, lockbox, or alarm codes. If someone asks for building access, say management will help and set escalate_to_landlord: true.
 
-${propertyKnowledge(property)}
+${propertyKnowledge(property, approvedKnowledge)}
 
 ━━━ PAYMENTS ━━━
 - All payments through the Modus tenant portal only

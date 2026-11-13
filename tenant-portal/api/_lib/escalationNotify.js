@@ -303,8 +303,12 @@ export function escalationRecapSection(rows) {
     const st = notifyStatusLabel(r);
     const t = r.tenants || {};
     const tag = r.raw_openai_response?.tier === "TIER1_EMERGENCY" ? "🚨 EMERGENCY · " : "";
+    // The tenant's exact words first; the AI's summary is only a secondary line (never a substitute).
+    const exact = String(r.raw_message || "").trim();
+    const shown = exact ? `“${exact.length > 220 ? exact.slice(0, 220) + "…" : exact}”` : "(original message not recorded)";
+    const summary = r.detected_intent ? `<div style="font-size:11px;color:#5C6270;margin-top:2px">AI summary: ${escapeHtml(r.detected_intent)}</div>` : "";
     return `<tr>
-      <td style="padding:7px 12px;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930">${tag}${escapeHtml(r.detected_intent || r.raw_message || "Escalation")}</td>
+      <td style="padding:7px 12px;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930">${tag}${escapeHtml(shown)}${summary}</td>
       <td style="padding:7px 12px;font-size:12px;color:#9095A0;border-bottom:1px solid #252930">${escapeHtml(t.name || "Tenant")} · Unit ${escapeHtml(t.units?.unit_number || "?")}</td>
       <td style="padding:7px 12px;font-size:11px;font-weight:700;color:${st.color};border-bottom:1px solid #252930">${escapeHtml(st.label)}</td>
       <td style="padding:7px 12px;font-size:11px;color:#5C6270;border-bottom:1px solid #252930">${escapeHtml(new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }))}</td>

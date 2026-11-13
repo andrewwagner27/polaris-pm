@@ -421,10 +421,12 @@ describe("daily recap includes every notified emergency and escalation (end to e
     const recap = resendCalls.at(-1).body;
     assert.match(recap.subject, /^📋 Daily Recap — 3 escalations, 1 not emailed/);
     const rowFor = (intent) => recap.html.split("<tr>").find((tr) => tr.includes(intent)) || "";
-    assert.match(rowFor("Ceiling leak emergency"), /🚨 EMERGENCY · Ceiling leak emergency[\s\S]*>emailed</);
+    // The tenant's exact words come first; the AI summary is a labelled secondary line, never a substitute.
+    assert.match(rowFor("Ceiling leak emergency"), /🚨 EMERGENCY · “Water is pouring through my ceiling”[\s\S]*AI summary: Ceiling leak emergency[\s\S]*>emailed</);
+    assert.match(rowFor("Lease question for management"), /“I need to talk to a person about my lease”/);
     assert.match(rowFor("Lease question for management"), />emailed</);
     assert.doesNotMatch(rowFor("Lease question for management"), /EMERGENCY/);
-    assert.match(rowFor("Electrical emergency"), /🚨 EMERGENCY · Electrical emergency[\s\S]*EMAIL FAILED/);
+    assert.match(rowFor("Electrical emergency"), /🚨 EMERGENCY · “Sparks are coming out of the outlet”[\s\S]*EMAIL FAILED/);
     assert.ok(!recap.html.includes("Quiet hours question"), "ordinary AI reply is not in the recap");
     assert.match(recap.html, /TENANT ESCALATIONS &amp; EMERGENCIES — LAST 24 HOURS \(1 NOT CONFIRMED EMAILED\)/);
   });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import { inviteLinkState, LINK_MESSAGES } from "./lib/onboardingLink";
 
 const C = {
   bg:       "#F5F3EE",
@@ -105,6 +106,18 @@ export default function TenantOnboarding() {
     ROOMS.map(r=>({ room:r.id, condition:"", notes:"", completed:false }))
   );
 
+  // Expired, used or invalid invitation links come back with an error in the URL instead of a session.
+  // Show what happened and what to do, instead of a form whose saves would silently fail.
+  const [linkState, setLinkState] = useState({ state: "checking" });
+  useEffect(() => {
+    let live = true;
+    const { hash, search } = window.location;
+    supabase.auth.getSession().then(({ data }) => {
+      if (live) setLinkState(inviteLinkState({ hash, search, hasSession: Boolean(data?.session) }));
+    }, () => { if (live) setLinkState(inviteLinkState({ hash, search, hasSession: false })); });
+    return () => { live = false; };
+  }, []);
+
   // Auto-link invited tenant and pre-load unit info
   useEffect(() => {
     async function autoLink() {
@@ -112,12 +125,24 @@ export default function TenantOnboarding() {
       const { data:{ user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase.from("tenants")
+      // RLS lets a new user claim only the unlinked tenant record whose email matches their own. A mismatch updates
+      // nothing without an error, so check what was linked rather than assuming success.
+      const { data:claimed, error } = await supabase.from("tenants")
         .update({ user_id:user.id })
         .eq("id", invitedTenantId)
-        .is("user_id", null);
+        .is("user_id", null)
+        .select("id");
+      let linked = !error && Array.isArray(claimed) && claimed.length > 0;
+      if (!error && !linked) {
+        const { data:mine } = await supabase.from("tenants").select("id").eq("id", invitedTenantId).eq("user_id", user.id).maybeSingle();
+        linked = Boolean(mine);
+      }
+      if (!linked) {
+        setError("This invitation doesn't match the email you signed in with. Ask Modus management to resend it to the right address.");
+        return;
+      }
 
-      if (!error) {
+      if (linked) {
         setAutoLinked(true);
         setLinkedTenantId(invitedTenantId);
 
@@ -246,6 +271,27 @@ export default function TenantOnboarding() {
   }
 
   const completedRooms = checklist.filter(r=>r.condition!=="").length;
+
+  if (linkState.state !== "ready") {
+    const msg = LINK_MESSAGES[linkState.state];
+    return (
+      <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 16px",boxSizing:"border-box" }}>
+        <div role={msg ? "alert" : "status"} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"28px 24px",width:"100%",maxWidth:440,textAlign:"center" }}>
+          <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><ModusMark size={32}/></div>
+          {!msg ? <div style={{ fontSize:14,color:C.textSub }}>Checking your invitation…</div> : (
+            <>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:10 }}>{msg.title}</div>
+              <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:22 }}>{msg.body}</div>
+              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                <button onClick={()=>navigate("/login")} style={{ padding:"12px",borderRadius:8,border:"none",background:C.gold,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Sign in</button>
+                <button onClick={()=>navigate("/forgot-password")} style={{ padding:"12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Forgot or never set a password?</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",flexDirection:"column" }}>

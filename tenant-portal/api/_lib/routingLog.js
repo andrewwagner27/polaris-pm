@@ -21,7 +21,25 @@ export function routingAction(classification) {
   return "AUTO_REPLY";
 }
 
-export function buildRoutingLogRow({ classification, tenantId, messageId, ticketId, message }) {
+// Context stored in raw_openai_response for the Agent Center (exact AI reply, why it escalated, which approved
+// knowledge the AI was given). Bounded so one row stays small. The notifier merges its "notify" outcome into the
+// same object later (escalationNotify.recordOutcome re-reads the row and keeps these keys).
+const REPLY_MAX = 2000;
+function agentContext(classification, { reply, humanRequested, knowledgeIds }) {
+  const ctx = {};
+  if (typeof reply === "string" && reply.trim()) ctx.reply = reply.slice(0, REPLY_MAX);
+  if (humanRequested) ctx.human_requested = true;
+  if (classification.ai_unavailable) ctx.ai_unavailable = true;
+  if (classification.emergency_kind) ctx.emergency_kind = classification.emergency_kind;
+  if (classification.escalate_to_landlord) ctx.escalate = true;
+  if (Array.isArray(classification.missing_info) && classification.missing_info.length) {
+    ctx.missing_info = classification.missing_info.slice(0, 5).map((s) => String(s).slice(0, 200));
+  }
+  if (Array.isArray(knowledgeIds) && knowledgeIds.length) ctx.knowledge_ids = knowledgeIds.slice(0, 60);
+  return ctx;
+}
+
+export function buildRoutingLogRow({ classification, tenantId, messageId, ticketId, message, reply, humanRequested, knowledgeIds }) {
   return {
     message_id: messageId || null,
     tenant_id: tenantId,
@@ -33,6 +51,9 @@ export function buildRoutingLogRow({ classification, tenantId, messageId, ticket
     auto_reply_sent: true,
     ticket_created_id: ticketId,
     raw_message: message,
-    raw_openai_response: { tier: classification.tier, category: classification.category },
+    raw_openai_response: {
+      tier: classification.tier, category: classification.category,
+      ...agentContext(classification, { reply, humanRequested, knowledgeIds }),
+    },
   };
 }

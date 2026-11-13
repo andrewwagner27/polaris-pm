@@ -1,7 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { notifyStatusLabel, notifyError, isEscalationRow, smsStatusText } from "./lib/notifyStatus";
+import { classifyEscalation } from "./lib/escalationReason";
+import { escalationState } from "./lib/agentKnowledge";
+import { attachConversation } from "./lib/agentCenterData";
+import { C, fmtTime } from "./agent/theme";
+import EscalationCard from "./agent/EscalationCard";
+import TeachAgentModal from "./agent/TeachAgentModal";
+import ResolveModal from "./agent/ResolveModal";
+import KnowledgePanel from "./agent/KnowledgePanel";
 
 // Management email (and emergency SMS) outcome recorded on the escalation's routing row. Shown only for
 // escalations and emergencies; an unknown outcome is shown as not confirmed, never as emailed.
@@ -18,22 +26,6 @@ function NotifyBadge({ log }) {
   );
 }
 
-// ── Design tokens ───────────────────────────────────────────
-const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
-  goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
-  green:    "#72B02A",
-  red:      "#E05555",
-  amber:    "#F0A430",
-};
 
 // ── Action badge config ─────────────────────────────────────
 const ACTION_META = {
@@ -154,7 +146,7 @@ function OverrideModal({ log, onClose, onSave }) {
         {/* Original message */}
         <div style={{ background: C.raised, borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: C.textSub, lineHeight: 1.6, borderLeft: `3px solid ${C.border}` }}>
           <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.1em" }}>Original message</div>
-          {log.raw_message || log.detected_intent || "—"}
+          {log.raw_message || <span style={{ color: C.textMuted }}>(original message not available){log.detected_intent ? ` · AI summary: ${log.detected_intent}` : ""}</span>}
         </div>
 
         {/* Category */}
@@ -339,47 +331,60 @@ function RuleRow({ rule, onUpdate, onDelete }) {
 }
 
 // ── Main component ─────────────────────────────────────────
+const LOG_COLUMNS = `
+  id, created_at, tenant_id, message_id, raw_message,
+  detected_intent, detected_category, confidence_score, urgency,
+  action_taken, auto_reply_sent, ticket_created_id,
+  manager_overridden, manager_override_category, manager_override_action,
+  raw_openai_response,
+  tenants(name, user_id, unit_id, units(id, unit_number, property_id, properties(id, name)))
+`;
+
+const missingTable = (error) => Boolean(error) && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message || ""));
+
 export default function LandlordAgentCenter() {
   const [logs, setLogs]       = useState([]);
   const [rules, setRules]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState("activity"); // "activity" | "matrix"
-  const [filter, setFilter]   = useState("ALL");      // action filter
+  const [tab, setTab]         = useState("activity"); // "activity" | "knowledge" | "matrix"
+  const [filter, setFilter]   = useState("ESCALATIONS");
   const [overrideLog, setOverrideLog] = useState(null);
-  const [stats, setStats]     = useState({ total: 0, escalated: 0, tickets: 0, autoreplied: 0 });
+  const [teach, setTeach]     = useState(null);
+  const [resolve, setResolve] = useState(null);
+  const [conversations, setConversations] = useState(new Map());
+  const [events, setEvents]   = useState([]);
+  const [knowledge, setKnowledge] = useState([]);
+  const [agentTables, setAgentTables] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     const [{ data: logsData, error: logsError }, { data: rulesData }] = await Promise.all([
-      supabase
-        .from("ai_routing_logs")
-        .select(`
-          id, created_at, tenant_id, message_id,
-          detected_intent, detected_category, confidence_score, urgency,
-          action_taken, auto_reply_sent, ticket_created_id,
-          manager_overridden, manager_override_category, manager_override_action,
-          raw_openai_response,
-          tenants(name, unit_id, units(unit_number, properties(name)))
-        `)
-        .order("created_at", { ascending: false })
-        .limit(100),
-      supabase
-        .from("ai_routing_rules")
-        .select("*")
-        .order("created_at", { ascending: false }),
+      supabase.from("ai_routing_logs").select(LOG_COLUMNS).order("created_at", { ascending: false }).limit(100),
+      supabase.from("ai_routing_rules").select("*").order("created_at", { ascending: false }),
     ]);
-
-    if (logsError) console.error("Agent Center logs error:", logsError);
-
+    if (logsError) { console.error("Agent Center logs error:", logsError); setLoadError("Could not load agent activity."); }
     const l = logsData || [];
+
+    // The actual conversation: tenant messages by id, and AI replies in the same period for the same tenants.
+    const ids = [...new Set(l.map((x) => x.message_id).filter(Boolean))];
+    const tenantIds = [...new Set(l.map((x) => x.tenant_id).filter(Boolean))];
+    const oldest = l.length ? new Date(new Date(l[l.length - 1].created_at).getTime() - 3600e3).toISOString() : null;
+    const [msgRes, aiRes, evRes, kRes] = await Promise.all([
+      ids.length ? supabase.from("messages").select("id, tenant_id, sender_id, body, created_at").in("id", ids) : Promise.resolve({ data: [] }),
+      tenantIds.length && oldest
+        ? supabase.from("messages").select("id, tenant_id, sender_id, body, created_at").in("tenant_id", tenantIds).is("sender_id", null).gte("created_at", oldest).order("created_at", { ascending: true }).limit(1000)
+        : Promise.resolve({ data: [] }),
+      l.length ? supabase.from("agent_escalation_events").select("id, routing_log_id, event, note, knowledge_id, created_at").in("routing_log_id", l.map((x) => x.id)).order("created_at", { ascending: true }) : Promise.resolve({ data: [] }),
+      supabase.from("agent_knowledge").select("*").order("approved_at", { ascending: false }).limit(500),
+    ]);
+    setAgentTables(!missingTable(evRes.error) && !missingTable(kRes.error));
+    setConversations(attachConversation(l, msgRes.data || [], aiRes.data || []));
+    setEvents(evRes.data || []);
+    setKnowledge(kRes.data || []);
     setLogs(l);
     setRules(rulesData || []);
-    setStats({
-      total:       l.length,
-      escalated:   l.filter((x) => x.action_taken === "ESCALATE_LANDLORD").length,
-      tickets:     l.filter((x) => x.action_taken === "CREATE_TICKET").length,
-      autoreplied: l.filter((x) => x.action_taken === "AUTO_REPLY").length,
-    });
     setLoading(false);
   }, []);
 
@@ -394,7 +399,52 @@ export default function LandlordAgentCenter() {
     return () => supabase.removeChannel(channel);
   }, [loadData]);
 
-  const filteredLogs = filter === "ALL" ? logs : logs.filter((l) => l.action_taken === filter);
+  const eventsByLog = useMemo(() => {
+    const m = new Map();
+    for (const e of events) { if (!m.has(e.routing_log_id)) m.set(e.routing_log_id, []); m.get(e.routing_log_id).push(e); }
+    return m;
+  }, [events]);
+
+  const enriched = useMemo(() => logs.map((log) => {
+    const conv = conversations.get(log.id) || {};
+    const t = log.tenants || {};
+    const unit = t.units || {};
+    const prop = unit.properties || {};
+    return {
+      log, conv,
+      escalation: isEscalationRow(log),
+      reason: classifyEscalation(log, conv.message, conv.reply),
+      state: escalationState(eventsByLog.get(log.id)),
+      history: eventsByLog.get(log.id) || [],
+      tenant: { name: t.name, userId: t.user_id, unitId: unit.id || t.unit_id || null, unitNumber: unit.unit_number, propertyId: prop.id || unit.property_id || null, propertyName: prop.name },
+    };
+  }), [logs, conversations, eventsByLog]);
+
+  const stats = useMemo(() => ({
+    total: logs.length,
+    escalated: enriched.filter((x) => x.escalation).length,
+    unresolved: enriched.filter((x) => x.escalation && !x.state.resolved).length,
+    autoreplied: logs.filter((x) => x.action_taken === "AUTO_REPLY").length,
+  }), [logs, enriched]);
+
+  const propertyMap = useMemo(() => {
+    const m = new Map();
+    for (const x of enriched) if (x.tenant.propertyId) m.set(x.tenant.propertyId, { name: x.tenant.propertyName });
+    return m;
+  }, [enriched]);
+  const unitMap = useMemo(() => {
+    const m = new Map();
+    for (const x of enriched) if (x.tenant.unitId) m.set(x.tenant.unitId, { unit_number: x.tenant.unitNumber });
+    return m;
+  }, [enriched]);
+
+  const FILTERS = [["ESCALATIONS", "Escalations"], ["UNRESOLVED", "Unresolved"], ["RESOLVED", "Resolved"], ["ALL", "All activity"], ["CREATE_TICKET", "Tickets"], ["AUTO_REPLY", "Auto-replied"]];
+  const shown = enriched.filter((x) =>
+    filter === "ALL" ? true
+    : filter === "ESCALATIONS" ? x.escalation
+    : filter === "UNRESOLVED" ? x.escalation && !x.state.resolved
+    : filter === "RESOLVED" ? x.escalation && x.state.resolved
+    : x.log.action_taken === filter);
 
   return (
     <LandlordLayout>
@@ -403,11 +453,14 @@ export default function LandlordAgentCenter() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .agent-row:hover { background: ${C.raised} !important; }
         .agent-tab-btn:hover { background: ${C.raised} !important; }
+        .agent-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .agent-page { padding: 28px 28px 48px; }
+        @media (min-width: 900px) { .agent-grid { grid-template-columns: 1fr 1fr; } .agent-grid > :nth-child(n+3) { grid-column: 1 / -1; } }
+        @media (max-width: 640px) { .agent-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .agent-page { padding: 18px 12px 40px; } }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "28px 28px 48px" }}>
+      <div className="agent-page" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 24 }}>
@@ -418,19 +471,19 @@ export default function LandlordAgentCenter() {
             </div>
           </div>
           <div style={{ fontSize: 13, color: C.textSub }}>
-            AI-powered message routing · Real-time classifications · Override & train rules
+            What tenants asked, what the AI answered and why it escalated · Resolve escalations · Teach the agent approved answers
           </div>
         </div>
 
         {/* ── Stats row ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+        <div className="agent-stats">
           {[
-            { label: "Total Routed", value: stats.total,       color: C.gold,  icon: "◈" },
-            { label: "Escalated",    value: stats.escalated,   color: C.red,   icon: "⚠" },
-            { label: "Tickets",      value: stats.tickets,     color: C.amber, icon: "🔧" },
-            { label: "Auto-replied", value: stats.autoreplied, color: C.green, icon: "↩" },
+            { label: "Routed (last 100)", value: stats.total,       color: C.gold,  icon: "◈" },
+            { label: "Escalations",       value: stats.escalated,   color: C.red,   icon: "⚠" },
+            { label: "Unresolved",        value: agentTables ? stats.unresolved : "—", color: C.amber, icon: "●" },
+            { label: "Auto-replied",      value: stats.autoreplied, color: C.green, icon: "↩" },
           ].map((s) => (
-            <div key={s.label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
+            <div key={s.label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", minWidth: 0 }}>
               <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{s.label}</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                 <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.value}</span>
@@ -441,13 +494,14 @@ export default function LandlordAgentCenter() {
         </div>
 
         {/* ── Tab bar ── */}
-        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 20, overflowX: "auto" }}>
           {[
-            { key: "activity", label: "Activity Log" },
-            { key: "matrix",   label: "Escalation Matrix" },
+            { key: "activity",  label: "Activity" },
+            { key: "knowledge", label: `Agent Knowledge${agentTables ? ` (${knowledge.filter((k) => k.status === "approved").length})` : ""}` },
+            { key: "matrix",    label: "Escalation Matrix" },
           ].map((t) => (
             <button key={t.key} className="agent-tab-btn" onClick={() => setTab(t.key)} style={{
-              padding: "10px 18px", background: "transparent", border: "none",
+              padding: "10px 18px", background: "transparent", border: "none", whiteSpace: "nowrap",
               borderBottom: `2px solid ${tab === t.key ? C.gold : "transparent"}`,
               color: tab === t.key ? C.gold : C.textSub,
               fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
@@ -457,16 +511,12 @@ export default function LandlordAgentCenter() {
           ))}
         </div>
 
-        {/* ══════════════════════════════════════════════════════
-            TAB: ACTIVITY LOG
-        ══════════════════════════════════════════════════════ */}
         {tab === "activity" && (
           <div>
-            {/* Filter buttons */}
             <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-              {[["ALL", "All"], ["ESCALATE_LANDLORD", "Escalated"], ["CREATE_TICKET", "Tickets"], ["AUTO_REPLY", "Auto-replied"]].map(([val, lbl]) => (
+              {FILTERS.filter(([v]) => agentTables || (v !== "UNRESOLVED" && v !== "RESOLVED")).map(([val, lbl]) => (
                 <button key={val} onClick={() => setFilter(val)} style={{
-                  padding: "5px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+                  padding: "6px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer", minHeight: 32,
                   fontFamily: "'DM Sans', sans-serif", fontWeight: filter === val ? 600 : 400,
                   background: filter === val ? `${C.gold}18` : C.raised,
                   border: `1px solid ${filter === val ? C.goldDim : C.border}`,
@@ -474,113 +524,72 @@ export default function LandlordAgentCenter() {
                 }}>{lbl}</button>
               ))}
             </div>
+            {!agentTables && (
+              <div style={{ fontSize: 12, color: C.amber, marginBottom: 12 }}>Resolve and Teach Agent aren't available until the agent knowledge tables are created (pending database migration).</div>
+            )}
+            {loadError && <div role="alert" style={{ fontSize: 12, color: C.red, marginBottom: 12 }}>{loadError}</div>}
 
             {loading ? (
               <div style={{ textAlign: "center", padding: "48px 0", color: C.textSub, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
                 <Spinner /> Loading agent activity…
               </div>
-            ) : filteredLogs.length === 0 ? (
+            ) : shown.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0", color: C.textMuted, fontSize: 13 }}>
-                No routing activity yet. Agent will appear here as messages come in.
+                Nothing here. Activity appears as tenants message the AI assistant.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {filteredLogs.map((log) => {
-                  const tenant = log.tenants;
-                  const unit   = tenant?.units;
-                  const prop   = unit?.properties;
+                {shown.map((x) => {
+                  const { log, tenant } = x;
                   const isOverridden = log.manager_overridden;
-
-                  return (
-                    <div key={log.id} className="agent-row" style={{
-                      background: C.surface, border: `1px solid ${isOverridden ? C.goldDim : C.border}`,
-                      borderRadius: 10, padding: "14px 16px",
-                      transition: "background 0.12s",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                        {/* Category icon */}
-                        <div style={{
-                          width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                          background: C.raised, border: `1px solid ${C.border}`,
-                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-                        }}>
-                          {CATEGORY_ICONS[log.detected_category] || "💬"}
+                  const header = (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: C.raised, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
+                        {CATEGORY_ICONS[log.detected_category] || "💬"}
+                      </div>
+                      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>
+                          {tenant.name || "Unknown tenant"}
+                          <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 400 }}>
+                            {tenant.unitNumber ? ` · Unit ${tenant.unitNumber}` : ""}{tenant.propertyName ? ` · ${tenant.propertyName}` : ""}
+                          </span>
                         </div>
-
-                        {/* Content */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: C.text, marginRight: 2 }}>
-                              {tenant?.name || "Unknown tenant"}
-                            </span>
-                            {unit && (
-                              <span style={{ fontSize: 11, color: C.textMuted }}>
-                                · Unit {unit.unit_number}{prop ? `, ${prop.name}` : ""}
-                              </span>
-                            )}
-                            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-                              <UrgencyDot urgency={log.urgency} />
-                              <Badge action={isOverridden ? log.manager_override_action : log.action_taken} />
-                              <NotifyBadge log={log} />
-                              {isOverridden && (
-                                <span style={{ fontSize: 10, color: C.gold, fontWeight: 600, padding: "2px 6px", background: `${C.gold}15`, borderRadius: 4 }}>
-                                  ✏ Overridden
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div style={{ fontSize: 12, color: C.textSub, marginBottom: 6, lineHeight: 1.5 }}>
-                            {(() => {
-                              const text = log.raw_message || log.detected_intent || "—";
-                              return text.length > 180 ? text.slice(0, 180) + "…" : text;
-                            })()}
-                          </div>
-
-                          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 11, color: C.textMuted }}>
-                              {log.detected_category?.replace(/_/g, " ")}
-                            </span>
-                            <span style={{ fontSize: 11, color: C.textMuted }}>
-                              {log.confidence_score
-                                ? `${(log.confidence_score * 100).toFixed(0)}% confidence`
-                                : ""}
-                            </span>
-                            {log.ticket_created_id && (
-                              <span style={{ fontSize: 11, color: C.amber }}>
-                                🔧 Ticket #{log.ticket_created_id.slice(0, 8).toUpperCase()}
-                              </span>
-                            )}
-                            {log.auto_reply_sent && (
-                              <span style={{ fontSize: 11, color: C.green }}>↩ Auto-reply sent</span>
-                            )}
-                            <span style={{ fontSize: 11, color: C.textMuted, marginLeft: "auto" }}>
-                              {new Date(log.created_at).toLocaleString("en-US", {
-                                month: "short", day: "numeric",
-                                hour: "numeric", minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
+                        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                          {fmtTime(x.conv.messageAt || log.created_at)}
+                          {log.detected_category ? ` · ${log.detected_category.replace(/_/g, " ").toLowerCase()}` : ""}
+                          {log.confidence_score ? ` · ${(log.confidence_score * 100).toFixed(0)}% confidence` : ""}
+                          {log.ticket_created_id ? ` · Ticket #${log.ticket_created_id.slice(0, 8).toUpperCase()}` : ""}
                         </div>
                       </div>
-
-                      {/* Override button */}
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
-                        <button onClick={() => setOverrideLog(log)} style={{
-                          padding: "5px 14px", background: "transparent",
-                          border: `1px solid ${C.border}`, borderRadius: 6,
-                          fontSize: 11, color: C.textSub, cursor: "pointer",
-                          fontFamily: "'DM Sans', sans-serif",
-                        }}>
-                          ✏ Train / Override Agent
-                        </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <UrgencyDot urgency={log.urgency} />
+                        <Badge action={isOverridden ? log.manager_override_action : log.action_taken} />
+                        <NotifyBadge log={log} />
+                        {x.escalation && agentTables && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, color: x.state.resolved ? C.green : C.amber, background: x.state.resolved ? `${C.green}18` : `${C.amber}18` }}>
+                            {x.state.resolved ? "✓ Resolved" : "● Unresolved"}
+                          </span>
+                        )}
+                        {isOverridden && (
+                          <span style={{ fontSize: 10, color: C.gold, fontWeight: 600, padding: "2px 6px", background: `${C.gold}15`, borderRadius: 4 }}>✏ Overridden</span>
+                        )}
                       </div>
                     </div>
+                  );
+                  return (
+                    <EscalationCard key={log.id} log={log} conversation={x.conv} reason={x.reason} state={x.state} tenant={tenant}
+                      escalation={x.escalation} header={header} actionsAvailable={agentTables} history={x.history}
+                      onTeach={() => setTeach(x)} onResolve={() => setResolve({ x, mode: "resolve" })} onReopen={() => setResolve({ x, mode: "reopen" })}
+                      onOverride={() => setOverrideLog({ ...log, raw_message: x.conv.message || log.raw_message })} />
                   );
                 })}
               </div>
             )}
           </div>
+        )}
+
+        {tab === "knowledge" && (
+          <KnowledgePanel entries={knowledge} available={agentTables} properties={propertyMap} units={unitMap} onChanged={loadData} />
         )}
 
         {/* ══════════════════════════════════════════════════════
@@ -650,6 +659,14 @@ export default function LandlordAgentCenter() {
           </div>
         )}
       </div>
+
+      {teach && (
+        <TeachAgentModal log={teach.log} conversation={teach.conv} reason={teach.reason} tenant={teach.tenant}
+          onClose={() => setTeach(null)} onSaved={() => { setTeach(null); loadData(); }} />
+      )}
+      {resolve && (
+        <ResolveModal log={resolve.x.log} mode={resolve.mode} onClose={() => setResolve(null)} onSaved={() => { setResolve(null); loadData(); }} />
+      )}
 
       {/* ── Override Modal ── */}
       {overrideLog && (

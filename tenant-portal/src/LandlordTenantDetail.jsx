@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import { functionErrorMessage } from "./lib/functionError";
 import { getSignedStorageUrl, extractStoragePath } from "./storageUtils";
 import LandlordLayout from "./LandlordLayout";
 import { paidAtFromDate, paymentCents, fmtCents, receiptLinesFromForm, refundsByPayment, paymentChannel } from "./lib/accounting";
@@ -708,9 +709,9 @@ export default function LandlordTenantDetail() {
       body: { tenant_id:tenant.id, tenant_name:tenant.name, tenant_email:tenant.email, unit_number:unit?.unit_number||"—", property_name:property?.name||"—", landlord_name:"Modus Property Management" }
     });
     setInviting(false);
-    if (error) { setInviteError(error.message); return; }
+    if (error) { setInviteError(await functionErrorMessage(error)); return; }
     setInviteSent(true);
-    await supabase.from("tenants").update({ invite_sent_at:new Date().toISOString() }).eq("id",id);
+    // invite-tenant records invite_sent_at and invite_email itself; refresh to show them.
     fetchAll();
   }
 

@@ -62,7 +62,9 @@ describe("grounding", () => {
 
 describe("wiring", () => {
   test("classify-and-route builds the system prompt from the tenant's own property", () => {
-    assert.match(api, /content: buildSystemPrompt\(tenant\?\.units\?\.properties\)/);
+    assert.match(api, /content: buildSystemPrompt\(tenant\?\.units\?\.properties, \{ approvedKnowledge \}\)/);
+    // Approved knowledge is loaded for this tenant's own property and unit only.
+    assert.match(api, /loadApprovedKnowledge\(supabase, \{ propertyId: tenant\?\.units\?\.property_id, unitId: tenant\?\.unit_id \}\)/);
     assert.doesNotMatch(api, /const SYSTEM_PROMPT/);
     assert.match(api, /properties\(id, name\)/);
   });

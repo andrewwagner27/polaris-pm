@@ -80,15 +80,20 @@ describe("wiring", () => {
   });
 
   test("every column Agent Center selects from ai_routing_logs exists", () => {
-    const start = agentCenter.indexOf('.from("ai_routing_logs")');
-    const sel = agentCenter.slice(start).match(/\.select\(`([\s\S]*?)`\)/)[1];
+    // The select list lives in LOG_COLUMNS, which the ai_routing_logs query uses.
+    assert.match(agentCenter, /\.from\("ai_routing_logs"\)\.select\(LOG_COLUMNS\)/);
+    const sel = agentCenter.match(/const LOG_COLUMNS = `([\s\S]*?)`/)[1];
     const cols = sel.replace(/tenants\([\s\S]*\)/, "").split(/[\s,]+/).filter(Boolean);
     assert.ok(cols.includes("action_taken"));
+    assert.ok(cols.includes("raw_message"), "the exact tenant message is selected, not only the AI summary");
     assert.deepEqual(cols.filter((c) => !AI_ROUTING_LOG_COLUMNS.includes(c)), []);
   });
 
   test("Agent Center labels ESCALATE_LANDLORD rows as Escalated and filters on them", () => {
     assert.match(agentCenter, /ESCALATE_LANDLORD:\s*\{\s*label:\s*"Escalated"/);
-    assert.match(agentCenter, /\["ESCALATE_LANDLORD", "Escalated"\]/);
+    // The Escalations filter keeps every row management was (or should have been) notified about.
+    assert.match(agentCenter, /\["ESCALATIONS", "Escalations"\]/);
+    assert.match(agentCenter, /filter === "ESCALATIONS" \? x\.escalation/);
+    assert.match(agentCenter, /escalation: isEscalationRow\(log\)/);
   });
 });

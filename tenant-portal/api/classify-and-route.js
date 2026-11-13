@@ -10,6 +10,7 @@ import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/aut
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt } from "./_lib/aiPrompt.js";
+import { loadApprovedKnowledge, formatKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
 import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
@@ -192,6 +193,10 @@ export default async function handler(req, res) {
     if (dueErr) console.error("Rent ledger lookup error:", dueErr.message);
     const rentContext = buildRentContext(dueErr ? null : due);
 
+    // ── 1c. Management-approved answers (Teach Agent) for this tenant's property and unit only ──
+    const knowledge = await loadApprovedKnowledge(supabase, { propertyId: tenant?.units?.property_id, unitId: tenant?.unit_id });
+    const approvedKnowledge = formatKnowledgeForPrompt(knowledge, { unitNumber: tenant?.units?.unit_number });
+
     // ── 2. Load last 10 messages for thread context ──────────
     const { data: threadMessages } = await supabase
       .from("messages")
@@ -221,7 +226,7 @@ export default async function handler(req, res) {
           json_schema: CLASSIFICATION_SCHEMA,
         },
         messages: [
-          { role: "system", content: buildSystemPrompt(tenant?.units?.properties) },
+          { role: "system", content: buildSystemPrompt(tenant?.units?.properties, { approvedKnowledge }) },
           {
             role: "user",
             content: `Property: ${tenant?.units?.properties?.name || "Unknown"}
@@ -396,7 +401,10 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // Agent Center reads only this table; the row must match its columns exactly (see routingLog.js).
     // One retry: a failed insert would hide the escalation from the Agent Center and the recap.
     // If both attempts fail the notifier still emails management, and the email says the row is missing.
-    const logEntry = await insertRoutingLog(buildRoutingLogRow({ classification, tenantId: tenant_id, messageId: message_id, ticketId, message }));
+    const logEntry = await insertRoutingLog(buildRoutingLogRow({
+      classification, tenantId: tenant_id, messageId: message_id, ticketId, message,
+      reply: finalReply, humanRequested: wantsHuman(message), knowledgeIds: knowledge.map((k) => k.id),
+    }));
 
     // ── 10. Notify management of this escalation (once per tenant message; never throws) ──
     // Runs after the tenant reply, alert and routing log are written, so an email failure
@@ -478,7 +486,10 @@ export async function failSafeEscalation({ tenantId, messageId, message, replyAt
       });
       if (error) console.error("Fallback reply insert error:", error.message || error);
     }
-    const log = await insertRoutingLog(buildRoutingLogRow({ classification, tenantId, messageId, ticketId: null, message }), db);
+    const log = await insertRoutingLog(buildRoutingLogRow({
+      classification, tenantId, messageId, ticketId: null, message,
+      reply: replyAttempted ? null : reply, humanRequested: wantsHuman(message),
+    }), db);
     const notify = await notifyEscalation({
       db, send, log, tenant, message, classification, messageId, humanRequested: wantsHuman(message),
       reply: replyAttempted ? "(The AI reply could not be confirmed — check the Messages thread.)" : reply,

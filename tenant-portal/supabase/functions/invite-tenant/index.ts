@@ -1,11 +1,12 @@
 // supabase/functions/invite-tenant/index.ts
-// NOT DEPLOYED (changes since the deployed version):
-//   - Sender is now Modus Property Management <notifications@getmodusam.com>. The deployed version sends
-//     from noreply@moduspm.com. Only getmodusam.com is verified in the Resend account (audit, 2026-11-12),
-//     and Resend refuses mail from unverified domains, so invites are expected to fail (not confirmed
-//     against Resend logs).
-//   - Names, property and unit are HTML-escaped (landlord-entered, but tenant names can come from
-//     applications), the subject has no line breaks, and the address is validated before any link is made.
+// Landlord-only. Sends a tenant their portal invitation from notifications@getmodusam.com (the verified domain).
+// Names, property and unit are HTML-escaped, the subject has no line breaks, and the address is validated
+// before any link is made. Deployed 2026-11-13 (v19, JWT verification on).
+//
+// Re-sending: an invitation link works once and expires. If the tenant was invited before but never finished
+// signing up, Supabase refuses a second "invite" for the same address ("already been registered"), so a sign-in
+// link (magic link) to the same address and onboarding page is sent instead. A tenant whose record is already
+// linked to a portal account gets 409: they should sign in or reset their password, not be re-invited.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { adminClient, corsHeaders as buildCors, getCaller, isLandlord } from "../_shared/security.ts";
 
@@ -32,23 +33,30 @@ serve(async (req) => {
       });
     }
 
-    const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").eq("id", tenant_id).maybeSingle();
+    const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id, user_id").eq("id", tenant_id).maybeSingle();
     if (!tenantRow) throw new Error("Tenant not found");
     if (typeof tenant_email !== "string" || !EMAIL_RE.test(tenant_email.trim())) throw new Error("A valid tenant email is required");
+    if (tenantRow.user_id) {
+      return new Response(JSON.stringify({
+        error: "This tenant already has a portal account. Ask them to sign in, or to use “Forgot password” on the sign-in page.",
+        code: "ALREADY_REGISTERED",
+      }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-    // Generate magic invite link
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
+    const redirectTo = `https://www.getmodusam.com/onboarding?tenant_id=${encodeURIComponent(String(tenant_id))}`;
+    // Generate the invitation link; for an address that was invited before but never finished, a sign-in link.
+    let { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
       type: "invite",
       email: tenant_email,
-      options: {
-        redirectTo: `https://www.getmodusam.com/onboarding?tenant_id=${tenant_id}`,
-        data: {
-          full_name: tenant_name,
-          tenant_id,
-          invited: true,
-        }
-      }
+      options: { redirectTo, data: { full_name: tenant_name, tenant_id, invited: true } },
     });
+    let resent = false;
+    if (inviteError && /already been registered|already registered|email_exists/i.test(inviteError.message || "")) {
+      ({ data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink", email: tenant_email, options: { redirectTo },
+      }));
+      resent = true;
+    }
 
     if (inviteError) { console.error("generateLink error:", inviteError.message); throw new Error(inviteError.message); }
     const inviteLink = inviteData?.properties?.action_link;
@@ -82,7 +90,7 @@ serve(async (req) => {
                   <table cellpadding="0" cellspacing="0" width="100%"><tr><td align="center">
                     <a href="${esc(inviteLink)}" style="display:inline-block;padding:14px 32px;background:#7A5C2E;color:#C9A96E;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:0.03em;">Set up your account →</a>
                   </td></tr></table>
-                  <p style="margin:28px 0 0;font-size:12px;color:#5C6270;text-align:center;">This link expires in 24 hours. If you didn't expect this email, you can safely ignore it.</p>
+                  <p style="margin:28px 0 0;font-size:12px;color:#5C6270;text-align:center;">This link works once and expires after a short time. If it has expired, ask Modus management to send a new one. If you didn't expect this email, you can safely ignore it.</p>
                 </td></tr>
                 <tr><td style="padding:20px 40px;border-top:1px solid #252930;">
                   <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Columbus, OH</p>
@@ -104,7 +112,7 @@ serve(async (req) => {
       .update({ invite_sent_at: new Date().toISOString(), invite_email: tenant_email })
       .eq("id", tenant_id);
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, resent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
