@@ -156,11 +156,16 @@ export default function LandlordMessages() {
   const [sending, setSending]           = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [lastMessages, setLastMessages] = useState({});
+  // Phones show one pane at a time: the conversation list, or the open conversation with a back button.
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
+  const openThread = (id) => { setActiveId(id); setMobileThreadOpen(true); };
+  const showList = !isMobile || !mobileThreadOpen;
+  const showChat = !isMobile || mobileThreadOpen;
 
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
-    if (location.state?.tenantId && tenants.length > 0) setActiveId(location.state.tenantId);
+    if (location.state?.tenantId && tenants.length > 0) { setActiveId(location.state.tenantId); setMobileThreadOpen(true); }
   }, [location.state, tenants]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, activeId]);
@@ -295,7 +300,7 @@ export default function LandlordMessages() {
       <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'DM Sans', sans-serif" }}>
 
         {/* ── Thread list ── */}
-        <div style={{ width: 280, flexShrink: 0, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ width: isMobile ? "100%" : 280, flexShrink: 0, background: C.surface, borderRight: isMobile ? "none" : `1px solid ${C.border}`, display: showList ? "flex" : "none", flexDirection: "column", overflow: "hidden" }}>
 
           {/* Header */}
           <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
@@ -344,7 +349,7 @@ export default function LandlordMessages() {
               return (
                 <div key={t.id} className="m-thread"
                   style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", background: active ? C.raised : "transparent", transition: "background 0.12s", position: "relative" }}
-                  onClick={() => setActiveId(t.id)}
+                  onClick={() => openThread(t.id)}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -377,12 +382,16 @@ export default function LandlordMessages() {
         </div>
 
         {/* ── Chat area ── */}
-        {activeTenant ? (
+        {!showChat ? null : activeTenant ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden", minWidth: 0 }}>
 
             {/* Chat header */}
-            <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? "10px 12px" : "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
+                {isMobile && (
+                  <button onClick={() => setMobileThreadOpen(false)} aria-label="Back to conversations"
+                    style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.textSub, width: 36, height: 36, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>←</button>
+                )}
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{activeTenant.initials}</div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{activeTenant.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.textSub }}>· Unit {activeTenant.unit_number}</span></div>

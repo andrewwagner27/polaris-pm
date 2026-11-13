@@ -48,12 +48,18 @@ export default function ForgotPassword() {
 
   async function handleSubmit() {
     if (!email.trim()) { setError("Please enter your email address."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("That doesn't look like an email address. Check it and try again."); return; }
     setLoading(true); setError("");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setLoading(false);
-    if (error) { setError(error.message); return; }
+    if (error) {
+      setError(/rate limit|too many|seconds/i.test(error.message || "")
+        ? "Too many reset requests. Please wait a minute and try again."
+        : "We couldn't send the reset email. Please try again in a moment.");
+      return;
+    }
     setSent(true);
   }
 
