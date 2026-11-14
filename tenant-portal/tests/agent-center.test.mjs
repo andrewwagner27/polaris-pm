@@ -56,6 +56,11 @@ describe("escalation reason (honest knowledge-gap detection)", () => {
   });
   test("safety, maintenance, AI unavailable and low confidence", () => {
     assert.equal(classifyEscalation(esc({ raw_openai_response: { tier: "TIER1_EMERGENCY", emergency_kind: "gas" } }), "I smell gas", "").kind, "safety");
+    assert.match(classifyEscalation(esc({ raw_openai_response: { tier: "TIER1_EMERGENCY", emergency_kind: "gas" } }), "I smell gas", "").detail, /fixed safety guidance was sent/);
+    // Older rows (no emergency_kind) must not claim the fixed guidance was sent.
+    const old = classifyEscalation(esc({ raw_openai_response: { tier: "TIER1_EMERGENCY" } }), "there is water coming through my ceiling", "We are on it");
+    assert.equal(old.kind, "safety");
+    assert.doesNotMatch(old.detail, /guidance was sent/);
     assert.equal(classifyEscalation(esc(), "There's smoke coming from the outlet", "").kind, "safety", "fixed emergency rules apply even if the model missed it");
     assert.equal(classifyEscalation(esc({ detected_category: "MAINTENANCE" }), "My faucet drips", "").kind, "maintenance");
     assert.equal(classifyEscalation(esc({ detected_intent: "AI processing failed — tenant message needs a person" }), "hello?", "").kind, "ai_unavailable");

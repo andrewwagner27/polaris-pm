@@ -74,7 +74,10 @@ export function classifyEscalation(log, message, reply) {
   const out = (kind, detail, extra = {}) => ({ kind, ...REASONS[kind], detail, topic, ...extra });
 
   const emergency = raw.emergency_kind || (raw.tier === "TIER1_EMERGENCY" ? "emergency" : null) || detectEmergency(text)?.kind;
-  if (emergency) return out("safety", `Emergency (${String(emergency).replace(/_/g, " ")}): fixed safety guidance was sent to the tenant.`);
+  // Only rows recorded by the current safety path (emergency_kind) are known to have received the fixed guidance.
+  if (emergency) return out("safety", raw.emergency_kind
+    ? `Emergency (${String(raw.emergency_kind).replace(/_/g, " ")}): fixed safety guidance was sent to the tenant.`
+    : `Possible emergency (${String(emergency).replace(/_/g, " ")}). Check the AI response above for what the tenant was told.`);
   if (raw.ai_unavailable || /AI (?:processing failed|classification unavailable)/i.test(String(log?.detected_intent || ""))) {
     return out("ai_unavailable", "The AI could not process this message, so it was passed to management automatically.");
   }
