@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { paymentCents } from "./lib/accounting";
+import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
 const C = {
@@ -28,6 +29,12 @@ const STATUS = {
   late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
   failed:  { label: "Failed",  color: "#E05555", bg: "rgba(224,85,85,0.13)" },
   vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
+  // Tenant standing from the receivables ledger (lib/tenantFinancials rentStanding); never inferred from rent.
+  owes:      { label: "Balance due", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  current:   { label: "Paid up",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  credit:    { label: "Credit",      color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  untracked: { label: "Not tracked", color: "#9095A0", bg: "rgba(144,149,160,0.13)" },
+  upcoming:  { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
 };
 
 const PRIORITY = {
@@ -140,6 +147,7 @@ export default function LandlordDashboard() {
   const [payments, setPayments]       = useState([]);
   const [maintenance, setMaintenance] = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [balances, setBalances]       = useState({ mode: "loading", byTenant: new Map() });
   const [landlordName, setLandlordName] = useState("");
 
   useEffect(() => {
@@ -169,6 +177,7 @@ export default function LandlordDashboard() {
     setTenants((tenants || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
     setPayments((payments || []).filter(p => !p.voided_at));
     setMaintenance(maint || []);
+    setBalances(await fetchLandlordBalances(supabase));
     setLoading(false);
   }
 
@@ -182,15 +191,16 @@ export default function LandlordDashboard() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
   const collected      = (thisMonth.filter(p => p.status === "paid").reduce((s, p) => s + paymentCents(p), 0) / 100).toLocaleString("en-US");
-  const expected       = (units.reduce((s, u) => s + ((u.rent_amount || 0) * 100), 0) / 100).toLocaleString("en-US");
+  // Rent on file for occupied units only (a vacant unit's rent is not expected from anyone).
+  const expected       = (units.filter(u => tenants.some(t => t.unit_id === u.id)).reduce((s, u) => s + ((u.rent_amount || 0) * 100), 0) / 100).toLocaleString("en-US");
   const openMaint      = maintenance.filter(m => m.status !== "resolved");
 
   const rentRollRows   = units.map(unit => {
     const tenant   = tenants.find(t => t.unit_id === unit.id);
     const property = properties.find(p => p.id === unit.property_id);
     if (!tenant) return { unit: unit.unit_number, property: property?.name || "—", tenant: "—", rent: unit.rent_amount || 0, status: "vacant" };
-    const pay = payments.find(p => p.unit_id === unit.id);
-    const status = pay?.status === "paid" ? "paid" : pay?.status === "failed" ? "late" : "pending";
+    // Standing comes from the receivables ledger only; a missing payment record is not "late".
+    const status = rentStanding(tenant, balances).status;
     return { unit: unit.unit_number, property: property?.name || "—", tenant: tenant.name, rent: unit.rent_amount || 0, status };
   });
 
@@ -203,7 +213,7 @@ export default function LandlordDashboard() {
 
   const stats = [
     { label: "Collected · " + now.toLocaleDateString("en-US", { month: "short" }), value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, primary: true },
-    { label: "Outstanding",      value: loading ? "—" : String(rentRollRows.filter(r => r.status === "pending" || r.status === "late").length), sub: "pending or late" },
+    { label: "Balance due",      value: loading ? "—" : balances.mode === "ledger" ? String(rentRollRows.filter(r => r.status === "owes").length) : "—", sub: balances.mode === "ledger" ? "tenants with a ledger balance" : "receivables not active" },
     { label: "Occupancy",        value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units` },
     { label: "Open Maintenance", value: loading ? "—" : String(openMaint.length), sub: "active requests" },
   ];
@@ -331,13 +341,13 @@ export default function LandlordDashboard() {
             <Card>
               <CardHeader
                 title={`Rent Roll — ${now.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
-                sub={`${rentRollRows.filter(r => r.status === "paid").length} paid · ${rentRollRows.filter(r => r.status === "pending" || r.status === "late").length} outstanding`}
+                sub={balances.mode === "ledger" ? `${rentRollRows.filter(r => r.status === "current" || r.status === "credit").length} paid up · ${rentRollRows.filter(r => r.status === "owes").length} with a balance due` : "Balances aren't tracked until receivables are active"}
                 action="View all"
                 onAction={() => navigate("/landlord/rentroll")}
               />
               {/* Filter pills */}
               <div style={{ display: "flex", gap: 6, padding: "10px 16px", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
-                {["all","paid","pending","late","vacant"].map(f => (
+                {["all","owes","current","untracked","vacant"].map(f => (
                   <button key={f} onClick={() => setRentFilter(f)} style={{
                     padding: "4px 12px", borderRadius: 5, fontSize: 12, fontWeight: 500,
                     background: rentFilter === f ? "rgba(201,169,110,0.12)" : "transparent",
@@ -345,7 +355,7 @@ export default function LandlordDashboard() {
                     border: `1px solid ${rentFilter === f ? C.goldDim : C.border}`,
                     cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
                     textTransform: "capitalize", transition: "all 0.12s",
-                  }}>{f}</button>
+                  }}>{f === "all" ? "All" : STATUS[f]?.label || f}</button>
                 ))}
               </div>
               <div style={{ overflowY: "auto", maxHeight: 340 }}>

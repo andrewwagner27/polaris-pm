@@ -146,3 +146,85 @@ export function balancePresentation(balance) {
   if (c < 0) return { amountText: formatCents(c), detail: "Credit on account", tone: "clear", available: true };
   return { amountText: formatCents(0), detail: "Account current", tone: "clear", available: true };
 }
+
+// ── Landlord views: each tenant's standing ─────────────────────────────────
+// Lease defines base rent; recurring charges define billing; ONLY the receivables ledger defines what is owed.
+// Landlord screens (dashboard and reports rent rolls, properties roster, tenant list, tenant detail) previously showed
+// a unit's rent as "overdue" whenever no paid payment record existed — e.g. "-$1 Amount overdue" for a brand-new
+// dummy tenant with no charges. They now use this: a balance appears only from a2_tenant_balances while receivables
+// are active; otherwise the tenant is "Not tracked" with the reason. Rent is never shown as an amount owed.
+
+// → { mode: "ledger" | "inactive" | "error", byTenant: Map(tenantId → balance cents) }. Never throws.
+export async function fetchLandlordBalances(client, { asOf } = {}) {
+  const none = (mode) => ({ mode, byTenant: new Map() });
+  try {
+    const st = await client.rpc("a2_status");
+    if (st?.error || !st?.data) return none("error");
+    if (st.data.active !== true) return none("inactive");
+    const r = await client.rpc("a2_tenant_balances", { p_as_of: asOf ?? null, p_scope: "portfolio", p_scope_id: null });
+    if (r?.error || !Array.isArray(r?.data)) return none("error");
+    const byTenant = new Map();
+    for (const row of r.data) {
+      const c = row?.balance_cents;
+      if (row?.tenant_id && c != null && c !== "" && Number.isFinite(Number(c))) byTenant.set(row.tenant_id, Math.round(Number(c)));
+    }
+    return { mode: "ledger", byTenant };
+  } catch {
+    return none("error");
+  }
+}
+
+const localDate = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ""));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+
+// status: "vacant" | "archived" | "owes" | "current" | "credit" | "upcoming" | "untracked"
+// cents: ledger balance (positive = owed, negative = credit) or null when there is no ledger balance.
+// reason (untracked/upcoming): "receivables_inactive" | "error" | "no_activity".
+export function rentStanding(tenant, balances, { today = new Date() } = {}) {
+  if (!tenant) return { status: "vacant", cents: null };
+  if (tenant.archived) return { status: "archived", cents: null };
+  const start = localDate(tenant.lease_start);
+  const upcoming = Boolean(start && start.getTime() > today.getTime());
+  const mode = balances?.mode;
+  if (mode !== "ledger") {
+    return { status: upcoming ? "upcoming" : "untracked", cents: null, reason: mode === "inactive" ? "receivables_inactive" : "error" };
+  }
+  if (!balances.byTenant?.has(tenant.id)) return { status: upcoming ? "upcoming" : "untracked", cents: null, reason: "no_activity" };
+  const cents = balances.byTenant.get(tenant.id);
+  return { status: cents > 0 ? "owes" : cents < 0 ? "credit" : "current", cents };
+}
+
+export const STANDING = Object.freeze({
+  owes:      { label: "Balance due",    tone: "red" },
+  current:   { label: "Paid up",        tone: "green" },
+  credit:    { label: "Credit",         tone: "green" },
+  untracked: { label: "Not tracked",    tone: "muted" },
+  upcoming:  { label: "Lease upcoming", tone: "muted" },
+  vacant:    { label: "Vacant",         tone: "muted" },
+  archived:  { label: "Past tenant",    tone: "muted" },
+});
+
+const REASON_TEXT = {
+  receivables_inactive: "Receivables aren't active yet, so balances aren't tracked online. Confirm amounts outside Modus.",
+  no_activity: "No posted charges or payments in the receivables ledger for this tenant.",
+  error: "The balance couldn't be loaded. Try again, or check Receivables.",
+};
+
+// What a balance cell/card shows. amountText is null when there is no ledger balance (never "$0" in that case).
+export function standingDisplay(s) {
+  const cfg = STANDING[s?.status] || STANDING.untracked;
+  const usd = (c) => `$${(Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (s && Number.isFinite(s.cents)) {
+    const amountText = s.cents > 0 ? `${usd(s.cents)} due` : s.cents < 0 ? `${usd(s.cents)} credit` : "$0.00";
+    return { label: cfg.label, tone: cfg.tone, amountText, note: "From the receivables ledger." };
+  }
+  return { label: cfg.label, tone: cfg.tone, amountText: null, note: s?.reason ? REASON_TEXT[s.reason] : "" };
+}
+
+// Sum of ledger balances owed (cents) across standings; null when no standing has a ledger balance.
+export function totalOwedCents(standings) {
+  const owed = (standings || []).filter((s) => Number.isFinite(s?.cents));
+  return owed.length ? owed.reduce((sum, s) => sum + Math.max(0, s.cents), 0) : null;
+}

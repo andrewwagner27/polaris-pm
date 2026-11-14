@@ -8,6 +8,7 @@ import IncomeStatement from "./IncomeStatement";
 import DelinquencyReport from "./DelinquencyReport";
 import { A3_ENABLED } from "./lib/release";
 import { BalanceSheet, TrialBalance } from "./FinancialPosition";
+import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -31,7 +32,16 @@ const STATUS = {
   pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
   late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
   vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
+  // Tenant standing from the receivables ledger (lib/tenantFinancials rentStanding); never inferred from rent.
+  owes:      { label: "Balance due", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  current:   { label: "Paid up",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  credit:    { label: "Credit",      color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  untracked: { label: "Not tracked", color: "#9095A0", bg: "rgba(144,149,160,0.13)" },
+  upcoming:  { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
 };
+
+// Balance text for exports and cells: a ledger balance in dollars, or "Not tracked" (never a fabricated $0 or debt).
+const balanceText = (r) => r.balance == null ? "Not tracked" : r.balance > 0 ? `${r.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} due` : r.balance < 0 ? `${Math.abs(r.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })} credit` : "$0.00";
 
 const REPORT_CARDS = [
   { id: "rentroll",    title: "Rent Roll",          sub: "Current payment status for all units",      status: "live",   accent: C.blue },
@@ -125,9 +135,9 @@ function generateRentRollPDF(data, month) {
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(133,183,235);
   doc.text(`RENT ROLL REPORT — ${month.toUpperCase()}`, 14, 19);
   doc.text(`Generated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`, 14, 24);
-  const collected   = data.filter(r => r.status === "paid").reduce((s,r) => s+r.rent, 0);
-  const outstanding = data.filter(r => r.status !== "paid" && r.status !== "vacant").reduce((s,r) => s+r.rent, 0);
-  const stats = [[`$${collected.toLocaleString()}`, "COLLECTED"], [`$${outstanding.toLocaleString()}`, "OUTSTANDING"], [`${data.filter(r => r.status === "paid").length}`, "PAID"], [`${data.filter(r => r.status === "vacant").length}`, "VACANT"]];
+  const tracked     = data.filter(r => r.balance != null);
+  const outstanding = tracked.filter(r => r.balance > 0).reduce((s,r) => s+r.balance, 0);
+  const stats = [[`${data.filter(r => r.status !== "vacant").length}`, "OCCUPIED"], [tracked.length ? `${outstanding.toLocaleString()}` : "NOT TRACKED", "BALANCE DUE (LEDGER)"], [`${data.filter(r => r.status === "owes").length}`, "WITH BALANCE DUE"], [`${data.filter(r => r.status === "vacant").length}`, "VACANT"]];
   const bw = 45;
   stats.forEach((st, i) => {
     const x = 14 + i * (bw + 4);
@@ -140,16 +150,15 @@ function generateRentRollPDF(data, month) {
   autoTable(doc, {
     startY: 55, margin: { left: 14, right: 14 },
     head: [["PROPERTY","UNIT","TENANT","RENT","STATUS","PAID DATE","BALANCE","LEASE END"]],
-    body: data.map(r => [r.property, r.unit, r.tenant, `$${r.rent.toLocaleString()}`, r.status.toUpperCase(), r.paidDate||"—", r.balance > 0 ? `-$${r.balance}` : "$0", r.leaseEnd||"—"]),
+    body: data.map(r => [r.property, r.unit, r.tenant, `$${r.rent.toLocaleString()}`, (STATUS[r.status]?.label || r.status).toUpperCase(), r.paidDate||"—", balanceText(r), r.leaseEnd||"—"]),
     headStyles: { fillColor: navy, textColor: [255,255,255], fontSize: 8, fontStyle: "bold", cellPadding: 4 },
     bodyStyles: { fontSize: 8, cellPadding: 3 },
     alternateRowStyles: { fillColor: [249,250,251] },
     didParseCell: (data) => {
       if (data.column.index === 4 && data.section === "body") {
         const s = data.cell.raw.toLowerCase();
-        if (s === "paid")    data.cell.styles.textColor = [59,109,17];
-        if (s === "late")    data.cell.styles.textColor = [163,45,45];
-        if (s === "pending") data.cell.styles.textColor = [133,79,11];
+        if (s === "paid up" || s === "credit") data.cell.styles.textColor = [59,109,17];
+        if (s === "balance due")               data.cell.styles.textColor = [163,45,45];
       }
     },
   });
@@ -174,6 +183,7 @@ export default function LandlordReports() {
   const [tenants, setTenants]           = useState([]);
   const [payments, setPayments]         = useState([]);
   const [receivablesActive, setReceivablesActive] = useState(false);
+  const [balances, setBalances] = useState({ mode: "loading", byTenant: new Map() });
 
   const month = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
@@ -193,6 +203,7 @@ export default function LandlordReports() {
     setPayments((paymentsData || []).filter(p => !p.voided_at));
     const { data: a2 } = await supabase.rpc("a2_status");
     setReceivablesActive(!!a2?.active);
+    setBalances(await fetchLandlordBalances(supabase));
     setLoading(false);
   }
 
@@ -202,23 +213,23 @@ export default function LandlordReports() {
     const latestPay = payments.find(p => p.unit_id === unit.id);
     let status = "vacant", balance = 0, paidDate = "—";
     if (tenant) {
-      if (latestPay?.status === "paid") { status = "paid"; paidDate = new Date(latestPay.paid_at || latestPay.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-      else if (latestPay?.status === "failed") { status = "late"; balance = unit.rent_amount || 0; }
-      else { status = "pending"; balance = unit.rent_amount || 0; }
+      if (latestPay?.status === "paid") { paidDate = new Date(latestPay.paid_at || latestPay.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+      // Standing and balance come from the receivables ledger only (never rent minus payment records).
+      const standing = rentStanding(tenant, balances);
+      status  = standing.status;
+      balance = Number.isFinite(standing.cents) ? standing.cents / 100 : null;
     }
     return { id: unit.id, property: property?.name || "—", unit: unit.unit_number || "—", tenant: tenant?.name || "Vacant", rent: unit.rent_amount || 0, status, paidDate, balance, leaseEnd: tenant?.lease_end ? new Date(tenant.lease_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—", leaseEndRaw: tenant?.lease_end || null };
   });
 
   const filtered = propFilter === "all" ? rentRoll : rentRoll.filter(r => { const prop = properties.find(p => p.id === propFilter); return r.property === prop?.name; });
-  const paid = filtered.filter(r => r.status === "paid");
-  const late = filtered.filter(r => r.status === "late");
-  const pending = filtered.filter(r => r.status === "pending");
+  const paidUp    = filtered.filter(r => r.status === "current" || r.status === "credit");
+  const owing     = filtered.filter(r => r.status === "owes");
+  const untracked = filtered.filter(r => r.status === "untracked" || r.status === "upcoming");
   const vacant = filtered.filter(r => r.status === "vacant");
-  const delinquent = filtered.filter(r => r.status === "late" || r.status === "pending");
   const vacancies  = filtered.filter(r => r.status === "vacant");
   const totalRoll        = filtered.reduce((s,r) => s+r.rent, 0);
-  const totalCollected   = paid.reduce((s,r) => s+r.rent, 0);
-  const totalOutstanding = delinquent.reduce((s,r) => s+r.balance, 0);
+  const totalOutstanding = owing.reduce((s,r) => s+(r.balance||0), 0);
   const leaseExpiry = filtered.filter(r => r.leaseEndRaw).map(r => ({ ...r, daysLeft: Math.ceil((new Date(r.leaseEndRaw) - new Date()) / (1000*60*60*24)) })).filter(r => r.daysLeft < 180).sort((a,b) => a.daysLeft - b.daysLeft);
 
   async function handlePDFExport() {
@@ -230,7 +241,7 @@ export default function LandlordReports() {
 
   function exportCSV() {
     const headers = ["Property","Unit","Tenant","Rent","Status","Paid Date","Balance","Lease End"];
-    const rows = filtered.map(r => [r.property, r.unit, r.tenant, r.rent, r.status, r.paidDate, r.balance, r.leaseEnd]);
+    const rows = filtered.map(r => [r.property, r.unit, r.tenant, r.rent, STATUS[r.status]?.label || r.status, r.paidDate, r.balance == null ? "Not tracked" : r.balance, r.leaseEnd]);
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -301,7 +312,7 @@ export default function LandlordReports() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Rent Roll — {month}</div>
-                    <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{filtered.length} units · {paid.length} paid · {delinquent.length} outstanding · {vacant.length} vacant</div>
+                    <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{filtered.length} units · {paidUp.length} paid up · {owing.length} balance due · {untracked.length} not tracked · {vacant.length} vacant</div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <GhostBtn onClick={exportCSV}>⬇ CSV</GhostBtn>
@@ -310,9 +321,9 @@ export default function LandlordReports() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
                   <StatBox label="Gross Roll"   value={`$${totalRoll.toLocaleString()}`}       accent={C.blue} />
-                  <StatBox label="Collected"    value={`$${totalCollected.toLocaleString()}`}   accent={C.green} />
-                  <StatBox label="Outstanding"  value={`$${totalOutstanding.toLocaleString()}`} accent={C.red} />
-                  <StatBox label="Collection %" value={totalRoll > 0 ? `${Math.round((totalCollected/totalRoll)*100)}%` : "—"} accent={C.gold} />
+                  <StatBox label="Balance due (ledger)" value={balances.mode === "ledger" ? `${totalOutstanding.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "Not tracked"} accent={C.red} />
+                  <StatBox label="With balance due" value={balances.mode === "ledger" ? String(owing.length) : "—"} accent={C.red} />
+                  <StatBox label="Paid up (ledger)" value={balances.mode === "ledger" ? String(paidUp.length) : "—"} accent={C.green} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
                   <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
@@ -323,7 +334,7 @@ export default function LandlordReports() {
                 </div>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent</TH><TH>Status</TH><TH>Paid Date</TH><TH right>Balance</TH><TH>Lease End</TH></tr></thead>
+                    <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent</TH><TH>Status</TH><TH>Last paid record</TH><TH right>Balance (ledger)</TH><TH>Lease End</TH></tr></thead>
                     <tbody>
                       {filtered.length === 0 && <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: C.textSub, fontSize: 13 }}>No units found.</td></tr>}
                       {filtered.map((r, i) => (
@@ -334,7 +345,7 @@ export default function LandlordReports() {
                           <TD right bold>${r.rent.toLocaleString()}</TD>
                           <TD><Badge status={r.status} /></TD>
                           <TD>{r.paidDate}</TD>
-                          <TD right bold color={r.balance > 0 ? C.red : C.green}>{r.balance > 0 ? `-$${r.balance}` : "✓ $0"}</TD>
+                          <TD right bold color={r.balance == null ? C.textSub : r.balance > 0 ? C.red : C.green}>{r.status === "vacant" ? "—" : balanceText(r)}</TD>
                           <TD>{r.leaseEnd}</TD>
                         </tr>
                       ))}
@@ -343,9 +354,8 @@ export default function LandlordReports() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 20px", background: C.raised, borderTop: `1px solid ${C.border}`, flexWrap: "wrap", gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Totals</span>
-                  <span style={{ fontSize: 13, color: C.textSub }}>{paid.length} paid · {late.length} late · {pending.length} pending · {vacant.length} vacant</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>Collected: ${totalCollected.toLocaleString()}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>Outstanding: ${totalOutstanding.toLocaleString()}</span>
+                  <span style={{ fontSize: 13, color: C.textSub }}>{paidUp.length} paid up · {owing.length} balance due · {untracked.length} not tracked · {vacant.length} vacant</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: balances.mode === "ledger" ? C.red : C.textSub }}>{balances.mode === "ledger" ? `Balance due (ledger): ${totalOutstanding.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "Balances not tracked: receivables aren't active"}</span>
                 </div>
               </>
             )}
@@ -353,35 +363,13 @@ export default function LandlordReports() {
             {/* ── Delinquency ── */}
             {activeReport === "delinquency" && receivablesActive && <DelinquencyReport properties={properties}/>}
             {activeReport === "delinquency" && !receivablesActive && (
-              <>
-                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Delinquency Report — {month}</div>
-                  <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{delinquent.length} tenants with outstanding balances · ${delinquent.reduce((s,r) => s+r.balance, 0).toLocaleString()} total</div>
+              <div style={{ padding: "24px 20px" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Delinquency Report — {month}</div>
+                <div style={{ fontSize: 13, color: C.textSub, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>
+                  Delinquency isn't tracked yet: receivables aren't active, so Modus has no posted charges to compare payments against.
+                  Rent on file is not treated as an amount owed. Confirm balances outside Modus until receivables are activated.
                 </div>
-                <div style={{ padding: "16px 20px" }}>
-                  {delinquent.length > 0 && <AlertBanner color={C.red}>🚨 <strong>{delinquent.length} tenants</strong> have outstanding balances totaling <strong>${delinquent.reduce((s,r) => s+r.balance, 0).toLocaleString()}</strong>.</AlertBanner>}
-                  {delinquent.length === 0 && <div style={{ padding: "24px 0", textAlign: "center", color: C.green, fontSize: 14, fontWeight: 600 }}>🎉 No delinquent tenants this month!</div>}
-                </div>
-                {delinquent.length > 0 && (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead><tr><TH>Property</TH><TH>Unit</TH><TH>Tenant</TH><TH right>Rent Due</TH><TH>Status</TH><TH>Action</TH></tr></thead>
-                      <tbody>
-                        {delinquent.map((r, i) => (
-                          <tr key={i} className="m-row">
-                            <TD><PropBadge name={r.property} /></TD>
-                            <TD bold>{r.unit}</TD>
-                            <TD>{r.tenant}</TD>
-                            <TD right bold color={C.red}>${r.balance.toLocaleString()}</TD>
-                            <TD><Badge status={r.status} /></TD>
-                            <TD><GhostBtn small onClick={() => navigate("/landlord/messages")}>Message</GhostBtn></TD>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
+              </div>
             )}
 
             {/* ── Vacancy ── */}

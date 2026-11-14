@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { paymentCents } from "./lib/accounting";
+import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
 
 const C = {
   bg:       "#0C0E12",
@@ -25,6 +26,12 @@ const STATUS = {
   pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
   late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
   vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
+  // Tenant standing from the receivables ledger (lib/tenantFinancials rentStanding); never inferred from rent.
+  owes:      { label: "Balance due", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  current:   { label: "Paid up",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  credit:    { label: "Credit",      color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  untracked: { label: "Not tracked", color: "#9095A0", bg: "rgba(144,149,160,0.13)" },
+  upcoming:  { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
 };
 
 const PROP_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
@@ -201,6 +208,7 @@ export default function LandlordProperties() {
   const [units,       setUnits]       = useState([]);
   const [tenants,     setTenants]     = useState([]);
   const [payments,    setPayments]    = useState([]);
+  const [balances,    setBalances]    = useState({ mode: "loading", byTenant: new Map() });
   const [maintenance, setMaintenance] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [selected,    setSelected]    = useState(null);
@@ -230,6 +238,7 @@ export default function LandlordProperties() {
     setTenants((tenantsData || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
     setPayments((paymentsData || []).filter(p => !p.voided_at));
     setMaintenance(maintData || []);
+    setBalances(await fetchLandlordBalances(supabase));
     setLoading(false);
   }
 
@@ -250,9 +259,8 @@ export default function LandlordProperties() {
   function unitRosterFor(id) {
     return propUnitsFor(id).map(unit => {
       const tenant = tenants.find(t => t.unit_id === unit.id);
-      const pay    = payments.find(p => p.unit_id === unit.id);
       let status   = "vacant";
-      if (tenant) status = pay?.status === "paid" ? "paid" : pay?.status === "failed" ? "late" : "pending";
+      if (tenant) status = rentStanding(tenant, balances).status;   // ledger only; a missing payment record is not "late"
       return { id: unit.id, unit: unit.unit_number, tenant: tenant?.name || "—", rent: unit.rent_amount || 0, status };
     });
   }

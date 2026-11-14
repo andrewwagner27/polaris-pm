@@ -8,6 +8,7 @@ import { paidAtFromDate, paymentCents, fmtCents, receiptLinesFromForm, refundsBy
 import PaymentLinesField from "./PaymentLinesField";
 import PaymentActions from "./PaymentActions";
 import TenantLedger from "./TenantLedger";
+import { fetchLandlordBalances, rentStanding, standingDisplay } from "./lib/tenantFinancials";
 
 const C = {
   bg:       "#0C0E12",
@@ -35,6 +36,13 @@ const STATUS = {
   in_progress: { label:"In Progress", color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
   resolved:    { label:"Resolved",    color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
+  // Tenant standing (receivables ledger only; see rentStanding in lib/tenantFinancials)
+  owes:        { label:"Balance due",         color:"#E05555", bg:"rgba(224,85,85,0.13)"   },
+  credit:      { label:"Credit",              color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
+  untracked:   { label:"Balance not tracked", color:"#9095A0", bg:"rgba(144,149,160,0.13)" },
+  priority_high:   { label:"High priority", color:"#E05555", bg:"rgba(224,85,85,0.13)"  },
+  priority_normal: { label:"Normal",        color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
+  archived:    { label:"Past tenant",         color:"#9095A0", bg:"rgba(144,149,160,0.13)" },
 };
 
 const TABS = ["Overview","Ledger","Payments","Recurring","Maintenance","Lease","Inspections","Notes"];
@@ -676,6 +684,7 @@ export default function LandlordTenantDetail() {
   const [showArchive,  setShowArchive]  = useState(false);
   const [archiving,    setArchiving]    = useState(false);
   const [showRecordPmt,setShowRecordPmt]= useState(false);
+  const [balances,     setBalances]     = useState({ mode:"loading", byTenant:new Map() });
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -696,6 +705,7 @@ export default function LandlordTenantDetail() {
     setRefunded(refundsByPayment(refundsData));
     setMaintenance(maintData||[]);
     setChecklist(checklistData||[]);
+    setBalances(await fetchLandlordBalances(supabase));
     setLoading(false);
   },[id]);
 
@@ -735,23 +745,18 @@ export default function LandlordTenantDetail() {
 
   const initials      = (tenant.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   const accentColor   = AVATAR_COLORS[0];
-  const latestPayment = payments[0];
   // Declare dates first to avoid temporal dead zone
   // Parse date strings as LOCAL dates (not UTC) to avoid off-by-one-day in ET
   const parseDateLocal = (s) => { if (!s) return null; const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
   const leaseEnd   = parseDateLocal(tenant.lease_end);
   const leaseStart = parseDateLocal(tenant.lease_start);
-  // Determine status — never flag overdue/pending if lease hasn't started yet
+  // Standing and balance come only from the receivables ledger: never from lease rent or legacy payment records
+  // (a new tenant with no charges used to show its rent as an overdue amount).
   const leaseStarted = leaseStart ? leaseStart.getTime() <= Date.now() : true;
-  let status = "current";
-  if (!leaseStarted) {
-    status = "upcoming";
-  } else if (latestPayment?.status==="failed") {
-    status = "late";
-  } else if (!latestPayment||latestPayment.status==="pending") {
-    status = "pending";
-  }
-  const balance    = !leaseStarted ? 0 : (status!=="paid"&&latestPayment?.status!=="paid"?(unit?.rent_amount||0):0);
+  const standing    = rentStanding(tenant, balances);
+  const balanceView = standingDisplay(standing);
+  const status      = standing.status;
+  const toneColor   = balanceView.tone==="red" ? C.red : balanceView.tone==="green" ? C.green : C.textSub;
   const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime()-Date.now())/86400000) : null;
   const progress   = leaseStart&&leaseEnd ? Math.min(100,Math.max(0,Math.round(((Date.now()-leaseStart.getTime())/(leaseEnd.getTime()-leaseStart.getTime()))*100))) : 0;
   const completedChecklist = checklist.filter(r=>r.completed).length;
@@ -865,13 +870,13 @@ export default function LandlordTenantDetail() {
         {activeTab==="Overview"&&(
           <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12 }}>
             <InfoCard title="Balance">
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:balance>0?C.red:C.green,marginBottom:4 }}>
-                {balance>0?`-$${balance.toLocaleString()}`:"$0.00"}
+              <div data-testid="tenant-balance" style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:balanceView.amountText?28:20,fontWeight:600,color:toneColor,marginBottom:4 }}>
+                {balances.mode==="loading" ? "—" : (balanceView.amountText ?? balanceView.label)}
               </div>
-              <div style={{ fontSize:12,color:balance>0?C.red:(!leaseStarted?C.textSub:C.green),marginBottom:balance>0?14:0 }}>
-                {balance>0?"Amount overdue":(!leaseStarted?(`Lease starts ${leaseStart.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`):"Fully paid ✓")}
+              <div style={{ fontSize:12,color:C.textSub,lineHeight:1.5 }}>
+                {balances.mode==="loading" ? "Loading balance…" : (balanceView.amountText ? `${balanceView.label} · ${balanceView.note}` : balanceView.note)}
+                {!leaseStarted&&leaseStart ? ` Lease starts ${leaseStart.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}.` : ""}
               </div>
-              {balance>0&&<PrimaryBtn>Send payment reminder</PrimaryBtn>}
             </InfoCard>
 
             <InfoCard title="Lease Overview">
@@ -977,7 +982,7 @@ export default function LandlordTenantDetail() {
                       <TD>{new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</TD>
                       <TD bold>{m.title}</TD>
                       <TD>{m.category||"—"}</TD>
-                      <TD><Badge status={m.priority==="high"||m.priority==="urgent"?"late":"upcoming"}/></TD>
+                      <TD><Badge status={m.priority==="high"||m.priority==="urgent"?"priority_high":"priority_normal"}/></TD>
                       <TD><Badge status={m.status}/></TD>
                     </tr>
                   ))}

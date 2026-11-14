@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { fetchLandlordBalances, rentStanding, standingDisplay, totalOwedCents } from "./lib/tenantFinancials";
 
 const C = {
   bg:       "#0C0E12",
@@ -229,6 +230,7 @@ export default function LandlordTenants() {
   const [units,      setUnits]      = useState([]);
   const [properties, setProperties] = useState([]);
   const [payments,   setPayments]   = useState([]);
+  const [balances,   setBalances]   = useState({ mode:"loading", byTenant:new Map() });
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [propFilter, setPropFilter] = useState("all");
@@ -251,6 +253,7 @@ export default function LandlordTenants() {
     setUnits(unitsData||[]);
     setProperties(propsData||[]);
     setPayments(paymentsData||[]);
+    setBalances(await fetchLandlordBalances(supabase));
     setLoading(false);
   }
 
@@ -269,12 +272,6 @@ export default function LandlordTenants() {
   }
 
   // Helper: is rent currently late? (today > due day and not paid this month)
-  function isLateThisMonth(t) {
-    const dueDay = t.rent_due_day || 1;
-    if (todayDate.getDate() <= dueDay) return false; // not past due yet
-    return !paidThisMonth(t.id);
-  }
-
   const enriched = tenants.map((t,i) => {
     const unit        = units.find(u=>u.id===t.unit_id);
     const property    = properties.find(p=>p.id===unit?.property_id);
@@ -295,13 +292,14 @@ export default function LandlordTenants() {
     const isNewMoveIn  = leaseStart && ((now - leaseStart.getTime()) / 86400000) <= 30;
 
     // Payment / late status
+    // Balance and "balance due" come only from the receivables ledger, never from rent minus payment records.
     const hasPaidThisMonth = paidThisMonth(t.id);
-    const isLate = !t.archived && isLateThisMonth(t);
-    let payStatus = hasPaidThisMonth ? "current" : isLate ? "late" : "pending";
-    if (latestPay?.status==="failed") payStatus = "late";
+    const standing  = rentStanding(t, balances);
+    const isLate    = !t.archived && standing.status === "owes";
+    const payStatus = standing.status;
 
     const rentAmount = unit?.rent_amount || 0;
-    const balance = hasPaidThisMonth ? 0 : rentAmount;
+    const balance = standing.cents;   // cents, or null when not tracked
 
     return {
       ...t,
@@ -360,14 +358,14 @@ export default function LandlordTenants() {
     if (sortCol==="property") { aVal=a.property+a.unit; bVal=b.property+b.unit; }
     if (sortCol==="rent")     { aVal=a.rent;    bVal=b.rent; }
     if (sortCol==="lease")    { aVal=a.daysLeft??99999; bVal=b.daysLeft??99999; }
-    if (sortCol==="balance")  { aVal=a.balance; bVal=b.balance; }
+    if (sortCol==="balance")  { aVal=a.balance ?? -Infinity; bVal=b.balance ?? -Infinity; }
     if (typeof aVal==="string") return sortDir==="asc"?aVal.localeCompare(bVal):bVal.localeCompare(aVal);
     return sortDir==="asc"?(aVal-bVal):(bVal-aVal);
   });
 
   const TABS = [
     { key:"all",          label:"All Leases",  count:activeEnriched.length },
-    { key:"late",         label:"Late",        count:lateCount,       accent:C.red },
+    { key:"late",         label:"Balance due", count:lateCount,       accent:C.red },
     { key:"ending_soon",  label:"Ending Soon", count:endingSoonCount, accent:C.amber },
     { key:"new_move_ins", label:"New Move-Ins",count:newMoveInCount,  accent:C.green },
     { key:"past",         label:"Past Tenants",count:pastCount,       accent:C.textSub },
@@ -422,9 +420,9 @@ export default function LandlordTenants() {
           <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:24 }}>
             {[
               { label:"Active Leases",      value:activeEnriched.length,                                                          color:C.gold,                              tab:"all"         },
-              { label:"Late This Month",     value:lateCount,                                                                     color:lateCount>0?C.red:C.textSub,         tab:"late"        },
+              { label:"Balance Due",         value:balances.mode==="ledger"?lateCount:"—",                                        color:lateCount>0?C.red:C.textSub,         tab:"late"        },
               { label:"Ending Soon",         value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub, tab:"ending_soon" },
-              { label:"Outstanding Rent",    value:`$${activeEnriched.reduce((s,t)=>s+(t.balance||0),0).toLocaleString()}`,       color:activeEnriched.some(t=>t.balance>0)?C.red:C.green, tab:null },
+              { label:"Outstanding",         value:(()=>{ const c=totalOwedCents(activeEnriched.map(t=>({ cents:t.balance }))); return c==null?"Not tracked":`${(c/100).toLocaleString("en-US",{minimumFractionDigits:2})}`; })(), color:activeEnriched.some(t=>t.balance>0)?C.red:C.textSub, tab:null },
             ].map(s=>(
               <div key={s.label}
                 onClick={s.tab?()=>setActiveTab(s.tab):undefined}
@@ -510,7 +508,7 @@ export default function LandlordTenants() {
                                 : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Pending Invite</span>
                             }
                             {/* Late rent */}
-                            {t.isLate&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.18)",color:C.red,border:"1px solid rgba(224,85,85,0.35)" }}>⚠ Late</span>}
+                            {t.isLate&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.18)",color:C.red,border:"1px solid rgba(224,85,85,0.35)" }}>⚠ Balance due</span>}
                             {/* Eviction watch */}
                             {t.eviction_watch&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>}
                           </div>
@@ -531,9 +529,10 @@ export default function LandlordTenants() {
                     </td>
 
                     <td style={{ fontSize:13,padding:"14px 18px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
-                      <span style={{ fontSize:14,fontWeight:600,color:t.balance>0?C.red:C.green }}>
-                        {t.balance>0?`-$${t.balance.toLocaleString()}`:"$0"}
-                      </span>
+                      {(()=>{ const v=standingDisplay({ status:t.payStatus, cents:t.balance }); return (
+                        <span title={v.note} style={{ fontSize:v.amountText?14:12,fontWeight:600,color:v.tone==="red"?C.red:v.tone==="green"?C.green:C.textSub }}>
+                          {balances.mode==="loading" ? "—" : (v.amountText ?? v.label)}
+                        </span>); })()}
                     </td>
 
                     <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }} onClick={e=>e.stopPropagation()}>
