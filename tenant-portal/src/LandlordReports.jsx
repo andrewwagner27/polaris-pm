@@ -189,7 +189,7 @@ export default function LandlordReports() {
     ]);
     setProperties(propsData || []);
     setUnits(unitsData || []);
-    setTenants(tenantsData || []);
+    setTenants((tenantsData || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
     setPayments((paymentsData || []).filter(p => !p.voided_at));
     const { data: a2 } = await supabase.rpc("a2_status");
     setReceivablesActive(!!a2?.active);

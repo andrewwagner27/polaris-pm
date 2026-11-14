@@ -227,7 +227,7 @@ export default function LandlordProperties() {
     ]);
     setProperties(propsData || []);
     setUnits(unitsData || []);
-    setTenants(tenantsData || []);
+    setTenants((tenantsData || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
     setPayments((paymentsData || []).filter(p => !p.voided_at));
     setMaintenance(maintData || []);
     setLoading(false);

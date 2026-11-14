@@ -166,7 +166,7 @@ export default function LandlordDashboard() {
     ]);
     setProperties(props || []);
     setUnits(units || []);
-    setTenants(tenants || []);
+    setTenants((tenants || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
     setPayments((payments || []).filter(p => !p.voided_at));
     setMaintenance(maint || []);
     setLoading(false);
