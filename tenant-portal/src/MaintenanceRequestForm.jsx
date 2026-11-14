@@ -81,6 +81,8 @@ export default function MaintenanceRequestForm() {
   const [submitted, setSubmitted] = useState(false);
   const [ticket, setTicket]       = useState("");
   const [notice, setNotice]       = useState(null);   // /api/notify result for the new ticket
+  const [submitError, setSubmitError] = useState("");  // the ticket could not be saved (form keeps its content)
+  const [photoFailures, setPhotoFailures] = useState(0); // photos that didn't upload (ticket was still saved)
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
 
@@ -118,23 +120,28 @@ export default function MaintenanceRequestForm() {
     setPhotos(p => [...p, ...newPhotos].slice(0, 6));
   }
 
+  // Returns { urls, failed }. Each photo gets its own name (index + time): two photos uploaded within the same
+  // millisecond used to collide and the second was silently lost. Failures are counted and shown to the tenant.
   async function uploadPhotos(requestId) {
-    const urls = [];
-    for (const photo of photos) {
-      const ext  = photo.file.name.split(".").pop();
-      const path = `${requestId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
-      if (!error) {
-        // Store the object PATH (not a public URL) — bucket is/will be private
-        urls.push(path);
+    const urls = []; let failed = 0;
+    for (const [i, photo] of photos.entries()) {
+      const ext  = (photo.file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${requestId}/${Date.now()}-${i}.${ext}`;
+      try {
+        const { error } = await supabase.storage.from("maintenance-photos").upload(path, photo.file, { contentType: photo.file.type });
+        if (error) failed++;
+        else urls.push(path);   // Store the object PATH (not a public URL) — the bucket is private
+      } catch {
+        failed++;
       }
     }
-    return urls;
+    return { urls, failed };
   }
 
   async function handleSubmit() {
     if (!validate()) return;
-    setLoading(true);
+    setLoading(true); setSubmitError("");
+    try {
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const tenantId = tenant?.id || authUser.id;
@@ -159,24 +166,34 @@ export default function MaintenanceRequestForm() {
       availability,
     }).select().single();
 
-    if (error) { setLoading(false); alert("Failed to submit. Please try again."); return; }
+    if (error || !data) {
+      setSubmitError("We couldn't save your request. Check your connection and try again — nothing was sent yet. If anyone is in danger, call 911.");
+      return;
+    }
 
     // Alert management as soon as the ticket exists — before photo uploads, which can be slow or be cut
     // short if the tenant leaves the page. The server builds and addresses the alert from the saved ticket.
     const notifying = notifyNewMaintenanceTicket({ ticketId: data.id });
 
     if (photos.length > 0) {
-      const photoUrls = await uploadPhotos(data.id);
+      const { urls: photoUrls, failed } = await uploadPhotos(data.id);
+      let lost = failed;
       if (photoUrls.length > 0) {
-        await supabase.from("maintenance_requests").update({ photos: photoUrls }).eq("id", data.id);
+        const { error: photoErr } = await supabase.from("maintenance_requests").update({ photos: photoUrls }).eq("id", data.id);
+        if (photoErr) lost = photos.length;
       }
+      setPhotoFailures(lost);
     }
 
-    setLoading(false);
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
     setSubmitted(true);
 
     setNotice(await notifying);
+    } catch {
+      setSubmitError("Something went wrong while sending your request. Check your connection and try again. If anyone is in danger, call 911.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (submitted) return (
@@ -189,6 +206,11 @@ export default function MaintenanceRequestForm() {
           {notice?.emergency && (
             <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
               <strong style={{ color:C.red }}>Safety first.</strong> {notice.emergency.guidance}
+            </div>
+          )}
+          {photoFailures > 0 && (
+            <div role="status" style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
+              {photoFailures === photos.length ? "Your photos" : `${photoFailures} of ${photos.length} photos`} couldn't be uploaded. Your request was still saved — open it from Maintenance to add a note describing the problem.
             </div>
           )}
           {notice && !["sent","duplicate"].includes(notice.status) && (
@@ -363,6 +385,9 @@ export default function MaintenanceRequestForm() {
         )}
 
         {/* Submit */}
+        {submitError && (
+          <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>{submitError}</div>
+        )}
         <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
           {loading ? <><Spinner/> Submitting…</> : "Submit request →"}
         </button>
