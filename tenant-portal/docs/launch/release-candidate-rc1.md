@@ -1,4 +1,4 @@
-# Release candidate RC1 — 2026-11-14
+# Release candidate RC1 — 2026-11-14 (DEPLOYED: main = 68b7688, migrations A+B applied; see pilot-readiness.md)
 
 Branch `feature/launch-readiness` (local), on top of production `ff4ebd0`. Fast-forward only.
 
