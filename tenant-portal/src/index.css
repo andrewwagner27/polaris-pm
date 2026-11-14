@@ -25,3 +25,8 @@ html, body, #root {
 
 /* Full-screen views: dvh excludes the mobile browser toolbars (100vh doesn't on iOS Safari). */
 .full-height { height: 100vh; height: 100dvh; }
+/* Phones (TenantLayout mobile): the chat sits between the sticky top bar (~56px) and the fixed bottom nav (~62px plus
+   the home-indicator inset), so the composer is visible above the nav without scrolling. */
+@media (max-width: 767px) {
+  .full-height { height: calc(100vh - 118px - env(safe-area-inset-bottom)); height: calc(100dvh - 118px - env(safe-area-inset-bottom)); }
+}

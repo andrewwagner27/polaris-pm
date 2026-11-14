@@ -118,6 +118,9 @@ function WalletContent({ tenant, user }) {
   const [removing,       setRemoving]       = useState(null);
   const [showLink,       setShowLink]       = useState(false);
   const [successMsg,     setSuccessMsg]     = useState("");
+  // Linking a bank is offered only when online rent payment is actually available for this tenant (same rule as the
+  // Pay Rent screen: active ledger and a property set up with the payment processor). Unknown → not offered.
+  const [onlinePay,      setOnlinePay]      = useState(false);
 
   useEffect(() => {
     if (!tenant?.id) return;
@@ -131,6 +134,8 @@ function WalletContent({ tenant, user }) {
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false });
     setMethods(methodsRes.data || []);
+    const { data: due, error: dueErr } = await supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id });
+    setOnlinePay(!dueErr && !!due?.ledger_active && due?.online_available !== false);
     setLoading(false);
   }
 
@@ -270,13 +275,13 @@ function WalletContent({ tenant, user }) {
           <div style={{ width:56,height:56,borderRadius:"50%",background:`${C.blue}18`,border:`1px solid ${C.blue}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24 }}>🏦</div>
           <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:6 }}>No bank accounts saved</div>
           <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6 }}>
-            Link a bank account to pay rent.
+            {onlinePay ? "Link a bank account to pay rent." : "Online rent payment isn't available yet, so there's nothing to link. Keep paying rent the way you do today."}
           </div>
         </div>
       )}
 
-      {/* Link new account */}
-      {showLink ? (
+      {/* Link new account (only when online payment is available) */}
+      {!onlinePay ? null : showLink ? (
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:12 }}>
           <div style={{ fontSize:12,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12 }}>Link bank account</div>
           <Elements stripe={stripePromise}>

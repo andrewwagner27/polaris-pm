@@ -20,6 +20,19 @@ test("form fields are 16px on phones (no iOS focus zoom) and full-screen views u
   assert.match(css, /\.full-height \{ height: 100vh; height: 100dvh; \}/);
 });
 
+test("phones: the chat fits between the top bar and the bottom nav, so the composer is visible without scrolling", () => {
+  // Measured in production at 360x640, 375x667, 390x844, 430x932: top bar 55px, bottom nav 61px (+ safe-area inset).
+  const css = read("src/index.css");
+  assert.match(css, /@media \(max-width: 767px\) \{\s*\.full-height \{ height: calc\(100vh - 118px - env\(safe-area-inset-bottom\)\); height: calc\(100dvh - 118px - env\(safe-area-inset-bottom\)\); \}/);
+});
+
+test("Wallet offers bank linking only when online rent payment is available (pilot: never)", () => {
+  const src = read("src/Wallet.jsx");
+  assert.match(src, /const \[onlinePay,\s+setOnlinePay\]\s+= useState\(false\);/, "default: not offered");
+  assert.match(src, /setOnlinePay\(!dueErr && !!due\?\.ledger_active && due\?\.online_available !== false\);/);
+  assert.match(src, /\{!onlinePay \? null : showLink \? \(/);
+});
+
 test("chat composer: labelled, send key, stays in view above the keyboard, 44px send button", () => {
   const src = read("src/MessagingScreen.jsx");
   assert.match(src, /className="full-height"/);
