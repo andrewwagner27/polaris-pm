@@ -62,7 +62,7 @@ Maintenance (sweep runs), read the daily recap.
 ## 6. Tenant-facing instructions (draft, for the welcome note sent with/after the invitation)
 
 > Welcome to the Modus tenant portal. Open the invitation email on your phone and tap **Set up your account** within
-> 24 hours, then choose a password. In the portal you can message us (our assistant answers common questions right
+> [1 hour — 24 hours once the link setting is changed], then choose a password. In the portal you can message us (our assistant answers common questions right
 > away and passes anything else to our team), submit maintenance requests with photos, and see bulletin notices.
 > **Emergencies:** for fire, smoke, gas smell, sparking electrical or anyone in danger, call 911 first; for gas,
 > leave the building and call from outside. Then call us at **[emergency number — decision pending]** and submit a
