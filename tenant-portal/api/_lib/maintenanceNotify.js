@@ -275,6 +275,62 @@ export async function vendorWorkCompleted({ db, send, env, ticket, actionAt, ret
     email: T.vendorCompleteEmail({ ticket: ticketView(t), vendorName: t.vendor_name, hasInvoice: !!t.invoice_url, invoiceNotes: t.invoice_notes }) });
 }
 
+// ── Server-side safety net for new-ticket alerts ─────────────
+// The tenant's browser asks for the new-request alert right after saving the ticket. If the tab closes or the
+// network drops before that request reaches the server, management would never be told. This sweep finds recent
+// open tickets with no "Management emailed" note and sends the missed alert through maintenanceCreated (same
+// template, same idempotency key, same "already emailed" check — so it never double-sends).
+// - Never sends SMS (a late emergency SMS could mislead; the email says EMERGENCY if it was one).
+// - Skips tickets younger than SWEEP_GRACE_MS (the browser's own request may still be in flight).
+// - Doesn't retry an "unconfirmed" send (it may have arrived) and gives up after SWEEP_MAX_FAILURES failure notes;
+//   both stay visible on the ticket and in the daily recap.
+// Runs from the daily recap and when management opens the maintenance page (landlord event maintenance_sweep).
+export const SWEEP_WINDOW_MS = 48 * 60 * 60 * 1000;
+export const SWEEP_GRACE_MS = 2 * 60 * 1000;
+export const SWEEP_MAX_SENDS = 20;
+export const SWEEP_MAX_FAILURES = 3;
+const SWEEP_CALLER = Object.freeze({ role: "landlord", user: { id: null }, sweep: true });
+const noSms = async () => ({ status: "not_sent" });
+
+export async function sweepMissedTicketAlerts({ db, send, env, now = () => Date.now(), retryDelayMs } = {}) {
+  const out = { status: "ok", checked: 0, sent: 0, failed: 0, already: 0, skipped: 0, tickets: [] };
+  const since = new Date(now() - SWEEP_WINDOW_MS).toISOString();
+  const until = new Date(now() - SWEEP_GRACE_MS).toISOString();
+  const { data: tickets, error } = await db.from("maintenance_requests").select("id, created_at, status")
+    .gte("created_at", since).lte("created_at", until).neq("status", "resolved")
+    .order("created_at", { ascending: true }).limit(200);
+  if (error) { console.error("[notify-sweep] load failed:", error.message || error); return { ...out, status: "failed" }; }
+  for (const t of tickets || []) {
+    out.checked++;
+    const notes = await trustedNotes(db, t.id);
+    const bodies = notes.map((c) => String(c.body || ""));
+    if (bodies.some((b) => b.startsWith(CREATED_NOTE))) { out.already++; continue; }
+    const unconfirmed = bodies.some((b) => b.startsWith("Email NOT CONFIRMED") && /maintenance (alert|request)/.test(b));
+    const failures = bodies.filter((b) => b.startsWith("Email FAILED") && /maintenance (alert|request)/.test(b)).length;
+    if (unconfirmed || failures >= SWEEP_MAX_FAILURES) { out.skipped++; continue; }
+    if (out.sent + out.failed >= SWEEP_MAX_SENDS) { out.skipped++; continue; }
+    let r;
+    try {
+      r = await maintenanceCreated({ db, send, sms: noSms, env, caller: SWEEP_CALLER, body: { ticket_id: t.id }, retryDelayMs, now });
+    } catch (e) {
+      r = { status: "failed", error: e?.message || String(e) };
+    }
+    if (r.status === "sent") out.sent++;
+    else if (r.status === "duplicate") out.already++;
+    else out.failed++;
+    out.tickets.push({ id: t.id, status: r.status });
+  }
+  if (out.sent || out.failed) console.log("[notify-sweep]", JSON.stringify({ checked: out.checked, sent: out.sent, failed: out.failed, skipped: out.skipped }));
+  return out;
+}
+
+// Landlord event: run the sweep (the maintenance page calls it on load).
+export async function maintenanceSweep({ db, send, env, caller, retryDelayMs }) {
+  if (!isLandlord(caller)) throw new NotifyError(403, "Management only");
+  const r = await sweepMissedTicketAlerts({ db, send, env, retryDelayMs });
+  return { status: r.status, checked: r.checked, sent: r.sent, failed: r.failed, skipped: r.skipped };
+}
+
 export const TENANT_EVENTS = Object.freeze({ maintenance_created: maintenanceCreated, tenant_comment: tenantComment, inspection_completed: inspectionCompleted });
-export const LANDLORD_EVENTS = Object.freeze({ ticket_status: ticketStatus, landlord_comment: landlordComment, vendor_approved: vendorApproved, vendor_more_work: vendorMoreWork });
+export const LANDLORD_EVENTS = Object.freeze({ ticket_status: ticketStatus, landlord_comment: landlordComment, vendor_approved: vendorApproved, vendor_more_work: vendorMoreWork, maintenance_sweep: maintenanceSweep });
 export const EVENTS = Object.freeze({ ...TENANT_EVENTS, ...LANDLORD_EVENTS });

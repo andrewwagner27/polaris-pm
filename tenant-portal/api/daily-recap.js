@@ -10,11 +10,12 @@
 // with a clear error (visible in the Vercel cron log).
 
 /* global process */
-import { hasCronSecret, getCaller, isLandlord } from "./_lib/auth.js";
+import { hasCronSecret, getCaller, isLandlord, supabaseAdmin } from "./_lib/auth.js";
 import { recapSince } from "./_lib/escalationNotify.js";
 import { buildDailyRecap } from "./_lib/dailyRecap.js";
 import { managementRecipients } from "./_lib/recipients.js";
-import { sendEmailReliably, payloadKey } from "./_lib/email.js";
+import { sendEmailReliably, payloadKey, sendEmail } from "./_lib/email.js";
+import { sweepMissedTicketAlerts } from "./_lib/maintenanceNotify.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).end();
@@ -27,6 +28,14 @@ export default async function handler(req, res) {
   if (!to.ok) {
     console.error("[daily-recap]", to.error);
     return res.status(500).json({ error: to.code, detail: to.error });
+  }
+
+  // Safety net first: send any new-ticket alert a tenant's browser never delivered (email only, never SMS;
+  // idempotent). Runs before the recap is built so the recap reflects it. A failure here never blocks the recap.
+  try {
+    await sweepMissedTicketAlerts({ db: supabaseAdmin, send: sendEmail, env: process.env });
+  } catch (e) {
+    console.error("[daily-recap] ticket-alert sweep failed:", e?.message || e);
   }
 
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;

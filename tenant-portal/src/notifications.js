@@ -15,7 +15,9 @@ import { authHeaders } from "./supabase";
 
 export async function notify(event, ids) {
   try {
-    const res = await fetch("/api/notify", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ event, ...ids }) });
+    // keepalive: the request survives the tenant closing the tab right after submitting (the server-side sweep in
+    // api/_lib/maintenanceNotify.js is the backstop if it never arrives).
+    const res = await fetch("/api/notify", { method: "POST", keepalive: true, headers: await authHeaders(), body: JSON.stringify({ event, ...ids }) });
     let data = null;
     try { data = await res.json(); } catch { data = null; }
     if (!res.ok) { console.error(`notify ${event} refused:`, res.status, data?.error); return { status: "failed", error: data?.error || `HTTP ${res.status}` }; }
@@ -36,3 +38,5 @@ export const notifyTicketStatusUpdate = ({ ticketId }) => notify("ticket_status"
 export const notifyTenantNewComment = ({ ticketId, commentId }) => notify("landlord_comment", { ticket_id: ticketId, comment_id: commentId });
 export const notifyVendorApproved = ({ ticketId, stage }) => notify("vendor_approved", { ticket_id: ticketId, stage });
 export const notifyVendorMoreWork = ({ ticketId, commentId }) => notify("vendor_more_work", { ticket_id: ticketId, comment_id: commentId });
+// Management: send any new-request alert that never went out (e.g. the tenant closed the tab). Idempotent.
+export const sweepMissedTicketAlerts = () => notify("maintenance_sweep", {});
