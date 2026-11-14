@@ -217,6 +217,37 @@ describe("exact messages and conversation", () => {
     assert.equal(D.managementReplyAfter(thread, "2026-11-13T18:00:05Z", tenantUser), "You have space 4.");
     assert.equal(D.managementReplyAfter(thread, "2026-11-13T18:00:05Z", null), null, "without the tenant's user id nothing is guessed");
   });
+  test("with verified management ids, another login's message is never 'management' nor suggested to Teach Agent", () => {
+    const oldLogin = "old-login-of-the-tenant";
+    const thread = [
+      ...tenantMsgs.slice(0, 1),
+      { id: "y1", sender_id: oldLogin, body: "Parking is spot 9.", created_at: "2026-11-13T18:10:00Z" },
+      { id: "y2", sender_id: null, agent_name: "Modus AI Assistant", body: "Your spot is TEST-2.", created_at: "2026-11-13T18:11:00Z" },
+      { id: "y3", sender_id: landlord, body: "You have space 4.", created_at: "2026-11-13T18:30:00Z" },
+    ];
+    const ids = new Set([landlord]);
+    const w = D.transcriptWindow(thread, "m1", tenantUser, { before: 2, after: 3, managementIds: ids });
+    assert.deepEqual(w.map((m) => [m.id, m.role]), [["m1", "tenant"], ["y1", "unknown"], ["y2", "ai"], ["y3", "management"]]);
+    assert.equal(D.managementReplyAfter(thread, "2026-11-13T18:00:05Z", tenantUser, ids), "You have space 4.");
+    assert.equal(D.managementReplyAfter(thread.slice(0, 3), "2026-11-13T18:00:05Z", tenantUser, ids), null, "neither the other login nor the AI is suggested");
+    assert.equal(D.managementReplyAfter(thread, "2026-11-13T18:00:05Z", tenantUser, new Set()), null, "unverifiable → nothing suggested");
+  });
+  test("verifiedManagementIds: only the signed-in account, only if it is a landlord; failures give an empty set", async () => {
+    const client = (role) => ({
+      auth: { getUser: async () => ({ data: { user: { id: "me" } } }) },
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: role ? { id: "me", role } : null }) }) }) }),
+    });
+    assert.deepEqual([...await D.verifiedManagementIds(client("landlord"))], ["me"]);
+    assert.equal((await D.verifiedManagementIds(client("tenant"))).size, 0);
+    assert.equal((await D.verifiedManagementIds(client(null))).size, 0);
+    assert.equal((await D.verifiedManagementIds({ auth: { getUser: async () => { throw new Error("x"); } } })).size, 0);
+  });
+  test("the Agent Center transcript and Teach Agent both pass verified management ids", () => {
+    const card = readFileSync(new URL("../src/agent/EscalationCard.jsx", import.meta.url), "utf8");
+    const teach = readFileSync(new URL("../src/agent/TeachAgentModal.jsx", import.meta.url), "utf8");
+    assert.match(card, /managementIds: await verifiedManagementIds\(supabase\)/);
+    assert.match(teach, /managementReplyAfter\(data, log\.created_at, tenant\.userId, await verifiedManagementIds\(supabase\)\)/);
+  });
 });
 
 describe("resolution state (append-only events)", () => {

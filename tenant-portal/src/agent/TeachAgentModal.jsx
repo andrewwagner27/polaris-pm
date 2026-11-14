@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { C, font, input, btn, label } from "./theme";
 import { suggestKnowledge, validateKnowledge, CONTENT_MAX, TOPIC_MAX } from "../lib/agentKnowledge";
-import { managementReplyAfter } from "../lib/agentCenterData";
+import { managementReplyAfter, verifiedManagementIds } from "../lib/agentCenterData";
 
 // Teach Agent: management turns an escalation into an approved answer the AI can use next time.
 // Nothing is saved until management reviews the suggestion, edits it and presses Approve. Saving knowledge
@@ -22,7 +22,8 @@ export default function TeachAgentModal({ log, conversation, reason, tenant, onC
       if (log.tenant_id && tenant.userId) {
         const { data } = await supabase.from("messages").select("id, sender_id, body, created_at, agent_name")
           .eq("tenant_id", log.tenant_id).gte("created_at", log.created_at).order("created_at", { ascending: true }).limit(30);
-        managementReply = managementReplyAfter(data, log.created_at, tenant.userId);
+        // Only a verified management sender's reply is suggested (never an AI reply, never another login's message).
+        managementReply = managementReplyAfter(data, log.created_at, tenant.userId, await verifiedManagementIds(supabase));
       }
       if (live) setForm(suggestKnowledge({ topic: reason?.topic, message: conversation?.message, managementReply, tenant }));
     })();

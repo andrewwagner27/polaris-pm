@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { C, font, btn, label, fmtTime } from "./theme";
-import { transcriptWindow } from "../lib/agentCenterData";
+import { transcriptWindow, verifiedManagementIds } from "../lib/agentCenterData";
 
 const ROLE_STYLE = {
   tenant:     { who: "Tenant",     color: C.blue,  align: "flex-end" },
@@ -36,7 +36,7 @@ export default function EscalationCard({ log, conversation, reason, state, tenan
     const { data, error } = await supabase.from("messages").select("id, sender_id, body, created_at, agent_name")
       .eq("tenant_id", log.tenant_id).lte("created_at", until).order("created_at", { ascending: false }).limit(40);
     if (error) { setThreadError("Could not load the conversation."); return; }
-    setThread(transcriptWindow(data, log.message_id, tenant.userId, { before: 10, after: 4 }));
+    setThread(transcriptWindow(data, log.message_id, tenant.userId, { before: 10, after: 4, managementIds: await verifiedManagementIds(supabase) }));
   }
 
   const msg = conversation?.message;

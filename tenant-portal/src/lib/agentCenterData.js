@@ -10,11 +10,28 @@
 
 const t = (v) => new Date(v).getTime();
 
-export function messageRole(m, tenantUserId) {
+// managementIds (Set): senders verified as management. When given, ONLY those are "management"; any other sender
+// (e.g. a message from a tenant's previous login) is "unknown" and can never be suggested as management's answer.
+export function messageRole(m, tenantUserId, managementIds = null) {
   if (!m) return "unknown";
   if (m.sender_id == null || m.agent_name) return "ai"; // assistant messages: null sender or an agent_name
   if (tenantUserId && m.sender_id === tenantUserId) return "tenant";
+  if (managementIds) return managementIds.has(m.sender_id) ? "management" : "unknown";
   return tenantUserId ? "management" : "unknown";
+}
+
+// Management senders the signed-in landlord can verify. profiles RLS lets a user read only their own row, so this
+// is the signed-in management account itself (the landlord routes are landlord-only). Never throws; empty on failure.
+export async function verifiedManagementIds(supabase) {
+  try {
+    const { data } = await supabase.auth.getUser();
+    const id = data?.user?.id;
+    if (!id) return new Set();
+    const { data: p } = await supabase.from("profiles").select("id, role").eq("id", id).maybeSingle();
+    return p?.role === "landlord" ? new Set([id]) : new Set();
+  } catch {
+    return new Set();
+  }
 }
 
 // logs: ai_routing_logs rows (with tenant_id, message_id, raw_message, created_at, raw_openai_response)
@@ -57,19 +74,19 @@ export function attachConversation(logs, tenantMessages = [], aiMessages = []) {
 
 // thread: messages for ONE tenant, any order. Returns the window around the triggering message:
 // up to `before` earlier messages and `after` later ones, oldest first, each with a role and focus flag.
-export function transcriptWindow(thread, focusMessageId, tenantUserId, { before = 10, after = 4 } = {}) {
+export function transcriptWindow(thread, focusMessageId, tenantUserId, { before = 10, after = 4, managementIds = null } = {}) {
   const list = (thread || []).slice().sort((a, b) => t(a.created_at) - t(b.created_at));
   const i = list.findIndex((m) => m.id === focusMessageId);
   const slice = i < 0 ? list.slice(-before) : list.slice(Math.max(0, i - before), i + after + 1);
-  return slice.map((m) => ({ ...m, role: messageRole(m, tenantUserId), focus: m.id === focusMessageId }));
+  return slice.map((m) => ({ ...m, role: messageRole(m, tenantUserId, managementIds), focus: m.id === focusMessageId }));
 }
 
 // First message a person from management sent in the thread after the escalation. It's used as the suggested
 // Teach Agent answer because it is management's own words, never the tenant's.
-export function managementReplyAfter(thread, afterIso, tenantUserId) {
+export function managementReplyAfter(thread, afterIso, tenantUserId, managementIds = null) {
   if (!tenantUserId) return null;
   const from = afterIso ? t(afterIso) : 0;
   const m = (thread || []).slice().sort((a, b) => t(a.created_at) - t(b.created_at))
-    .find((x) => messageRole(x, tenantUserId) === "management" && t(x.created_at) >= from);
+    .find((x) => messageRole(x, tenantUserId, managementIds) === "management" && t(x.created_at) >= from);
   return m?.body || null;
 }
