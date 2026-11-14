@@ -1,3 +1,4 @@
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import Stripe from "stripe";
 import { supabaseAdmin as supabase } from "./_lib/auth.js";
 import { sendEmail } from "./_lib/email.js";
@@ -18,6 +19,7 @@ async function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {

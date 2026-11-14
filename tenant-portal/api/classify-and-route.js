@@ -5,6 +5,7 @@
 // Accepts: POST { message: string, tenant_id: string, message_id?: string }
 // Requires: Authorization: Bearer <Supabase session JWT> of the tenant who owns tenant_id (or a landlord)
 
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import OpenAI from "openai";
 import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
@@ -106,6 +107,7 @@ const CLASSIFICATION_SCHEMA = {
 
 // ── Main handler ───────────────────────────────────────────
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

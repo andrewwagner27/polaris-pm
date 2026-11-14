@@ -10,10 +10,12 @@
 // accepted the message; confirm on the phone that it arrived.
 
 /* global process */
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { requireCaller, isLandlord } from "./_lib/auth.js";
 import { sendEmergencySms } from "./_lib/emergencySms.js";
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
 
   const caller = await requireCaller(req, res);

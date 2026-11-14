@@ -10,6 +10,7 @@
 // with a clear error (visible in the Vercel cron log).
 
 /* global process */
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { hasCronSecret, getCaller, isLandlord, supabaseAdmin } from "./_lib/auth.js";
 import { recapSince } from "./_lib/escalationNotify.js";
 import { buildDailyRecap } from "./_lib/dailyRecap.js";
@@ -18,6 +19,7 @@ import { sendEmailReliably, payloadKey, sendEmail } from "./_lib/email.js";
 import { sweepMissedTicketAlerts } from "./_lib/maintenanceNotify.js";
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).end();
 
   if (!hasCronSecret(req) && !isLandlord(await getCaller(req))) {

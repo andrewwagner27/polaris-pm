@@ -16,11 +16,13 @@
 // Same-origin only: no CORS headers are sent.
 
 /* global process */
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { supabaseAdmin, requireCaller } from "./_lib/auth.js";
 import { sendEmail } from "./_lib/email.js";
 import { EVENTS, NotifyError } from "./_lib/maintenanceNotify.js";
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
   const caller = await requireCaller(req, res);
   if (!caller) return;

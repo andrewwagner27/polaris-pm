@@ -12,10 +12,12 @@
 // message status (queued/accepted/sending); nothing here ever reports "delivered".
 // Never throws. Secrets are never logged or returned.
 
+import { isNonProductionDeployment } from "./deployEnv.js";
 /* global Buffer */
 const E164 = /^\+[1-9]\d{7,14}$/;
 
 export function emergencySmsConfig(env = globalThis.process?.env ?? {}) {
+  if (isNonProductionDeployment(env)) return { enabled: false, status: "disabled" };   // never from Preview / dev
   if (String(env.EMERGENCY_SMS_ENABLED || "").trim().toLowerCase() !== "true") return { enabled: false, status: "disabled" };
   const missing = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM", "LANDLORD_PHONE"].filter((k) => !String(env[k] || "").trim());
   const to = String(env.LANDLORD_PHONE || "").trim();

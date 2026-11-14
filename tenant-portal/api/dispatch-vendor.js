@@ -2,10 +2,12 @@
 // Landlord-only manual trigger for emergency vendor dispatch.
 // classify-and-route calls the shared dispatchVendor() directly (no HTTP hop).
 
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
 
   const caller = await requireCaller(req, res);

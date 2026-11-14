@@ -8,6 +8,7 @@
 // builds the email on the server and chooses the recipient itself.
 // Same-origin only: no CORS headers are sent.
 
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { requireCaller, isLandlord } from "./_lib/auth.js";
 import { sendEmail, normalizeRecipients } from "./_lib/email.js";
 import { parseEmailList } from "../src/lib/emailSafety.js";
@@ -16,6 +17,7 @@ const MAX_RECIPIENTS = 10;
 const MAX_HTML = 200_000;
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== 'POST') return res.status(405).end();
 
   const caller = await requireCaller(req, res);

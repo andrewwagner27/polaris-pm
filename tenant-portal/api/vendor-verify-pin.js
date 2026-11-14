@@ -7,6 +7,7 @@
 // authorizes all further calls to /api/vendor-ticket for this one ticket.
 // ENV: VENDOR_SESSION_SECRET (required — fails closed with 500 if missing).
 
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { supabaseAdmin as supabase, timingSafeEqualStr } from "./_lib/auth.js";
 import { createVendorSession, isVendorSessionConfigured } from "./_lib/vendorSession.js";
 
@@ -15,6 +16,7 @@ const FAILURE_DELAY_MS = 750; // slows brute-force attempts against the 4-digit 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
 
   if (!isVendorSessionConfigured()) {

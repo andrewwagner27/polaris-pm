@@ -10,6 +10,7 @@
 // ENV: VENDOR_SESSION_SECRET (required — fails closed with 500 if missing).
 
 /* global process */
+import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import crypto from "node:crypto";
 import { supabaseAdmin as supabase, timingSafeEqualStr } from "./_lib/auth.js";
 import {
@@ -285,6 +286,7 @@ const SESSION_ACTIONS = {
 // ── handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
   if (req.method !== "POST") return res.status(405).end();
 
   if (!isVendorSessionConfigured()) {

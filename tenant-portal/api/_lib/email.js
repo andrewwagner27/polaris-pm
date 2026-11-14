@@ -21,6 +21,7 @@
 // Rule: one idempotency key ⇔ one payload. Callers must replay a stored payload (escalations) or put a
 // payload hash in the key (payloadKey below); sendEmailReliably never changes the payload between attempts.
 
+import { previewEmailCheck } from "./deployEnv.js";
 import crypto from "node:crypto";
 import { cleanSubject, parseEmailList } from "../../src/lib/emailSafety.js";
 
@@ -53,6 +54,9 @@ export async function sendEmail({ to, subject, html, text, replyTo, idempotencyK
   const body = resendBody({ to, subject, html, text, replyTo });
   if (invalid.length || !body.to.length) return { ok: false, outcome: "rejected", status: 0, data: null, error: "invalid or missing recipient" };
   if (!body.subject || !html) return { ok: false, outcome: "rejected", status: 0, data: null, error: "subject and html are required" };
+  // Preview / development deployments may only email allow-listed dummy addresses (api/_lib/deployEnv.js).
+  const preview = previewEmailCheck(body.to);
+  if (!preview.ok) return { ok: false, outcome: "rejected", status: 0, data: null, error: preview.error };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
