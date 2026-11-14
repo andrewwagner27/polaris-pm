@@ -122,8 +122,11 @@ describe("onboarding link states", () => {
   test("the onboarding page shows the link state before any form, and checks the claim actually linked", () => {
     const page = readFileSync(new URL("../src/TenantOnboarding.jsx", import.meta.url), "utf8");
     assert.match(page, /if \(linkState\.state !== "ready"\)/);
-    assert.match(page, /\.is\("user_id", null\)\s*\.select\("id"\)/);
-    assert.match(page, /doesn't match the email you signed in with/);
+    // The claim itself (read-back, unclaimed rows only) lives in src/lib/tenantClaim.js; see tests/tenant-claim.test.mjs.
+    assert.match(page, /claimTenantRecord\(supabase, invitedTenantId\)/);
+    const claim = readFileSync(new URL("../src/lib/tenantClaim.js", import.meta.url), "utf8");
+    assert.match(claim, /\.is\("user_id", null\)\s*\.select\("id"\)/);
+    assert.match(claim, /doesn't match the email you signed in with/);
   });
 });
 

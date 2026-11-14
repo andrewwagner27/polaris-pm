@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import { inviteLinkState, LINK_MESSAGES } from "./lib/onboardingLink";
+import { claimTenantRecord, CLAIM_MESSAGES } from "./lib/tenantClaim";
 
 const C = {
   bg:       "#F5F3EE",
@@ -131,25 +132,11 @@ export default function TenantOnboarding() {
     async function autoLink() {
       // Only after the link check confirmed a tenant session (never for management, expired or invalid links).
       if (!invitedTenantId||autoLinked||linkState.state!=="ready") return;
-      const { data:{ user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // RLS lets a new user claim only the unlinked tenant record whose email matches their own. A mismatch updates
-      // nothing without an error, so check what was linked rather than assuming success.
-      const { data:claimed, error } = await supabase.from("tenants")
-        .update({ user_id:user.id })
-        .eq("id", invitedTenantId)
-        .is("user_id", null)
-        .select("id");
-      let linked = !error && Array.isArray(claimed) && claimed.length > 0;
-      if (!error && !linked) {
-        const { data:mine } = await supabase.from("tenants").select("id").eq("id", invitedTenantId).eq("user_id", user.id).maybeSingle();
-        linked = Boolean(mine);
-      }
-      if (!linked) {
-        setError("This invitation doesn't match the email you signed in with. Ask Modus management to resend it to the right address.");
-        return;
-      }
+      // claimTenantRecord re-checks the account (never management) and links only an unclaimed record whose email
+      // matches the verified sign-in email (enforced by RLS), reading back the result.
+      const claim = await claimTenantRecord(supabase, invitedTenantId);
+      const linked = claim.ok;
+      if (!linked) { setError(CLAIM_MESSAGES[claim.reason] || CLAIM_MESSAGES.mismatch); return; }
 
       if (linked) {
         setAutoLinked(true);
@@ -228,7 +215,10 @@ export default function TenantOnboarding() {
       if (tenantErr||!tenantData) { setError(`No tenant record found for Unit ${unitNum}. Ask your landlord to add you first.`); setLoading(false); return; }
       if (tenantData.user_id&&tenantData.user_id!==user.id) { setError("This unit is already claimed by another account."); setLoading(false); return; }
 
-      await supabase.from("tenants").update({ user_id:user.id, name:fullName||tenantData.name, phone }).eq("id",tenantData.id);
+      // Link first (authorization checked inside); only then write the name and phone.
+      const claim = await claimTenantRecord(supabase, tenantData.id);
+      if (!claim.ok) { setError(CLAIM_MESSAGES[claim.reason] || CLAIM_MESSAGES.mismatch); setLoading(false); return; }
+      await supabase.from("tenants").update({ name:fullName||tenantData.name, phone }).eq("id",tenantData.id).eq("user_id", user.id);
       setLinkedTenantId(tenantData.id);
       setFoundProperty({ property:propertyData.name, address:`${propertyData.address}, ${propertyData.city} ${propertyData.state}`, unit:unitData.unit_number });
       await supabase.auth.updateUser({ data:{ onboarding_complete:true, full_name:fullName, phone } });
