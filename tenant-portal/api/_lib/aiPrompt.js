@@ -61,6 +61,19 @@ Only the management-approved answers below are configured for this tenant's prop
 ${approved}`;
 }
 
+// Recent conversation for the model, oldest first. The AI's own earlier replies (sender_id null) are labelled as such
+// and are not a source of facts, so a retired or corrected answer can't come back through the thread. Messages from
+// anyone other than the tenant's own login (management staff) are "Management". Without the tenant's login id every
+// non-AI message stays "Tenant" (the previous behaviour for tenant messages).
+export const AI_REPLY_LABEL = "Modus AI (earlier automated reply, not a source of facts)";
+export function formatThreadContext(messages, { tenantUserId = null } = {}) {
+  return (messages || []).map((m) => {
+    const role = m?.sender_id == null ? AI_REPLY_LABEL
+      : (!tenantUserId || m.sender_id === tenantUserId) ? "Tenant" : "Management";
+    return `[${role}]: ${m?.body ?? ""}`;
+  }).join("\n");
+}
+
 export function buildSystemPrompt(property, { approvedKnowledge = "" } = {}) {
   return `You are the Modus AI Assistant, an AI assistant for Modus Property Management.
 
@@ -80,6 +93,7 @@ NEVER inject context that isn't there. If the tenant said "Hi", you say hi back 
 
 ━━━ RULE #2: ONLY CONFIRMED PROPERTY FACTS ━━━
 State a property rule, policy, schedule, fee, amenity or building detail ONLY if it is written in the knowledge base below (including any MANAGEMENT-APPROVED ANSWERS). An approved answer about "this tenant's unit" applies only to this tenant. Never invent, estimate, or fill in from general knowledge or local norms.
+Your own earlier replies in the recent conversation (labelled [${AI_REPLY_LABEL}]) are NOT a source of facts: the knowledge base may have changed since. Never repeat a fact from an earlier reply unless it is in the knowledge base below; if it isn't, treat it as unconfirmed and follow the rule for questions the knowledge base doesn't cover.
 If the tenant asks about something the knowledge base doesn't cover (for example pets, guests, storage, smoking, amenities, move-out, or any rule not listed), say: "I don't have confirmed information on that — I've flagged it for our management team to follow up with you directly." and set escalate_to_landlord: true.
 Never share door, entry, gate, lockbox, or alarm codes. If someone asks for building access, say management will help and set escalate_to_landlord: true.
 

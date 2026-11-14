@@ -72,3 +72,40 @@ describe("wiring", () => {
     assert.match(api, /Property: \$\{tenant\?\.units\?\.properties\?\.name \|\| "Unknown"\}/);
   });
 });
+
+// Release test 2026-11-13: after the Unit 2 parking answer was retired, the AI repeated it from its own earlier reply,
+// because AI replies (sender_id null) were shown to the model as "[Management]" (and staff replies as "[Tenant]").
+describe("conversation history: the AI's own earlier replies are not a source of facts", async () => {
+  const { formatThreadContext, AI_REPLY_LABEL } = await import("../api/_lib/aiPrompt.js");
+  const TENANT = "aaaaaaaa-0000-4000-8000-000000000002";
+  const STAFF = "aaaaaaaa-0000-4000-8000-000000000001";
+  const thread = [
+    { sender_id: TENANT, body: "Which parking spot is assigned to my unit?" },
+    { sender_id: null, body: "Your assigned parking spot is the rear-lot space marked TEST-2." },
+    { sender_id: STAFF, body: "Hi, this is management." },
+  ];
+
+  test("AI replies, tenant messages and staff messages each get their own label", () => {
+    const lines = formatThreadContext(thread, { tenantUserId: TENANT }).split("\n");
+    assert.deepEqual(lines, [
+      "[Tenant]: Which parking spot is assigned to my unit?",
+      `[${AI_REPLY_LABEL}]: Your assigned parking spot is the rear-lot space marked TEST-2.`,
+      "[Management]: Hi, this is management.",
+    ]);
+    assert.ok(!/\[Management\]: Your assigned/.test(lines.join("\n")), "an AI reply is never presented as management");
+  });
+
+  test("without the tenant's login id, non-AI messages stay 'Tenant'; empty input is empty", () => {
+    assert.equal(formatThreadContext(thread).split("\n")[2], "[Tenant]: Hi, this is management.");
+    assert.equal(formatThreadContext(null), "");
+  });
+
+  test("the prompt forbids repeating facts from earlier AI replies, and the route uses the labelled history", () => {
+    for (const p of [clifton, other, none]) {
+      assert.ok(p.includes(`[${AI_REPLY_LABEL}]`) && /NOT a source of facts/.test(p));
+      assert.match(p, /Never repeat a fact from an earlier reply unless it is in the knowledge base/);
+    }
+    assert.match(api, /formatThreadContext\(\(threadMessages \|\| \[\]\)\.reverse\(\), \{ tenantUserId: tenant\?\.user_id \}\)/);
+    assert.ok(!/sender_id === null \? "Management"/.test(api));
+  });
+});

@@ -9,7 +9,7 @@ import OpenAI from "openai";
 import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
-import { buildSystemPrompt } from "./_lib/aiPrompt.js";
+import { buildSystemPrompt, formatThreadContext } from "./_lib/aiPrompt.js";
 import { loadApprovedKnowledge, formatKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
 import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
 import { sendEmail } from "./_lib/email.js";
@@ -205,13 +205,8 @@ export default async function handler(req, res) {
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const threadContext = (threadMessages || [])
-      .reverse()
-      .map((m) => {
-        const role = m.sender_id === null ? "Management" : "Tenant";
-        return `[${role}]: ${m.body}`;
-      })
-      .join("\n");
+    // The AI's own earlier replies are labelled as such (not as management) and are not a source of facts.
+    const threadContext = formatThreadContext((threadMessages || []).reverse(), { tenantUserId: tenant?.user_id });
 
     // ── 3. Call OpenAI with structured output ────────────────
     let classification = null;
