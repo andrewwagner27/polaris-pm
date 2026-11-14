@@ -1,4 +1,4 @@
-# Release candidate RC1 — 2026-11-14 (not deployed)
+# Release candidate RC1 — 2026-11-14
 
 Branch `feature/launch-readiness` (local), on top of production `ff4ebd0`. Fast-forward only.
 
@@ -16,21 +16,25 @@ Branch `feature/launch-readiness` (local), on top of production `ff4ebd0`. Fast-
 | `f1d55bc` | Preview isolation guards (fail closed in Preview) | Vercel |
 | `8b6fe0c` | Mobile: zoom, safe areas, chat composer | Vercel |
 | `6ea23ee` | Maintenance form: photo collisions, inline errors | Vercel |
+| `d3e89aa` | Release review: completed claims never re-run; 60 s route limit < 90 s stale window; missing claims table logged + recorded; failed reply insert escalates; migrations in one transaction | Vercel + migration A/B |
+| `2103fc4` | Release review: safety sweeps (missed ticket alerts + unfinished tenant messages) from recap cron, every landlord page and every tenant page | Vercel |
+| `2922c6a` | Release review: Agent Center/Teach Agent label only verified management as management | Vercel |
 
-After `6ea23ee` there are documentation-only commits (`docs/`); deploy the branch head (`<head>` below).
+Documentation-only commits sit between and after these; deploy the branch head (`<head>` below).
 
-Tests at the head: 552, 551 pass (the one failure is the known Windows CRLF hash check on earlier migrations,
-unchanged). Build passes. Render check 22/22 (server render of tenant, landlord, Agent Center and link pages).
+Tests at the head: 577, 576 pass (the one failure is the known Windows CRLF hash check on earlier migrations: the
+committed blob hashes to the expected value; only the CRLF working copy differs). Build passes. Render check passes.
 
 ## Migrations (apply in this order, each with `supabase db query --project-ref ynbxdbwxdydbpkzaffte --linked -f <file>`)
 
 | # | File | Validated | Rollback |
 |---|---|---|---|
-| A | `20261114120000_ai_message_claims.sql` — service-role-only claims table | PGlite 14/14 | `DROP TABLE IF EXISTS public.ai_message_claims;` |
+| A | `20261114120000_ai_message_claims.sql` — service-role-only claims table (`claimed_at`, `completed_at`) | PGlite 16/16 | `DROP TABLE IF EXISTS public.ai_message_claims;` |
 | B | `20261114130000_security_hardening.sql` — revoke EXECUTE on 2 definer trigger fns, pin search paths, tenant-link integrity (no staff links; one active tenant per login) | PGlite 24/24 (production function bodies) | in file header |
 
-Both refuse to run twice; B refuses if reviewed function bodies changed or if violations exist. The app works
-before and after either migration (A: the route skips the claim if the table is missing).
+Both run in one transaction (BEGIN/COMMIT), refuse to run twice; B refuses if reviewed function bodies changed or if
+violations exist. Apply A **before** the app: without it the route still answers but logs `[message-claim] UNAVAILABLE`
+and records `claim:"unavailable"` (no duplicate protection).
 
 ## Deployment order
 
@@ -61,11 +65,13 @@ Production; it activates only in Preview).
    shows "Not tracked" for occupied units; reports delinquency explains it isn't tracked.
 4. **Links:** `https://www.getmodusam.com/#error=access_denied&error_code=otp_expired` → "This link has expired" page;
    `/reset-password` without a session → "Open the link from your email".
-5. **Maintenance:** as Test User submit "[Release test] RC1 check" with 2 photos → confirmation screen; the ticket
-   gets "Management emailed…" note; open landlord Maintenance → sweep returns sent 0 (already notified).
-6. **Recap:** trigger `/api/daily-recap` as landlord (manual run, sends to management): escalations show
+5. **Safety sweep:** landlord page load → `/api/notify` `safety_sweep` returns 200 with `scope:"all"`; Vercel logs show no
+   `[message-claim] UNAVAILABLE`.
+6. **Maintenance:** as Test User submit "[Release test] RC1 check" with 2 photos → confirmation screen; the ticket
+   gets "Management emailed…" note; open landlord Maintenance → no second alert (already notified).
+7. **Recap:** trigger `/api/daily-recap` as landlord (manual run, sends to management): escalations show
    RESOLVED/OPEN; "Still unresolved from earlier" lists open test escalations.
-7. **Mobile:** 390 px: chat composer visible, no horizontal scroll on the 8 tenant screens.
+8. **Mobile:** 390 px: chat composer visible, no horizontal scroll on the 8 tenant screens.
 
 ## Rollback
 

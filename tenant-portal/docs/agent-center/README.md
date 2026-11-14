@@ -59,8 +59,14 @@ is never edited.
 ## One AI run per message
 
 `ai_message_claims` (migration `20261114120000`, service role only): the route claims the message before any work;
-an overlapping request gets 202 and writes nothing. A claim older than 90 s (crashed run) can be taken over. Before
-the migration is applied the route behaves as before.
+an overlapping request gets 202 and writes nothing (the tenant page keeps polling and shows the one reply). A finished
+run sets `completed_at` and is never repeated. An unfinished claim older than 90 s can be taken over; the route is
+hard-limited to 60 s (vercel.json), so a live run never loses its claim. A tenant message still unanswered after 5
+minutes (request never arrived, run stopped) is escalated to management by the safety sweep (`api/_lib/messageSweep.js`).
+Without the table the route still answers but logs `[message-claim] UNAVAILABLE` and records `claim:"unavailable"`.
+
+The Agent Center transcript and Teach Agent label only the signed-in management account as **Management**; any other
+non-tenant sender shows as "Message" and is never suggested as an answer.
 
 Only landlords can read or write either table (RLS `is_landlord()`); tenants and anonymous callers have no
 access. Tenant messages can't become knowledge: only a landlord's explicit Approve writes `agent_knowledge`.
