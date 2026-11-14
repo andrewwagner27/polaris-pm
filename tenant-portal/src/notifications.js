@@ -40,3 +40,13 @@ export const notifyVendorApproved = ({ ticketId, stage }) => notify("vendor_appr
 export const notifyVendorMoreWork = ({ ticketId, commentId }) => notify("vendor_more_work", { ticket_id: ticketId, comment_id: commentId });
 // Management: send any new-request alert that never went out (e.g. the tenant closed the tab). Idempotent.
 export const sweepMissedTicketAlerts = () => notify("maintenance_sweep", {});
+// Tenant or management: missed new-ticket alerts + tenant messages the assistant never finished (server decides scope).
+// At most once per SAFETY_SWEEP_EVERY_MS per tab, fire-and-forget.
+export const SAFETY_SWEEP_EVERY_MS = 5 * 60 * 1000;
+let lastSafetySweep = 0;
+export function runSafetySweep() {
+  const t = Date.now();
+  if (t - lastSafetySweep < SAFETY_SWEEP_EVERY_MS) return Promise.resolve({ status: "skipped" });
+  lastSafetySweep = t;
+  return notify("safety_sweep", {});
+}

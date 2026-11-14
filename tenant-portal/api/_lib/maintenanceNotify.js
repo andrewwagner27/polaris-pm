@@ -284,7 +284,8 @@ export async function vendorWorkCompleted({ db, send, env, ticket, actionAt, ret
 // - Skips tickets younger than SWEEP_GRACE_MS (the browser's own request may still be in flight).
 // - Doesn't retry an "unconfirmed" send (it may have arrived) and gives up after SWEEP_MAX_FAILURES failure notes;
 //   both stay visible on the ticket and in the daily recap.
-// Runs from the daily recap and when management opens the maintenance page (landlord event maintenance_sweep).
+// Runs through api/_lib/safetySweep.js: daily recap cron, every landlord page load, and every tenant page load (that
+// tenant's tickets only); also the landlord event maintenance_sweep.
 export const SWEEP_WINDOW_MS = 48 * 60 * 60 * 1000;
 export const SWEEP_GRACE_MS = 2 * 60 * 1000;
 export const SWEEP_MAX_SENDS = 20;
@@ -292,13 +293,14 @@ export const SWEEP_MAX_FAILURES = 3;
 const SWEEP_CALLER = Object.freeze({ role: "landlord", user: { id: null }, sweep: true });
 const noSms = async () => ({ status: "not_sent" });
 
-export async function sweepMissedTicketAlerts({ db, send, env, now = () => Date.now(), retryDelayMs } = {}) {
+export async function sweepMissedTicketAlerts({ db, send, env, now = () => Date.now(), retryDelayMs, tenantId = null } = {}) {
   const out = { status: "ok", checked: 0, sent: 0, failed: 0, already: 0, skipped: 0, tickets: [] };
   const since = new Date(now() - SWEEP_WINDOW_MS).toISOString();
   const until = new Date(now() - SWEEP_GRACE_MS).toISOString();
-  const { data: tickets, error } = await db.from("maintenance_requests").select("id, created_at, status")
-    .gte("created_at", since).lte("created_at", until).neq("status", "resolved")
-    .order("created_at", { ascending: true }).limit(200);
+  let q = db.from("maintenance_requests").select("id, created_at, status")
+    .gte("created_at", since).lte("created_at", until).neq("status", "resolved");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data: tickets, error } = await q.order("created_at", { ascending: true }).limit(200);
   if (error) { console.error("[notify-sweep] load failed:", error.message || error); return { ...out, status: "failed" }; }
   for (const t of tickets || []) {
     out.checked++;

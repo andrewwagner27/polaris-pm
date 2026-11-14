@@ -19,7 +19,11 @@
 import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { supabaseAdmin, requireCaller } from "./_lib/auth.js";
 import { sendEmail } from "./_lib/email.js";
-import { EVENTS, NotifyError } from "./_lib/maintenanceNotify.js";
+import { EVENTS as TICKET_EVENTS, NotifyError } from "./_lib/maintenanceNotify.js";
+import { safetySweep } from "./_lib/safetySweep.js";
+
+// safety_sweep (tenant or landlord): missed new-ticket alerts + unfinished tenant messages; a tenant only for their own record.
+const EVENTS = Object.freeze({ ...TICKET_EVENTS, safety_sweep: safetySweep });
 
 export default async function handler(req, res) {
   if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)

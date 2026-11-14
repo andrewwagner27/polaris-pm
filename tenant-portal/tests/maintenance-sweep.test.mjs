@@ -108,12 +108,23 @@ describe("wiring", () => {
   });
   test("the daily recap runs the sweep before building the recap, and a sweep failure doesn't block it", () => {
     const src = read("api/daily-recap.js");
-    const sweepAt = src.indexOf("await sweepMissedTicketAlerts(");
+    const sweepAt = src.indexOf("await runSafetySweeps(");
     assert.ok(sweepAt > 0 && sweepAt < src.indexOf("buildDailyRecap("));
-    assert.match(src, /catch \(e\) \{\s*console\.error\("\[daily-recap\] ticket-alert sweep failed:"/);
+    assert.match(src, /catch \(e\) \{\s*console\.error\("\[daily-recap\] safety sweep failed:"/);
   });
-  test("the browser alert survives tab close (keepalive) and the management queue triggers the sweep", () => {
+  test("the browser alert survives tab close (keepalive); every landlord and tenant page triggers the safety sweep", () => {
     assert.match(read("src/notifications.js"), /fetch\("\/api\/notify", \{ method: "POST", keepalive: true,/);
-    assert.match(read("src/LandlordMaintenance.jsx"), /sweepMissedTicketAlerts\(\)\.then/);
+    for (const p of ["src/LandlordLayout.jsx", "src/TenantLayout.jsx"]) assert.match(read(p), /useEffect\(\(\) => \{ runSafetySweep\(\); \}, \[\]\);/, p);
+  });
+  test("three sweeps at the same moment (recap + page loads) deliver one email", async () => {
+    db.maintenance_requests.push(ticket(1));
+    await Promise.all([sweep(), sweep(), sweep()]);
+    assert.equal(fake.sent.length, 1, "Resend idempotency key: one delivery");
+  });
+  test("a tenant-scoped sweep only touches that tenant's tickets", async () => {
+    db.maintenance_requests.push(ticket(1, { tenant_id: "t1" }), ticket(2, { tenant_id: "t2" }));
+    const r = await M.sweepMissedTicketAlerts({ db: fakeDb, send: E.sendEmail, env: { LANDLORD_EMAIL: "manager@test.invalid" }, now: () => NOW, retryDelayMs: 0, tenantId: "t2" });
+    assert.equal(r.sent, 1);
+    assert.deepEqual(r.tickets.map((t) => t.id), [id(2)]);
   });
 });

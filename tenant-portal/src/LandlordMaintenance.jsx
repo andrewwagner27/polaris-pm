@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import AssignVendorModal from "./AssignVendorModal";
-import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork, sweepMissedTicketAlerts } from "./notifications";
+import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
 import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
@@ -212,7 +212,7 @@ export default function LandlordMaintenance() {
   const [rejecting, setRejecting]         = useState(false);
 
   // Opening the queue also sends any new-request alert a tenant's browser never delivered (server-side, idempotent).
-  useEffect(() => { fetchTickets(); sweepMissedTicketAlerts().then(r => { if (r?.sent > 0) fetchTickets(); }); }, []);
+  useEffect(() => { fetchTickets(); }, []);   // missed-alert safety net: LandlordLayout runs the safety sweep on every management page
   useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
 
   async function fetchTickets() {

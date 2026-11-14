@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
+import { runSafetySweep } from "./notifications";
 
 const C = {
   bg:       "#0C0E12",
@@ -132,6 +133,9 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
       if (user?.user_metadata?.full_name) setLandlordName(user.user_metadata.full_name);
     });
   }, []);
+
+  // Safety net on every management page (throttled per tab): missed new-ticket alerts and unfinished tenant messages.
+  useEffect(() => { runSafetySweep(); }, []);
 
   const menuBtnRef = useRef(null), drawerRef = useRef(null);
 

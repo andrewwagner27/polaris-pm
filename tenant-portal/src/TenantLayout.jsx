@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { clearTenantCache } from "./useTenant";
+import { runSafetySweep } from "./notifications";
 
 // ── Tenant light palette ──────────────────────────────────────
 const C = {
@@ -76,6 +77,10 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
   const isMobile  = width < 768;
   const pathname  = location.pathname;
   const [showPopover, setShowPopover] = useState(false);
+
+  // Safety net (server decides scope: this tenant's own tickets and messages): a missed new-ticket alert or a message
+  // the assistant never finished is passed to management. Throttled per tab; never blocks the page.
+  useEffect(() => { runSafetySweep(); }, []);
 
   useEffect(() => {
     if (!showPopover) return;

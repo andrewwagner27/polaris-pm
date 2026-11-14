@@ -16,7 +16,7 @@ import { recapSince } from "./_lib/escalationNotify.js";
 import { buildDailyRecap } from "./_lib/dailyRecap.js";
 import { managementRecipients } from "./_lib/recipients.js";
 import { sendEmailReliably, payloadKey, sendEmail } from "./_lib/email.js";
-import { sweepMissedTicketAlerts } from "./_lib/maintenanceNotify.js";
+import { runSafetySweeps } from "./_lib/safetySweep.js";
 
 export default async function handler(req, res) {
   if (rejectIfIsolated(res)) return;   // Preview must not touch production data or payments (api/_lib/deployEnv.js)
@@ -32,12 +32,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: to.code, detail: to.error });
   }
 
-  // Safety net first: send any new-ticket alert a tenant's browser never delivered (email only, never SMS;
-  // idempotent). Runs before the recap is built so the recap reflects it. A failure here never blocks the recap.
+  // Safety nets first: send any new-ticket alert a tenant's browser never delivered (email only, never SMS) and
+  // escalate any tenant message the assistant never finished. Both idempotent and claim-protected. Runs before the
+  // recap is built so the recap reflects it. A failure here never blocks the recap.
   try {
-    await sweepMissedTicketAlerts({ db: supabaseAdmin, send: sendEmail, env: process.env });
+    await runSafetySweeps({ db: supabaseAdmin, send: sendEmail, env: process.env });
   } catch (e) {
-    console.error("[daily-recap] ticket-alert sweep failed:", e?.message || e);
+    console.error("[daily-recap] safety sweep failed:", e?.message || e);
   }
 
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
