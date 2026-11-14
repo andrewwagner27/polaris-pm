@@ -278,3 +278,40 @@ describe("Agent Center and migration wiring", () => {
     assert.match(sql, /entries cannot be edited, only retired/);
   });
 });
+
+describe("assistant messages are never treated as management words (Teach Agent suggestions, conversation roles)", () => {
+  const TENANT = "00000000-0000-4000-8000-0000000000b1", STAFF = "00000000-0000-4000-8000-0000000000b2";
+  test("agent_name marks an AI message even with a non-null sender", () => {
+    assert.equal(D.messageRole({ sender_id: STAFF, agent_name: "Modus AI Assistant" }, TENANT), "ai");
+    assert.equal(D.messageRole({ sender_id: null }, TENANT), "ai");
+    assert.equal(D.messageRole({ sender_id: STAFF }, TENANT), "management");
+    assert.equal(D.messageRole({ sender_id: TENANT }, TENANT), "tenant");
+  });
+  test("the suggested Teach Agent answer skips AI-drafted replies and uses management's own reply", () => {
+    const thread = [
+      { sender_id: STAFF, agent_name: "Modus AI Assistant", body: "AI draft: spot TEST-2.", created_at: "2026-11-14T01:00:00Z" },
+      { sender_id: STAFF, body: "Management: Unit 2 has no assigned spot.", created_at: "2026-11-14T02:00:00Z" },
+    ];
+    assert.equal(D.managementReplyAfter(thread, "2026-11-14T00:00:00Z", TENANT), "Management: Unit 2 has no assigned spot.");
+    assert.match(read("../src/agent/TeachAgentModal.jsx"), /select\("id, sender_id, body, created_at, agent_name"\)/);
+  });
+});
+
+describe("withdrawn (retired) knowledge loader", async () => {
+  const { loadWithdrawnKnowledge } = await import("../api/_lib/agentKnowledge.js");
+  test("asks only for retired rows in the tenant's scopes; invalid ids and missing tables are safe", async () => {
+    let q = {};
+    const db = (rows, error = null) => ({ from: (t) => { q.table = t; const b = { select: (c) => { q.cols = c; return b; }, eq: (c, v) => { q.eq = [c, v]; return b; }, or: (s) => { q.or = s; return b; }, order: () => b, limit: async () => ({ data: rows, error }) }; return b; } });
+    const rows = [{ id: "r1", status: "retired", scope: "unit", property_id: P1, unit_id: U2, topic: "Parking", content: "TEST-2", retired_at: "2026-11-14T04:21:40Z" },
+      { id: "r2", status: "retired", scope: "unit", property_id: P1, unit_id: U3, topic: "Parking", content: "B-7" }];
+    const got = await loadWithdrawnKnowledge(db(rows), { propertyId: P1, unitId: U2 });
+    assert.deepEqual(got.map((r) => r.id), ["r1"]);
+    assert.equal(q.table, "agent_knowledge");
+    assert.deepEqual(q.eq, ["status", "retired"]);
+    assert.ok(q.or.includes(`unit_id.eq.${U2}`) && q.or.includes(`property_id.eq.${P1}`));
+    await loadWithdrawnKnowledge(db([]), { propertyId: "x' or 1=1", unitId: "bad" });
+    assert.equal(q.or, "scope.eq.organization", "invalid ids are dropped, never interpolated");
+    assert.deepEqual(await loadWithdrawnKnowledge(db(null, { code: "42P01" }), { propertyId: P1 }), []);
+    assert.deepEqual(await loadWithdrawnKnowledge({ from() { throw new Error("down"); } }, { propertyId: P1 }), []);
+  });
+});

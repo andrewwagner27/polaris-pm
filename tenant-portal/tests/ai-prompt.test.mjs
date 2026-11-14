@@ -62,7 +62,7 @@ describe("grounding", () => {
 
 describe("wiring", () => {
   test("classify-and-route builds the system prompt from the tenant's own property", () => {
-    assert.match(api, /content: buildSystemPrompt\(tenant\?\.units\?\.properties, \{ approvedKnowledge \}\)/);
+    assert.match(api, /content: buildSystemPrompt\(tenant\?\.units\?\.properties, \{ approvedKnowledge, withdrawnKnowledge \}\)/);
     // Approved knowledge is loaded for this tenant's own property and unit only.
     assert.match(api, /loadApprovedKnowledge\(supabase, \{ propertyId: tenant\?\.units\?\.property_id, unitId: tenant\?\.unit_id \}\)/);
     assert.doesNotMatch(api, /const SYSTEM_PROMPT/);
@@ -73,39 +73,107 @@ describe("wiring", () => {
   });
 });
 
-// Release test 2026-11-13: after the Unit 2 parking answer was retired, the AI repeated it from its own earlier reply,
-// because AI replies (sender_id null) were shown to the model as "[Management]" (and staff replies as "[Tenant]").
-describe("conversation history: the AI's own earlier replies are not a source of facts", async () => {
-  const { formatThreadContext, AI_REPLY_LABEL } = await import("../api/_lib/aiPrompt.js");
+// Release test 2026-11-13: after the Unit 2 parking answer ("TEST-2") was retired, the AI repeated it from its own earlier
+// reply, because AI replies (sender_id null) were shown to the model as "[Management]" (and a staff reply as "[Tenant]").
+const { formatThreadContext, messageSpeaker, loadManagementIds, AI_REPLY_LABEL } = await import("../api/_lib/aiPrompt.js");
+const { formatWithdrawnKnowledgeForPrompt, withdrawnEntriesForTenant, formatKnowledgeForPrompt } = await import("../src/lib/agentKnowledge.js");
+describe("conversation history: attribution and the AI's own earlier replies", () => {
   const TENANT = "aaaaaaaa-0000-4000-8000-000000000002";
+  const OLD_LOGIN = "aaaaaaaa-0000-4000-8000-000000000009"; // the tenant's previous portal login
   const STAFF = "aaaaaaaa-0000-4000-8000-000000000001";
+  const managementIds = new Set([STAFF]);
   const thread = [
     { sender_id: TENANT, body: "Which parking spot is assigned to my unit?" },
-    { sender_id: null, body: "Your assigned parking spot is the rear-lot space marked TEST-2." },
+    { sender_id: null, agent_name: "Modus AI Assistant", body: "Your assigned parking spot is the rear-lot space marked TEST-2." },
+    { sender_id: null, body: "Older AI reply without agent_name." },
+    { sender_id: STAFF, agent_name: "Modus AI Assistant", body: "AI-drafted reply sent under a staff id." },
     { sender_id: STAFF, body: "Hi, this is management." },
+    { sender_id: OLD_LOGIN, body: "Message from my old login." },
   ];
 
-  test("AI replies, tenant messages and staff messages each get their own label", () => {
-    const lines = formatThreadContext(thread, { tenantUserId: TENANT }).split("\n");
-    assert.deepEqual(lines, [
+  test("AI replies (null sender or agent_name), verified staff, and tenant messages get the right labels", () => {
+    assert.deepEqual(formatThreadContext(thread, { managementIds }).split("\n"), [
       "[Tenant]: Which parking spot is assigned to my unit?",
       `[${AI_REPLY_LABEL}]: Your assigned parking spot is the rear-lot space marked TEST-2.`,
+      `[${AI_REPLY_LABEL}]: Older AI reply without agent_name.`,
+      `[${AI_REPLY_LABEL}]: AI-drafted reply sent under a staff id.`,
       "[Management]: Hi, this is management.",
+      "[Tenant]: Message from my old login.",
     ]);
-    assert.ok(!/\[Management\]: Your assigned/.test(lines.join("\n")), "an AI reply is never presented as management");
   });
 
-  test("without the tenant's login id, non-AI messages stay 'Tenant'; empty input is empty", () => {
-    assert.equal(formatThreadContext(thread).split("\n")[2], "[Tenant]: Hi, this is management.");
+  test("nothing is attributed to management without verification (no ids, failed lookup, non-landlord roles)", () => {
+    for (const ids of [undefined, new Set(), null]) {
+      const out = formatThreadContext(thread, { managementIds: ids });
+      assert.ok(!out.includes("[Management]"), "unverified senders are never management");
+    }
+    assert.equal(messageSpeaker(null), "ai");
     assert.equal(formatThreadContext(null), "");
   });
 
-  test("the prompt forbids repeating facts from earlier AI replies, and the route uses the labelled history", () => {
+  test("loadManagementIds: only landlord profiles; the tenant's own id is never looked up; failures mean none", async () => {
+    let asked = null;
+    const db = (rows, error = null) => ({ from: () => ({ select: () => ({ in: async (_c, ids) => { asked = ids; return { data: rows, error }; } }) }) });
+    const ids = await loadManagementIds(db([{ id: STAFF, role: "landlord" }, { id: OLD_LOGIN, role: "tenant" }]), thread, TENANT);
+    assert.deepEqual([...ids], [STAFF]);
+    assert.ok(!asked.includes(TENANT) && asked.includes(OLD_LOGIN) && !asked.includes(null));
+    assert.equal((await loadManagementIds(db(null, { message: "denied" }), thread, TENANT)).size, 0);
+    assert.equal((await loadManagementIds({ from() { throw new Error("offline"); } }, thread, TENANT)).size, 0);
+    assert.equal((await loadManagementIds(db([]), [{ sender_id: null }], TENANT)).size, 0);
+  });
+
+  test("the prompt forbids repeating facts from earlier AI replies; the route uses verified labels", () => {
     for (const p of [clifton, other, none]) {
       assert.ok(p.includes(`[${AI_REPLY_LABEL}]`) && /NOT a source of facts/.test(p));
       assert.match(p, /Never repeat a fact from an earlier reply unless it is in the knowledge base/);
     }
-    assert.match(api, /formatThreadContext\(\(threadMessages \|\| \[\]\)\.reverse\(\), \{ tenantUserId: tenant\?\.user_id \}\)/);
+    assert.match(api, /select\("sender_id, body, created_at, agent_name"\)/);
+    assert.match(api, /loadManagementIds\(supabase, threadMessages, tenant\?\.user_id\)/);
+    assert.match(api, /formatThreadContext\(\(threadMessages \|\| \[\]\)\.reverse\(\), \{ managementIds \}\)/);
     assert.ok(!/sender_id === null \? "Management"/.test(api));
+  });
+
+  const UNIT = "bbbbbbbb-0000-4000-8000-000000000002", PROP = CLIFTON_MANOR_ID, OTHER_UNIT = "bbbbbbbb-0000-4000-8000-000000000003";
+  const retired = { id: "k1", status: "retired", scope: "unit", property_id: PROP, unit_id: UNIT, topic: "Parking (Unit 2, release test)",
+    content: "Release test answer for Unit 2: your assigned parking spot is the rear-lot space marked TEST-2.", retired_at: "2026-11-14T04:21:40Z" };
+
+  test("retired: the withdrawn answer is named in the prompt and is not offered as approved", () => {
+    const block = formatWithdrawnKnowledgeForPrompt(withdrawnEntriesForTenant([retired], { propertyId: PROP, unitId: UNIT }));
+    const p = buildSystemPrompt({ id: PROP, name: "Clifton Manor" }, { approvedKnowledge: formatKnowledgeForPrompt([]), withdrawnKnowledge: block });
+    assert.match(p, /WITHDRAWN ANSWERS \(retired by Modus management; they are NO LONGER VALID\)/);
+    assert.ok(p.includes("TEST-2") && /Never state or repeat a withdrawn answer, even if it appears in an earlier reply/.test(p));
+    assert.ok(!/MANAGEMENT-APPROVED ANSWERS \(/.test(p), "nothing approved");
+    assert.match(p, /Currently assigned to: Units 5, 6, 7, 9, 10, 12/, "the real parking list still governs");
+  });
+
+  test("replaced: the new approved answer is present and wins; the withdrawn one is labelled as such", () => {
+    const replacement = { id: "k2", status: "approved", scope: "unit", property_id: PROP, unit_id: UNIT, topic: "Parking (Unit 2)",
+      content: "Unit 2 has no assigned rear-lot space; resident parking is on the street.", approved_at: "2026-11-14T05:00:00Z" };
+    const p = buildSystemPrompt({ id: PROP, name: "Clifton Manor" }, {
+      approvedKnowledge: formatKnowledgeForPrompt([replacement], { unitNumber: "2" }),
+      withdrawnKnowledge: formatWithdrawnKnowledgeForPrompt(withdrawnEntriesForTenant([retired], { propertyId: PROP, unitId: UNIT })),
+    });
+    assert.ok(p.indexOf("MANAGEMENT-APPROVED ANSWERS (") < p.indexOf("WITHDRAWN ANSWERS ("));
+    assert.match(p, /If a MANAGEMENT-APPROVED ANSWER covers the same topic, use that instead/);
+  });
+
+  test("withdrawn answers stay scoped: another unit's, another property's, or access-code-like entries are never shown", () => {
+    const entries = [
+      retired,
+      { ...retired, id: "k3", unit_id: OTHER_UNIT, content: "Other unit's spot is B-7." },
+      { ...retired, id: "k4", scope: "property", property_id: "cccccccc-0000-4000-8000-000000000001", unit_id: null, content: "Other building's rule." },
+      { ...retired, id: "k5", content: "The lockbox code is 4321." },
+      { ...retired, id: "k6", status: "approved" },
+    ];
+    assert.deepEqual(withdrawnEntriesForTenant(entries, { propertyId: PROP, unitId: UNIT }).map((e) => e.id), ["k1"]);
+    assert.equal(formatWithdrawnKnowledgeForPrompt([]), "");
+    assert.ok(!buildSystemPrompt({ id: PROP }).includes("WITHDRAWN ANSWERS ("));
+  });
+
+  test("old conversations: an outdated AI claim in history is labelled unconfirmed; the uncertainty rule remains", () => {
+    const ctx = formatThreadContext([{ sender_id: null, body: "The pool opens at 6am." }], { managementIds });
+    assert.ok(ctx.startsWith(`[${AI_REPLY_LABEL}]`));
+    assert.match(clifton, /I don't have confirmed information on that — I've flagged it for our management team/);
+    assert.match(api, /withdrawnIds: withdrawn\.map\(\(k\) => k\.id\)/);
   });
 });

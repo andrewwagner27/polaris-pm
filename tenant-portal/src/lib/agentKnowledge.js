@@ -87,6 +87,27 @@ export function entriesForTenant(entries, { propertyId, unitId } = {}) {
 }
 
 // Prompt block. Entries are management's own statements; they are listed as facts the AI may use.
+// Retired entries for the same tenant scope, told to the AI as withdrawn so an earlier reply that used one is not
+// repeated. Entries whose content looks like an access secret are never included. An approved entry on the same
+// topic (a replacement) always wins.
+export const WITHDRAWN_MAX = 20;
+export function withdrawnEntriesForTenant(entries, { propertyId, unitId } = {}) {
+  return (Array.isArray(entries) ? entries : [])
+    .filter((e) => e && e.status === "retired" && !looksLikeAccessSecret(e.content))
+    .filter((e) => e.scope === "organization"
+      || (e.scope === "property" && propertyId && e.property_id === propertyId)
+      || (e.scope === "unit" && unitId && e.unit_id === unitId))
+    .sort((a, b) => String(b.retired_at || "").localeCompare(String(a.retired_at || "")))
+    .slice(0, WITHDRAWN_MAX);
+}
+export function formatWithdrawnKnowledgeForPrompt(entries) {
+  if (!entries?.length) return "";
+  const lines = entries.map((e) => `- ${clean(e.topic)}: "${clean(e.content)}"`);
+  return `WITHDRAWN ANSWERS (retired by Modus management; they are NO LONGER VALID):
+${lines.join("\n")}
+Never state or repeat a withdrawn answer, even if it appears in an earlier reply in the conversation. If a MANAGEMENT-APPROVED ANSWER covers the same topic, use that instead; otherwise say you don't have confirmed information on that and flag it for management (escalate_to_landlord: true).`;
+}
+
 export function formatKnowledgeForPrompt(entries, { unitNumber } = {}) {
   if (!entries?.length) return "";
   const where = (e) => e.scope === "unit" ? `This tenant's unit${unitNumber ? ` (Unit ${unitNumber})` : ""}` : e.scope === "property" ? "This property" : "All Modus properties";

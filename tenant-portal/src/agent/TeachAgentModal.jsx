@@ -20,7 +20,7 @@ export default function TeachAgentModal({ log, conversation, reason, tenant, onC
     (async () => {
       let managementReply = null;
       if (log.tenant_id && tenant.userId) {
-        const { data } = await supabase.from("messages").select("id, sender_id, body, created_at")
+        const { data } = await supabase.from("messages").select("id, sender_id, body, created_at, agent_name")
           .eq("tenant_id", log.tenant_id).gte("created_at", log.created_at).order("created_at", { ascending: true }).limit(30);
         managementReply = managementReplyAfter(data, log.created_at, tenant.userId);
       }

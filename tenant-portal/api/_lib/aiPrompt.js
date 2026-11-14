@@ -61,20 +61,37 @@ Only the management-approved answers below are configured for this tenant's prop
 ${approved}`;
 }
 
-// Recent conversation for the model, oldest first. The AI's own earlier replies (sender_id null) are labelled as such
-// and are not a source of facts, so a retired or corrected answer can't come back through the thread. Messages from
-// anyone other than the tenant's own login (management staff) are "Management". Without the tenant's login id every
-// non-AI message stays "Tenant" (the previous behaviour for tenant messages).
+// Recent conversation for the model, oldest first. Roles:
+//   AI reply    sender_id null, or any agent_name (how the app marks assistant messages): labelled as an earlier
+//               automated reply that is NOT a source of facts, so a retired or corrected answer can't come back.
+//   Management  only a sender verified as a management (landlord) account: managementIds.
+//   Tenant      everything else, including the tenant's previous logins. Nothing is promoted to management unverified.
 export const AI_REPLY_LABEL = "Modus AI (earlier automated reply, not a source of facts)";
-export function formatThreadContext(messages, { tenantUserId = null } = {}) {
-  return (messages || []).map((m) => {
-    const role = m?.sender_id == null ? AI_REPLY_LABEL
-      : (!tenantUserId || m.sender_id === tenantUserId) ? "Tenant" : "Management";
-    return `[${role}]: ${m?.body ?? ""}`;
-  }).join("\n");
+export function messageSpeaker(m, { managementIds } = {}) {
+  if (!m || m.sender_id == null || m.agent_name) return "ai";
+  if (managementIds && typeof managementIds.has === "function" && managementIds.has(m.sender_id)) return "management";
+  return "tenant";
+}
+export function formatThreadContext(messages, { managementIds } = {}) {
+  const label = { ai: AI_REPLY_LABEL, management: "Management", tenant: "Tenant" };
+  return (messages || []).map((m) => `[${label[messageSpeaker(m, { managementIds })]}]: ${m?.body ?? ""}`).join("\n");
 }
 
-export function buildSystemPrompt(property, { approvedKnowledge = "" } = {}) {
+// Which of the thread's senders are verified management (landlord) accounts. Never throws: on any failure nobody is
+// treated as management, so messages are labelled as the tenant's rather than promoted to management statements.
+export async function loadManagementIds(db, messages, tenantUserId) {
+  const ids = [...new Set((messages || []).map((m) => m?.sender_id).filter((id) => id && id !== tenantUserId))];
+  if (!ids.length) return new Set();
+  try {
+    const { data, error } = await db.from("profiles").select("id, role").in("id", ids);
+    if (error) return new Set();
+    return new Set((data || []).filter((p) => p?.role === "landlord").map((p) => p.id));
+  } catch {
+    return new Set();
+  }
+}
+
+export function buildSystemPrompt(property, { approvedKnowledge = "", withdrawnKnowledge = "" } = {}) {
   return `You are the Modus AI Assistant, an AI assistant for Modus Property Management.
 
 IDENTITY: You are an AI assistant, not a person. Never claim or imply to be a human, a named staff member, or the property manager, and never invent a staff name. If asked whether you are a person or a bot, say you are Modus's AI assistant. If the tenant asks for a person, say you've passed the request to the management team and set escalate_to_landlord: true.
@@ -97,7 +114,9 @@ Your own earlier replies in the recent conversation (labelled [${AI_REPLY_LABEL}
 If the tenant asks about something the knowledge base doesn't cover (for example pets, guests, storage, smoking, amenities, move-out, or any rule not listed), say: "I don't have confirmed information on that — I've flagged it for our management team to follow up with you directly." and set escalate_to_landlord: true.
 Never share door, entry, gate, lockbox, or alarm codes. If someone asks for building access, say management will help and set escalate_to_landlord: true.
 
-${propertyKnowledge(property, approvedKnowledge)}
+${propertyKnowledge(property, approvedKnowledge)}${String(withdrawnKnowledge || "").trim() ? `
+
+${String(withdrawnKnowledge).trim()}` : ""}
 
 ━━━ PAYMENTS ━━━
 - All payments through the Modus tenant portal only

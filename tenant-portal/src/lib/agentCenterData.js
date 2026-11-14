@@ -12,7 +12,7 @@ const t = (v) => new Date(v).getTime();
 
 export function messageRole(m, tenantUserId) {
   if (!m) return "unknown";
-  if (m.sender_id == null) return "ai";
+  if (m.sender_id == null || m.agent_name) return "ai"; // assistant messages: null sender or an agent_name
   if (tenantUserId && m.sender_id === tenantUserId) return "tenant";
   return tenantUserId ? "management" : "unknown";
 }

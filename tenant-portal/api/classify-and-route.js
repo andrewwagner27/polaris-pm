@@ -9,11 +9,12 @@ import OpenAI from "openai";
 import { supabaseAdmin as supabase, requireCaller, isLandlord } from "./_lib/auth.js";
 import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
-import { buildSystemPrompt, formatThreadContext } from "./_lib/aiPrompt.js";
-import { loadApprovedKnowledge, formatKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
+import { buildSystemPrompt, formatThreadContext, loadManagementIds } from "./_lib/aiPrompt.js";
+import { loadApprovedKnowledge, formatKnowledgeForPrompt, loadWithdrawnKnowledge, formatWithdrawnKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
 import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
+import { claimMessage } from "./_lib/messageClaim.js";
 
 // Bounded so a slow model fails into the fallback escalation below instead of outliving the function
 // (the SDK default is a 10-minute timeout with 2 retries, longer than any Vercel function may run).
@@ -148,8 +149,8 @@ export default async function handler(req, res) {
     // resend) for a message that already has a routing row writes no second AI reply, alert or row.
     // If that message's management email "failed" or is "unconfirmed", the repeat replays the stored
     // payload under the same key: Resend sends it once, or returns the original response if it was
-    // already accepted. Requests that overlap an IN-PROGRESS run are not caught here (no atomic claim
-    // without a migration); the browser therefore never retries automatically. See docs/comms-remediation.
+    // already accepted. Requests that overlap an IN-PROGRESS run are caught by the atomic claim below (ai_message_claims;
+    // before that migration they are not); the browser still never retries automatically. See docs/comms-remediation.
     const { data: done } = await supabase.from("ai_routing_logs")
       .select("id, message_id, action_taken, detected_intent, detected_category, urgency, raw_openai_response").eq("message_id", message_id);
     if (Array.isArray(done) && done.length) {
@@ -172,6 +173,12 @@ export default async function handler(req, res) {
         })).status;
       }
       return res.status(200).json({ duplicate: true, log_id: prior.id, escalated: classification.escalate_to_landlord, notification });
+    }
+
+    // Overlapping requests for the same message: only the first one runs (atomic claim). The other gets 202 and
+    // writes nothing; the tenant sees the one reply. Before the claims migration this is skipped ("unavailable").
+    if (await claimMessage(supabase, message_id) === "busy") {
+      return res.status(202).json({ duplicate: true, in_progress: true });
     }
   }
 
@@ -196,17 +203,22 @@ export default async function handler(req, res) {
     // ── 1c. Management-approved answers (Teach Agent) for this tenant's property and unit only ──
     const knowledge = await loadApprovedKnowledge(supabase, { propertyId: tenant?.units?.property_id, unitId: tenant?.unit_id });
     const approvedKnowledge = formatKnowledgeForPrompt(knowledge, { unitNumber: tenant?.units?.unit_number });
+    // Retired answers for the same scope are named as withdrawn, so an earlier AI reply that used one isn't repeated.
+    const withdrawn = await loadWithdrawnKnowledge(supabase, { propertyId: tenant?.units?.property_id, unitId: tenant?.unit_id });
+    const withdrawnKnowledge = formatWithdrawnKnowledgeForPrompt(withdrawn);
 
     // ── 2. Load last 10 messages for thread context ──────────
     const { data: threadMessages } = await supabase
       .from("messages")
-      .select("sender_id, body, created_at")
+      .select("sender_id, body, created_at, agent_name")
       .eq("tenant_id", tenant_id)
       .order("created_at", { ascending: false })
       .limit(10);
 
     // The AI's own earlier replies are labelled as such (not as management) and are not a source of facts.
-    const threadContext = formatThreadContext((threadMessages || []).reverse(), { tenantUserId: tenant?.user_id });
+    // "Management" only for senders verified as landlord accounts; anyone else is the tenant.
+    const managementIds = await loadManagementIds(supabase, threadMessages, tenant?.user_id);
+    const threadContext = formatThreadContext((threadMessages || []).reverse(), { managementIds });
 
     // ── 3. Call OpenAI with structured output ────────────────
     let classification = null;
@@ -221,7 +233,7 @@ export default async function handler(req, res) {
           json_schema: CLASSIFICATION_SCHEMA,
         },
         messages: [
-          { role: "system", content: buildSystemPrompt(tenant?.units?.properties, { approvedKnowledge }) },
+          { role: "system", content: buildSystemPrompt(tenant?.units?.properties, { approvedKnowledge, withdrawnKnowledge }) },
           {
             role: "user",
             content: `Property: ${tenant?.units?.properties?.name || "Unknown"}
@@ -398,7 +410,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // If both attempts fail the notifier still emails management, and the email says the row is missing.
     const logEntry = await insertRoutingLog(buildRoutingLogRow({
       classification, tenantId: tenant_id, messageId: message_id, ticketId, message,
-      reply: finalReply, humanRequested: wantsHuman(message), knowledgeIds: knowledge.map((k) => k.id),
+      reply: finalReply, humanRequested: wantsHuman(message), knowledgeIds: knowledge.map((k) => k.id), withdrawnIds: withdrawn.map((k) => k.id),
     }));
 
     // ── 10. Notify management of this escalation (once per tenant message; never throws) ──
