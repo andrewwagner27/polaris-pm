@@ -285,10 +285,22 @@ export const isRecapEscalation = isEscalationRow;
 
 // rows: the last-24-hour ai_routing_logs rows, or null when the query failed — then unavailable: true,
 // so the recap says the list could not be loaded instead of reporting "all clear".
-export function escalationRecapSection(rows) {
-  if (!Array.isArray(rows)) return { count: 0, needsAttention: 0, html: "", unavailable: true };
-  // One entry per tenant message: overlapping requests can leave two rows for one message. Keep the row
-  // with the best-evidenced outcome (sent > duplicate > unconfirmed > pending > failed > none).
+// Resolution state per routing row from agent_escalation_events (latest resolved/reopened wins).
+// events: array → known; null/undefined → unknown (table missing or query failed).
+export function resolutionByLog(events) {
+  if (!Array.isArray(events)) return null;
+  const byLog = new Map();
+  for (const e of events.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))) {
+    if (!e?.routing_log_id) continue;
+    if (e.event === "resolved") byLog.set(e.routing_log_id, { resolved: true, at: e.created_at });
+    else if (e.event === "reopened") byLog.set(e.routing_log_id, { resolved: false, at: e.created_at });
+  }
+  return byLog;
+}
+
+// One entry per tenant message: overlapping requests can leave two rows for one message. Keep the row
+// with the best-evidenced outcome (sent > duplicate > unconfirmed > pending > failed > none).
+function dedupeEscalations(rows) {
   const rank = { sent: 5, duplicate: 4, unconfirmed: 3, pending: 2, failed: 1 };
   const byMessage = new Map();
   for (const r of rows.filter(isRecapEscalation)) {
@@ -296,24 +308,60 @@ export function escalationRecapSection(rows) {
     const cur = byMessage.get(k);
     if (!cur || (rank[r.raw_openai_response?.notify?.status] || 0) > (rank[cur.raw_openai_response?.notify?.status] || 0)) byMessage.set(k, r);
   }
-  const list = [...byMessage.values()];
-  const failed = list.filter((r) => !sharedNotifyStatusLabel(r).ok);
-  if (!list.length) return { count: 0, needsAttention: 0, html: "" };
-  const rowsHtml = list.map((r) => {
-    const st = notifyStatusLabel(r);
-    const t = r.tenants || {};
-    const tag = r.raw_openai_response?.tier === "TIER1_EMERGENCY" ? "🚨 EMERGENCY · " : "";
-    // The tenant's exact words first; the AI's summary is only a secondary line (never a substitute).
-    const exact = String(r.raw_message || "").trim();
-    const shown = exact ? `“${exact.length > 220 ? exact.slice(0, 220) + "…" : exact}”` : "(original message not recorded)";
-    const summary = r.detected_intent ? `<div style="font-size:11px;color:#5C6270;margin-top:2px">AI summary: ${escapeHtml(r.detected_intent)}</div>` : "";
-    return `<tr>
+  return [...byMessage.values()];
+}
+
+function recapRowHtml(r, res) {
+  const st = notifyStatusLabel(r);
+  const t = r.tenants || {};
+  const tag = r.raw_openai_response?.tier === "TIER1_EMERGENCY" ? "🚨 EMERGENCY · " : "";
+  // The tenant's exact words first; the AI's summary is only a secondary line (never a substitute).
+  const exact = String(r.raw_message || "").trim();
+  const shown = exact ? `“${exact.length > 220 ? exact.slice(0, 220) + "…" : exact}”` : "(original message not recorded)";
+  const summary = r.detected_intent ? `<div style="font-size:11px;color:#5C6270;margin-top:2px">AI summary: ${escapeHtml(r.detected_intent)}</div>` : "";
+  const resolution = res === undefined ? "" : res?.resolved
+    ? `<div style="font-size:10px;font-weight:700;color:#72B02A;margin-top:3px">RESOLVED</div>`
+    : `<div style="font-size:10px;font-weight:700;color:#F0A430;margin-top:3px">OPEN — NEEDS ACTION</div>`;
+  return `<tr>
       <td style="padding:7px 12px;font-size:13px;color:#EDEAE2;border-bottom:1px solid #252930">${tag}${escapeHtml(shown)}${summary}</td>
       <td style="padding:7px 12px;font-size:12px;color:#9095A0;border-bottom:1px solid #252930">${escapeHtml(t.name || "Tenant")} · Unit ${escapeHtml(t.units?.unit_number || "?")}</td>
-      <td style="padding:7px 12px;font-size:11px;font-weight:700;color:${st.color};border-bottom:1px solid #252930">${escapeHtml(st.label)}</td>
+      <td style="padding:7px 12px;font-size:11px;font-weight:700;color:${st.color};border-bottom:1px solid #252930">${escapeHtml(st.label)}${resolution}</td>
       <td style="padding:7px 12px;font-size:11px;color:#5C6270;border-bottom:1px solid #252930">${escapeHtml(new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }))}</td>
     </tr>`;
-  }).join("");
-  const html = `<table style="width:100%;border-collapse:collapse;background:#111316;border-radius:6px;overflow:hidden">${rowsHtml}</table>`;
-  return { count: list.length, needsAttention: failed.length, html };
+}
+const recapTable = (rowsHtml) => `<table style="width:100%;border-collapse:collapse;background:#111316;border-radius:6px;overflow:hidden">${rowsHtml}</table>`;
+
+// Last-24-hours escalations. With `events` (Agent Center history) each row is marked RESOLVED or OPEN, and resolved
+// rows don't count as needing attention. needsAttention = open rows whose email wasn't confirmed sent.
+export function escalationRecapSection(rows, { events } = {}) {
+  if (!Array.isArray(rows)) return { count: 0, needsAttention: 0, open: 0, resolved: 0, html: "", unavailable: true };
+  const list = dedupeEscalations(rows);
+  if (!list.length) return { count: 0, needsAttention: 0, open: 0, resolved: 0, html: "" };
+  const res = resolutionByLog(events);
+  const stateOf = (r) => (res ? (res.get(r.id) || { resolved: false }) : undefined);
+  const resolvedRows = list.filter((r) => stateOf(r)?.resolved);
+  const failed = list.filter((r) => !sharedNotifyStatusLabel(r).ok && !stateOf(r)?.resolved);
+  const html = recapTable(list.map((r) => recapRowHtml(r, stateOf(r))).join(""));
+  return { count: list.length, needsAttention: failed.length, open: list.length - resolvedRows.length, resolved: resolvedRows.length, html };
+}
+
+// Escalations from before the 24-hour window (up to OLDER_UNRESOLVED_DAYS) that are still unresolved in the Agent
+// Center, so an issue doesn't vanish from the recap after one day. Needs the resolution history: without it,
+// returns { unknown: true } (the recap says so instead of listing every older escalation).
+export const OLDER_UNRESOLVED_DAYS = 14;
+export const OLDER_UNRESOLVED_MAX_ROWS = 10;
+export function olderUnresolvedSection(rows, events, { since } = {}) {
+  if (!Array.isArray(rows)) return { count: 0, html: "", unavailable: true };
+  const res = resolutionByLog(events);
+  if (!res) return { count: 0, html: "", unknown: true };
+  const cutoff = since ? Date.parse(since) : Infinity;
+  const open = dedupeEscalations(rows.filter((r) => Date.parse(r.created_at) < cutoff))
+    .filter((r) => !(res.get(r.id)?.resolved))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  if (!open.length) return { count: 0, html: "" };
+  const shown = open.slice(0, OLDER_UNRESOLVED_MAX_ROWS);
+  const more = open.length - shown.length;
+  const html = recapTable(shown.map((r) => recapRowHtml(r, { resolved: false })).join(""))
+    + (more > 0 ? `<p style="color:#9095A0;font-size:12px;margin:6px 0 0">…and ${more} more. Open the Agent Center to review and resolve them.</p>` : "");
+  return { count: open.length, html };
 }

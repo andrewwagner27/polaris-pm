@@ -444,7 +444,7 @@ describe("daily recap includes every notified emergency and escalation (end to e
     assert.deepEqual(db.ai_routing_logs, logsBefore, "routing rows are not modified");
   });
 
-  test("keeps the 24-hour window: older escalations and emergencies are not listed", async () => {
+  test("keeps the 24-hour window: older escalations are not in the 24-hour section, only under 'still unresolved'", async () => {
     db.ai_routing_logs.push(
       { id: "old-e", action_taken: "CREATE_TICKET", detected_intent: "Old emergency", created_at: new Date(Date.now() - 25 * 3600e3).toISOString(), raw_openai_response: { tier: "TIER1_EMERGENCY", notify: { status: "failed" } } },
       { id: "old-x", action_taken: "ESCALATE_LANDLORD", detected_intent: "Old escalation", created_at: new Date(Date.now() - 48 * 3600e3).toISOString(), raw_openai_response: {} },
@@ -455,7 +455,13 @@ describe("daily recap includes every notified emergency and escalation (end to e
     assert.ok(Math.abs(Date.parse(since) - (Date.now() - 24 * 3600e3)) < 60e3, "query starts 24 hours back");
     const html = resendCalls.at(-1).body.html;
     assert.ok(html.includes("Fresh escalation"));
-    assert.ok(!html.includes("Old emergency") && !html.includes("Old escalation"));
+    // The 24-hour section lists only the fresh one; the older unresolved ones (no "resolved" event) are listed once,
+    // under "still unresolved from earlier", so they don't vanish after a day.
+    const last24 = html.split("TENANT ESCALATIONS &amp; EMERGENCIES — LAST 24 HOURS")[1].split("STILL UNRESOLVED")[0];
+    assert.ok(!last24.includes("Old emergency") && !last24.includes("Old escalation"));
+    const olderPart = html.split("STILL UNRESOLVED FROM EARLIER")[1] || "";
+    assert.ok(olderPart.includes("Old emergency") && olderPart.includes("Old escalation"));
+    assert.ok(!olderPart.includes("Fresh escalation"));
   });
 
   test("if the escalation query fails, the recap says so instead of reporting all clear", async () => {

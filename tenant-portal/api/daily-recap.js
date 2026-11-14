@@ -57,7 +57,8 @@ export default async function handler(req, res) {
   }
 
   const since = encodeURIComponent(recapSince());
-  const [tickets, inspections, tenants, escalationRows, messages] = await Promise.all([
+  const olderSince = new Date(Date.now() - 14 * 24 * 3600e3).toISOString();
+  const [tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes] = await Promise.all([
     sbFetch("maintenance_requests?select=id,title,priority,status,created_at,tenants(name,units(unit_number))&status=neq.resolved&order=created_at.desc"),
     sbFetch("inspections?select=id,status,inspection_date,created_at,tenants(name,units(unit_number))&status=neq.closed&order=created_at.desc"),
     sbFetch("tenants?select=id,name,lease_end,units(unit_number)&archived=eq.false&lease_end=not.is.null"),
@@ -67,9 +68,15 @@ export default async function handler(req, res) {
     sbFetch(`ai_routing_logs?select=id,message_id,created_at,detected_intent,raw_message,action_taken,raw_openai_response,tenants(name,units(unit_number))&created_at=gte.${encodeURIComponent(recapSince())}&order=created_at.desc`),
     // Tenant messages in the same window, to list any the assistant never processed.
     sbFetch(`messages?select=id,sender_id,body,created_at,tenants(name,user_id)&created_at=gte.${since}&order=created_at.desc`),
+    // Escalations from the 14 days before the window, and the Agent Center resolve/reopen history, so an unresolved
+    // issue keeps appearing (and a resolved one stops) — listed only, never re-sent.
+    sbFetch(`ai_routing_logs?select=id,message_id,created_at,detected_intent,raw_message,action_taken,raw_openai_response,tenants(name,units(unit_number))&created_at=gte.${encodeURIComponent(olderSince)}&created_at=lt.${since}&order=created_at.desc`),
+    sbFetch(`agent_escalation_events?select=routing_log_id,event,created_at&event=in.(resolved,reopened)&created_at=gte.${encodeURIComponent(olderSince)}&order=created_at.asc`),
+    // Failed / unconfirmed ticket emails recorded on tickets in the window.
+    sbFetch(`maintenance_comments?select=request_id,body,created_at,author_type,author_name,author_id,maintenance_requests(title)&author_type=eq.system&created_at=gte.${since}&order=created_at.asc`),
   ]);
 
-  const recap = buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, now: new Date() });
+  const recap = buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes, since: decodeURIComponent(since), now: new Date() });
   const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   // One key per day AND per content (payloadKey): a repeated scheduled call with the same content can't
   // send twice; a manual run always sends. A key is never reused with a different payload.
