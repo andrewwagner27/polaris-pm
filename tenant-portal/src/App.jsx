@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import AuthLinkError, { LinkErrorCatcher } from "./AuthLinkError";
 
 // Landlord
 import LandlordLogin          from "./LandlordLogin";
@@ -64,12 +65,14 @@ function ProtectedTenantRoute({ children }) {
 export default function App() {
   return (
     <Router>
+      <LinkErrorCatcher/>
       <Routes>
         {/* Public */}
         <Route path="/"                element={<LandingPage/>}/>
         <Route path="/login"           element={<LoginScreen/>}/>
         <Route path="/forgot-password" element={<ForgotPassword/>}/>
         <Route path="/reset-password"  element={<ResetPassword/>}/>
+        <Route path="/link-error"      element={<AuthLinkError/>}/>
         <Route path="/auth/callback"   element={<AuthCallback/>}/>
         <Route path="/onboarding"      element={<TenantOnboarding/>}/>
         <Route path="/vendor/:token"   element={<VendorAccess/>}/>

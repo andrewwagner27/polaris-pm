@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import { resetLinkState, AUTH_LINK_MESSAGES } from "./lib/onboardingLink";
 
 const C = {
   bg:       "#0A0B0D",
@@ -42,6 +43,26 @@ function getStrength(pw) {
 const STRENGTH_COLORS = ["", C.red, C.amber, C.green];
 const STRENGTH_LABELS = ["", "Weak", "Fair", "Strong"];
 
+// Defined outside the page: a component declared inside it was re-created on every keystroke, so the input remounted
+// and lost focus after each character typed.
+function InputField({ value, onChange, placeholder, hasError, showPw, onToggleShow, onEnter, label }) {
+  const [focused, setFocused] = useState(false);
+  const borderColor = hasError ? C.red : focused ? C.gold : C.border;
+  return (
+    <div style={{ position: "relative" }}>
+      <input type={showPw ? "text" : "password"} value={value} onChange={onChange} placeholder={placeholder} aria-label={label}
+        autoComplete="new-password"
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        onKeyDown={e => e.key === "Enter" && onEnter()}
+        style={{ width: "100%", padding: "11px 44px 11px 14px", fontSize: 16, border: `1px solid ${borderColor}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+      />
+      <button type="button" onClick={onToggleShow} aria-label={showPw ? "Hide password" : "Show password"} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.textMuted, padding: 0, minWidth: 40, minHeight: 40 }}>
+        {showPw ? "○" : "●"}
+      </button>
+    </div>
+  );
+}
+
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [password, setPassword]   = useState("");
@@ -51,15 +72,24 @@ export default function ResetPassword() {
   const [error, setError]         = useState("");
   const [done, setDone]           = useState(false);
   const [checking, setChecking]   = useState(true);
+  const [linkState, setLinkState] = useState("ready");   // "ready" | "expired" | "invalid" | "missing"
+  const [accountEmail, setAccountEmail] = useState("");
 
+  // An expired/used reset link comes back with an error in the URL: say so instead of showing a form that can't work.
+  // A link error wins over any session that happens to exist. Without a session there is nothing to update.
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") setChecking(false);
+    let live = true;
+    const { hash, search } = window.location;
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && live) { setLinkState(resetLinkState({ hash, search, hasSession: true })); setAccountEmail(session?.user?.email || ""); setChecking(false); }
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setChecking(false);
-      else setChecking(false);
-    });
+      if (!live) return;
+      setLinkState(resetLinkState({ hash, search, hasSession: Boolean(session) }));
+      setAccountEmail(session?.user?.email || "");
+      setChecking(false);
+    }).catch(() => { if (live) { setLinkState(resetLinkState({ hash, search, hasSession: false })); setChecking(false); } });
+    return () => { live = false; sub?.subscription?.unsubscribe?.(); };
   }, []);
 
   async function handleReset() {
@@ -69,35 +99,41 @@ export default function ResetPassword() {
     setLoading(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
-    if (error) { setError(error.message); return; }
+    if (error) {
+      setError(/session|jwt|expired|not authenticated/i.test(error.message || "")
+        ? "Your reset session has expired. Request a new reset link and try again."
+        : /different from the old|same password/i.test(error.message || "")
+          ? "Choose a password different from your current one."
+          : "We couldn't save your new password. Please try again.");
+      return;
+    }
     setDone(true);
     setTimeout(() => navigate("/login"), 2500);
   }
 
   const strength = getStrength(password);
 
-  function InputField({ value, onChange, placeholder, hasError }) {
-    const [focused, setFocused] = useState(false);
-    const borderColor = hasError ? C.red : focused ? C.gold : C.border;
-    return (
-      <div style={{ position: "relative" }}>
-        <input type={showPw ? "text" : "password"} value={value} onChange={onChange} placeholder={placeholder}
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          onKeyDown={e => e.key === "Enter" && handleReset()}
-          style={{ width: "100%", padding: "11px 44px 11px 14px", fontSize: 14, border: `1px solid ${borderColor}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
-        />
-        <button onClick={() => setShowPw(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.textMuted, padding: 0 }}>
-          {showPw ? "○" : "●"}
-        </button>
-      </div>
-    );
-  }
-
   if (checking) {
     return (
       <div style={{ width: "100%", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { background: #0A0B0D; }`}</style>
         <div style={{ color: C.textSub, fontSize: 14 }}>Verifying reset link…</div>
+      </div>
+    );
+  }
+
+  if (linkState !== "ready") {
+    const msg = AUTH_LINK_MESSAGES[linkState] || AUTH_LINK_MESSAGES.invalid;
+    return (
+      <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", boxSizing: "border-box" }}>
+        <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { background: #0A0B0D; }`}</style>
+        <div role="alert" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "32px 24px", width: "100%", maxWidth: 400, textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}><ModusMark size={32} /></div>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 21, fontWeight: 600, color: C.text, marginBottom: 10 }}>{msg.title}</div>
+          <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, marginBottom: 22 }}>{msg.body}</div>
+          <button onClick={() => navigate("/forgot-password")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.goldDim}`, borderRadius: 8, fontSize: 14, fontWeight: 500, background: "transparent", color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>Send a new reset link →</button>
+          <button onClick={() => navigate("/login")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, background: "transparent", color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Back to sign in</button>
+        </div>
       </div>
     );
   }
@@ -116,7 +152,8 @@ export default function ResetPassword() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28 }}>
           <ModusMark size={36} />
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, letterSpacing: "0.08em", marginTop: 12 }}>Set new password</div>
-          <div style={{ fontSize: 13, color: C.textSub, marginTop: 6 }}>Choose a strong password for your account.</div>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 6, textAlign: "center" }}>Choose a strong password for your account.</div>
+          {accountEmail && <div data-testid="reset-account" style={{ fontSize: 12, color: C.textMuted, marginTop: 6, textAlign: "center" }}>Account: <span style={{ color: C.text }}>{accountEmail}</span></div>}
         </div>
 
         {error && (
@@ -132,7 +169,7 @@ export default function ResetPassword() {
           <>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>New password</label>
-              <InputField value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="Min. 8 characters" />
+              <InputField label="New password" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="Min. 8 characters" showPw={showPw} onToggleShow={() => setShowPw(v => !v)} onEnter={handleReset} />
               {password && (
                 <>
                   <div style={{ height: 3, borderRadius: 2, marginTop: 8, background: STRENGTH_COLORS[strength] || C.border, width: strength === 0 ? "0%" : strength === 1 ? "33%" : strength === 2 ? "66%" : "100%", transition: "all 0.3s" }} />
@@ -143,7 +180,7 @@ export default function ResetPassword() {
 
             <div style={{ marginBottom: 22 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Confirm password</label>
-              <InputField value={confirm} onChange={e => { setConfirm(e.target.value); setError(""); }} placeholder="Repeat your new password" hasError={confirm && confirm !== password} />
+              <InputField label="Confirm password" value={confirm} onChange={e => { setConfirm(e.target.value); setError(""); }} placeholder="Repeat your new password" hasError={confirm && confirm !== password} showPw={showPw} onToggleShow={() => setShowPw(v => !v)} onEnter={handleReset} />
               {confirm && confirm !== password && (
                 <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Passwords don't match</div>
               )}

@@ -41,3 +41,48 @@ export const LINK_MESSAGES = Object.freeze({
     body: "Open the invitation email from Modus and use its button to start, or sign in if you already created a password.",
   },
 });
+
+// Any Supabase auth link (invitation, password reset, magic link) that failed comes back with an error in the URL
+// fragment or query. → "expired" | "invalid" | null (no error).
+export function authLinkError({ hash = "", search = "" } = {}) {
+  const params = new URLSearchParams(String(hash).replace(/^#/, ""));
+  const query = new URLSearchParams(String(search).replace(/^\?/, ""));
+  const code = params.get("error_code") || query.get("error_code") || "";
+  const err = params.get("error") || query.get("error") || "";
+  const desc = params.get("error_description") || query.get("error_description") || "";
+  if (!code && !err) return null;
+  return /otp_expired|expired/i.test(code) || /expired/i.test(desc) ? "expired" : "invalid";
+}
+
+// The password-reset page: a link error wins over any existing session (the link the person just opened failed,
+// even if some other account is signed in). Without a session there is nothing to set a password on.
+// → "ready" | "expired" | "invalid" | "missing"
+export function resetLinkState({ hash = "", search = "", hasSession = false } = {}) {
+  const e = authLinkError({ hash, search });
+  if (e) return e;
+  return hasSession ? "ready" : "missing";
+}
+
+// Where a failed auth link that landed on another page (e.g. the home page) should go.
+export const LINK_ERROR_PATH = "/link-error";
+const HANDLES_OWN_LINK_ERRORS = new Set(["/onboarding", "/reset-password", LINK_ERROR_PATH]);
+export function linkErrorRedirect({ pathname = "/", hash = "", search = "" } = {}) {
+  if (HANDLES_OWN_LINK_ERRORS.has(pathname)) return null;
+  const e = authLinkError({ hash, search });
+  return e ? `${LINK_ERROR_PATH}?reason=${e}` : null;
+}
+
+export const AUTH_LINK_MESSAGES = Object.freeze({
+  expired: {
+    title: "This link has expired",
+    body: "Links in Modus emails work once and expire after about an hour. If you were resetting your password, request a new reset link. If this was an invitation, ask Modus management to send a new one — or sign in if you already set a password.",
+  },
+  invalid: {
+    title: "This link didn't work",
+    body: "The link may have been copied incompletely or already used. Request a new password-reset link, ask Modus management for a new invitation, or sign in if you already have a password.",
+  },
+  missing: {
+    title: "Open the link from your email",
+    body: "To set a new password, open the reset link from your Modus email on this device. If the link is old, request a new one.",
+  },
+});
