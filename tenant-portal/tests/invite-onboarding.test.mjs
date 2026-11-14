@@ -136,3 +136,18 @@ describe("function error messages reach the landlord", () => {
     assert.equal(await functionErrorMessage(null), "");
   });
 });
+
+// Found in production on 2026-11-13: opening /onboarding?tenant_id=… while signed in as the landlord linked the
+// landlord's login to that tenant (landlords may update any tenant row, so the email-match claim did not apply).
+test("a management session never runs tenant onboarding", async () => {
+  const { inviteLinkState, LINK_MESSAGES } = await import("../src/lib/onboardingLink.js");
+  assert.equal(inviteLinkState({ hasSession: true, isManagement: true }).state, "management");
+  assert.equal(inviteLinkState({ hash: "#error_code=otp_expired", hasSession: true, isManagement: true }).state, "management");
+  assert.equal(inviteLinkState({ hasSession: true, isManagement: false }).state, "ready");
+  assert.match(LINK_MESSAGES.management.title, /management/i);
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/TenantOnboarding.jsx", import.meta.url), "utf8");
+  assert.match(src, /profile\?\.role === "landlord"/, "role is checked before onboarding runs");
+  assert.match(src, /linkState\.state!=="ready"\) return;/, "the tenant claim waits for a confirmed tenant session");
+  assert.match(src, /\[invitedTenantId, linkState\.state\]/);
+});

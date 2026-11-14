@@ -112,16 +112,25 @@ export default function TenantOnboarding() {
   useEffect(() => {
     let live = true;
     const { hash, search } = window.location;
-    supabase.auth.getSession().then(({ data }) => {
-      if (live) setLinkState(inviteLinkState({ hash, search, hasSession: Boolean(data?.session) }));
-    }, () => { if (live) setLinkState(inviteLinkState({ hash, search, hasSession: false })); });
+    supabase.auth.getSession().then(async ({ data }) => {
+      const session = data?.session;
+      // A management account must never run tenant onboarding: landlords may update any tenant row, so the claim
+      // below would link the landlord's login to the tenant. If the role cannot be read, treat it as management.
+      let isManagement = false;
+      if (session) {
+        const { data: profile, error: roleErr } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+        isManagement = Boolean(roleErr) || profile?.role === "landlord";
+      }
+      if (live) setLinkState(inviteLinkState({ hash, search, hasSession: Boolean(session), isManagement }));
+    }).catch(() => { if (live) setLinkState(inviteLinkState({ hash, search, hasSession: false })); });
     return () => { live = false; };
   }, []);
 
   // Auto-link invited tenant and pre-load unit info
   useEffect(() => {
     async function autoLink() {
-      if (!invitedTenantId||autoLinked) return;
+      // Only after the link check confirmed a tenant session (never for management, expired or invalid links).
+      if (!invitedTenantId||autoLinked||linkState.state!=="ready") return;
       const { data:{ user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -164,7 +173,7 @@ export default function TenantOnboarding() {
       }
     }
     autoLink();
-  }, [invitedTenantId]);
+  }, [invitedTenantId, linkState.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = (step/(STEPS.length-1))*100;
   const stepName = STEPS[step];

@@ -7,11 +7,14 @@
 //   "expired"  the link expired or was already used: ask management for a new invitation, or sign in / reset password
 //   "invalid"  any other link error
 //   "signin"   no session and no error (e.g. the page was opened directly): sign in first
-export function inviteLinkState({ hash = "", search = "", hasSession = false } = {}) {
+//   "management" the signed-in account is a management (landlord) account: never run tenant onboarding with it.
+//              (Landlords may update any tenant row, so the invitation claim would link the landlord to the tenant.)
+export function inviteLinkState({ hash = "", search = "", hasSession = false, isManagement = false } = {}) {
   const params = new URLSearchParams(String(hash).replace(/^#/, ""));
   const query = new URLSearchParams(String(search).replace(/^\?/, ""));
   const code = params.get("error_code") || query.get("error_code") || "";
   const err = params.get("error") || query.get("error") || "";
+  if (hasSession && isManagement) return { state: "management" };
   if (hasSession && !err && !code) return { state: "ready" };
   if (/otp_expired|expired/i.test(code) || /expired/i.test(params.get("error_description") || query.get("error_description") || "")) {
     return { state: "expired" };
@@ -28,6 +31,10 @@ export const LINK_MESSAGES = Object.freeze({
   invalid: {
     title: "This invitation link didn't work",
     body: "The link may have been copied incompletely or already used. Ask Modus management to send you a new invitation, or sign in if you already have a password.",
+  },
+  management: {
+    title: "You are signed in as Modus management",
+    body: "Tenant invitations can only be completed from the tenant's own account. Sign out of management first, or open the invitation link in a private browser window.",
   },
   signin: {
     title: "Please sign in to continue",
