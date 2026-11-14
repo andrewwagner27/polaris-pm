@@ -16,3 +16,12 @@ html, body, #root {
   display: flex;
   flex-direction: column;
 }
+
+/* Phones: iOS Safari zooms into any form field under 16px and the zoom often hides the chat composer under the
+   keyboard. Keeping fields at 16px prevents that while pinch-zoom stays available (viewport no longer disables it). */
+@media (max-width: 767px) {
+  input, textarea, select { font-size: 16px !important; }
+}
+
+/* Full-screen views: dvh excludes the mobile browser toolbars (100vh doesn't on iOS Safari). */
+.full-height { height: 100vh; height: 100dvh; }

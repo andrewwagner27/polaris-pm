@@ -177,7 +177,7 @@ export default function MessagingScreen() {
         ::-webkit-scrollbar:horizontal{height:0;}
       `}</style>
 
-      <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
+      <div className="full-height" style={{ display:"flex", flexDirection:"column", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
 
         {/* Chat header */}
         <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
@@ -308,13 +308,18 @@ export default function MessagingScreen() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
             placeholder="Message Modus Property Management…"
+            aria-label="Message to Modus Property Management"
+            enterKeyHint="send"
+            // On phones the keyboard can cover the composer: keep it in view once the keyboard has opened.
+            onFocus={e => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView?.({ block: "end", behavior: "smooth" }), 300); }}
             rows={1}
             style={{ flex:1, padding:"10px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:18, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:100 }}
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || sending}
-            style={{ width:38, height:38, borderRadius:"50%", background:input.trim()?C.goldDim:C.raised, border:`1px solid ${input.trim()?C.goldDim:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:input.trim()?C.gold:C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
+            aria-label="Send message"
+            style={{ width:44, height:44, borderRadius:"50%", background:input.trim()?C.goldDim:C.raised, border:`1px solid ${input.trim()?C.goldDim:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:input.trim()?C.gold:C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
             ➤
           </button>
         </div>
