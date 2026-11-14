@@ -69,8 +69,11 @@ describe("2. no automatic violation notices; complaints go to a human", () => {
     assert.doesNotMatch(api, /offendingTenant/);
     // Two inserts exist: the AI reply, and the fail-safe reply written only when processing threw before
     // any reply was attempted. Both go to the tenant who wrote the message, and to no one else.
-    const inserts = api.split('from("messages").insert(').slice(1).map((s) => s.slice(0, 400));
-    assert.equal(inserts.length, 2, "only replies to the tenant are inserted");
+    // The AI reply is inserted from one object (replyRow) with one retry, so three insert calls exist in all.
+    const replyRow = api.slice(api.indexOf("const replyRow = {"), api.indexOf("const replyRow = {") + 400);
+    const inserts = api.split('from("messages").insert(').slice(1).map((s) => (s.startsWith("replyRow)") ? replyRow : s.slice(0, 400)));
+    assert.equal(inserts.length, 3, "only replies to the tenant are inserted");
+    assert.equal(api.split('from("messages").insert(replyRow)').length - 1, 2, "the AI reply and its single retry");
     for (const ins of inserts) {
       assert.match(ins, /recipient_id: tenant\?\.user_id/);
       assert.match(ins, /tenant_id: tenant(_id|Id)\b/);

@@ -27,6 +27,9 @@
 --   GRANT EXECUTE ON FUNCTION public.agent_knowledge_guard(), public.handle_new_user() TO PUBLIC, anon, authenticated;
 --   (search_path on the twelve invoker functions may stay; to undo: ALTER FUNCTION <name>(<args>) RESET search_path;)
 
+-- One transaction: either every statement below applies or none does.
+BEGIN;
+
 DO $$
 BEGIN
   IF (SELECT md5(prosrc) FROM pg_proc WHERE oid = 'public.handle_new_user()'::regprocedure) <> '0acdcd1b760a632008e61b827efa5317' THEN
@@ -92,3 +95,5 @@ REVOKE EXECUTE ON FUNCTION public.tenants_no_staff_link() FROM PUBLIC, anon, aut
 CREATE TRIGGER tenants_no_staff_link
   BEFORE INSERT OR UPDATE OF user_id ON public.tenants
   FOR EACH ROW EXECUTE FUNCTION public.tenants_no_staff_link();
+
+COMMIT;

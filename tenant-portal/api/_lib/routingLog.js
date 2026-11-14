@@ -25,7 +25,7 @@ export function routingAction(classification) {
 // knowledge the AI was given). Bounded so one row stays small. The notifier merges its "notify" outcome into the
 // same object later (escalationNotify.recordOutcome re-reads the row and keeps these keys).
 const REPLY_MAX = 2000;
-function agentContext(classification, { reply, humanRequested, knowledgeIds, withdrawnIds }) {
+function agentContext(classification, { reply, humanRequested, knowledgeIds, withdrawnIds, claim }) {
   const ctx = {};
   if (typeof reply === "string" && reply.trim()) ctx.reply = reply.slice(0, REPLY_MAX);
   if (humanRequested) ctx.human_requested = true;
@@ -37,10 +37,12 @@ function agentContext(classification, { reply, humanRequested, knowledgeIds, wit
   }
   if (Array.isArray(knowledgeIds) && knowledgeIds.length) ctx.knowledge_ids = knowledgeIds.slice(0, 60);
   if (Array.isArray(withdrawnIds) && withdrawnIds.length) ctx.withdrawn_ids = withdrawnIds.slice(0, 20);
+  // Duplicate-reply protection state (messageClaim.js); "unavailable" means it was OFF for this run.
+  if (claim) ctx.claim = String(claim);
   return ctx;
 }
 
-export function buildRoutingLogRow({ classification, tenantId, messageId, ticketId, message, reply, humanRequested, knowledgeIds, withdrawnIds }) {
+export function buildRoutingLogRow({ classification, tenantId, messageId, ticketId, message, reply, humanRequested, knowledgeIds, withdrawnIds, claim }) {
   return {
     message_id: messageId || null,
     tenant_id: tenantId,
@@ -54,7 +56,7 @@ export function buildRoutingLogRow({ classification, tenantId, messageId, ticket
     raw_message: message,
     raw_openai_response: {
       tier: classification.tier, category: classification.category,
-      ...agentContext(classification, { reply, humanRequested, knowledgeIds, withdrawnIds }),
+      ...agentContext(classification, { reply, humanRequested, knowledgeIds, withdrawnIds, claim }),
     },
   };
 }

@@ -15,7 +15,7 @@ import { loadApprovedKnowledge, formatKnowledgeForPrompt, loadWithdrawnKnowledge
 import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
-import { claimMessage } from "./_lib/messageClaim.js";
+import { claimMessage, completeClaim } from "./_lib/messageClaim.js";
 
 // Bounded so a slow model fails into the fallback escalation below instead of outliving the function
 // (the SDK default is a 10-minute timeout with 2 retries, longer than any Vercel function may run).
@@ -117,6 +117,7 @@ export default async function handler(req, res) {
 
   const { tenant_id, message_id } = req.body || {};
   let message = req.body?.message;
+  let claim = null;
 
   if (!message || !tenant_id) {
     return res.status(400).json({ error: "message and tenant_id are required" });
@@ -178,10 +179,11 @@ export default async function handler(req, res) {
     }
 
     // Overlapping requests for the same message: only the first one runs (atomic claim). The other gets 202 and
-    // writes nothing; the tenant sees the one reply. Before the claims migration this is skipped ("unavailable").
-    if (await claimMessage(supabase, message_id) === "busy") {
-      return res.status(202).json({ duplicate: true, in_progress: true });
-    }
+    // writes nothing; the tenant's page keeps polling and shows the one reply. A finished run is never repeated
+    // ("done"). "unavailable" (claims table missing) still answers but is logged and recorded on the routing row.
+    claim = await claimMessage(supabase, message_id);
+    if (claim === "busy") return res.status(202).json({ duplicate: true, in_progress: true });
+    if (claim === "done") return res.status(200).json({ duplicate: true, notification: "duplicate" });
   }
 
   let replyAttempted = false;
@@ -282,8 +284,9 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
 
-    replyAttempted = true;
-    const { error: replyErr } = await supabase.from("messages").insert({
+    // One retry. If the reply still can't be stored the tenant would see nothing: hand over to the fail-safe
+    // (it records the escalation, emails management, and tries a short "passed to management" reply).
+    const replyRow = {
       sender_id: null,
       recipient_id: tenant?.user_id || null,
       tenant_id: tenant_id,
@@ -291,9 +294,14 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
       read: false,
       agent_name: AI_ASSISTANT_NAME,
       agent_photo: null,
-    });
-
-    if (replyErr) console.error("Tenant reply insert error:", replyErr);
+    };
+    let { error: replyErr } = await supabase.from("messages").insert(replyRow);
+    if (replyErr) {
+      console.error("Tenant reply insert error (attempt 1):", replyErr.message || replyErr);
+      ({ error: replyErr } = await supabase.from("messages").insert(replyRow));
+    }
+    if (replyErr) throw new Error(`Tenant reply could not be stored: ${replyErr.message || replyErr.code || "insert failed"}`);
+    replyAttempted = true;
 
     // ── 5. Create maintenance ticket (emergencies only) ──────
     let ticketId = null;
@@ -413,7 +421,10 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     const logEntry = await insertRoutingLog(buildRoutingLogRow({
       classification, tenantId: tenant_id, messageId: message_id, ticketId, message,
       reply: finalReply, humanRequested: wantsHuman(message), knowledgeIds: knowledge.map((k) => k.id), withdrawnIds: withdrawn.map((k) => k.id),
+      claim,
     }));
+    // Reply and routing row are written: this message is finished and will never be answered again.
+    if (claim === "claimed") await completeClaim(supabase, message_id);
 
     // ── 10. Notify management of this escalation (once per tenant message; never throws) ──
     // Runs after the tenant reply, alert and routing log are written, so an email failure
@@ -450,6 +461,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // The tenant's message is already stored. Never let it disappear: record it as an escalation,
     // notify management, and (if no reply was written yet) tell the tenant a person will read it.
     const fallback = await failSafeEscalation({ tenantId: tenant_id, messageId: message_id || null, message, replyAttempted });
+    if (claim === "claimed") await completeClaim(supabase, message_id);
     return res.status(500).json({ error: "The assistant could not process this message", escalated: true, notification: fallback.status, log_id: fallback.logId });
   }
 }
