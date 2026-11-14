@@ -8,19 +8,19 @@ emergency SMS. Existing rent arrangements stay exactly as they are.
 
 | Item | State |
 |---|---|
-| App | `main` = `68b7688` (RC1 + release-review fixes), Vercel Production READY 2026-11-14 |
+| App | `main` = `e74b16d` (RC1 + review fixes + RC1.1), Vercel Production READY 2026-11-14 |
 | Migrations | A `20261114120000_ai_message_claims` and B `20261114130000_security_hardening` applied 2026-11-14, verified |
 | Pre-change snapshot | `C:\Modus-dev\release-backups\2026-11-14-rc1\` (function defs + ACLs, tenants links, exact migration files) |
 | Database backups | **Supabase Free plan: no platform backups, no point-in-time recovery** |
 | Rent / receivables / payments / SMS | off (cron job 2 inactive, cutover NULL, 0 charges, 0 saved bank accounts, SMS disabled) |
-| Next release (local, not deployed) | RC1.1 `e74b16d`: phone chat composer above the bottom nav; Wallet hides bank linking while online payment is off |
+| RC1.1 | `e74b16d` deployed 2026-11-14: phone chat composer above the bottom nav; Wallet hides bank linking while online payment is off |
 
 ## 1. Go / no-go checklist (all must be ✅ before the first invitation)
 
 | # | Check | Owner | How to verify |
 |---|---|---|---|
-| 1 | RC1.1 deployed (phone composer, no bank linking) | approval → Claude | Tenant Wallet shows no "Link new bank account"; chat composer visible at 390 px |
-| 2 | Supabase Auth email link lifetime 24 h (*Authentication → Email → Email OTP expiration* = 86400) | you | invite a dummy, open it after > 1 h |
+| 1 | RC1.1 deployed (phone composer, no bank linking) | done 2026-11-14 | verified in production |
+| 2 | Supabase Auth email link lifetime 24 h (currently **3600 s**; *Authentication → Sign In / Providers → Email → Email OTP expiration* = 86400, the maximum) | you | invite a dummy, open it after > 1 h |
 | 3 | Onboarding test end to end with a fresh invite (open → set password → log in → forgot password → reset → log in) | you | each step works on a phone |
 | 4 | Emergency procedure decided (§4) and the number written into the welcome message | you | — |
 | 5 | Pilot tenant record(s) created with the tenant's own email and the right unit | you (landlord → Tenants → Add) | readiness SQL (december-6-launch-plan.md §2) |
@@ -47,7 +47,7 @@ leaked-password protection on, Preview credentials split (§8).
 ## 3. Tenant invitation message (send with or right after the Modus email)
 
 > Hi [name] — you're one of the first residents to try the Modus tenant portal. You'll get an email from Modus
-> Property Management; open it on your phone and tap **Set up your account** within 24 hours, then choose a password.
+> Property Management; open it on your phone and tap **Set up your account** within [1 hour — or 24 hours once the link setting is changed], then choose a password.
 > In the portal you can message us (an AI assistant answers common questions right away and passes anything else to
 > me), report maintenance with photos, and follow updates. **Rent doesn't change** — keep paying the way you do today;
 > online payment isn't part of this trial. **Emergencies:** fire, smoke, gas smell, sparking electrical or anyone in
