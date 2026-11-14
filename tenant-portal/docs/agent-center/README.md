@@ -45,6 +45,22 @@ pets, guests, smoking, subletting, move-out, renewal, rent, alterations, quiet h
    "MANAGEMENT-APPROVED ANSWERS". Another unit's or property's entries are never included. The routing row
    records which entries the AI was given (`knowledge_ids`).
 5. **Retire.** Entries are never edited in place: retire and approve a new one (the database enforces this).
+   Retired entries for the tenant's scope are listed in the prompt as **WITHDRAWN ANSWERS** (never repeat; an
+   approved replacement wins) and recorded on the routing row as `withdrawn_ids`, so an answer the AI gave earlier in
+   the conversation can't come back after retirement.
+
+## Conversation history given to the AI
+
+The last 10 messages, labelled: the AI's own replies (null sender or `agent_name`) as *"Modus AI (earlier automated
+reply, not a source of facts)"*; **Management** only for senders verified as landlord profiles; everything else
+**Tenant**. The prompt forbids repeating a fact from an earlier AI reply unless it is in the knowledge base. History
+is never edited.
+
+## One AI run per message
+
+`ai_message_claims` (migration `20261114120000`, service role only): the route claims the message before any work;
+an overlapping request gets 202 and writes nothing. A claim older than 90 s (crashed run) can be taken over. Before
+the migration is applied the route behaves as before.
 
 Only landlords can read or write either table (RLS `is_landlord()`); tenants and anonymous callers have no
 access. Tenant messages can't become knowledge: only a landlord's explicit Approve writes `agent_knowledge`.

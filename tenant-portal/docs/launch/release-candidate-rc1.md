@@ -17,8 +17,10 @@ Branch `feature/launch-readiness` (local), on top of production `ff4ebd0`. Fast-
 | `8b6fe0c` | Mobile: zoom, safe areas, chat composer | Vercel |
 | `6ea23ee` | Maintenance form: photo collisions, inline errors | Vercel |
 
-Tests at `6ea23ee`: 552, 551 pass (the one failure is the known Windows CRLF hash check on earlier migrations,
-unchanged). Build passes. Render check 19/19.
+After `6ea23ee` there are documentation-only commits (`docs/`); deploy the branch head (`<head>` below).
+
+Tests at the head: 552, 551 pass (the one failure is the known Windows CRLF hash check on earlier migrations,
+unchanged). Build passes. Render check 22/22 (server render of tenant, landlord, Agent Center and link pages).
 
 ## Migrations (apply in this order, each with `supabase db query --project-ref ynbxdbwxdydbpkzaffte --linked -f <file>`)
 
@@ -35,8 +37,8 @@ before and after either migration (A: the route skips the claim if the table is 
 1. **Pre-checks** (read-only): `origin/main` = `ff4ebd0`; cron job 2 inactive; `a2_settings.cutover_date` NULL;
    0 tenants linked to landlord logins; 0 duplicate tenant links; md5 of `handle_new_user` = `0acdcd1b…`.
 2. **Migration A**, then **migration B** (B's preconditions are the safety net).
-3. **Fast-forward `main`** `ff4ebd0 → 6ea23ee` with `git update-ref refs/heads/main 6ea23ee ff4ebd0`, push `main` only.
-   Vercel deploys Production. Watch `gh api repos/andrewwagner27/polaris-pm/commits/6ea23ee/status`.
+3. **Fast-forward `main`** `ff4ebd0 → <head>` with `git update-ref refs/heads/main <head> ff4ebd0`, push `main` only.
+   Vercel deploys Production. Watch `gh api repos/andrewwagner27/polaris-pm/commits/<head>/status`.
 4. **Smoke tests** (below).
 
 No Edge Function redeploys. No environment-variable changes are required for RC1 (the Preview guard is inert in
@@ -67,14 +69,14 @@ Production; it activates only in Preview).
 
 ## Rollback
 
-- App: fast-forward is reversible only by a new commit. Revert with `git revert --no-edit ff4ebd0..6ea23ee` on a
+- App: fast-forward is reversible only by a new commit. Revert with `git revert --no-edit ff4ebd0..<head>` on a
   branch, review, then fast-forward `main` to the revert commit (never force-push).
 - Migrations: rollback statements in each file header. B's rollback restores grants and drops the new trigger/index.
 - The app tolerates migration A's absence; B has no app dependency.
 
 ## Production changes awaiting approval (none performed)
 
-1. Apply migrations A and B. 2. Deploy RC1 (`main` → `6ea23ee`). 3. Supabase Auth: invitation/OTP link lifetime to
+1. Apply migrations A and B. 2. Deploy RC1 (`main` → `<head>`). 3. Supabase Auth: invitation/OTP link lifetime to
 24 h (dashboard), leaked-password protection on. 4. DNS: add a DMARC record. 5. Vercel Preview credentials split
 (docs/launch/preview-isolation.md). 6. Close dummy ticket MR-C8945 and archive the onboarding dummy after the
 onboarding test.
