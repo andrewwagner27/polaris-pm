@@ -1,5 +1,56 @@
 # First live tenant: launch-readiness audit and 7-day plan
 
+## 00. Overnight hardening, 2026-11-17 (supersedes §0 where they differ)
+
+Branch `pilot/first-tenant` = `c3f509b` + this doc (local only, not pushed, **not deployed**). Production `main` = `e74b16d`.
+**V** = verified tonight · **A** = assumption / not verifiable from here.
+
+| Area | Result | Basis |
+|---|---|---|
+| Contractor credentials exposed to tenants | **FIXED in branch (migration not applied)** | V: production (read-only) let `authenticated` SELECT and INSERT every column; RLS lets a tenant read/insert own tickets → token+PIN readable, forged tokens insertable. Migration `20261117000000_vendor_credentials_private.sql` + app column list + landlord RPC. V: on a local restore of the 2026-11-16 production backup **with production grants**, `scripts/local-db/vendor-credentials-check.sql` = 16/16 PASS; migration refuses a second run |
+| Vendor portal still works | PASS | V: service role unaffected (production `service_role` has BYPASSRLS, checked); e2e test drives the real verify-PIN and vendor-ticket handlers |
+| Maintenance workflow end to end | PASS (automated) | V: `tests/maintenance-e2e.test.mjs` (routine → Handyman default → accept → quote → management approval → complete → tenant asked → not fixed → contractor + management → complete → confirmed); 34 follow-up + 56 triage scenario tests (lock-outs, broken locks, emergencies, ambiguous, multiple tickets, missed visits, repeated failures, no reply, duplicates, stale replies). Not run against live production (no tenant session, and no live messages allowed) |
+| Contractor "schedules the visit" | Gap (existing design) | V: the vendor portal has no scheduling action; the contractor proposes a time in a comment and management sets the visit date (Assign / reschedule). Follow-ups key off that date |
+| Duplicate sends | PASS | V: atomic claim per step (marker insert + re-read, earliest wins) + email idempotency keys; 3 overlapping sweeps → 1 message; 2 simultaneous replies → 1 applied |
+| Failed email | PASS | V: retried inside one idempotent send for transient errors; a definite failure is noted on the ticket and listed in the daily recap; never blindly re-sent |
+| Runs with nobody in the app | **NEEDS MY ACTION (verify)** | V: Vercel cron `0 12 * * *` → `/api/daily-recap` → `runSafetySweeps` (follow-ups included). A: requires `CRON_SECRET` in Vercel Production (the route returns 401 without it) — not visible from here; the 11-15/16 recaps were never confirmed received. Check Vercel → Cron Jobs (last run 200) and the inbox |
+| Timing | Acceptable for the pilot | Completion checks are immediate (vendor action). Visit-passed checks, the 24 h reminder and the 24 h flag run at the next sweep: daily 07:00 ET, or sooner whenever the tenant or management opens the app. Worst case a step is ~24 h late; never early |
+| Premature / emergency closure | PASS | V (tests): never closed on no reply; "fixed" closes only non-emergency tickets with no contractor link, quote or invoice; emergency tickets never auto-close; tenant replies never approve quotes/invoices or log expenses |
+| Notifications after deploy to existing data | PASS | V (read-only): the only open ticket (583a2bdf, Dylan Tober) has no visit date and no contractor completion → no follow-up fires. Test User's tickets are all resolved |
+| Handyman vendor SQL | Ready, not applied | V: on the isolated restore, run twice → one row (idempotent), Clifton Manor, active, primary +1 (216) 694-8201, backup +1 (813) 693-1843 in notes, "no agreement for automated calls/texts, dispatch or spending" note; app routing picks it for a running toilet, not for a burst pipe or lost keys |
+| AI rules | PASS | V (tests): routine/priority/emergency/clarify, plumbing + gas emergencies (evacuate, 911/gas utility), lock-outs (locksmith, no work order), tenant responsibility (flag, never charge), completion replies, no cross-property facts, no invented numbers; `AI_VENDOR_DISPATCH_ENABLED` unset = off |
+| Password-reset email | **NEEDS MY ACTION (verify)** | A: reset uses Supabase Auth's own mailer (invites use Resend). If Auth still uses Supabase's built-in SMTP it only delivers to project team members and is rate-limited → a real tenant's reset would not arrive. Automation can't read Auth settings. Check Supabase → Authentication → Emails → SMTP: custom SMTP = Resend (`smtp.resend.com`, port 465, user `resend`, sender on getmodusam.com). If not set, configuring it is a production setting change for you to approve |
+| DMARC | NEEDS MY ACTION | V: `_dmarc.getmodusam.com` still absent; record in §0.2 |
+| Backups | PASS | V: last run 2026-11-16 10:22 OK (0x0); next 02:00; local test cluster stopped and test DB dropped after use |
+| Tests / build | PASS | V: `npm test` 736/737 (only the pre-existing a3-financial CRLF artifact); `vite build` OK; eslint: no new findings in changed files |
+
+### 00.1 Remaining launch blockers (yours)
+1. Approve and apply the deployment below (code + migration together). The credential fix must be live before the invitation.
+2. Emergency contact decision (after-911 number + hours, or "911 + portal only").
+3. Verify Supabase Auth SMTP (password reset reaches a non-team address) and `CRON_SECRET` / recap delivery.
+4. DMARC record; management inbox check; link lifetime (24 h or invite in person); the 15-minute phone test (§00.3).
+
+### 00.2 Exact deployment sequence (after your approval)
+Order matters: the new app works on the old database (it only names its columns; the vendor link is hidden until the
+RPC exists), but the OLD app breaks on the NEW database (`select("*")` is refused). So: **code first, migration second.**
+1. Pre-flight: `npm test` (only the CRLF artifact fails), `npm run build`; confirm Vercel Production env has NO
+   `AI_VENDOR_DISPATCH_ENABLED`, `EMERGENCY_CONTACTS`, `MANAGEMENT_URGENT_*`, `VITE_MANAGEMENT_URGENT_*`; note the
+   current production deployment (e74b16d) for rollback; confirm last night's backup OK (`state\last-run.json`).
+2. Deploy code: fast-forward `main` to the approved commit (`git update-ref refs/heads/main <sha> e74b16dcdaedde5f014155f934e7229651990bc9`), push `main` only; wait for Vercel READY.
+3. Smoke (old database): landlord Maintenance list loads; tenant (Test User) Maintenance list and a ticket open.
+4. Apply migration: `supabase db query --linked -f tenant-portal/supabase/migrations/20261117000000_vendor_credentials_private.sql` (BEGIN/COMMIT; refuses a second run). Then verify (read-only): `has_column_privilege('authenticated','public.maintenance_requests','vendor_pin','SELECT')` = false; `to_regprocedure('public.landlord_vendor_access(uuid)')` not null.
+5. Smoke (new database): landlord list + a ticket with a vendor shows the link + PIN; Test User list/detail load; Test User submits "Toilet keeps running" (ordinary email, no alert) and "I lost my keys" (locksmith notice, no ticket); resolve the test ticket.
+6. Optional, separately approved: run `C:\Modus-dev\db-backups\pre-change\2026-11-17-handyman-vendor.sql`.
+
+**Rollback:** after step 4, first run the migration's rollback block (header), then promote the `e74b16d` deployment in Vercel. Before step 4: just promote `e74b16d`. The Handyman row is undone with `active = false`. No other data changes.
+
+### 00.3 Real-phone acceptance test (15 min; laptop = landlord, phone = onboarding dummy; after deployment)
+1. **Invite + login (3 min):** Tenants → Onboarding Test (dummy) → Resend invite → open it on the phone within the hour → set a password → Home shows unit "Test" and its rent ($1) only.
+2. **Maintenance + triage (4 min):** Messages: "My toilet keeps running" (routine reply, no alert) · "My ceiling is leaking" (two questions) · "I lost my keys" (locksmith, no ticket) · "I smell gas" (leave / 911 first; management email arrives). Maintenance → submit "Pilot test: bathroom fan noisy".
+3. **Contractor + completion (5 min):** Laptop: Assign vendor (Handyman pre-selected once its row exists; else any) with today's date → open the vendor link + PIN on the laptop (private window) → accept → quote $1 → laptop approves the quote → vendor "complete". Phone: an "Is it fixed?" message appears → reply "Yes, it's fixed" → laptop gets "Tenant confirmed"; approve & close.
+4. **Reset + wrap-up (3 min):** Phone: log out → Forgot password → reset email arrives (this verifies Auth SMTP) → new password → log in. Laptop: resolve the Agent Center test items; archive the dummy.
+Tell Claude "phone test done" for a read-only check of the records.
+
 ## 0. Final preparation status: 2026-11-16 (evening). Target launch: Saturday 2026-11-21
 
 Branch `pilot/first-tenant` (local, not pushed, **not deployed**; production is still `main` = `e74b16d`).
