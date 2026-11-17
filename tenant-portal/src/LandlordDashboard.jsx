@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import LandlordLayout from "./LandlordLayout";
 import { paymentCents } from "./lib/accounting";
 import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
@@ -170,7 +171,7 @@ export default function LandlordDashboard() {
       supabase.from("units").select("*"),
       supabase.from("tenants").select("*"),
       supabase.from("payments").select("*, tenants(name), units(unit_number, properties(name))").order("created_at", { ascending: false }),
-      supabase.from("maintenance_requests").select("*, units(unit_number, properties(name)), tenants(name)").neq("status", "resolved").order("created_at", { ascending: false }),
+      supabase.from("maintenance_requests").select(`${TICKET_COLUMNS}, units(unit_number, properties(name)), tenants(name)`).neq("status", "resolved").order("created_at", { ascending: false }),
     ]);
     setProperties(props || []);
     setUnits(units || []);

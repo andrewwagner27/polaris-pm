@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 
@@ -45,7 +46,7 @@ export default function TenantMaintenanceList() {
     setLoading(true);
     const { data } = await supabase
       .from("maintenance_requests")
-      .select("*")
+      .select(TICKET_COLUMNS)
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false });
     setTickets(data || []);

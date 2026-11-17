@@ -174,7 +174,7 @@ export default function MaintenanceRequestForm() {
       unit_id:   unitId,
       category, title, description, priority, status: "open",
       availability,
-    }).select().single();
+    }).select("id").single();
 
     if (error || !data) {
       setSubmitError("We couldn't save your request. Check your connection and try again — nothing was sent yet. If anyone is in danger, call 911.");

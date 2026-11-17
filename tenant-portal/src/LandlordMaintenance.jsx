@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import LandlordLayout from "./LandlordLayout";
 import AssignVendorModal from "./AssignVendorModal";
 import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
@@ -215,11 +216,23 @@ export default function LandlordMaintenance() {
   useEffect(() => { fetchTickets(); }, []);   // missed-alert safety net: LandlordLayout runs the safety sweep on every management page
   useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
 
+  // Vendor link + PIN are not readable from the ticket row (tenants share the database role): landlord-only RPC.
+  const [vendorAccess, setVendorAccess] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!selected?.id || !(selected.vendor_token_expires_at || selected.vendor_name)) return;
+    supabase.rpc("landlord_vendor_access", { p_request: selected.id }).then(({ data }) => {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (live && row?.vendor_token) setVendorAccess({ ticketId: selected.id, ...row });
+    });
+    return () => { live = false; };
+  }, [selected?.id, selected?.vendor_token_expires_at, selected?.vendor_name]);
+
   async function fetchTickets() {
     setLoading(true); setFetchError(null);
     const { data, error } = await supabase
       .from("maintenance_requests")
-      .select("*, units(unit_number, property_id, properties(name, address, city, state)), tenants(name)")
+      .select(`${TICKET_COLUMNS}, units(unit_number, property_id, properties(name, address, city, state)), tenants(name)`)
       .order("created_at", { ascending: false });
     if (error) setFetchError(error.message);
     else setTickets(data || []);
@@ -251,7 +264,7 @@ export default function LandlordMaintenance() {
     // Re-fetch ticket fresh to get latest vendor_email and invoice data
     const { data: freshTicket } = await supabase
       .from("maintenance_requests")
-      .select("*, units(property_id, properties(name))")
+      .select(`${TICKET_COLUMNS}, units(property_id, properties(name))`)
       .eq("id", ticket.id)
       .single();
 
@@ -271,7 +284,7 @@ export default function LandlordMaintenance() {
     }
 
     // The server emails the vendor on record (ticket vendor_email, else the vendors table), or skips.
-    if (freshTicket?.vendor_name || freshTicket?.vendor_email) notifyVendorApproved({ ticketId: ticket.id, stage: "work" });
+    if (freshTicket?.vendor_name || freshTicket?.vendor_token_expires_at) notifyVendorApproved({ ticketId: ticket.id, stage: "work" });
   }
 
   async function submitRejection() {
@@ -559,12 +572,12 @@ export default function LandlordMaintenance() {
                 <Badge type="status" value={field(selected, "status")} />
                 {field(selected, "vendor") && <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>🔧 {field(selected, "vendor")}</span>}
               </div>
-              {selected.vendor_token && (
+              {vendorAccess?.ticketId === selected.id && vendorAccess.vendor_token && (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1, fontSize: 11, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    🔗 {window.location.origin}/vendor/{selected.vendor_token} · PIN: <strong style={{ color: C.gold }}>{selected.vendor_pin}</strong>
+                    🔗 {window.location.origin}/vendor/{vendorAccess.vendor_token} · PIN: <strong style={{ color: C.gold }}>{vendorAccess.vendor_pin}</strong>
                   </div>
-                  <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vendor/${selected.vendor_token}`)} style={{ fontSize: 11, padding: "4px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>Copy link</button>
+                  <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vendor/${vendorAccess.vendor_token}`)} style={{ fontSize: 11, padding: "4px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>Copy link</button>
                 </div>
               )}
             </div>

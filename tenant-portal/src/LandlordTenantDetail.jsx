@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import { functionErrorMessage } from "./lib/functionError";
 import { getSignedStorageUrl, extractStoragePath } from "./storageUtils";
 import LandlordLayout from "./LandlordLayout";
@@ -695,7 +696,7 @@ export default function LandlordTenantDetail() {
     const [{ data:unitData },{ data:paymentsData },{ data:maintData },{ data:checklistData }] = await Promise.all([
       supabase.from("units").select("*, properties(*)").eq("id",tenantData.unit_id).single(),
       supabase.from("payments").select("*").eq("tenant_id",id).order("created_at",{ascending:false}),
-      supabase.from("maintenance_requests").select("*").eq("tenant_id",id).order("created_at",{ascending:false}),
+      supabase.from("maintenance_requests").select(TICKET_COLUMNS).eq("tenant_id",id).order("created_at",{ascending:false}),
       supabase.from("move_in_checklist").select("*").eq("tenant_id",id).order("created_at",{ascending:true}),
     ]);
     setUnit(unitData||null);

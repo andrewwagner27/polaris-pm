@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import { buildTenantProfile } from "./tenantProfile";
 
 const CACHE_KEY = "modus_tenant_cache";
@@ -54,7 +55,7 @@ export function useTenant() {
             ? supabase.from("units").select("*, properties(*)").eq("id", tenantData.unit_id).maybeSingle()
             : Promise.resolve({ data: null }),
           supabase.from("payments").select("*").eq("tenant_id", tenantId).order("paid_at", { ascending: false }).limit(6),
-          supabase.from("maintenance_requests").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(5),
+          supabase.from("maintenance_requests").select(TICKET_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(5),
           supabase.from("recurring_charges").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
         ]);
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
+import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 import { notifyLandlordTenantComment } from "./notifications";
@@ -97,7 +98,7 @@ export default function TenantMaintenanceDetail() {
 
   async function fetchTicket() {
     setLoading(true);
-    const { data } = await supabase.from("maintenance_requests").select("*").eq("id", id).single();
+    const { data } = await supabase.from("maintenance_requests").select(TICKET_COLUMNS).eq("id", id).single();
     setTicket(data || null);
     setLoading(false);
   }
