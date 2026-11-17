@@ -41,13 +41,14 @@ const where = (t) => [t?.propertyName, t?.unitNumber ? `Unit ${t.unitNumber}` : 
 
 // ticket: { title, description, category, priority, propertyName, unitNumber, tenantName }
 // emergency: null | { kind, lifeSafety }
-export function maintenanceCreatedEmail({ ticket, emergency = null }) {
+// priority: { kind, reason } when the description shows a priority repair (api/_lib/emergencyRules.js), else null.
+export function maintenanceCreatedEmail({ ticket, emergency = null, priority = null }) {
   const pr = String(ticket?.priority || "normal").toLowerCase();
-  const color = emergency ? "#E05555" : (COLORS[pr] || COLORS.normal);
-  const icon = emergency ? "🚨" : pr === "urgent" ? "🚨" : pr === "high" ? "⚠️" : "🔧";
-  const label = emergency ? "EMERGENCY maintenance request" : pr === "urgent" ? "URGENT maintenance request" : "New maintenance request";
+  const color = emergency ? "#E05555" : priority ? "#F0A430" : (COLORS[pr] || COLORS.normal);
+  const icon = emergency ? "🚨" : pr === "urgent" ? "🚨" : priority || pr === "high" ? "⚠️" : "🔧";
+  const label = emergency ? "EMERGENCY maintenance request" : priority ? "PRIORITY maintenance request" : pr === "urgent" ? "URGENT maintenance request" : "New maintenance request";
   const subject = cleanSubject(`${icon} ${label}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
-  const body = `${emergency ? quoteBlock(`Possible ${String(emergency.kind).replace(/_/g, " ")} emergency.${emergency.lifeSafety ? " The tenant is being told to call 911." : ""} Contact the tenant now.`, "#E05555", "Emergency") : ""}
+  const body = `${emergency ? quoteBlock(`Possible ${String(emergency.kind).replace(/_/g, " ")} emergency.${emergency.lifeSafety ? " The tenant is being told to call 911." : ""} Contact the tenant now.`, "#E05555", "Emergency") : ""}${!emergency && priority?.reason ? quoteBlock(`${priority.reason}. Not an emergency, but respond promptly.`, "#F0A430", "Priority") : ""}
 ${details([["Tenant", ticket?.tenantName || "Unknown"], ["Property", ticket?.propertyName || "Unknown"], ["Unit", ticket?.unitNumber || "—"], ["Issue", ticket?.title || "(no title)"], ["Category", ticket?.category || ""], ["Priority", capitalize(pr)]])}
 ${ticket?.description ? quoteBlock(ticket.description, color, "Tenant's description") : ""}
 ${button(appLink("/landlord/maintenance"), "View ticket →")}`;

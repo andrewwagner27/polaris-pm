@@ -28,7 +28,7 @@ describe("pilot: urgent messages become Tier 1 with fixed guidance first", () =>
   const cases = [
     ["I smell gas in the kitchen", true], ["There's smoke coming from the outlet", true], ["The carbon monoxide alarm is going off", true],
     ["Someone is trying to break in", true], ["My toilet is overflowing and water is everywhere", false],
-    ["No heat in my apartment and it's freezing", false], ["Water is coming through the ceiling", false], ["I'm locked out", false],
+    ["No heat and I have a newborn", false], ["Water is pouring through the ceiling", false], ["The ceiling is sagging and full of water", false],
   ];
   for (const [m, life] of cases) {
     test(m, () => {

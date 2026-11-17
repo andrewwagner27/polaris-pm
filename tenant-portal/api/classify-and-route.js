@@ -17,6 +17,12 @@ import { managementContactFromEnv } from "../src/lib/emergencyContact.js";
 
 // Urgent management line (number + answered hours) from the environment; null when not configured.
 const urgentContact = () => managementContactFromEnv(globalThis.process?.env || {});
+// Verified emergency contacts for ONE property (the tenant's own), for the given emergency kind.
+const propertyContacts = (propertyId) => (kind) => contactsFromEnv({ propertyId, kind }, globalThis.process?.env || {});
+// The AI never dispatches a vendor on its own unless this is explicitly enabled (no contractor has agreed to
+// tenant-initiated dispatch). Management can still dispatch from the landlord app.
+const aiVendorDispatchEnabled = () => String(globalThis.process?.env?.AI_VENDOR_DISPATCH_ENABLED || "").trim().toLowerCase() === "true";
+import { contactsFromEnv, formatContacts } from "./_lib/emergencyContacts.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
 import { claimMessage, completeClaim } from "./_lib/messageClaim.js";
@@ -283,7 +289,13 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     }
 
     // ── 4. Safety overrides (no violation notices; complaints and human requests escalate) ──
-    classification = applySafetyOverrides(classification, message, { contact: urgentContact() });
+    // Severity: emergency (fixed guidance, Tier 1) / priority (management told, no alert) / unclear (ask first) /
+    // routine. The tenant's recent messages keep a follow-up to an emergency from being downgraded.
+    const recentTenantText = (threadMessages || []).filter((m) => m.sender_id && m.sender_id === tenant?.user_id && !m.agent_name)
+      .slice(-5).map((m) => m.body).join("\n");
+    classification = applySafetyOverrides(classification, message, {
+      contact: urgentContact(), contactsFor: propertyContacts(tenant?.units?.property_id), recentTenantText,
+    });
 
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
@@ -334,7 +346,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
         ticketId = ticket?.id;
       }
 
-      if (classification.dispatch_vendor && ticketId) {
+      if (classification.dispatch_vendor && ticketId && aiVendorDispatchEnabled()) {
         try {
           await dispatchVendor({
             ticket_id: ticketId,
@@ -498,12 +510,12 @@ export async function failSafeEscalation({ tenantId, messageId, message, replyAt
       escalate_to_landlord: true, create_maintenance_ticket: false, ai_unavailable: true,
       ...(emergency ? { emergency_kind: emergency.kind, life_safety: emergency.lifeSafety } : {}),
     };
-    const reply = emergency
-      ? [emergency.guidance, flaggedLine(urgentContact())].join("\n\n")
-      : "Thanks for your message. I couldn't process it automatically, so I've passed it to Modus management to read.";
     const { data: tenant } = await db.from("tenants")
       .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))")
       .eq("id", tenantId).maybeSingle();
+    const reply = emergency
+      ? [emergency.guidance, formatContacts(propertyContacts(tenant?.units?.property_id)(emergency.kind)), flaggedLine(urgentContact())].filter(Boolean).join("\n\n")
+      : "Thanks for your message. I couldn't process it automatically, so I've passed it to Modus management to read.";
     if (!replyAttempted) {
       const { error } = await db.from("messages").insert({
         sender_id: null, recipient_id: tenant?.user_id || null, tenant_id: tenantId, body: reply,

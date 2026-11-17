@@ -77,6 +77,27 @@ G. Laptop: status **Resolved** → phone shows Resolved. Resolve the Agent Cente
 H. Phone: Log out → Forgot password → reset → log in. Then laptop: Tenants → Onboarding Test → **Archive**.
 Tell Claude "phone test done" for a read-only verification of the records.
 
+### 0.4b Maintenance triage (ROUTINE / PRIORITY / EMERGENCY): branch `pilot/first-tenant`, not deployed
+
+| Level | Examples | What happens |
+|---|---|---|
+| ROUTINE (default) | slow drip, running toilet, small contained leak, ceiling stain without a drip, minor surface mold, cosmetic, slow drain | Normal reply + "submit it in Maintenance"; ordinary new-request email; no alert, no SMS, no numbers |
+| PRIORITY | no heat, no (hot) water, worsening leak, overflow that stopped, spreading mold / moisture, fridge/stove/only toilet unusable, lock-out, door/window won't secure, sewer smell | Management notified (escalation, `urgency HIGH`); ticket email labelled **⚠️ PRIORITY** with the reason; no emergency alert, no SMS |
+| EMERGENCY | gas, CO, fire/smoke, sparking/exposed wiring, water on electrics, structural collapse, water pouring / bulging ceiling, uncontrolled flooding, burst pipe, sewage backup, no heat with frozen pipes / < 50°F inside / a baby, older or ill person | Fixed safety steps first (evacuate + 911 / gas utility from outside for life-safety), verified property contacts, the flagged line, an emergency work order, management alert |
+| UNCLEAR | "my ceiling is leaking", water on the floor, a clogged toilet, unspecified mold or leak | One or two short questions first; the answer ("it's pouring", "it's bulging") escalates immediately |
+
+- The fixed rules decide emergencies; the model can still call an emergency the rules don't recognise. A model emergency
+  is **downgraded** only when the message matches a known non-emergency pattern and nothing in the tenant's recent
+  messages was an emergency.
+- AI-initiated vendor dispatch is now **off** unless `AI_VENDOR_DISPATCH_ENABLED=true` (no contractor has agreed to
+  tenant-initiated dispatch). Management can still dispatch from the landlord app.
+- **Emergency contacts per property** (Vercel env `EMERGENCY_CONTACTS`, JSON; empty = nothing shown, today's wording):
+  `{"8376ebcd-9e68-4895-aeda-b7b8402868e8":[{"service":"plumbing","name":"…","phone":"…","hours":"24/7","verified_on":"YYYY-MM-DD","tenant_may_call":true}]}`.
+  Services: `plumbing`, `gas_utility`, `electrical`, `heating`, `water_damage`, `locksmith`, `other`. A contact is shown
+  only with a valid phone, a `verified_on` date **and** `tenant_may_call: true`, and only to tenants of that property.
+  Nothing in it implies dispatch or billing terms. The management urgent line (`MANAGEMENT_URGENT_PHONE/HOURS`) is unchanged.
+- Tests: `tests/maintenance-triage.test.mjs` (56), plus routine / priority / contacts cases in comms-remediation.
+
 ### 0.5 Automated checks run tonight
 
 `npm test` on `pilot/first-tenant`: **606 / 607 pass**. The only failure is the pre-existing

@@ -82,7 +82,7 @@ function seed() {
       quote_submitted_at: "2026-11-12T10:00:00Z", quote_approved_at: "2026-11-12T11:00:00Z", invoice_url: `${TK}/invoice-1-a.pdf`, invoice_notes: ATTACKS[4],
       updated_at: "2026-11-12T12:00:00Z", created_at: new Date().toISOString(),
       tenants: { id: "t1", name: `Test ${ATTACKS[3]}`, email: "tenant@test.invalid", user_id: TENANT_UID },
-      units: { unit_number: "2", properties: { name: "Clifton Manor" } },
+      units: { unit_number: "2", property_id: "8376ebcd-9e68-4895-aeda-b7b8402868e8", properties: { name: "Clifton Manor" } },
     }],
     maintenance_comments: [
       { id: C_TENANT, request_id: TK, author_id: TENANT_UID, author_type: null, body: `Still leaking ${ATTACKS[0]}`, visible_to_tenant: true },
@@ -332,6 +332,34 @@ describe("recipient routing for every workflow", () => {
     assert.equal(r.emergency.kind, "gas"); assert.equal(r.emergency.lifeSafety, true); assert.match(r.emergency.guidance, /911/);
     assert.equal(r.sms, "disabled"); assert.equal(twilio.length, 0);
   });
+  test("routine request (running toilet) → an ordinary new-request email: no emergency, no priority, no SMS", async () => {
+    db.maintenance_requests[0].title = "Toilet keeps running"; db.maintenance_requests[0].description = "It runs all night, otherwise fine.";
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }, { ...ENV, EMERGENCY_SMS_ENABLED: "true" });
+    assert.match(resend[0].body.subject, /^🔧 New maintenance request/);
+    assert.doesNotMatch(resend[0].body.html, /EMERGENCY|Emergency|911/);
+    assert.equal(r.emergency, null); assert.equal(r.priority, undefined); assert.equal(r.sms, undefined); assert.equal(twilio.length, 0);
+  });
+  test("priority request (no heat) → a PRIORITY email with the reason, but no emergency alert or SMS", async () => {
+    db.maintenance_requests[0].title = "No heat"; db.maintenance_requests[0].description = "The furnace stopped working this morning.";
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
+    assert.match(resend[0].body.subject, /^⚠️ PRIORITY maintenance request: No heat/);
+    assert.match(resend[0].body.html, /Loss of heat/);
+    assert.equal(r.emergency, null); assert.equal(r.priority, "heat"); assert.equal(twilio.length, 0);
+  });
+  test("emergency request → this property's VERIFIED contacts are returned to the tenant; unverified or other-property ones are not", async () => {
+    db.maintenance_requests[0].title = "Burst pipe"; db.maintenance_requests[0].description = "Water is spraying under the sink";
+    const EMERGENCY_CONTACTS = JSON.stringify({
+      "8376ebcd-9e68-4895-aeda-b7b8402868e8": [
+        { service: "plumbing", name: "Verified Plumbing", phone: "(216) 555-0101", hours: "24/7", verified_on: "2026-11-18", tenant_may_call: true },
+        { service: "plumbing", name: "Unconfirmed Plumbing", phone: "(216) 555-0102", hours: "24/7" }],
+      "671b1f4c-02d6-493a-b060-d77a4c37b570": [
+        { service: "plumbing", name: "Other Building Plumbing", phone: "(312) 555-0103", verified_on: "2026-11-18", tenant_may_call: true }] });
+    const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }, { ...ENV, EMERGENCY_CONTACTS });
+    assert.equal(r.emergency.kind, "water");
+    assert.deepEqual(r.emergency.contacts, [{ label: "Emergency plumber", name: "Verified Plumbing", phone: "(216) 555-0101", hours: "24/7" }]);
+    assert.match(r.emergency.guidance, /555-0101/);
+    assert.doesNotMatch(r.emergency.guidance, /555-0102|555-0103/);
+  });
   test("no management recipient configured → nothing sent, failure recorded on the ticket", async () => {
     const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }, {});
     assert.equal(r.status, "failed"); assert.equal(r.error, "MANAGEMENT_RECIPIENT_NOT_CONFIGURED");
@@ -454,7 +482,7 @@ describe("HTTP routes: tenants and vendors cannot send arbitrary email or SMS", 
 describe("emergencies", () => {
   const LIFE = { gas: "I smell gas in the kitchen", fire: "There's smoke coming from the outlet and I see flames", carbon_monoxide: "carbon monoxide alarm is going off",
     electrical: "the outlet is sparking", security: "someone is trying to break in" };
-  const PROPERTY = { water: "water is pouring through my ceiling", no_heat: "We have no heat and it's below freezing", access: "the front door won't lock" };
+  const PROPERTY = { water: "water is pouring through my ceiling", no_heat: "We have no heat and it's below freezing outside" };
   test("life-safety messages: Tier 1, emergency urgency, and the reply opens with 911 guidance", () => {
     for (const [kind, msg] of Object.entries(LIFE)) {
       const c = AI.applySafetyOverrides({ tier: "TIER3_MAINTENANCE", urgency: "LOW", tenant_reply: "Thanks!", escalate_to_landlord: false }, msg);
@@ -470,6 +498,9 @@ describe("emergencies", () => {
       assert.equal(c.tier, "TIER1_EMERGENCY", kind); assert.equal(c.life_safety, false); assert.ok(N.needsNotification(c));
     }
     assert.match(AI.detectEmergency(PROPERTY.no_heat).guidance, /911/);
+    // A door that won't lock is a priority repair: management is told, but it is not an emergency alert.
+    const door = AI.applySafetyOverrides({ tier: "TIER3_MAINTENANCE", tenant_reply: "Ok" }, "the front door won't lock");
+    assert.equal(door.tier, "TIER3_MAINTENANCE"); assert.equal(door.escalate_to_landlord, true); assert.equal(door.severity, "PRIORITY");
   });
   test("ordinary messages are not emergencies", () => {
     for (const m of ["Can I smoke on the balcony?", "Where is the fire extinguisher?", "The smoke detector battery is chirping", "Hi", "When is rent due?", "is there a fireplace"]) {
@@ -478,7 +509,7 @@ describe("emergencies", () => {
   });
   test("the AI prompt tells it to direct life-safety emergencies to 911 and never claim a phone line", () => {
     const p = P.buildSystemPrompt(undefined);
-    assert.match(p, /call 911 \(for gas, from outside the building\)/);
+    assert.match(p, /call 911 from a safe place \(for gas: from outside, 911 or the gas utility\)/);
     assert.match(p, /no 24\/7 emergency phone line yet/);
   });
   test("SMS is off unless explicitly enabled and fully configured; 'accepted' is never 'delivered'", async () => {

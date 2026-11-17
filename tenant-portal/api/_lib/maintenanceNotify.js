@@ -15,7 +15,8 @@
 // Every function returns { status, ... } and never throws except NotifyError for bad/unauthorized requests.
 // "sent" means Resend returned an email id; "unconfirmed" means the outcome is unknown.
 
-import { detectEmergency } from "./aiSafety.js";
+import { assessSeverity } from "./aiSafety.js";
+import { contactsFromEnv, formatContacts } from "./emergencyContacts.js";
 import { managementRecipients } from "./recipients.js";
 import { sendEmailReliably, payloadKey } from "./email.js";
 import { sendEmergencySms, smsBody } from "./emergencySms.js";
@@ -53,7 +54,7 @@ async function trustedNotes(db, ticketId) {
 async function loadTicket(db, ticketId) {
   ticketId = requireUuid(ticketId, "ticket_id");
   const { data, error } = await db.from("maintenance_requests")
-    .select("*, tenants(id, name, email, user_id), units(unit_number, properties(name))")
+    .select("*, tenants(id, name, email, user_id), units(unit_number, property_id, properties(name))")
     .eq("id", ticketId).maybeSingle();
   if (error) throw new NotifyError(500, "Could not load the ticket");
   if (!data) throw new NotifyError(404, "Ticket not found");
@@ -116,9 +117,15 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
     if (!Number.isFinite(created) || now() - created > TENANT_ALERT_WINDOW_MS) throw new NotifyError(409, "This request's alert can no longer be raised from the tenant portal");
   }
 
-  const detected = detectEmergency(`${t.title || ""}\n${t.description || ""}`);
+  // Severity from the ticket text: emergency (alert + safety guidance + this property's verified contacts),
+  // priority (labelled in the management email; no alert, no SMS), or routine (a normal new-request email).
+  const severity = assessSeverity(`${t.title || ""}\n${t.description || ""}`);
+  const detected = severity?.level === "emergency" ? severity : null;
   const emergency = detected || (t.is_emergency ? { kind: "reported", lifeSafety: false } : null);
-  const guidance = detected ? { kind: detected.kind, lifeSafety: detected.lifeSafety, guidance: detected.guidance } : null;
+  const contacts = detected ? contactsFromEnv({ propertyId: t.units?.property_id, kind: detected.kind }, env || {}) : [];
+  const guidance = detected ? { kind: detected.kind, lifeSafety: detected.lifeSafety, guidance: [detected.guidance, formatContacts(contacts)].filter(Boolean).join(" "),
+    ...(contacts.length ? { contacts: contacts.map(({ label, name, phone, hours }) => ({ label, name, phone, hours })) } : {}) } : null;
+  const priority = !emergency && severity?.level === "priority" ? { kind: severity.kind, reason: severity.reason } : null;
 
   const notes = await trustedNotes(db, t.id);
   // Already emailed for this ticket (a retried or repeated call): no second email.
@@ -126,11 +133,11 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
 
   let result = { status: "duplicate" };
   if (!emailed) {
-    const label = emergency ? "emergency maintenance alert" : "new maintenance request";
+    const label = emergency ? "emergency maintenance alert" : priority ? "priority maintenance request" : "new maintenance request";
     const to = await toManagement({ db, env, ticketId: t.id, label });
     result = to.ok
       ? await deliver({ db, send, ticketId: t.id, to: to.recipients, key: `maintenance-created:${t.id}`, label, retryDelayMs,
-          email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
+          email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency, priority }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
       : { status: "failed", error: to.code };
   }
 
@@ -155,7 +162,7 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
   } else if (emergency) {
     smsStatus = "duplicate";
   }
-  return { ...result, emergency: guidance, ...(smsStatus ? { sms: smsStatus } : {}) };
+  return { ...result, emergency: guidance, ...(priority ? { priority: priority.kind } : {}), ...(smsStatus ? { sms: smsStatus } : {}) };
 }
 
 // A tenant replied on their own ticket. The comment must exist, be theirs, and be tenant-visible.

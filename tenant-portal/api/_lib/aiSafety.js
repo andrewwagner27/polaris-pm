@@ -34,7 +34,11 @@ export function wantsHuman(message) {
 
 // Returns a corrected copy of the model's classification; never mutates the input.
 // contact: the configured urgent management line (src/lib/emergencyContact.js), or null/undefined when none is set.
-export function applySafetyOverrides(classification, message, { contact = null } = {}) {
+// contactsFor: (kind) => verified property-specific emergency contacts for THIS tenant's property
+//   (api/_lib/emergencyContacts.js), or omitted when none are configured.
+// recentTenantText: the tenant's recent messages in this thread. When they already described an emergency, the
+//   model's emergency call on a follow-up ("it's getting worse") is never downgraded.
+export function applySafetyOverrides(classification, message, { contact = null, contactsFor = null, recentTenantText = "" } = {}) {
   const c = { ...(classification || {}) };
   c.send_violation_notice = false;                  // notices are issued by management only
   if (c.create_incident_log) c.escalate_to_landlord = true;   // complaints always reach a human
@@ -42,19 +46,61 @@ export function applySafetyOverrides(classification, message, { contact = null }
 
   // Emergencies are decided by these fixed rules as well as by the model: a model that misses one, or
   // is unavailable, cannot downgrade it. The tenant always gets the fixed safety instruction first.
-  const emergency = detectEmergency(message);
-  if (emergency) {
-    // Tier 1 alone triggers the landlord alert and the management email/SMS (escalationNotify.needsNotification),
-    // so the model's routing (e.g. an emergency maintenance ticket) is kept as it decided.
+  const severity = assessSeverity(message);
+  if (severity?.level === "emergency") {
+    // Tier 1 alone triggers the landlord alert and the management email/SMS (escalationNotify.needsNotification).
     c.tier = "TIER1_EMERGENCY";
     c.urgency = "EMERGENCY";
-    c.emergency_kind = emergency.kind;
-    c.life_safety = emergency.lifeSafety;
+    c.severity = "EMERGENCY";
+    c.emergency_kind = severity.kind;
+    c.life_safety = severity.lifeSafety;
+    // A building emergency gets an emergency work order (fire, security and medical are 911 matters, not repairs).
+    if (MAINTENANCE_EMERGENCY_KINDS.includes(severity.kind)) c.create_maintenance_ticket = true;
+    const contacts = typeof contactsFor === "function" ? formatContacts(contactsFor(severity.kind)) : "";
     const modelReply = String(c.tenant_reply || "").trim();
-    c.tenant_reply = [emergency.guidance, flaggedLine(contact), modelReply].filter(Boolean).join("\n\n");
+    c.tenant_reply = [severity.guidance, contacts, flaggedLine(contact), modelReply].filter(Boolean).join("\n\n");
+    return c;
+  }
+
+  // Not an emergency by the fixed rules. The model may still call one (it sees descriptions these rules don't
+  // know), EXCEPT when the message matches a known non-emergency pattern and nothing in the recent thread was an
+  // emergency: then it is downgraded so routine repairs don't raise emergency alerts.
+  const threadEmergency = Boolean(detectEmergency(recentTenantText));
+  const modelEmergency = c.tier === "TIER1_EMERGENCY" || c.urgency === "EMERGENCY";
+  if (severity && modelEmergency && !threadEmergency) {
+    c.tier = "TIER3_MAINTENANCE";
+    c.urgency = { priority: "HIGH", clarify: "MEDIUM", routine: "LOW" }[severity.level];
+    c.create_maintenance_ticket = false;
+    c.downgraded_from_emergency = severity.kind;
+    if (EMERGENCY_WORDING.test(String(c.tenant_reply || ""))) c.tenant_reply = DOWNGRADE_REPLY[severity.level](severity);
+  }
+  if (!severity || c.tier === "TIER1_EMERGENCY") return c;
+
+  if (severity.level === "priority") {
+    c.severity = "PRIORITY";
+    c.priority_kind = severity.kind;
+    c.priority_reason = severity.reason;
+    c.escalate_to_landlord = true;                  // management is told promptly; no emergency alert or SMS
+    if (c.urgency !== "HIGH") c.urgency = "HIGH";
+  } else if (severity.level === "clarify") {
+    c.severity = "UNCLEAR";
+    c.needs_clarification = severity.kind;
+    if (c.urgency === "EMERGENCY") c.urgency = "MEDIUM";
+    // Ask before deciding: the reply must contain the question (one or two short ones).
+    if (!/\?/.test(String(c.tenant_reply || ""))) c.tenant_reply = [String(c.tenant_reply || "").trim(), severity.question].filter(Boolean).join(" ");
+  } else if (severity.level === "routine") {
+    c.severity = "ROUTINE";
+    if (c.urgency === "EMERGENCY" || c.urgency === "HIGH") c.urgency = "LOW";
   }
   return c;
 }
+
+const EMERGENCY_WORDING = /emergenc|911|evacuat|leave the (?:building|unit|apartment)|get out/i;
+const DOWNGRADE_REPLY = {
+  priority: (s) => `Thanks for letting us know. I've flagged this to Modus management as a priority repair (${s.reason.charAt(0).toLowerCase()}${s.reason.slice(1)}). Please submit it in the Maintenance tab with a photo if you haven't already. If it gets worse — water pouring in, a sagging ceiling, sparks, or a gas smell — tell me right away, and call 911 if anyone is in danger.`,
+  clarify: (s) => `Thanks for letting me know. ${s.question}`,
+  routine: () => "Thanks for letting us know — that sounds like a routine repair. Please submit it in the Maintenance tab (a photo helps) and management will schedule it. If anything changes and it becomes unsafe, tell me right away.",
+};
 
 // ── Emergencies ─────────────────────────────────────────────────────────────
 // lifeSafety: an immediate threat to people → the tenant is told to call 911 first.
@@ -64,7 +110,8 @@ export const FLAGGED_LINE = flaggedLine(null);
 export { flaggedLine };
 
 // The rules and the phrase corpus live in api/_lib/emergencyRules.js and tests/emergency-detection.test.mjs.
-export { detectEmergency, EMERGENCY_KINDS, LIFE_SAFETY_KINDS } from "./emergencyRules.js";
-import { detectEmergency } from "./emergencyRules.js";
+export { detectEmergency, assessSeverity, EMERGENCY_KINDS, LIFE_SAFETY_KINDS } from "./emergencyRules.js";
+import { detectEmergency, assessSeverity, MAINTENANCE_EMERGENCY_KINDS } from "./emergencyRules.js";
+import { formatContacts } from "./emergencyContacts.js";
 import { flaggedLine } from "../../src/lib/emergencyContact.js";
 

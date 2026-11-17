@@ -43,19 +43,18 @@ const POSITIVE = {
     "my grandma fell and hit her head", "I want to die", "allergic reaction and throat closing",
   ],
   water: [
-    "My apartment is flooding", "the basement is flooded", "burst pipe", "a pipe burst under the sink", "water leaking from ceiling",
-    "water is pouring through my ceiling", "water everywhere in the bathroom", "toilet overflowing everywhere", "the toilet is overflowing",
+    "My apartment is flooding", "the basement is flooded", "burst pipe", "a pipe burst under the sink",
+    "water is pouring through my ceiling", "water everywhere in the bathroom", "toilet overflowing everywhere", "the ceiling is bulging with water",
     "the washing machine is flooding the floor", "sewage coming up in the tub", "sewer backup in the basement", "the ceiling is sagging and dripping",
     "water heater burst", "major leak in the kitchen",
   ],
+  // A dangerous loss of heat only: plain "no heat" is a PRIORITY repair (tests/maintenance-triage.test.mjs).
   no_heat: [
-    "no heat", "we have no heat", "my heat went out", "the heater stopped working and it's 5 degrees out", "the furnace isn't working",
-    "heating is broken", "the boiler died", "it's freezing in my apartment", "it is so cold inside", "the pipes are frozen",
-    "it's 45 degrees inside", "the heat won't turn on",
+    "the heater stopped working and it's 5 degrees out", "the pipes are frozen", "it's 45 degrees inside",
+    "no heat and I have a newborn", "the furnace died and my elderly mother lives with me", "no heat and it's below freezing outside",
   ],
-  access: [
-    "I'm locked out", "locked myself out of my apartment", "I can't get into my apartment", "the front door won't lock",
-    "my door will not close", "the lock is broken", "broken window in the bedroom", "my window was smashed", "key broke in the lock",
+  structural: [
+    "the ceiling collapsed", "part of the ceiling caved in", "the balcony is collapsing", "the stairs gave way",
   ],
 };
 
@@ -92,8 +91,8 @@ describe("emergency phrase corpus", () => {
 });
 
 describe("life safety vs property emergencies", () => {
-  test("life-safety kinds are exactly fire, gas, carbon monoxide, electrical, security and medical", () => {
-    assert.deepEqual([...LIFE_SAFETY_KINDS].sort(), ["carbon_monoxide", "electrical", "fire", "gas", "medical", "security"]);
+  test("life-safety kinds are exactly fire, gas, carbon monoxide, electrical, security, medical and structural collapse", () => {
+    assert.deepEqual([...LIFE_SAFETY_KINDS].sort(), ["carbon_monoxide", "electrical", "fire", "gas", "medical", "security", "structural"]);
   });
   test("life-safety replies start with 911; property replies give safety steps and mention 911 only for people at risk", () => {
     for (const [kind, phrases] of Object.entries(POSITIVE)) {
