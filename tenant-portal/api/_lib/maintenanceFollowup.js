@@ -157,6 +157,20 @@ async function askTenant({ db, send, t, anchor, reason, reminder, retryDelayMs }
   return out;
 }
 
+// Claim a step atomically enough for overlapping runs: insert the marker, then re-read; only the run whose marker is
+// the earliest for this anchor+step (ties broken by id) goes on to send. A losing run sends nothing.
+export async function claimStep(db, ticketId, anchor, step, body) {
+  const marker = `[followup ${anchor} ${step}]`;
+  const { data: mine, error } = await db.from("maintenance_comments").insert({
+    request_id: ticketId, body: `${marker} ${body}`.slice(0, 1000), author_type: "system", author_name: NOTE_AUTHOR, visible_to_tenant: false,
+  }).select("id, created_at").single();
+  if (error || !mine?.id) { console.error("[followup] could not record step:", error?.message || error); return false; }
+  const all = await loadComments(db, ticketId);
+  const same = all.filter((c) => trusted(c) && String(c.body || "").startsWith(step.startsWith("answered:") ? `[followup ${anchor} answered:` : marker))
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
+  return same[0]?.id === mine.id;
+}
+
 // ── The sweep (scheduled / opportunistic) ────────────────────────────────────────────────────────────────────
 // tenantId limits the sweep to one tenant's tickets (tenant page loads); ticketId to one ticket (vendor completion).
 export async function sweepCompletionFollowups({ db, send, env, now = () => Date.now(), tenantId = null, ticketId = null, retryDelayMs } = {}) {
@@ -177,15 +191,15 @@ export async function sweepCompletionFollowups({ db, send, env, now = () => Date
       if (!step) continue;
       // Claim first: the marker is written before anything is sent, so an overlapping run sees it and stops.
       if (step === "ask") {
-        await note(db, t.id, `[followup ${cycle.anchor} asked] Asked the tenant to confirm the repair (${cycle.reason === "appt" ? "scheduled visit passed" : "contractor reported completion"}).`);
+        if (!await claimStep(db, t.id, cycle.anchor, "asked", `Asked the tenant to confirm the repair (${cycle.reason === "appt" ? "scheduled visit passed" : "contractor reported completion"}).`)) continue;
         await askTenant({ db, send, t, anchor: cycle.anchor, reason: cycle.reason, reminder: false, retryDelayMs });
         out.asked++;
       } else if (step === "remind") {
-        await note(db, t.id, `[followup ${cycle.anchor} reminded] No reply after 24 hours; one reminder sent to the tenant.`);
+        if (!await claimStep(db, t.id, cycle.anchor, "reminded", "No reply after 24 hours; one reminder sent to the tenant.")) continue;
         await askTenant({ db, send, t, anchor: cycle.anchor, reason: cycle.reason, reminder: true, retryDelayMs });
         out.reminded++;
       } else if (step === "flag") {
-        await note(db, t.id, `[followup ${cycle.anchor} flagged] No reply to the completion check or the reminder. Flagged for management; the ticket stays open.`);
+        if (!await claimStep(db, t.id, cycle.anchor, "flagged", "No reply to the completion check or the reminder. Flagged for management; the ticket stays open.")) continue;
         await tellManagement({ db, send, env, t, key: `followup-flag:${t.id}:${cycle.anchor}`, retryDelayMs, withContractor: true,
           headline: "No reply to completion check", detail: "The tenant hasn't answered the completion check or the reminder (48 hours). The ticket was NOT closed. Please check with the tenant directly." });
         out.flagged++;
@@ -232,7 +246,8 @@ export async function handleCompletionReply({ db, send, env, tenantId, message, 
 
   const { t, cycle } = open[0];
   const words = String(message).slice(0, 500);
-  await note(db, t.id, `[followup ${cycle.anchor} answered:${outcome}] Tenant replied: "${words}"`);
+  // Only one answer per check: a concurrent reply that loses the claim changes nothing.
+  if (!await claimStep(db, t.id, cycle.anchor, `answered:${outcome}`, `Tenant replied: "${words}"`)) return null;
 
   if (outcome === "fixed") {
     const billable = t.vendor_token || t.quote_amount != null || t.invoice_url || t.invoice_amount != null || t.status === "pending_review";
