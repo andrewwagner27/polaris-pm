@@ -202,7 +202,7 @@ try {
       $storeHash = (Get-FileHash (Join-Path $final 'storage-manifest.csv') -Algorithm SHA256).Hash.Substring(0, 12).ToLower()
       if (-not (Get-ChildItem (Join-Path $Offsite 'storage') -Filter "*-$storeHash.tar.gpg" -ErrorAction SilentlyContinue)) {
         $jobs += @{ kind = 'storage'; name = "modus-$RunId-storage-$storeHash.tar"; args = @('-cf', '', '-C', $final, 'storage', 'storage-manifest.csv', 'storage-objects.csv') }
-      }
+      } else { Log "off-device: storage unchanged (manifest $storeHash already copied), not re-uploaded" }
       foreach ($j in $jobs) {
         $plain = Join-Path $tmp $j.name; $j.args[1] = $plain
         if ((Exec $Tar $j.args $null (Join-Path $tmp 'tar.err')) -ne 0) { Fail "tar failed ($($j.kind))" }

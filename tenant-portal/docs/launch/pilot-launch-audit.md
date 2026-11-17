@@ -1,5 +1,50 @@
 # First live tenant: launch-readiness audit and 7-day plan
 
+## 000. Pilot launch package, 2026-11-17 (supersedes §00 and §0 where they differ)
+
+Branch `pilot/first-tenant` (local, not pushed, **not deployed**). Production `main` = `e74b16d`; the branch fast-forwards
+from it. **V** = verified · **U** = unverified (not inspectable from here) · **B** = blocked on the owner.
+
+### Owner-operated routing (no third-party manager, no staffed phone)
+| Report | What Modus does | Never |
+|---|---|---|
+| Routine / ordinary priority repair | Work order; Handyman Contractor Services pre-selected in Assign vendor; owner emailed `[Action required]`; tenant asked "is it fixed?" after completion | dispatch or spend on its own |
+| Plumbing / heating / electrical / gas / structural / lock-security | Specialist named ("Needs a licensed plumber…"); an approved provider of that trade is pre-selected if one is in the directory, otherwise none; emergencies get fixed safety steps first + `[Urgent safety]` email; "No approved emergency provider is on file" when `EMERGENCY_CONTACTS` has none | default to the handyman |
+| Fire, gas, CO, medical, trapped, current injury | "Call 911 / leave" first (reply stored before any ticket) + owner notified | wait on ticket creation |
+| Lost keys / locked out | Tenant-arranged locksmith guidance; broken lock or danger → repair / 911 | create a landlord work order |
+| Parking, dumpster/trash, common areas | Owner-action item in the existing incident log (`PARKING_DISPUTE` / `TRASH` / `OTHER`), owner escalation, ask for facts + photos | assign a contractor, tow, buy a service |
+| Injury / accident / theft / vandalism | Incident log + owner escalation; 911 guidance if current; any model reply admitting fault or promising payment is replaced | decide liability or compensation |
+
+Parking wording (AI prompt) is the approved policy text; "immediate towing at owner's expense" removed. A model reply that
+promises a tow is replaced; the policy sentence itself is kept. Email subjects: `[Urgent safety]` / `[Action required]` / `[FYI]`.
+
+### Results
+| Area | Result |
+|---|---|
+| Tests | V: 772/772 (`node --test --test-concurrency=1`), incl. the formerly failing a3-financial CRLF check (now hashes with normalised line endings). Build OK. eslint: 5 findings in changed files, all pre-existing in `HEAD` |
+| Credential migration | V on an isolated restore of the **2026-11-17 02:05** production backup (127.0.0.1:55432, dropped afterwards): before = hole present (tenant reads token/PIN/contacts); after = `scripts/local-db/vendor-credentials-check.sql` **19/19 PASS** (no `select *`, no token/PIN/contacts, RPC refused for tenant, plain open insert works, forged credentials / non-open status / approval fields refused, credential + status changes have no effect, cross-tenant insert refused, no other tenant's tickets, landlord list + RPC work, service role unaffected, anon nothing); second run refused |
+| Rollback | V: `supabase/rollbacks/20261117000000_vendor_credentials_private.rollback.sql` restores the exact pre-migration ACL, trigger and function state; refuses when nothing is applied; re-apply after rollback → 19/19 again |
+| Handyman SQL | V (same restore): run twice → 1 row, Clifton Manor, active, primary +1 (216) 694-8201, backup +1 (813) 693-1843, `#preferred`, category general; editable and deactivatable. Never matches a specialist trade |
+| `CRON_SECRET` | V: present in Vercel Production (added Nov 11). Cron `0 12 * * *` → `/api/daily-recap` → safety sweeps + follow-ups |
+| Cron actually running / recap delivered | U: Hobby log retention showed no rows; the recap goes to `LANDLORD_EMAIL` (not the inbox checked) |
+| Dispatch / SMS / urgent phone | V: `AI_VENDOR_DISPATCH_ENABLED`, `EMERGENCY_CONTACTS`, `EMERGENCY_SMS_ENABLED`, `MANAGEMENT_URGENT_*` are **not** set in Vercel → all off |
+| Auth redirect URLs | V: `www.getmodusam.com/reset-password`, `www.getmodusam.com/onboarding**`, `getmodusam.com/auth/callback` allowed |
+| Auth custom SMTP | **B: appears OFF** (switch shows no host/sender fields). Resets then use Supabase's built-in mailer, which only delivers to project team members → a tenant's reset email won't arrive |
+| Backups | V: 2026-11-17_020519 OK (dump, storage 50/50 checksums, restore test 8/8, sealed, DB copy encrypted + test-decrypted to OneDrive). "Missing storage line" = by design: storage manifest unchanged (`f31fa4f878cd`), its encrypted archive from 11-16 already in OneDrive, so not re-uploaded; the script now logs that. Retention: 4 valid daily + 1 weekly (< limits, nothing due). OneDrive cloud upload itself U |
+
+### Deployment (after approval) — code first, migration second
+1. Pre-flight: `node --test --test-concurrency=1 "tests/**/*.test.mjs"`, `npm run build`; `state\last-run.json` OK from last night; note the e74b16d deployment in Vercel.
+2. **Owner:** enable Supabase custom SMTP (Resend: `smtp.resend.com`, 465, user `resend`, sender on getmodusam.com).
+3. Code: `git update-ref refs/heads/main <final sha> e74b16dcdaedde5f014155f934e7229651990bc9`; push `main` only; wait for Vercel READY. No env var changes, no Edge Function changes, `vercel.json` unchanged.
+4. Smoke (old schema): landlord Maintenance list; Test User maintenance list + one ticket.
+5. Migration: `supabase db query --linked -f tenant-portal/supabase/migrations/20261117000000_vendor_credentials_private.sql`; verify `has_column_privilege('authenticated','public.maintenance_requests','vendor_pin','SELECT')` = false and `to_regprocedure('public.landlord_vendor_access(uuid)')` not null.
+6. Smoke (new schema): landlord ticket with a vendor shows link + PIN; Test User list/detail; "Toilet keeps running" (`[Action required]`, Handyman pre-selected after step 7), "The dumpster is overflowing" (owner-action, no contractor), "I lost my keys" (locksmith, no ticket).
+7. Separately approved: `C:\Modus-dev\db-backups\pre-change\2026-11-17-handyman-vendor.sql`.
+
+Rollback: after step 5 → run the rollback file, then promote `e74b16d` in Vercel. Before step 5 → promote `e74b16d` only.
+Handyman → `update public.vendors set active=false where name='Handyman Contractor Services'`. Compatibility: the new app
+works on both schemas; the old app needs the old schema, hence this order.
+
 ## 00. Overnight hardening, 2026-11-17 (supersedes §0 where they differ)
 
 Branch `pilot/first-tenant` = `c3f509b` + this doc (local only, not pushed, **not deployed**). Production `main` = `e74b16d`.

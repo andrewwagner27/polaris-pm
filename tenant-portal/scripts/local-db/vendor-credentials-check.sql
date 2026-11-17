@@ -29,6 +29,7 @@ rollback;
 begin;
 select set_config('request.jwt.claims', json_build_object('sub', :'tenant_uid', 'role', 'authenticated')::text, true) \gset _set_
 select set_config('app.tid', :'tenant_id', true) \gset _set_
+select set_config('app.other', (select id::text from public.tenants where id <> :'tenant_id'::uuid order by id limit 1), true) \gset _set_
 set local role authenticated;
 do $$ begin
   insert into public.maintenance_requests (tenant_id, title, status, priority) values (current_setting('app.tid')::uuid, 'plain request', 'open', 'normal');
@@ -52,6 +53,23 @@ do $$ declare n int; begin
   get diagnostics n = row_count;
   if n = 0 then raise notice 'PASS tenant: credential update touched no rows (no open tickets)'; else raise notice 'FAIL tenant: updated % rows', n; end if;
 exception when insufficient_privilege then raise notice 'PASS tenant: credential update refused'; end $$;
+-- A tenant cannot change a ticket's status (close, reopen as in progress, approve) directly.
+do $$ declare r record; s text; begin
+  select id, status into r from public.maintenance_requests where tenant_id = current_setting('app.tid')::uuid limit 1;
+  if r.id is null then raise notice 'PASS tenant: status change (no own ticket to try)'; return; end if;
+  begin
+    update public.maintenance_requests set status = case when r.status = 'in_progress' then 'resolved' else 'in_progress' end where id = r.id;
+  exception when others then raise notice 'PASS tenant: status change refused (%)', sqlstate; return; end;
+  select status into s from public.maintenance_requests where id = r.id;
+  if s is not distinct from r.status then raise notice 'PASS tenant: status change had no effect'; else raise notice 'FAIL tenant: status changed % -> %', r.status, s; end if;
+end $$;
+-- A tenant cannot create a ticket for another tenant, or see one.
+do $$ begin
+  insert into public.maintenance_requests (tenant_id, title, status) values (current_setting('app.other')::uuid, 'cross-tenant', 'open');
+  raise notice 'FAIL tenant: created a ticket for another tenant';
+exception when others then raise notice 'PASS tenant: cross-tenant insert refused (%)', sqlstate; end $$;
+select case when count(*) = 0 then 'PASS tenant: no other tenant''s tickets visible' else 'FAIL tenant: sees ' || count(*) || ' other tickets' end
+  from public.maintenance_requests where tenant_id <> current_setting('app.tid')::uuid;
 rollback;
 
 -- ── As the landlord ──
