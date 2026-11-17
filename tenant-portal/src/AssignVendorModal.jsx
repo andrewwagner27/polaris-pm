@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { defaultVendorFor, isPreferredVendor, contractorContacts, responsibilityFor, isEmergencyTicket } from "./lib/vendorRouting";
 
 const C = {
   bg:        "#0A0B0D",
@@ -52,6 +53,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
   const [showPlaces, setShowPlaces]         = useState(false);
   const [placesResults, setPlacesResults]   = useState([]);
   const [placesLoading, setPlacesLoading]   = useState(false);
+  const [routing, setRouting]               = useState({ emergency: false, responsibility: "landlord" });
   const [placesQuery, setPlacesQuery]       = useState("");
 
   const BASE_URL = window.location.origin;
@@ -63,8 +65,17 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
       let query = supabase.from("vendors").select("*").eq("active", true);
       if (propertyId) query = query.eq("property_id", propertyId);
       const { data: vendorData } = await query.order("name");
-      const catMatch = (vendorData || []).filter(v => v.category === requestCategory);
-      setVendors(catMatch.length > 0 ? catMatch : (vendorData || []));
+      // The ticket's severity and responsibility decide the default contractor (src/lib/vendorRouting.js).
+      const { data: ticket } = await supabase.from("maintenance_requests").select("title, description, is_emergency, billable_to_tenant").eq("id", requestId).maybeSingle();
+      const t = ticket || { title: requestTitle };
+      setRouting({ emergency: isEmergencyTicket(t), responsibility: responsibilityFor(t) });
+      const all = vendorData || [];
+      const catMatch = all.filter(v => v.category === requestCategory);
+      const preferred = defaultVendorFor(all, t);
+      const list = catMatch.length > 0 ? catMatch : all;
+      // The preferred contractor is listed first and pre-selected for routine/priority work; any other can be chosen.
+      setVendors(preferred ? [preferred, ...list.filter(v => v.id !== preferred.id)] : list);
+      if (preferred) { setSelectedVendor(preferred); setVendorName(preferred.name); setVendorPhone(preferred.phone || ""); }
       // Fetch unit entry instructions
       if (unitId) {
         const { data: unitData } = await supabase.from("units").select("entry_instructions").eq("id", unitId).single();
@@ -73,7 +84,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
       setLoadingVendors(false);
     }
     fetchData();
-  }, [propertyId, requestCategory, unitId]);
+  }, [propertyId, requestCategory, unitId, requestId, requestTitle]);
 
   function selectVendor(v) {
     setSelectedVendor(v);
@@ -107,7 +118,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
     if (!scheduledDate) { setError("Please select a scheduled date."); setSaving(false); return; }
 
     const { data, error: fnError } = await supabase.functions.invoke("generate-vendor-token", {
-      body: { request_id: requestId, vendor_name: name, vendor_phone: phone || null }
+      body: { request_id: requestId, vendor_name: name, vendor_phone: null }
     });
 
     setSaving(false);
@@ -151,6 +162,17 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
 
               {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
 
+              {/* Severity and responsibility (src/lib/vendorRouting.js). Advisory: assignment is never blocked. */}
+              {(routing.emergency || routing.responsibility !== "landlord") && (
+                <div role="note" style={{ background: `${routing.emergency ? C.red : C.amber}12`, border: `1px solid ${routing.emergency ? C.red : C.amber}44`, borderRadius: 7, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: C.text, lineHeight: 1.5 }}>
+                  {routing.emergency
+                    ? "Emergency: use the emergency pathway (911 / the gas utility first for gas, then a verified 24/7 emergency contractor). The preferred routine contractor is not pre-selected."
+                    : routing.responsibility === "tenant"
+                      ? "Looks like a lost-key / lock-out: the tenant arranges a locksmith (subject to the lease). Assign only if the lock itself is broken. No fee or lock change is decided automatically."
+                      : "Possible tenant-caused damage: coordinate the repair as usual. Who pays is decided separately; nothing is charged automatically."}
+                </div>
+              )}
+
               {/* Saved vendors */}
               {!loadingVendors && vendors.length > 0 && !useCustom && (
                 <div style={{ marginBottom: 20 }}>
@@ -163,8 +185,8 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                           {CATEGORY_ICONS[v.category] || "🔧"}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{v.name}</div>
-                          {v.phone && <div style={{ fontSize: 11, color: C.textSub }}>{v.phone}</div>}
+                          <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{v.name}{isPreferredVendor(v) && <span style={{ marginLeft: 8, fontSize: 10, color: C.green, fontWeight: 600 }}>PREFERRED</span>}</div>
+                          {v.phone && <div style={{ fontSize: 11, color: C.textSub }}>{v.phone}{contractorContacts(v).backup && ` · backup ${contractorContacts(v).backup} (only if the primary is unavailable)`}</div>}
                         </div>
                         {selectedVendor?.id === v.id && <span style={{ fontSize: 12, color: C.gold }}>✓</span>}
                       </div>

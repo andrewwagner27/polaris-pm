@@ -23,6 +23,7 @@ const propertyContacts = (propertyId) => (kind) => contactsFromEnv({ propertyId,
 // tenant-initiated dispatch). Management can still dispatch from the landlord app.
 const aiVendorDispatchEnabled = () => String(globalThis.process?.env?.AI_VENDOR_DISPATCH_ENABLED || "").trim().toLowerCase() === "true";
 import { contactsFromEnv, formatContacts } from "./_lib/emergencyContacts.js";
+import { handleCompletionReply } from "./_lib/maintenanceFollowup.js";
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
 import { claimMessage, completeClaim } from "./_lib/messageClaim.js";
@@ -234,10 +235,29 @@ export default async function handler(req, res) {
     const managementIds = await loadManagementIds(supabase, threadMessages, tenant?.user_id);
     const threadContext = formatThreadContext((threadMessages || []).reverse(), { managementIds });
 
-    // ── 3. Call OpenAI with structured output ────────────────
+    // ── 2b. Is this an answer to an open "is it fixed?" check on one of this tenant's tickets? ──
+    // Emergencies never take this path (the safety rules below handle them first and always).
     let classification = null;
+    let completionFollowup = null;
+    if (!detectEmergency(message)) {
+      try {
+        completionFollowup = await handleCompletionReply({ db: supabase, send: sendEmail, env: globalThis.process?.env || {}, tenantId: tenant_id, message });
+      } catch (fuErr) {
+        console.error("Completion follow-up error:", fuErr?.message || fuErr);   // fall through to the normal assistant
+      }
+    }
+    if (completionFollowup) {
+      classification = {
+        tier: "TIER3_MAINTENANCE", category: "GENERAL_INQUIRY", confidence: 1, urgency: "LOW",
+        intent_summary: `Completion follow-up: ${completionFollowup.outcome}`, tenant_reply: completionFollowup.reply,
+        missing_info: [], billable_to_tenant: false, create_maintenance_ticket: false, create_incident_log: false,
+        send_violation_notice: false, offending_unit_hint: "", dispatch_vendor: false, escalate_to_landlord: false,
+        completion_followup: { outcome: completionFollowup.outcome, ticket_id: completionFollowup.ticketId },
+      };
+    }
 
-    try {
+    // ── 3. Call OpenAI with structured output ────────────────
+    if (!classification) try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         temperature: 0.3,
@@ -293,9 +313,13 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     // routine. The tenant's recent messages keep a follow-up to an emergency from being downgraded.
     const recentTenantText = (threadMessages || []).filter((m) => m.sender_id && m.sender_id === tenant?.user_id && !m.agent_name)
       .slice(-5).map((m) => m.body).join("\n");
-    classification = applySafetyOverrides(classification, message, {
-      contact: urgentContact(), contactsFor: propertyContacts(tenant?.units?.property_id), recentTenantText,
-    });
+    // A completion answer already notified the right people (management / contractor) itself; it only keeps the
+    // fixed rules (no notices; a request for a person still escalates). Anything else gets the full overrides.
+    classification = completionFollowup
+      ? { ...classification, escalate_to_landlord: wantsHuman(message) }
+      : applySafetyOverrides(classification, message, {
+        contact: urgentContact(), contactsFor: propertyContacts(tenant?.units?.property_id), recentTenantText,
+      });
 
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";

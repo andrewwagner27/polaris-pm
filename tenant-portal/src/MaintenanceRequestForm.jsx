@@ -6,6 +6,8 @@ import { notifyNewMaintenanceTicket } from "./notifications";
 import { getSignedStorageUrl } from "./storageUtils";
 import TenantLayout from "./TenantLayout";
 import { managementContact, urgentPhoneSentence } from "./lib/emergencyContact";
+import { responsibilityFor } from "./lib/vendorRouting";
+import { LOCKOUT_NOTE } from "../api/_lib/aiSafety.js";
 
 // Shown after "call 911 first". Unset (default): "There is no 24/7 emergency phone line yet."
 const URGENT_PHONE_SENTENCE = urgentPhoneSentence(managementContact(import.meta.env.VITE_MANAGEMENT_URGENT_PHONE, import.meta.env.VITE_MANAGEMENT_URGENT_HOURS));
@@ -85,7 +87,9 @@ export default function MaintenanceRequestForm() {
   const [submitted, setSubmitted] = useState(false);
   const [ticket, setTicket]       = useState("");
   const [notice, setNotice]       = useState(null);   // /api/notify result for the new ticket
-  const [submitError, setSubmitError] = useState("");  // the ticket could not be saved (form keeps its content)
+  const [submitError, setSubmitError] = useState("");
+  // Lost keys / lock-out with nothing broken is the tenant's to arrange: explain first, submit only if the lock is broken.
+  const [lockoutNotice, setLockoutNotice] = useState(false);  // the ticket could not be saved (form keeps its content)
   const [photoFailures, setPhotoFailures] = useState(0); // photos that didn't upload (ticket was still saved)
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
@@ -142,8 +146,10 @@ export default function MaintenanceRequestForm() {
     return { urls, failed };
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(lockIsBroken = false) {
     if (!validate()) return;
+    if (!lockIsBroken && responsibilityFor({ title, description }) === "tenant") { setLockoutNotice(true); return; }
+    setLockoutNotice(false);
     setLoading(true); setSubmitError("");
     try {
 
@@ -392,7 +398,13 @@ export default function MaintenanceRequestForm() {
         {submitError && (
           <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>{submitError}</div>
         )}
-        <button onClick={handleSubmit} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
+        {lockoutNotice && (
+          <div role="note" data-lockout-notice style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>
+            {LOCKOUT_NOTE}
+            <button onClick={() => handleSubmit(true)} disabled={loading} style={{ display:"block", marginTop:10, padding:"8px 12px", border:`1px solid ${C.border}`, borderRadius:7, background:"transparent", color:C.text, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>The lock itself is broken — submit the request</button>
+          </div>
+        )}
+        <button onClick={() => handleSubmit(false)} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
           {loading ? <><Spinner/> Submitting…</> : "Submit request →"}
         </button>
       </div>

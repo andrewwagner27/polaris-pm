@@ -157,3 +157,36 @@ ${button(safeUrl(vendorLink), "Return to ticket →")}`;
   return { subject, html: shell({ heading: "Additional Work Needed", body }),
     text: textLines(subject, "", pmNotes ? `PM notes: ${pmNotes}` : null, "", String(vendorLink || "")) };
 }
+
+// ── Completion follow-ups (api/_lib/maintenanceFollowup.js) ──
+// To the tenant: did the repair actually fix it? reason "done" (the contractor reported completion) or "appt" (the
+// scheduled visit has passed). The tenant answers in the portal Messages tab; nothing here approves or pays anything.
+export function completionCheckEmail({ tenantName, ticketTitle, reason = "done", reminder = false }) {
+  const q = reason === "appt"
+    ? "Your repair visit was scheduled for earlier today. Did the contractor arrive, and is the problem fixed?"
+    : "The contractor has reported this repair as complete. Is the problem fully fixed?";
+  const subject = cleanSubject(`${reminder ? "Reminder: " : ""}Is it fixed? ${oneLine(ticketTitle, 90)}`);
+  const body = `${p(`Hi ${escapeHtml(oneLine(tenantName, 60) || "there")}, ${escapeHtml(q)}`)}
+${quoteBlock(ticketTitle || "Maintenance request", "#4A9AE8", "Request")}
+${p("Just reply in the Messages tab of your Modus portal, for example “Yes, it's fixed”, “Nobody showed up” or “It's still leaking”. Please don't reply to this email.")}
+${button(appLink("/messages"), "Reply in Modus →")}`;
+  return { subject, html: shell({ heading: "Is it fixed?", body }),
+    text: textLines(subject, "", q, "", `Request: ${ticketTitle || ""}`, "", "Reply in the Messages tab of your Modus portal (this inbox isn't monitored):", `${APP_URL}/messages`) };
+}
+
+// To management: a follow-up outcome that needs a person (not fixed, no-show, return visit, no reply, confirmed but
+// awaiting approval). contractor: { name, primary, backup } from the vendor directory (management only).
+export function followupManagementEmail({ ticket, headline, detail, tenantWords = null, contractor = null, draft = null }) {
+  const subject = cleanSubject(`🔁 ${headline}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
+  const contractorRows = contractor?.name ? [["Contractor", contractor.name], ["Primary", contractor.primary || "—"], ["Backup (only if the primary is unavailable)", contractor.backup || "—"]] : [];
+  const body = `${p(escapeHtml(detail))}
+${tenantWords ? quoteBlock(tenantWords, "#4A9AE8", "Tenant's reply") : ""}
+${details([["Tenant", ticket?.tenantName || "Unknown"], ["Where", where(ticket)], ["Request", ticket?.title || ""], ["Status", STATUS_LABELS[ticket?.status] || ticket?.status || ""], ...contractorRows])}
+${draft ? quoteBlock(draft, "#C9A96E", "Suggested message to the contractor (not sent — send it yourself by phone or text)") : ""}
+${p("No new spending, vendor change or invoice approval has been made. Those stay your decision.")}
+${button(appLink("/landlord/maintenance"), "Open the ticket →")}`;
+  return { subject, html: shell({ heading: headline, body }),
+    text: textLines(subject, "", detail, tenantWords ? `\nTenant: "${tenantWords}"` : null,
+      contractor?.name ? `\nContractor: ${contractor.name}, primary ${contractor.primary || "—"}, backup ${contractor.backup || "—"} (backup only if the primary is unavailable)` : null,
+      draft ? `\nSuggested message (not sent): ${draft}` : null, "", "No new spending, vendor change or invoice approval has been made.", `${APP_URL}/landlord/maintenance`) };
+}

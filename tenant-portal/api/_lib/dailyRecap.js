@@ -36,7 +36,8 @@ export function unprocessedMessages(messages, routingRows) {
 // (maintenance alerts, status emails). Only the latest per ticket+label is listed; a later success clears it.
 export function failedTicketEmails(notes) {
   if (!Array.isArray(notes)) return null;
-  const trusted = notes.filter((n) => n?.author_type === "system" && n?.author_name === "Modus notifications" && !n?.author_id);
+  const trusted = notes.filter((n) => n?.author_type === "system" && n?.author_name === "Modus notifications" && !n?.author_id
+    && !String(n.body || "").startsWith("[followup "));   // follow-up progress markers never mask a failed email
   const latest = new Map();
   for (const n of trusted.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))) latest.set(n.request_id, n);
   return [...latest.values()].filter((n) => /^Email (FAILED|NOT CONFIRMED)/.test(String(n.body || "")));

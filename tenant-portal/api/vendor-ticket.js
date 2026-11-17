@@ -18,6 +18,7 @@ import {
 } from "./_lib/vendorSession.js";
 import { sendEmail } from "./_lib/email.js";
 import { vendorQuoteSubmitted, vendorWorkCompleted } from "./_lib/maintenanceNotify.js";
+import { sweepCompletionFollowups } from "./_lib/maintenanceFollowup.js";
 
 // Management is emailed from here, after the vendor's change is saved: the vendor's browser never
 // sends email or chooses a recipient. A notification failure never fails the vendor's action; it is
@@ -253,6 +254,9 @@ async function actionComplete(ticket, body) {
   const name = ticket.vendor_name || "Vendor";
   await addVendorComment(ticket, `${name} marked work as complete and submitted for review.${notes ? ` Notes: ${notes}` : ""}`);
   const notification = await notifyManagement(vendorWorkCompleted, { ticket, actionAt: new Date().toISOString() });
+  // Ask the tenant now whether it's really fixed (the sweep is the backstop). Never fails the vendor's action.
+  try { await sweepCompletionFollowups({ db: supabase, send: notifyDeps.send, env: process.env, ticketId: ticket.id }); }
+  catch (e) { console.error("[vendor-ticket] completion check failed:", e?.message || e); }
   return { ok: true, invoice_path: invoicePath, notification };
 }
 

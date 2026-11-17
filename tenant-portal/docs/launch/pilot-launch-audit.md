@@ -127,6 +127,32 @@ After (smoke, dummy accounts only):
 
 Rollback: Vercel → Deployments → the `e74b16d` deployment → Promote (or fast-forward-revert `main`). No data to undo.
 
+Separately authorised production step (data, not code): add Handyman Contractor Services to the vendor directory with
+`C:\Modus-dev\db-backups\pre-change\2026-11-17-handyman-vendor.sql` (kept outside Git: contractor numbers). Until it
+runs, the assignment modal simply has no preferred contractor. Undo: set that vendor `active = false`.
+
+### 0.4d Maintenance coordination (follow-ups): branch `pilot/first-tenant`, not deployed
+
+- **Default contractor:** the vendor-directory row whose notes contain `#preferred` (Handyman) is pre-selected in Assign
+  vendor for routine/priority landlord work; management can pick any other. Not suggested for emergencies or tenant
+  lock-outs. Primary = `phone`; "Backup: …" line in notes = backup, shown to management only and only "if the primary
+  is unavailable". Contractor numbers are no longer copied onto tickets (tenants can read their own ticket rows).
+- **Tenant follow-ups** (`api/_lib/maintenanceFollowup.js`): asked in the portal (and by email) as soon as the
+  contractor marks the job complete, or at the first sweep after the scheduled window ends; one reminder after 24 h;
+  flagged to management after another 24 h; never auto-closed. Sweeps run on the existing daily cron and every
+  landlord/tenant page load: **no new scheduler, migration or Edge Function**.
+- **Answers** ("yes, fixed", "nobody came", "still leaking", "he'll be back tomorrow") are applied to the newest open
+  check on the tenant's own ticket; ambiguous → clarifying question; two open checks → "which one?". Fixed closes only
+  non-emergency tickets with no contractor link, quote or invoice; otherwise management reviews/approves as before.
+  Not fixed / no-show → back in progress, contractor emailed via the existing vendor portal if they have an email,
+  management gets primary/backup numbers and a suggested message; repeated failure is flagged. Nothing pays,
+  approves, dispatches or changes contractor automatically.
+- Lock-outs on the tenant form show the locksmith guidance first; "The lock itself is broken" still submits.
+- **Pre-existing finding (not changed here, needs its own migration + small UI change):** tenants can read every
+  column of their own tickets, including `vendor_token` and `vendor_pin`, so a tenant could act as the vendor on
+  their own ticket (mark complete / submit a quote). Fix: tenant reads through a column-limited view or RPC, then
+  revoke direct SELECT. Recommended before onboarding outside landlords; low risk for one known pilot tenant.
+
 ### 0.5 Automated checks run tonight
 
 `npm test` on `pilot/first-tenant`: **606 / 607 pass**. The only failure is the pre-existing

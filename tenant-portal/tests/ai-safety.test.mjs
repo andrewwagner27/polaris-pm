@@ -86,7 +86,7 @@ describe("2. no automatic violation notices; complaints go to a human", () => {
     assert.doesNotMatch(api, /\.ilike\("unit_number"/);
   });
   test("overrides are applied before tickets, incidents, alerts and the routing log", () => {
-    const at = api.indexOf("classification = applySafetyOverrides(classification, message");
+    const at = api.indexOf(": applySafetyOverrides(classification, message");
     assert.ok(at > 0);
     // (The earlier ai_routing_logs read is the per-message idempotency check; it writes nothing.)
     for (const later of ["create_maintenance_ticket) {", 'from("incident_logs")', 'from("landlord_alerts")', "insertRoutingLog(buildRoutingLogRow("]) {

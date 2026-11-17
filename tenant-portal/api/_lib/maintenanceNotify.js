@@ -45,7 +45,7 @@ export function requireUuid(value, name) {
 }
 // Notes only the service role can have written (see header).
 const isTrustedNote = (c) => c?.author_type === "system" && c?.author_name === NOTE_AUTHOR && !c?.author_id;
-async function trustedNotes(db, ticketId) {
+export async function trustedNotes(db, ticketId) {
   const { data } = await db.from("maintenance_comments").select("id, body, author_type, author_name, author_id")
     .eq("request_id", ticketId).eq("author_type", "system").eq("author_name", NOTE_AUTHOR);
   return (data || []).filter(isTrustedNote);
@@ -66,7 +66,7 @@ const ticketView = (t) => ({
   tenantName: t.tenants?.name || null, propertyName: t.units?.properties?.name || null, unitNumber: t.units?.unit_number || null,
 });
 
-async function note(db, ticketId, body) {
+export async function note(db, ticketId, body) {
   try {
     const { error } = await db.from("maintenance_comments").insert({
       request_id: ticketId, body: String(body).slice(0, 1000), author_type: "system", author_name: NOTE_AUTHOR, visible_to_tenant: false,
@@ -78,7 +78,7 @@ async function note(db, ticketId, body) {
 // Sends one email and returns { status: "sent" | "failed" | "unconfirmed" | "duplicate", ... }.
 // key is a base ("maintenance-created:<id>"); the payload hash is appended here, so a changed payload can
 // never reuse a key. Records a ticket note unless sent (and on success when successNote is given).
-async function deliver({ db, send, ticketId, to, email, key, label, successNote = null, retryDelayMs }) {
+export async function deliver({ db, send, ticketId, to, email, key, label, successNote = null, retryDelayMs }) {
   const args = { to, subject: email.subject, html: email.html, text: email.text };
   const r = await sendEmailReliably({ ...args, idempotencyKey: payloadKey(key, args) }, { send, retryDelayMs });
   if (r.ok) {
@@ -228,7 +228,7 @@ export async function landlordComment({ db, send, caller, body, retryDelayMs }) 
     email: T.landlordCommentEmail({ tenantName: t.tenants?.name, ticketTitle: t.title, commentBody: c.body, ticketId: t.id }) });
 }
 
-async function vendorEmailFor(db, t) {
+export async function vendorEmailFor(db, t) {
   if (isValidEmail(t.vendor_email)) return t.vendor_email;
   if (!t.vendor_name) return null;
   const { data } = await db.from("vendors").select("email").eq("name", t.vendor_name).maybeSingle();

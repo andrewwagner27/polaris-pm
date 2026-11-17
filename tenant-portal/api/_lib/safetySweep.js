@@ -8,6 +8,7 @@
 
 import { sweepMissedTicketAlerts } from "./maintenanceNotify.js";
 import { sweepUnansweredMessages } from "./messageSweep.js";
+import { sweepCompletionFollowups } from "./maintenanceFollowup.js";
 
 async function escalator(db, send) {
   // Loaded on demand: the route module creates the OpenAI client at import time.
@@ -16,7 +17,7 @@ async function escalator(db, send) {
 }
 
 export async function runSafetySweeps({ db, send, env, tenantId = null, now, retryDelayMs, escalate = null }) {
-  const out = { tickets: null, messages: null };
+  const out = { tickets: null, messages: null, followups: null };
   try {
     out.tickets = await sweepMissedTicketAlerts({ db, send, env, tenantId, now, retryDelayMs });
   } catch (e) {
@@ -28,6 +29,13 @@ export async function runSafetySweeps({ db, send, env, tenantId = null, now, ret
   } catch (e) {
     console.error("[safety-sweep] messages failed:", e?.message || e);
     out.messages = { status: "failed" };
+  }
+  // Completion follow-ups (ask / one reminder / flag). Idempotent: progress markers are written before sending.
+  try {
+    out.followups = await sweepCompletionFollowups({ db, send, env, tenantId, now, retryDelayMs });
+  } catch (e) {
+    console.error("[safety-sweep] follow-ups failed:", e?.message || e);
+    out.followups = { status: "failed" };
   }
   return out;
 }
@@ -46,5 +54,6 @@ export async function safetySweep({ db, send, env, caller, retryDelayMs, escalat
     status: "ok", scope: tenantId ? "tenant" : "all",
     tickets: { sent: r.tickets?.sent || 0, failed: r.tickets?.failed || 0 },
     messages: { escalated: r.messages?.escalated || 0, failed: r.messages?.failed || 0 },
+    followups: { asked: r.followups?.asked || 0, reminded: r.followups?.reminded || 0, flagged: r.followups?.flagged || 0, failed: r.followups?.failed || 0 },
   };
 }
