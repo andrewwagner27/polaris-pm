@@ -33,7 +33,8 @@ export function wantsHuman(message) {
 }
 
 // Returns a corrected copy of the model's classification; never mutates the input.
-export function applySafetyOverrides(classification, message) {
+// contact: the configured urgent management line (src/lib/emergencyContact.js), or null/undefined when none is set.
+export function applySafetyOverrides(classification, message, { contact = null } = {}) {
   const c = { ...(classification || {}) };
   c.send_violation_notice = false;                  // notices are issued by management only
   if (c.create_incident_log) c.escalate_to_landlord = true;   // complaints always reach a human
@@ -50,7 +51,7 @@ export function applySafetyOverrides(classification, message) {
     c.emergency_kind = emergency.kind;
     c.life_safety = emergency.lifeSafety;
     const modelReply = String(c.tenant_reply || "").trim();
-    c.tenant_reply = [emergency.guidance, FLAGGED_LINE, modelReply].filter(Boolean).join("\n\n");
+    c.tenant_reply = [emergency.guidance, flaggedLine(contact), modelReply].filter(Boolean).join("\n\n");
   }
   return c;
 }
@@ -59,9 +60,11 @@ export function applySafetyOverrides(classification, message) {
 // lifeSafety: an immediate threat to people → the tenant is told to call 911 first.
 // Otherwise a property emergency → management is alerted as an emergency, with safety steps.
 // Wording never claims anyone was reached: the reply is written before any notification is sent.
-export const FLAGGED_LINE = "I've flagged this to Modus management as an emergency. There's no 24/7 emergency phone line yet, so please don't wait on a reply from this chat if anyone is in danger.";
+export const FLAGGED_LINE = flaggedLine(null);
+export { flaggedLine };
 
 // The rules and the phrase corpus live in api/_lib/emergencyRules.js and tests/emergency-detection.test.mjs.
 export { detectEmergency, EMERGENCY_KINDS, LIFE_SAFETY_KINDS } from "./emergencyRules.js";
 import { detectEmergency } from "./emergencyRules.js";
+import { flaggedLine } from "../../src/lib/emergencyContact.js";
 

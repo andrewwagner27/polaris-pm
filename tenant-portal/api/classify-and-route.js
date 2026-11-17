@@ -12,7 +12,11 @@ import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt, formatThreadContext, loadManagementIds } from "./_lib/aiPrompt.js";
 import { loadApprovedKnowledge, formatKnowledgeForPrompt, loadWithdrawnKnowledge, formatWithdrawnKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
-import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, FLAGGED_LINE } from "./_lib/aiSafety.js";
+import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, flaggedLine } from "./_lib/aiSafety.js";
+import { managementContactFromEnv } from "../src/lib/emergencyContact.js";
+
+// Urgent management line (number + answered hours) from the environment; null when not configured.
+const urgentContact = () => managementContactFromEnv(globalThis.process?.env || {});
 import { sendEmail } from "./_lib/email.js";
 import { notifyEscalation } from "./_lib/escalationNotify.js";
 import { claimMessage, completeClaim } from "./_lib/messageClaim.js";
@@ -237,7 +241,7 @@ export default async function handler(req, res) {
           json_schema: CLASSIFICATION_SCHEMA,
         },
         messages: [
-          { role: "system", content: buildSystemPrompt(tenant?.units?.properties, { approvedKnowledge, withdrawnKnowledge }) },
+          { role: "system", content: buildSystemPrompt(tenant?.units?.properties, { approvedKnowledge, withdrawnKnowledge, urgentContact: urgentContact() }) },
           {
             role: "user",
             content: `Property: ${tenant?.units?.properties?.name || "Unknown"}
@@ -279,7 +283,7 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
     }
 
     // ── 4. Safety overrides (no violation notices; complaints and human requests escalate) ──
-    classification = applySafetyOverrides(classification, message);
+    classification = applySafetyOverrides(classification, message, { contact: urgentContact() });
 
     // ── 4b. Send tenant reply ────────────────────────────────
     const finalReply = classification?.tenant_reply || "Thanks for reaching out — management has been notified and will follow up shortly.";
@@ -495,7 +499,7 @@ export async function failSafeEscalation({ tenantId, messageId, message, replyAt
       ...(emergency ? { emergency_kind: emergency.kind, life_safety: emergency.lifeSafety } : {}),
     };
     const reply = emergency
-      ? [emergency.guidance, FLAGGED_LINE].join("\n\n")
+      ? [emergency.guidance, flaggedLine(urgentContact())].join("\n\n")
       : "Thanks for your message. I couldn't process it automatically, so I've passed it to Modus management to read.";
     const { data: tenant } = await db.from("tenants")
       .select("id, name, unit_id, user_id, units(unit_number, property_id, properties(id, name))")

@@ -75,7 +75,7 @@ export function linkErrorRedirect({ pathname = "/", hash = "", search = "" } = {
 export const AUTH_LINK_MESSAGES = Object.freeze({
   expired: {
     title: "This link has expired",
-    body: "Links in Modus emails work once and expire after about an hour. If you were resetting your password, request a new reset link. If this was an invitation, ask Modus management to send a new one — or sign in if you already set a password.",
+    body: "Links in Modus emails work once and expire after a short time. If you were resetting your password, request a new reset link. If this was an invitation, ask Modus management to send a new one — or sign in if you already set a password.",
   },
   invalid: {
     title: "This link didn't work",

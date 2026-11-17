@@ -5,6 +5,10 @@ import { useTenant } from "./useTenant";
 import { notifyNewMaintenanceTicket } from "./notifications";
 import { getSignedStorageUrl } from "./storageUtils";
 import TenantLayout from "./TenantLayout";
+import { managementContact, urgentPhoneSentence } from "./lib/emergencyContact";
+
+// Shown after "call 911 first". Unset (default): "There is no 24/7 emergency phone line yet."
+const URGENT_PHONE_SENTENCE = urgentPhoneSentence(managementContact(import.meta.env.VITE_MANAGEMENT_URGENT_PHONE, import.meta.env.VITE_MANAGEMENT_URGENT_HOURS));
 
 const C = {
   bg:       "#F5F3EE",
@@ -278,7 +282,7 @@ export default function MaintenanceRequestForm() {
         {/* Priority */}
         <SectionLabel>Priority</SectionLabel>
         <div role="note" data-emergency-banner style={{ background:`${C.red}0F`, border:`1px solid ${C.red}33`, borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12, color:C.text, lineHeight:1.5 }}>
-          <strong style={{ color:C.red }}>Fire, smoke, gas smell, sparking electrical, or anyone in danger? Call 911 first.</strong> For gas, leave the building and call from outside. Then submit this request. There is no 24/7 emergency phone line yet.
+          <strong style={{ color:C.red }}>Fire, smoke, gas smell, sparking electrical, or anyone in danger? Call 911 first.</strong> For gas, leave the building and call from outside. Then submit this request. {URGENT_PHONE_SENTENCE}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {PRIORITIES.map(p => (

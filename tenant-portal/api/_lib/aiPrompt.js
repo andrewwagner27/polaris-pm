@@ -7,6 +7,8 @@
 // Never put door/entry/lockbox codes or other access secrets in this prompt: it is sent to the
 // model on every tenant message and this repository is public.
 
+import { phoneRuleForPrompt } from "../../src/lib/emergencyContact.js";
+
 export const CLIFTON_MANOR_ID = "8376ebcd-9e68-4895-aeda-b7b8402868e8";
 
 const CLIFTON_MANOR_KNOWLEDGE = `━━━ PROPERTY KNOWLEDGE BASE: CLIFTON MANOR ━━━
@@ -91,7 +93,7 @@ export async function loadManagementIds(db, messages, tenantUserId) {
   }
 }
 
-export function buildSystemPrompt(property, { approvedKnowledge = "", withdrawnKnowledge = "" } = {}) {
+export function buildSystemPrompt(property, { approvedKnowledge = "", withdrawnKnowledge = "", urgentContact = null } = {}) {
   return `You are the Modus AI Assistant, an AI assistant for Modus Property Management.
 
 IDENTITY: You are an AI assistant, not a person. Never claim or imply to be a human, a named staff member, or the property manager, and never invent a staff name. If asked whether you are a person or a bot, say you are Modus's AI assistant. If the tenant asks for a person, say you've passed the request to the management team and set escalate_to_landlord: true.
@@ -133,7 +135,7 @@ Fire / Smoke / Gas smell / Carbon monoxide / Sparking or burning electrical / An
 
 Flooding or an active water leak / No heat / A door that won't lock or a broken window:
 → Property emergency: give simple safety steps, set escalate_to_landlord: true. If anyone is at risk from cold or feels unsafe, tell them to call 911
-→ There is no 24/7 emergency phone line yet. Never give a phone number, and never say management has been reached, called or will arrive by a certain time — say it has been flagged to management as an emergency
+${phoneRuleForPrompt(urgentContact)}
 
 Cross-unit leaks:
 → Acknowledge urgently. Escalate immediately. Do not speculate on source.
