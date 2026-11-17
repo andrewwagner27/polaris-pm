@@ -69,7 +69,7 @@ export function applySafetyOverrides(classification, message, { contact = null, 
   const modelEmergency = c.tier === "TIER1_EMERGENCY" || c.urgency === "EMERGENCY";
   if (severity && modelEmergency && !threadEmergency) {
     c.tier = "TIER3_MAINTENANCE";
-    c.urgency = { priority: "HIGH", clarify: "MEDIUM", routine: "LOW" }[severity.level];
+    c.urgency = { priority: "HIGH", clarify: "MEDIUM", routine: "LOW", tenant_lockout: "LOW" }[severity.level];
     c.create_maintenance_ticket = false;
     c.downgraded_from_emergency = severity.kind;
     if (EMERGENCY_WORDING.test(String(c.tenant_reply || ""))) c.tenant_reply = DOWNGRADE_REPLY[severity.level](severity);
@@ -88,6 +88,15 @@ export function applySafetyOverrides(classification, message, { contact = null, 
     if (c.urgency === "EMERGENCY") c.urgency = "MEDIUM";
     // Ask before deciding: the reply must contain the question (one or two short ones).
     if (!/\?/.test(String(c.tenant_reply || ""))) c.tenant_reply = [String(c.tenant_reply || "").trim(), severity.question].filter(Boolean).join(" ");
+  } else if (severity.level === "tenant_lockout") {
+    // Lost keys / locked out with nothing broken: not maintenance. No work order, no automatic escalation (a request
+    // for a person still escalates), no fee and no lock change decided here.
+    c.severity = "TENANT_RESPONSIBILITY";
+    c.urgency = "LOW";
+    c.create_maintenance_ticket = false;
+    c.dispatch_vendor = false;
+    c.escalate_to_landlord = wantsHuman(message) || Boolean(c.create_incident_log);
+    if (!/locksmith/i.test(String(c.tenant_reply || ""))) c.tenant_reply = [String(c.tenant_reply || "").trim(), LOCKOUT_NOTE].filter(Boolean).join("\n\n");
   } else if (severity.level === "routine") {
     c.severity = "ROUTINE";
     if (c.urgency === "EMERGENCY" || c.urgency === "HIGH") c.urgency = "LOW";
@@ -96,7 +105,9 @@ export function applySafetyOverrides(classification, message, { contact = null, 
 }
 
 const EMERGENCY_WORDING = /emergenc|911|evacuat|leave the (?:building|unit|apartment)|get out/i;
+export const LOCKOUT_NOTE = "Lost keys and lock-outs are usually arranged by the tenant: you can call a licensed locksmith directly, subject to your lease terms. If the lock itself is broken, tell me and I'll pass it to management as a repair. If anyone is locked inside and in danger, or you feel unsafe where you are, call 911.";
 const DOWNGRADE_REPLY = {
+  tenant_lockout: () => LOCKOUT_NOTE,
   priority: (s) => `Thanks for letting us know. I've flagged this to Modus management as a priority repair (${s.reason.charAt(0).toLowerCase()}${s.reason.slice(1)}). Please submit it in the Maintenance tab with a photo if you haven't already. If it gets worse — water pouring in, a sagging ceiling, sparks, or a gas smell — tell me right away, and call 911 if anyone is in danger.`,
   clarify: (s) => `Thanks for letting me know. ${s.question}`,
   routine: () => "Thanks for letting us know — that sounds like a routine repair. Please submit it in the Maintenance tab (a photo helps) and management will schedule it. If anything changes and it becomes unsafe, tell me right away.",

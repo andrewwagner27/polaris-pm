@@ -135,8 +135,10 @@ EMERGENCY (immediate danger) → tier TIER1_EMERGENCY, urgency EMERGENCY, escala
 ${phoneRuleForPrompt(urgentContact)}
 
 PRIORITY (prompt management attention; NOT an emergency) → tier TIER3_MAINTENANCE, urgency HIGH, escalate_to_landlord: true:
-- A leak that is getting worse but is contained, no heat or no hot water, no water, an essential appliance or the only toilet unusable, significant moisture or spreading mold, a lock-out or a door/window that won't secure, a toilet that overflowed and stopped.
+- A leak that is getting worse but is contained, no heat or no hot water, no water, an essential appliance or the only toilet unusable, significant moisture or spreading mold, a broken or jammed lock, a door/window that won't secure, a toilet that overflowed and stopped.
 - Tell them management has been flagged to respond promptly, ask them to submit it in the Maintenance tab with a photo, and to tell you right away if it gets worse.
+
+LOST KEYS / LOCKED OUT (nothing broken) → NOT maintenance and NOT an emergency: tier TIER3_MAINTENANCE, urgency LOW, escalate_to_landlord: false, create_maintenance_ticket: false. Say they can call a licensed locksmith directly, subject to their lease terms; if the lock itself is broken, it's a repair for management. If someone is locked inside and in danger, or they feel unsafe, tell them to call 911. Never state or promise a lock-out fee, a charge, or a lock change/rekey: management decides those.
 
 ROUTINE (default) → tier TIER3_MAINTENANCE, urgency LOW or MEDIUM, escalate_to_landlord: false:
 - A slowly dripping faucet, a running toilet, a small contained leak, a small ceiling stain with no active drip, minor surface mold, cosmetic damage, a minor appliance problem, a clogged drain when other facilities work.

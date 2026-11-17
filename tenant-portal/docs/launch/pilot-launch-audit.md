@@ -82,10 +82,16 @@ Tell Claude "phone test done" for a read-only verification of the records.
 | Level | Examples | What happens |
 |---|---|---|
 | ROUTINE (default) | slow drip, running toilet, small contained leak, ceiling stain without a drip, minor surface mold, cosmetic, slow drain | Normal reply + "submit it in Maintenance"; ordinary new-request email; no alert, no SMS, no numbers |
-| PRIORITY | no heat, no (hot) water, worsening leak, overflow that stopped, spreading mold / moisture, fridge/stove/only toilet unusable, lock-out, door/window won't secure, sewer smell | Management notified (escalation, `urgency HIGH`); ticket email labelled **⚠️ PRIORITY** with the reason; no emergency alert, no SMS |
+| PRIORITY | no heat, no (hot) water, worsening leak, overflow that stopped, spreading mold / moisture, fridge/stove/only toilet unusable, broken/jammed lock, door/window won't secure, sewer smell | Management notified (escalation, `urgency HIGH`); ticket email labelled **⚠️ PRIORITY** with the reason; no emergency alert, no SMS |
 | EMERGENCY | gas, CO, fire/smoke, sparking/exposed wiring, water on electrics, structural collapse, water pouring / bulging ceiling, uncontrolled flooding, burst pipe, sewage backup, no heat with frozen pipes / < 50°F inside / a baby, older or ill person | Fixed safety steps first (evacuate + 911 / gas utility from outside for life-safety), verified property contacts, the flagged line, an emergency work order, management alert |
 | UNCLEAR | "my ceiling is leaking", water on the floor, a clogged toilet, unspecified mold or leak | One or two short questions first; the answer ("it's pouring", "it's bulging") escalates immediately |
 
+- **Lost keys / locked out (nothing broken)** = the tenant's to arrange: no work order, no escalation (unless they ask
+  for a person), reply says they can call a licensed locksmith directly, subject to their lease. No fee, charge or lock
+  change is ever stated. A broken/jammed lock = PRIORITY. An unsecurable door with someone outside or the tenant
+  afraid = EMERGENCY (security). Someone locked/trapped inside = EMERGENCY (911 first).
+- Mixed messages: any immediate hazard (gas, sparks, water everywhere, sagging ceiling, smoke, collapse, can't breathe)
+  overrides routine wording in the same message, and is never downgraded.
 - The fixed rules decide emergencies; the model can still call an emergency the rules don't recognise. A model emergency
   is **downgraded** only when the message matches a known non-emergency pattern and nothing in the tenant's recent
   messages was an emergency.
@@ -97,6 +103,29 @@ Tell Claude "phone test done" for a read-only verification of the records.
   only with a valid phone, a `verified_on` date **and** `tenant_may_call: true`, and only to tenants of that property.
   Nothing in it implies dispatch or billing terms. The management urgent line (`MANAGEMENT_URGENT_PHONE/HOURS`) is unchanged.
 - Tests: `tests/maintenance-triage.test.mjs` (56), plus routine / priority / contacts cases in comms-remediation.
+
+### 0.4c Deployment checklist for `pilot/first-tenant` (do not run until authorized)
+
+Scope: Vercel only (`api/` routes + the Vite app). **No database migrations, no Edge Function, Stripe/payment or
+Supabase Auth changes** in this branch (`git diff --name-only main..pilot/first-tenant` has nothing under `supabase/`).
+
+Before:
+1. `npm test` → all pass except the known `a3-financial` CRLF artifact; `npm run build` OK.
+2. Vercel env (Production): **leave unset** `AI_VENDOR_DISPATCH_ENABLED` (AI dispatch stays off), `EMERGENCY_CONTACTS`
+   (until contacts are verified), `MANAGEMENT_URGENT_PHONE/HOURS` and `VITE_MANAGEMENT_URGENT_PHONE/HOURS` (until the
+   number is decided). Unset = today's wording. No existing variable changes.
+3. Note the current production deployment (main = `e74b16d`) for rollback.
+
+Deploy: fast-forward `main` to the approved commit (`git update-ref refs/heads/main <sha> e74b16d…`), push `main` only;
+watch the Vercel deployment to READY.
+
+After (smoke, dummy accounts only):
+4. Site loads; tenant login works; Maintenance form shows "Call 911 first … There is no 24/7 emergency phone line yet."
+5. As Test User: "my toilet keeps running" → calm reply, no escalation; "my ceiling is leaking" → the two questions;
+   "I lost my keys" → locksmith reply, no escalation; "I smell gas" → leave/911 first + management email.
+6. Agent Center shows only the gas test as an emergency; resolve the test items with a note.
+
+Rollback: Vercel → Deployments → the `e74b16d` deployment → Promote (or fast-forward-revert `main`). No data to undo.
 
 ### 0.5 Automated checks run tonight
 

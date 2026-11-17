@@ -84,6 +84,17 @@ const RULES = [
       p(/\bdomestic (?:violence|abuse)\b/),
       p(/\b(?:i'm|i am|we're|we are) (?:being (?:followed|stalked)|in danger|not safe|unsafe)\b/, /\b(?:feel|feels) (?:unsafe|not safe) (?:about|with) the (?:lease|rent|fee)/),
       p(/\bafraid for (?:my|our) (?:life|lives|safety)\b/),
+      // An entry that can't be secured is an emergency only with a present threat (otherwise PRIORITY "lock").
+      p(/\b(?:door|lock|deadbolt|window)\b[^.!?]{0,40}\b(?:won't|will not|can't|cannot|doesn't|does not) (?:lock|close|latch|shut)\b[^]{0,60}\b(?:someone|somebody|stranger|man|guy|people) (?:is |are |keeps )?(?:outside|trying|at the door|hanging around|watching)\b/),
+      p(/\b(?:door|lock|deadbolt|window)\b[^.!?]{0,40}\b(?:won't|will not|can't|cannot|doesn't|does not) (?:lock|close|latch|shut)\b[^]{0,40}\b(?:scared|afraid|terrified|unsafe|not safe)\b/),
+    ] },
+  // Someone shut in who can't get out (a child locked inside, a person trapped by a jammed door).
+  { kind: "trapped", lifeSafety: true,
+    guidance: "If anyone can't get out and is in danger — a child alone, someone hurt or unwell, or any smoke, fire or gas — call 911 now. Stay on the line and talk to them through the door. Don't force the door in a way that could hurt someone on the other side.",
+    patterns: [
+      p(/\b(?:trapped|stuck) (?:in|inside)\b/, /\b(?:key|keys)\b[^.!?]{0,15}\bstuck in\b|\bstuck in (?:traffic|the lock|a meeting|the snow)\b/),
+      p(/\b(?:baby|infant|child|kid|toddler|son|daughter|grandm\w+|grandp\w+|dad|mom|father|mother|someone|somebody)\b[^.!?]{0,15}\b(?:is |got |was )?locked (?:in|inside)\b/),
+      p(new RegExp(`\\b(?:can't|cannot|can not) get out (?:of )?(?:my|the|our) ${HOME}\\b`)),
     ] },
   { kind: "medical", lifeSafety: true,
     guidance: "This needs emergency help: call 911 now.",
@@ -170,15 +181,23 @@ const PRIORITY_RULES = [
     p(/\b(?:only|our only|my only) (?:toilet|bathroom)\b|\b(?:toilet|bathroom)\b[^.!?]{0,30}\b(?:only one|no other)\b/),
     p(/\bno (?:power|electricity)\b|\bpower (?:is |went )?out\b|\bpower outage\b/),
   ] },
-  { kind: "access", reason: "Lock-out or a door/window that won't secure", patterns: [
-    p(/\block(?:ed)? (?:myself |ourselves )?out\b/),
-    p(new RegExp(`\\bcan't get (?:in|into|back into) (?:my|the|our) ${HOME}\\b`)),
-    p(/\bkey (?:broke|snapped|is stuck) in the lock\b/),
+  // A lock fault (management's repair). A tenant-caused lock-out is NOT here: see TENANT_LOCKOUT below.
+  { kind: "access", reason: "Broken lock, or a door/window that won't secure", patterns: [
+    p(/\bkey (?:broke|snapped|is stuck|got stuck) in the lock\b|\b(?:lock|deadbolt|door)\b[^.!?]{0,20}\bwon't (?:open|turn|unlock)\b[^.!?]{0,30}\b(?:with|even with) (?:my|the) key\b|\bkey (?:won't|doesn't|will not|does not) (?:turn|work) in the lock\b/),
     p(/\b(?:front |entry |exterior |back |main |apartment |unit )?door\b[^.!?]{0,15}\b(?:won't|will not|doesn't|does not|can't|cannot) (?:lock|close|latch|shut)\b/),
     p(/\b(?:lock|deadbolt)s? (?:is |are )?(?:broken|busted|not working|jammed)\b/, /\bmailbox\b/),
     p(/\bbroken (?:lock|deadbolt|door|window|front door)\b/, /\bmailbox\b/),
     p(/\bwindow (?:is |was |got )?(?:broken|smashed|shattered|cracked open)\b/),
   ] },
+];
+
+// ── TENANT LOCK-OUT: lost or forgotten keys, keys locked inside. Not maintenance and not an emergency: no work order,
+// no escalation; the tenant may call a locksmith directly, subject to their lease. Fees and lock changes are never
+// decided by the assistant.
+const TENANT_LOCKOUT = [
+  p(/\block(?:ed)? (?:myself |ourselves |my \w+ )?out\b/),
+  p(new RegExp(`\\b(?:can't|cannot) get (?:in|into|back into|back in) (?:my|the|our) ${HOME}\\b`)),
+  p(/\b(?:lost|lose|misplaced|can't find|forgot|left) (?:my |our |the )?(?:keys?|key fob|fob)\b|\b(?:keys?|fob) (?:are |is )?(?:locked |still )?inside\b|\blocked (?:my |the )?keys? (?:in|inside)\b/),
 ];
 
 // ── ROUTINE: explicitly minor. A standard work order; never an emergency, even if the model says so ───────────
@@ -235,6 +254,7 @@ export function detectEmergency(message) {
 //   { level: "emergency", kind, lifeSafety, guidance }   immediate danger — fixed safety steps, Tier 1
 //   { level: "priority",  kind, reason }                 prompt management attention — escalated, never an alert
 //   { level: "clarify",   kind, question }               unknown severity — ask first
+//   { level: "tenant_lockout", kind }                    lost keys / locked out — tenant arranges a locksmith
 //   { level: "routine",   kind }                         explicitly minor — standard work order
 //   null                                                 nothing recognised — the model decides
 // Order: emergency → priority → (clarify that beats routine) → routine → clarify.
@@ -247,6 +267,8 @@ export function assessSeverity(message) {
   if (pr) return { level: "priority", kind: pr.kind, reason: pr.reason };
   const cl = CLARIFY_RULES.find((r) => matches(r, text));
   if (cl && cl.beatsRoutine) return { level: "clarify", kind: cl.kind, question: cl.question };
+  // Lost keys / locked out with nothing broken: the tenant's to arrange (after emergency and lock-fault checks).
+  if (TENANT_LOCKOUT.some(({ re, unless }) => re.test(text) && !(unless && unless.test(text)))) return { level: "tenant_lockout", kind: "tenant_lockout" };
   const rt = ROUTINE_RULES.find((r) => matches(r, text));
   if (rt) return { level: "routine", kind: rt.kind };
   if (cl) return { level: "clarify", kind: cl.kind, question: cl.question };

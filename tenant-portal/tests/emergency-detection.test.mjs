@@ -91,8 +91,8 @@ describe("emergency phrase corpus", () => {
 });
 
 describe("life safety vs property emergencies", () => {
-  test("life-safety kinds are exactly fire, gas, carbon monoxide, electrical, security, medical and structural collapse", () => {
-    assert.deepEqual([...LIFE_SAFETY_KINDS].sort(), ["carbon_monoxide", "electrical", "fire", "gas", "medical", "security", "structural"]);
+  test("life-safety kinds are exactly fire, gas, carbon monoxide, electrical, security, medical, structural collapse and someone trapped", () => {
+    assert.deepEqual([...LIFE_SAFETY_KINDS].sort(), ["carbon_monoxide", "electrical", "fire", "gas", "medical", "security", "structural", "trapped"]);
   });
   test("life-safety replies start with 911; property replies give safety steps and mention 911 only for people at risk", () => {
     for (const [kind, phrases] of Object.entries(POSITIVE)) {

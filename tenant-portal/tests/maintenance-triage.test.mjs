@@ -58,7 +58,7 @@ describe("PRIORITY: management is told promptly, no emergency alert", () => {
   const PRIORITY = [["No heat", "heat"], ["The furnace stopped working", "heat"], ["We have no hot water", "no_water"],
     ["The leak under the sink is getting worse", "water_worsening"], ["The toilet overflowed but it stopped", "water_worsening"],
     ["Black mold is spreading on the wall after the leak", "mold_moisture"], ["The fridge stopped working", "fixture_unusable"],
-    ["I'm locked out", "access"], ["The front door won't lock", "access"], ["Sewer smell in the bathroom", "water_worsening"]];
+    ["My key won't turn in the lock", "access"], ["The front door won't lock", "access"], ["Sewer smell in the bathroom", "water_worsening"]];
   for (const [m, kind] of PRIORITY) {
     test(m, () => {
       const s = assessSeverity(m);
@@ -186,5 +186,67 @@ describe("property-specific emergency contacts", () => {
     const c = applySafetyOverrides(routineModel, "A pipe burst and water is spraying", { contactsFor: (kind) => contactsFor({ propertyId: CLIFTON, kind }, {}) });
     assert.doesNotMatch(c.tenant_reply, /\d{3}-\d{4}/);
     assert.match(c.tenant_reply, /no 24\/7 emergency phone line yet/);
+  });
+});
+
+describe("mixed-severity messages: a genuine hazard always overrides routine wording", () => {
+  const MIXED = [
+    ["The faucet drips and I smell gas", "gas"], ["Small leak under the sink and the outlet next to it is sparking", "electrical"],
+    ["Toilet keeps running and now water is everywhere", "water"], ["There was a small ceiling stain and now it's sagging", "water"],
+    ["The bathroom fan is noisy and smoke is coming out of it", "fire"], ["Small spot of mold and I can't breathe", "medical"],
+    ["I'm locked out and I smell gas from inside", "gas"], ["I'm locked out and someone is trying to break in", "security"],
+    ["No heat, the pipes are frozen", "no_heat"], ["Cosmetic scratch on the door, but the ceiling caved in", "structural"],
+  ];
+  for (const [m, kind] of MIXED) {
+    test(m, () => {
+      const s = assessSeverity(m);
+      assert.equal(s.level, "emergency"); assert.equal(s.kind, kind);
+      for (const model of [routineModel, panickyModel]) {
+        const c = applySafetyOverrides(model, m);
+        assert.equal(c.tier, "TIER1_EMERGENCY"); assert.equal(c.downgraded_from_emergency, undefined);
+        assert.ok(c.tenant_reply.startsWith(s.guidance));
+      }
+    });
+  }
+});
+
+describe("lock-outs", () => {
+  const ownReply = { ...routineModel, tenant_reply: "Sorry to hear that!", escalate_to_landlord: true, create_maintenance_ticket: true, dispatch_vendor: true };
+  for (const m of ["I'm locked out", "I lost my keys", "I locked my keys inside", "I can't get into my apartment", "Forgot my key fob at work"]) {
+    test(`tenant-caused: "${m}" → no work order, no escalation, locksmith advice`, () => {
+      assert.equal(assessSeverity(m).level, "tenant_lockout");
+      const c = applySafetyOverrides(ownReply, m);
+      assert.equal(c.tier, "TIER3_MAINTENANCE"); assert.equal(c.urgency, "LOW");
+      assert.equal(c.escalate_to_landlord, false); assert.equal(c.create_maintenance_ticket, false); assert.equal(c.dispatch_vendor, false);
+      assert.equal(needsNotification(c), false);
+      assert.match(c.tenant_reply, /call a licensed locksmith directly, subject to your lease terms/);
+      assert.doesNotMatch(c.tenant_reply, /\$\d|\bfees?\b|\bcharged?\b|rekey|new lock|change (?:the|your) lock/i, "no fee or lock change decided");
+    });
+  }
+  test("a model emergency on an ordinary lock-out is downgraded to the locksmith reply", () => {
+    const c = applySafetyOverrides(panickyModel, "I locked myself out");
+    assert.equal(c.tier, "TIER3_MAINTENANCE"); assert.equal(c.escalate_to_landlord, false); assert.match(c.tenant_reply, /locksmith/);
+    assert.doesNotMatch(c.tenant_reply, /emergency/i);
+  });
+  test("asking for a person during a lock-out still reaches management", () => {
+    assert.equal(applySafetyOverrides(routineModel, "I'm locked out, can I talk to a real person?").escalate_to_landlord, true);
+  });
+  for (const m of ["I'm locked out because the lock is broken", "My key won't turn in the lock", "The key broke in the lock", "The deadbolt is jammed", "The front door won't lock"]) {
+    test(`lock fault: "${m}" → priority repair`, () => {
+      const c = applySafetyOverrides(routineModel, m);
+      assert.equal(c.severity, "PRIORITY"); assert.equal(c.priority_kind, "access"); assert.equal(c.escalate_to_landlord, true);
+      assert.notEqual(c.tier, "TIER1_EMERGENCY");
+    });
+  }
+  for (const [m, kind] of [["The front door won't lock and someone is outside", "security"], ["My door won't lock and I'm scared", "security"],
+    ["My toddler is locked inside", "trapped"], ["I'm trapped in the bathroom, the door is jammed", "trapped"], ["Lost my keys and the baby is locked inside", "trapped"]]) {
+    test(`immediate threat: "${m}" → emergency with 911 first`, () => {
+      const c = applySafetyOverrides(routineModel, m);
+      assert.equal(c.tier, "TIER1_EMERGENCY"); assert.equal(c.emergency_kind, kind);
+      assert.match(c.tenant_reply.split("\n\n")[0], /911/);
+    });
+  }
+  test("ordinary lock talk is not a lock-out", () => {
+    for (const m of ["I locked the door", "My key is stuck in the lock", "Can I get a spare key?"]) assert.notEqual(assessSeverity(m)?.level, "tenant_lockout", m);
   });
 });
