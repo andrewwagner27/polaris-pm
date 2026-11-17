@@ -24,8 +24,8 @@ BUILDING LAYOUT:
 PARKING:
 - 7 reserved spots in the rear lot
 - Currently assigned to: Units 5, 6, 7, 9, 10, 12, plus one additional designated spot
-- All other vehicles in the rear lot are unauthorized and subject to immediate towing at owner's expense
 - Guest parking: street only
+- Parking policy (use this wording; never promise, threaten or arrange a tow): "Parking is reserved for authorized residents and vehicles. If an unauthorized vehicle is occupying your assigned space, please report it through Modus with the parking space number, vehicle description, and a photo if available. Management will review the issue and determine appropriate action. Unauthorized vehicles may be subject to towing in accordance with posted parking rules and applicable law."
 
 UTILITIES:
 - All tenants are responsible for: Electricity, Gas, Wi-Fi

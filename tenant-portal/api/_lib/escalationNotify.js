@@ -27,6 +27,7 @@ import { notifyStatusLabel as sharedNotifyStatusLabel, isEscalationRow } from ".
 import { managementRecipients as sharedRecipients } from "./recipients.js";
 import { sendEmailReliably } from "./email.js";
 import { sendEmergencySms, smsBody } from "./emergencySms.js";
+import { noticeTag } from "./ownerRouting.js";
 
 export const APP_URL = SHARED_APP_URL;
 // A sibling row in one of these states owns this message's notification: "unconfirmed" may already have
@@ -48,7 +49,9 @@ export function escalationReason(classification, { humanRequested = false } = {}
   const reasons = [];
   if (isEmergency(c)) reasons.push(c.life_safety ? "Emergency reported (Tier 1) — life safety: the tenant was told to call 911" : "Emergency reported (Tier 1)");
   if (humanRequested) reasons.push("Tenant asked to talk to a person");
-  if (c.create_incident_log) reasons.push("Complaint or dispute logged for management review");
+  if (c.owner_topic === "incident") reasons.push("Incident or injury report: recorded; nothing about fault or compensation was said");
+  else if (c.owner_topic === "operations") reasons.push("Property operations report (parking, trash or common area): owner decision; no towing or paid service arranged");
+  else if (c.create_incident_log) reasons.push("Complaint or dispute logged for management review");
   if (c.ai_unavailable) reasons.push("The AI could not process this message, so it needs a person to read it");
   if (!reasons.length) reasons.push("The AI could not resolve this and flagged it for management");
   const detail = [c.emergency_kind && String(c.emergency_kind).replace(/_/g, " "), c.category && String(c.category).replace(/_/g, " ").toLowerCase(), c.urgency && `urgency ${String(c.urgency).toLowerCase()}`].filter(Boolean).join(", ");
@@ -60,8 +63,8 @@ export function buildEscalationEmail({ propertyName, unitNumber, tenantName, mes
   const line = (v, max = 80) => String(v ?? "").replace(/[\u0000-\u001F\u007F]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
   const where = `${line(propertyName) || "Unknown property"} · Unit ${line(unitNumber, 20) || "?"}`;
   const subject = emergency
-    ? `🚨 EMERGENCY — ${where} — ${line(tenantName) || "Tenant"}`
-    : `Tenant escalation — ${where} — ${line(tenantName) || "Tenant"}`;
+    ? `${noticeTag("urgent_safety")} 🚨 EMERGENCY — ${where} — ${line(tenantName) || "Tenant"}`
+    : `${noticeTag("action_required")} Tenant escalation — ${where} — ${line(tenantName) || "Tenant"}`;
   const agentCenter = `${APP_URL}/landlord/agent`;
   const conversations = `${APP_URL}/landlord/messages`;
   const row = (k, v) => `<tr><td style="padding:6px 0;color:#666;font-size:13px;width:120px;vertical-align:top">${k}</td><td style="padding:6px 0;font-size:13px;color:#111">${v}</td></tr>`;

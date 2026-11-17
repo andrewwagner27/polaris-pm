@@ -8,6 +8,8 @@ import TenantLayout from "./TenantLayout";
 import { managementContact, urgentPhoneSentence } from "./lib/emergencyContact";
 import { responsibilityFor } from "./lib/vendorRouting";
 import { LOCKOUT_NOTE } from "../api/_lib/aiSafety.js";
+import { assessSeverity } from "../api/_lib/emergencyRules.js";
+import { ownerTopic, OPERATIONS_TENANT_NOTE, INCIDENT_TENANT_NOTE } from "../api/_lib/ownerRouting.js";
 
 // Shown after "call 911 first". Unset (default): "There is no 24/7 emergency phone line yet."
 const URGENT_PHONE_SENTENCE = urgentPhoneSentence(managementContact(import.meta.env.VITE_MANAGEMENT_URGENT_PHONE, import.meta.env.VITE_MANAGEMENT_URGENT_HOURS));
@@ -90,6 +92,9 @@ export default function MaintenanceRequestForm() {
   const [submitError, setSubmitError] = useState("");
   // Lost keys / lock-out with nothing broken is the tenant's to arrange: explain first, submit only if the lock is broken.
   const [lockoutNotice, setLockoutNotice] = useState(false);  // the ticket could not be saved (form keeps its content)
+  // Emergency safety steps shown the moment the tenant submits — never held back until the ticket is saved.
+  const [safetyNow, setSafetyNow] = useState("");
+  const [topicNote, setTopicNote] = useState("");   // property-operations / incident acknowledgement
   const [photoFailures, setPhotoFailures] = useState(0); // photos that didn't upload (ticket was still saved)
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
@@ -150,6 +155,10 @@ export default function MaintenanceRequestForm() {
     if (!validate()) return;
     if (!lockIsBroken && responsibilityFor({ title, description }) === "tenant") { setLockoutNotice(true); return; }
     setLockoutNotice(false);
+    const severity = assessSeverity(`${title}\n${description}`);
+    setSafetyNow(severity?.level === "emergency" ? severity.guidance : "");
+    const topic = ownerTopic(`${title}\n${description}`);
+    setTopicNote(topic?.topic === "incident" ? INCIDENT_TENANT_NOTE : topic ? OPERATIONS_TENANT_NOTE : "");
     setLoading(true); setSubmitError("");
     try {
 
@@ -212,11 +221,14 @@ export default function MaintenanceRequestForm() {
         <div style={{ width:"100%", maxWidth:420, textAlign:"center" }}>
           <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:26, color:C.green }}>✓</div>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
-          <div style={{ fontSize:14, color:C.textSub, marginBottom:notice?.emergency || (notice && !["sent","duplicate"].includes(notice.status)) ? 14 : 28 }}>We'll be in touch shortly to confirm a time.</div>
-          {notice?.emergency && (
+          <div style={{ fontSize:14, color:C.textSub, marginBottom:notice?.emergency || safetyNow || topicNote || (notice && !["sent","duplicate"].includes(notice.status)) ? 14 : 28 }}>{topicNote ? "Your report was saved." : "We'll be in touch shortly to confirm a time."}</div>
+          {(notice?.emergency || safetyNow) && (
             <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
-              <strong style={{ color:C.red }}>Safety first.</strong> {notice.emergency.guidance}
+              <strong style={{ color:C.red }}>Safety first.</strong> {notice?.emergency?.guidance || safetyNow}
             </div>
+          )}
+          {topicNote && (
+            <div role="status" data-owner-topic style={{ background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>{topicNote}</div>
           )}
           {photoFailures > 0 && (
             <div role="status" style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
@@ -397,6 +409,11 @@ export default function MaintenanceRequestForm() {
         {/* Submit */}
         {submitError && (
           <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>{submitError}</div>
+        )}
+        {safetyNow && !submitted && (
+          <div role="alert" data-safety-now style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>
+            <strong style={{ color:C.red }}>Safety first — don't wait for this form.</strong> {safetyNow}
+          </div>
         )}
         {lockoutNotice && (
           <div role="note" data-lockout-notice style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>

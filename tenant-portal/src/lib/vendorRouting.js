@@ -8,6 +8,7 @@
 // Nothing here dispatches, contacts or pays anyone.
 
 import { assessSeverity } from "../../api/_lib/emergencyRules.js";
+import { specialistFor, ownerTopic, approvedProviderFor } from "../../api/_lib/ownerRouting.js";
 
 const PHONE = String.raw`(\+?[0-9(][0-9 ().-]{6,20}[0-9])`;
 
@@ -42,8 +43,18 @@ export function isEmergencyTicket(ticket) {
 }
 
 // The vendor to suggest by default for this ticket, or null (management chooses).
+// - Emergencies and tenant lock-outs: none (unchanged).
+// - Property operations (parking, trash, common areas) and incident reports: none — the owner decides.
+// - Needs a specialist (api/_lib/ownerRouting.js): an approved provider of that trade if one is in the directory,
+//   never the general handyman.
+// - Otherwise: the #preferred contractor.
 export function defaultVendorFor(vendors, ticket) {
   if (isEmergencyTicket(ticket)) return null;
   if (responsibilityFor(ticket) === "tenant") return null;
+  if (ownerTopic(`${ticket?.title || ""}\n${ticket?.description || ""}`)) return null;
+  const specialist = specialistFor(ticket);
+  if (specialist) return approvedProviderFor(vendors, specialist.trade);
   return (Array.isArray(vendors) ? vendors : []).find(isPreferredVendor) || null;
 }
+
+export { specialistFor, ownerTopic };

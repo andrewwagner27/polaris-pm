@@ -401,11 +401,12 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
         offendingUnitId = offendingUnit?.id || null;
       }
 
-      const incidentCategory = [
+      const topicCategory = { parking: "PARKING_DISPUTE", trash: "TRASH" }[classification.owner_topic_kind];
+      const incidentCategory = topicCategory || ([
         "NOISE_COMPLAINT", "PARKING_DISPUTE", "LEASE_VIOLATION", "TENANT_DAMAGE", "TRASH"
       ].includes(classification.category)
         ? classification.category
-        : "OTHER";
+        : "OTHER");
 
       const { data: incident, error: incidentErr } = await supabase
         .from("incident_logs")
@@ -421,6 +422,8 @@ Classify and reply. Match your tone to the message — a greeting gets a greetin
             missing_info: classification.missing_info,
             offending_unit_hint: classification.offending_unit_hint || null,
             ai_tier: classification.tier,
+            owner_topic: classification.owner_topic || null,
+            owner_topic_kind: classification.owner_topic_kind || null,
             message_id: message_id || null,
           },
         })

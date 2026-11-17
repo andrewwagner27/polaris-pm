@@ -165,7 +165,7 @@ describe("end to end through /api/classify-and-route", () => {
     const r = await ask("I smell gas in my kitchen", "m1", { tier: "TIER1_EMERGENCY", category: "EMERGENCY", urgency: "EMERGENCY", escalate_to_landlord: true, intent_summary: "Possible gas leak" });
     assert.equal(r.body.notification, "sent");
     assert.equal(resendCalls.length, 1);
-    assert.match(resendCalls[0].body.subject, /^🚨 EMERGENCY — Clifton Manor · Unit 2/);
+    assert.match(resendCalls[0].body.subject, /^\[Urgent safety\] 🚨 EMERGENCY — Clifton Manor · Unit 2/);
     assert.match(resendCalls[0].body.html, /Emergency reported \(Tier 1\)/);
     assert.equal(db.landlord_alerts[0].type, "emergency");
   });

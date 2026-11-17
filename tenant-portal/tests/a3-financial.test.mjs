@@ -289,7 +289,7 @@ describe("migration rules", () => {
     assert.match(migration, /^BEGIN;$/m); assert.match(migration, /^COMMIT;$/m); assert.match(migration, /A3 rollback refused/);
   });
   test("the earlier migrations are untouched", () => {
-    const sha = (f) => import("node:crypto").then(c => c.createHash("sha256").update(readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url))).digest("hex"));
+    const sha = (f) => import("node:crypto").then(c => c.createHash("sha256").update(readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8").replace(/\r\n/g, "\n")).digest("hex"));   // Windows checkouts may use CRLF
     return Promise.all([sha("20261103000000_a1_ledger_foundation.sql"), sha("20261104000000_a2_receivables.sql")]).then(([a, b]) => {
       assert.equal(a, "2ea0df8f8b8641d391294dd98fd58653bf0c964b0c79c4288f43149f3b7c5471");
       assert.equal(b, "8c0bcf0af596dc37dc51e5598b7468d2425b755ea51c56068326d4f3e5d8e50f");

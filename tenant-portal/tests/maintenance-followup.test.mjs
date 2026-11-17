@@ -47,7 +47,9 @@ describe("default contractor and responsibility", () => {
   test("Handyman is the default for routine and priority landlord work; primary first, backup kept for management", () => {
     assert.ok(isPreferredVendor(HANDYMAN)); assert.ok(!isPreferredVendor(PLUMBER));
     assert.equal(defaultVendorFor([PLUMBER, HANDYMAN], { title: "Toilet keeps running" })?.name, HANDYMAN.name);
-    assert.equal(defaultVendorFor([PLUMBER, HANDYMAN], { title: "No heat" })?.name, HANDYMAN.name);
+    assert.equal(defaultVendorFor([PLUMBER, HANDYMAN], { title: "The bathroom door sticks" })?.name, HANDYMAN.name);
+    // Owner-operated routing: a heating outage needs a qualified heating specialist, never a pre-selected handyman.
+    assert.notEqual(defaultVendorFor([PLUMBER, HANDYMAN], { title: "No heat" })?.name, HANDYMAN.name);
     assert.deepEqual(contractorContacts(HANDYMAN), { primary: "+1 (216) 555-0181", backup: "+1 (813) 555-0182" });
   });
   test("emergencies and tenant lock-outs get no default contractor (separate pathways)", () => {

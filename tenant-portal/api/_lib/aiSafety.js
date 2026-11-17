@@ -38,6 +38,16 @@ export function wantsHuman(message) {
 //   (api/_lib/emergencyContacts.js), or omitted when none are configured.
 // recentTenantText: the tenant's recent messages in this thread. When they already described an emergency, the
 //   model's emergency call on a follow-up ("it's getting worse") is never downgraded.
+// A reply that mentions towing is replaced unless it is the approved policy wording ("may be subject to towing in
+// accordance with posted parking rules") or says Modus doesn't arrange it: the AI never promises or starts a tow.
+function promisesTowing(reply) {
+  const r = String(reply || "");
+  if (!/\btow/i.test(r)) return false;
+  const safe = r.replace(/may be subject to towing in accordance with posted parking rules and applicable law/gi, "")
+    .replace(/doesn't arrange towing/gi, "");
+  return /\btow/i.test(safe);
+}
+
 export function applySafetyOverrides(classification, message, { contact = null, contactsFor = null, recentTenantText = "" } = {}) {
   const c = { ...(classification || {}) };
   c.send_violation_notice = false;                  // notices are issued by management only
@@ -47,6 +57,23 @@ export function applySafetyOverrides(classification, message, { contact = null, 
   // Emergencies are decided by these fixed rules as well as by the model: a model that misses one, or
   // is unavailable, cannot downgrade it. The tenant always gets the fixed safety instruction first.
   const severity = assessSeverity(message);
+  // Owner-operated pilot (api/_lib/ownerRouting.js): incidents/injuries and property-operations reports always reach
+  // the owner; the AI never dispatches for them, never arranges towing or paid services, and never speaks to fault,
+  // liability or compensation. An emergency still gets its fixed safety guidance first (below).
+  const topic = ownerTopic(message);
+  if (topic) {
+    c.owner_topic = topic.topic;
+    c.owner_topic_kind = topic.kind;
+    c.escalate_to_landlord = true;
+    c.dispatch_vendor = false;
+    // Both kinds are recorded as an owner-action item in the existing incident log (never a contractor work order).
+    c.create_incident_log = true;
+    if (topic.topic === "incident") {
+      if (LIABILITY_WORDING.test(String(c.tenant_reply || ""))) c.tenant_reply = INCIDENT_TENANT_NOTE;
+    } else if (promisesTowing(c.tenant_reply)) {
+      c.tenant_reply = OPERATIONS_TENANT_NOTE;
+    }
+  }
   if (severity?.level === "emergency") {
     // Tier 1 alone triggers the landlord alert and the management email/SMS (escalationNotify.needsNotification).
     c.tier = "TIER1_EMERGENCY";
@@ -124,5 +151,6 @@ export { flaggedLine };
 export { detectEmergency, assessSeverity, EMERGENCY_KINDS, LIFE_SAFETY_KINDS } from "./emergencyRules.js";
 import { detectEmergency, assessSeverity, MAINTENANCE_EMERGENCY_KINDS } from "./emergencyRules.js";
 import { formatContacts } from "./emergencyContacts.js";
+import { ownerTopic, LIABILITY_WORDING, INCIDENT_TENANT_NOTE, OPERATIONS_TENANT_NOTE } from "./ownerRouting.js";
 import { flaggedLine } from "../../src/lib/emergencyContact.js";
 

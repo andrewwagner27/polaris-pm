@@ -4,6 +4,7 @@
 // links are portal paths (appLink) or checked with safeUrl. Callers never pass HTML in.
 
 import { escapeHtml, textToHtml, appLink, safeUrl, cleanSubject, oneLine, formatDollars, APP_URL } from "../../src/lib/emailSafety.js";
+import { noticeTag } from "./ownerRouting.js";
 
 const COLORS = { urgent: "#E05555", high: "#F0A430", normal: "#4A9AE8", low: "#72B02A" };
 const STATUS_LABELS = { open: "Open", in_progress: "In Progress", resolved: "Resolved ✓", pending_review: "Pending review", quote_submitted: "Quote submitted" };
@@ -42,26 +43,35 @@ const where = (t) => [t?.propertyName, t?.unitNumber ? `Unit ${t.unitNumber}` : 
 // ticket: { title, description, category, priority, propertyName, unitNumber, tenantName }
 // emergency: null | { kind, lifeSafety }
 // priority: { kind, reason } when the description shows a priority repair (api/_lib/emergencyRules.js), else null.
-export function maintenanceCreatedEmail({ ticket, emergency = null, priority = null }) {
+// topic: null | { topic: "operations" | "incident", reason } (api/_lib/ownerRouting.js) — an owner-action item, no contractor.
+// specialist: null | { label, emergency }; noProvider: true when an emergency has no approved provider configured.
+export function maintenanceCreatedEmail({ ticket, emergency = null, priority = null, topic = null, specialist = null, noProvider = false }) {
   const pr = String(ticket?.priority || "normal").toLowerCase();
   const color = emergency ? "#E05555" : priority ? "#F0A430" : (COLORS[pr] || COLORS.normal);
-  const icon = emergency ? "🚨" : pr === "urgent" ? "🚨" : priority || pr === "high" ? "⚠️" : "🔧";
-  const label = emergency ? "EMERGENCY maintenance request" : priority ? "PRIORITY maintenance request" : pr === "urgent" ? "URGENT maintenance request" : "New maintenance request";
-  const subject = cleanSubject(`${icon} ${label}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
-  const body = `${emergency ? quoteBlock(`Possible ${String(emergency.kind).replace(/_/g, " ")} emergency.${emergency.lifeSafety ? " The tenant is being told to call 911." : ""} Contact the tenant now.`, "#E05555", "Emergency") : ""}${!emergency && priority?.reason ? quoteBlock(`${priority.reason}. Not an emergency, but respond promptly.`, "#F0A430", "Priority") : ""}
+  const icon = emergency ? "🚨" : pr === "urgent" ? "🚨" : priority || pr === "high" ? "⚠️" : topic ? "📋" : "🔧";
+  const label = emergency ? "EMERGENCY maintenance request" : topic?.topic === "incident" ? "Incident report" : topic ? "Property operations report"
+    : priority ? "PRIORITY maintenance request" : pr === "urgent" ? "URGENT maintenance request" : "New maintenance request";
+  const tag = noticeTag(emergency ? "urgent_safety" : "action_required");
+  const subject = cleanSubject(`${tag} ${icon} ${label}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
+  const ownerNote = topic?.topic === "incident"
+    ? "Recorded as an incident report. The tenant was told to call 911 if anyone is hurt; nothing about fault, liability or compensation was said. Collect the facts and photos, and consider notifying your insurer."
+    : topic ? `${topic.reason}. Owner decision needed. No contractor was assigned and no towing or other paid service was arranged.` : null;
+  const tradeNote = specialist
+    ? `Needs a qualified ${specialist.label}; the general handyman is not suggested.${noProvider ? " No approved emergency provider is on file: arrange one directly." : ""}` : null;
+  const body = `${emergency ? quoteBlock(`Possible ${String(emergency.kind).replace(/_/g, " ")} emergency.${emergency.lifeSafety ? " The tenant is being told to call 911." : ""} Contact the tenant now.`, "#E05555", "Emergency") : ""}${!emergency && priority?.reason ? quoteBlock(`${priority.reason}. Not an emergency, but respond promptly.`, "#F0A430", "Priority") : ""}${ownerNote ? quoteBlock(ownerNote, "#F0A430", "Owner action") : ""}${tradeNote ? quoteBlock(tradeNote, emergency ? "#E05555" : "#F0A430", "Specialist") : ""}
 ${details([["Tenant", ticket?.tenantName || "Unknown"], ["Property", ticket?.propertyName || "Unknown"], ["Unit", ticket?.unitNumber || "—"], ["Issue", ticket?.title || "(no title)"], ["Category", ticket?.category || ""], ["Priority", capitalize(pr)]])}
 ${ticket?.description ? quoteBlock(ticket.description, color, "Tenant's description") : ""}
 ${button(appLink("/landlord/maintenance"), "View ticket →")}`;
   return {
     subject,
     html: shell({ heading: label, body, accent: emergency || pr === "urgent" ? "#E05555" : "#252930" }),
-    text: textLines(subject, "", `Tenant: ${ticket?.tenantName || "Unknown"}`, `Where: ${where(ticket) || "Unknown"}`, `Issue: ${ticket?.title || ""}`,
+    text: textLines(subject, "", ownerNote, tradeNote, `Tenant: ${ticket?.tenantName || "Unknown"}`, `Where: ${where(ticket) || "Unknown"}`, `Issue: ${ticket?.title || ""}`,
       `Priority: ${capitalize(pr)}`, ticket?.description ? `\n${ticket.description}` : null, "", `${APP_URL}/landlord/maintenance`),
   };
 }
 
 export function tenantReplyEmail({ ticket, tenantName, commentBody }) {
-  const subject = cleanSubject(`💬 ${oneLine(tenantName, 60) || "Tenant"} replied on: ${oneLine(ticket?.title, 80)}`);
+  const subject = cleanSubject(`${noticeTag("info")} 💬 ${oneLine(tenantName, 60) || "Tenant"} replied on: ${oneLine(ticket?.title, 80)}`);
   const body = `${p(`${strong(tenantName || "The tenant")} replied on ${strong(ticket?.title || "a maintenance request")}${where(ticket) ? ` (${escapeHtml(where(ticket))})` : ""}.`)}
 ${quoteBlock(commentBody, "#4A9AE8")}
 ${button(appLink("/landlord/maintenance"), "View ticket →")}`;
@@ -70,7 +80,7 @@ ${button(appLink("/landlord/maintenance"), "View ticket →")}`;
 }
 
 export function vendorQuoteEmail({ ticket, vendorName, quoteAmount, quoteNotes }) {
-  const subject = cleanSubject(`💰 Quote received from ${oneLine(vendorName, 60) || "vendor"}: ${oneLine(ticket?.title, 80)}`);
+  const subject = cleanSubject(`${noticeTag("action_required")} 💰 Quote received from ${oneLine(vendorName, 60) || "vendor"}: ${oneLine(ticket?.title, 80)}`);
   const body = `${p(`${strong(vendorName || "A vendor")} has submitted a quote for your review.`)}
 ${details([["Job", ticket?.title || ""], ["Where", where(ticket)], ["Quote", formatDollars(quoteAmount)]])}
 ${quoteNotes ? quoteBlock(quoteNotes, "#C9A96E", "Vendor notes") : ""}
@@ -80,7 +90,7 @@ ${button(appLink("/landlord/maintenance"), "Review & approve →")}`;
 }
 
 export function vendorCompleteEmail({ ticket, vendorName, hasInvoice, invoiceNotes }) {
-  const subject = cleanSubject(`✅ ${oneLine(vendorName, 60) || "Vendor"} completed: ${oneLine(ticket?.title, 80)}`);
+  const subject = cleanSubject(`${noticeTag("action_required")} ✅ ${oneLine(vendorName, 60) || "Vendor"} completed: ${oneLine(ticket?.title, 80)}`);
   const body = `${p(`${strong(vendorName || "The vendor")} has submitted work for review.`)}
 ${details([["Job", ticket?.title || ""], ["Where", where(ticket)], ["Invoice", hasInvoice ? "Attached — review in Modus" : "None attached"]])}
 ${invoiceNotes ? quoteBlock(invoiceNotes, "#4A9AE8", "Vendor notes") : ""}
@@ -90,7 +100,7 @@ ${button(appLink("/landlord/maintenance"), "✓ Review & approve →", "#72B02A"
 }
 
 export function inspectionCompleteEmail({ tenantName, signature, signedAt, photoCount, propertyName, unitNumber }) {
-  const subject = cleanSubject(`Tenant walkthrough complete — ${oneLine(tenantName, 60) || "Tenant"} has signed off`);
+  const subject = cleanSubject(`${noticeTag("info")} Tenant walkthrough complete — ${oneLine(tenantName, 60) || "Tenant"} has signed off`);
   const body = `${p("A tenant has completed their move-in walkthrough.")}
 ${details([["Tenant", tenantName || "Unknown"], ["Where", where({ propertyName, unitNumber })], ["Signed as", signature || ""], ["Signed at", signedAt || ""], ["Photos", `${Number(photoCount) || 0} uploaded`]])}
 ${p("Sign in to review the tenant's notes and photos.")}
@@ -177,7 +187,7 @@ ${button(appLink("/messages"), "Reply in Modus →")}`;
 // To management: a follow-up outcome that needs a person (not fixed, no-show, return visit, no reply, confirmed but
 // awaiting approval). contractor: { name, primary, backup } from the vendor directory (management only).
 export function followupManagementEmail({ ticket, headline, detail, tenantWords = null, contractor = null, draft = null }) {
-  const subject = cleanSubject(`🔁 ${headline}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
+  const subject = cleanSubject(`${noticeTag("action_required")} 🔁 ${headline}: ${oneLine(ticket?.title, 80)} — ${where(ticket) || "Unknown unit"}`);
   const contractorRows = contractor?.name ? [["Contractor", contractor.name], ["Primary", contractor.primary || "—"], ["Backup (only if the primary is unavailable)", contractor.backup || "—"]] : [];
   const body = `${p(escapeHtml(detail))}
 ${tenantWords ? quoteBlock(tenantWords, "#4A9AE8", "Tenant's reply") : ""}

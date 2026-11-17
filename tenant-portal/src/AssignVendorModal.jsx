@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
-import { defaultVendorFor, isPreferredVendor, contractorContacts, responsibilityFor, isEmergencyTicket } from "./lib/vendorRouting";
+import { defaultVendorFor, isPreferredVendor, contractorContacts, responsibilityFor, isEmergencyTicket, specialistFor, ownerTopic } from "./lib/vendorRouting";
 
 const C = {
   bg:        "#0A0B0D",
@@ -66,9 +66,10 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
       if (propertyId) query = query.eq("property_id", propertyId);
       const { data: vendorData } = await query.order("name");
       // The ticket's severity and responsibility decide the default contractor (src/lib/vendorRouting.js).
-      const { data: ticket } = await supabase.from("maintenance_requests").select("title, description, is_emergency, billable_to_tenant").eq("id", requestId).maybeSingle();
-      const t = ticket || { title: requestTitle };
-      setRouting({ emergency: isEmergencyTicket(t), responsibility: responsibilityFor(t) });
+      const { data: ticket } = await supabase.from("maintenance_requests").select("title, description, category, is_emergency, billable_to_tenant").eq("id", requestId).maybeSingle();
+      const t = ticket || { title: requestTitle, category: requestCategory };
+      setRouting({ emergency: isEmergencyTicket(t), responsibility: responsibilityFor(t),
+        specialist: specialistFor(t), topic: ownerTopic(`${t.title || ""}\n${t.description || ""}`) });
       const all = vendorData || [];
       const catMatch = all.filter(v => v.category === requestCategory);
       const preferred = defaultVendorFor(all, t);
@@ -170,6 +171,16 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                     : routing.responsibility === "tenant"
                       ? "Looks like a lost-key / lock-out: the tenant arranges a locksmith (subject to the lease). Assign only if the lock itself is broken. No fee or lock change is decided automatically."
                       : "Possible tenant-caused damage: coordinate the repair as usual. Who pays is decided separately; nothing is charged automatically."}
+                </div>
+              )}
+              {/* Owner-operated routing (api/_lib/ownerRouting.js). Advisory: assignment is never blocked. */}
+              {(routing.specialist || routing.topic) && (
+                <div role="note" data-owner-routing style={{ background: `${C.amber}12`, border: `1px solid ${C.amber}44`, borderRadius: 7, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: C.text, lineHeight: 1.5 }}>
+                  {routing.topic?.topic === "incident"
+                    ? "Incident report: record the facts and photos first. Nothing about fault, liability or compensation has been said to the tenant; consider notifying your insurer. No contractor is pre-selected."
+                    : routing.topic?.topic === "operations"
+                      ? `${routing.topic.reason}: an owner decision. No contractor is pre-selected, and no towing or other paid service has been arranged.`
+                      : `Needs a qualified ${routing.specialist.label}. The general handyman is not pre-selected${routing.specialist.emergency ? "; if no approved emergency provider is listed, arrange one directly" : ""}.`}
                 </div>
               )}
 

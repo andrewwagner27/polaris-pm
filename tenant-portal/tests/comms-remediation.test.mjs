@@ -328,21 +328,21 @@ describe("recipient routing for every workflow", () => {
   test("urgent/emergency request → management with an emergency subject, 911 guidance returned, SMS off by default", async () => {
     db.maintenance_requests[0].title = "I smell gas near the stove";
     const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
-    assert.match(resend[0].body.subject, /^🚨 EMERGENCY maintenance request/);
+    assert.match(resend[0].body.subject, /^\[Urgent safety\] 🚨 EMERGENCY maintenance request/);
     assert.equal(r.emergency.kind, "gas"); assert.equal(r.emergency.lifeSafety, true); assert.match(r.emergency.guidance, /911/);
     assert.equal(r.sms, "disabled"); assert.equal(twilio.length, 0);
   });
   test("routine request (running toilet) → an ordinary new-request email: no emergency, no priority, no SMS", async () => {
     db.maintenance_requests[0].title = "Toilet keeps running"; db.maintenance_requests[0].description = "It runs all night, otherwise fine.";
     const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK }, { ...ENV, EMERGENCY_SMS_ENABLED: "true" });
-    assert.match(resend[0].body.subject, /^🔧 New maintenance request/);
+    assert.match(resend[0].body.subject, /^\[Action required\] 🔧 New maintenance request/);
     assert.doesNotMatch(resend[0].body.html, /EMERGENCY|Emergency|911/);
     assert.equal(r.emergency, null); assert.equal(r.priority, undefined); assert.equal(r.sms, undefined); assert.equal(twilio.length, 0);
   });
   test("priority request (no heat) → a PRIORITY email with the reason, but no emergency alert or SMS", async () => {
     db.maintenance_requests[0].title = "No heat"; db.maintenance_requests[0].description = "The furnace stopped working this morning.";
     const r = await ev(M.maintenanceCreated, callers.tenant, { ticket_id: TK });
-    assert.match(resend[0].body.subject, /^⚠️ PRIORITY maintenance request: No heat/);
+    assert.match(resend[0].body.subject, /^\[Action required\] ⚠️ PRIORITY maintenance request: No heat/);
     assert.match(resend[0].body.html, /Loss of heat/);
     assert.equal(r.emergency, null); assert.equal(r.priority, "heat"); assert.equal(twilio.length, 0);
   });

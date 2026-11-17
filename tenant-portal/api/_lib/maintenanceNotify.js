@@ -22,6 +22,7 @@ import { sendEmailReliably, payloadKey } from "./email.js";
 import { sendEmergencySms, smsBody } from "./emergencySms.js";
 import { isValidEmail, APP_URL } from "../../src/lib/emailSafety.js";
 import * as T from "./notificationTemplates.js";
+import { ownerTopic, specialistFor } from "./ownerRouting.js";
 
 export const NOTE_AUTHOR = "Modus notifications";
 const CREATED_NOTE = "Management emailed about this new request";
@@ -126,6 +127,10 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
   const guidance = detected ? { kind: detected.kind, lifeSafety: detected.lifeSafety, guidance: [detected.guidance, formatContacts(contacts)].filter(Boolean).join(" "),
     ...(contacts.length ? { contacts: contacts.map(({ label, name, phone, hours }) => ({ label, name, phone, hours })) } : {}) } : null;
   const priority = !emergency && severity?.level === "priority" ? { kind: severity.kind, reason: severity.reason } : null;
+  // Owner-operated routing (api/_lib/ownerRouting.js): operations / incident reports, and specialist trades.
+  const topic = ownerTopic(`${t.title || ""}\n${t.description || ""}`);
+  const specialist = specialistFor(t);
+  const noProvider = Boolean(detected && specialist && contacts.length === 0);
 
   const notes = await trustedNotes(db, t.id);
   // Already emailed for this ticket (a retried or repeated call): no second email.
@@ -133,11 +138,11 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
 
   let result = { status: "duplicate" };
   if (!emailed) {
-    const label = emergency ? "emergency maintenance alert" : priority ? "priority maintenance request" : "new maintenance request";
+    const label = emergency ? "emergency maintenance alert" : topic ? `${topic.topic} maintenance request` : priority ? "priority maintenance request" : "new maintenance request";
     const to = await toManagement({ db, env, ticketId: t.id, label });
     result = to.ok
       ? await deliver({ db, send, ticketId: t.id, to: to.recipients, key: `maintenance-created:${t.id}`, label, retryDelayMs,
-          email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency, priority }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
+          email: T.maintenanceCreatedEmail({ ticket: ticketView(t), emergency, priority, topic, specialist, noProvider }), successNote: `${CREATED_NOTE} (${to.recipients.length} recipient${to.recipients.length === 1 ? "" : "s"}).` })
       : { status: "failed", error: to.code };
   }
 
@@ -162,7 +167,7 @@ export async function maintenanceCreated({ db, send, sms = sendEmergencySms, env
   } else if (emergency) {
     smsStatus = "duplicate";
   }
-  return { ...result, emergency: guidance, ...(priority ? { priority: priority.kind } : {}), ...(smsStatus ? { sms: smsStatus } : {}) };
+  return { ...result, emergency: guidance, ...(priority ? { priority: priority.kind } : {}), ...(topic ? { topic: topic.topic } : {}), ...(smsStatus ? { sms: smsStatus } : {}) };
 }
 
 // A tenant replied on their own ticket. The comment must exist, be theirs, and be tenant-visible.

@@ -61,7 +61,7 @@ describe("routine repair, end to end", () => {
     // 3. Management gets the ordinary new-request email (not emergency, not priority).
     const created = await maintenanceCreated({ db, send, env: ENV, caller: { role: "tenant", user: { id: "u1" } }, body: { ticket_id: TID }, retryDelayMs: 0 });
     assert.equal(created.status, "sent"); assert.equal(created.emergency, null);
-    assert.match(toManagement()[0].subject, /^🔧 New maintenance request/);
+    assert.match(toManagement()[0].subject, /^\[Action required\] 🔧 New maintenance request/);
     // 4. Handyman is the default; management assigns (link + PIN made by the landlord-only Edge Function; phone not copied).
     assert.equal(defaultVendorFor(db.tables.vendors, T())?.name, HANDYMAN.name);
     Object.assign(T(), { vendor_name: HANDYMAN.name, vendor_phone: null, vendor_token: "tok-e2e", vendor_pin: "2468",
