@@ -22,7 +22,7 @@ test("no invented metrics, customer claims or testimonials", () => {
 });
 
 test("product visuals are decorative mockups labelled as sample data", () => {
-  for (const name of ["DashboardMock", "DecisionMock", "PhoneMock"]) {
+  for (const name of ["DashboardMock", "MobilePreview", "DecisionMock", "PhoneMock"]) {
     const body = src.slice(src.indexOf(`function ${name}(`), src.indexOf("\n}\n", src.indexOf(`function ${name}(`)));
     assert.match(body, /aria-hidden="true"/, `${name} is hidden from assistive tech`);
   }
@@ -45,6 +45,15 @@ test("mobile header: accessible menu button holds both logins; desktop links hid
   assert.match(src, /if \(e\.key === "Escape"\) \{ setMenuOpen\(false\); menuBtn\.current\?\.focus\(\); \}/);
   assert.match(src, /@media \(max-width: 720px\) \{ \.lp-nav-desktop \{ display: none; \} \.lp-burger \{ display: flex; \} \}/);
   assert.match(src, /\.lp-burger \{ display: none; width: 44px; height: 44px;/);
+});
+
+test("phones get the short hero, a text link for the tenant portal and the simplified preview; desktop keeps the full mockup", () => {
+  const has = (s, text) => assert.ok(s.includes(text), text);
+  has(src, "Manage maintenance, tenants, and properties—all in one place.");
+  has(src, ".lp-copy-short, .lp-tenant-link, .lp-mobile-mock { display: none; }");
+  const m = src.slice(src.indexOf("@media (max-width: 767px) {"));
+  for (const t of [".lp-hero h1 { font-size: 36px;", ".lp-hero .lp-btn-quiet { display: none; }", ".lp-full-mock { display: none; }", ".lp-mobile-mock { display: block; }"]) has(m, t);
+  has(src, `<div className="lp-full-mock"><DashboardMock/></div>`);
 });
 
 test("layout collapses on phones and respects reduced motion", () => {

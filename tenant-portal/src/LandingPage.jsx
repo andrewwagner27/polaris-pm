@@ -85,6 +85,21 @@ function DashboardMock() {
   );
 }
 
+function MobilePreview() {
+  return (
+    <div className="lp-mprev" aria-hidden="true">
+      <div className="lp-mprev-head"><span>Needs attention</span><span className="lp-mprev-count">4 items</span></div>
+      <div className="lp-mprev-card">
+        <Tag kind="Urgent"/>
+        <div className="lp-mprev-title">Water leak reported, bathroom ceiling</div>
+        <div className="lp-mprev-meta">Clifton Manor · Unit 3</div>
+        <span className="lp-act primary lp-mprev-btn">Arrange contractor</span>
+      </div>
+      <div className="lp-mprev-more"><i/><i/><span>3 more waiting: a quote to approve, completed work, a follow-up</span></div>
+    </div>
+  );
+}
+
 function DecisionMock() {
   return (
     <div className="lp-window lp-window-tight" aria-hidden="true">
@@ -194,14 +209,17 @@ export default function LandingPage() {
           <div className="lp-wrap">
             <div className="lp-hero-copy">
               <h1>Property management, without the busywork.</h1>
-              <p>Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <p className="lp-copy-full">Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <p className="lp-copy-short">Manage maintenance, tenants, and properties—all in one place.</p>
               <div className="lp-cta">
                 <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore the dashboard</a>
                 <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
               </div>
+              <a href="/login" onClick={go("/login")} className="lp-tenant-link">Tenant portal →</a>
             </div>
             <figure className="lp-hero-visual">
-              <DashboardMock/>
+              <div className="lp-full-mock"><DashboardMock/></div>
+              <div className="lp-mobile-mock"><MobilePreview/></div>
               <figcaption>The Modus landlord dashboard, shown with sample data.</figcaption>
             </figure>
           </div>
@@ -442,6 +460,44 @@ const CSS = `
   .lp-stats { grid-template-columns: minmax(0, 1fr); }
   .lp-light { padding: 64px 0; }
   .lp-final { padding: 80px 0; }
+}
+/* Mobile-only pieces (hidden at 768px and up) */
+.lp-copy-short, .lp-tenant-link, .lp-mobile-mock { display: none; }
+.lp-mprev { background: ${INK2}; border: 1px solid ${LINE}; border-radius: 18px; padding: 18px; text-align: left; color: ${TXT}; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+.lp-mprev-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; font-size: 15px; font-weight: 600; }
+.lp-mprev-count { font-size: 12px; font-weight: 500; color: ${TXT3}; }
+.lp-mprev-card { background: ${INK3}; border-radius: 14px; padding: 16px; box-shadow: inset 3px 0 0 #F07070; }
+.lp-mprev-title { margin-top: 10px; font-size: 16px; font-weight: 600; line-height: 1.35; }
+.lp-mprev-meta { margin-top: 4px; font-size: 13px; color: ${TXT3}; }
+.lp-mprev-btn { display: inline-flex; margin-top: 14px; padding: 10px 14px; font-size: 13px; border-radius: 10px; }
+.lp-mprev-more { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; color: ${TXT3}; line-height: 1.4; }
+.lp-mprev-more i { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: ${GOLD}; opacity: 0.7; }
+.lp-mprev-more i + i { background: #6AAEF0; margin-right: 4px; }
+
+@media (max-width: 767px) {
+  .lp-hero { padding: 28px 0 40px; }
+  .lp-hero h1 { font-size: 36px; line-height: 1.12; }
+  .lp-copy-full { display: none; }
+  .lp-copy-short { display: block; }
+  .lp-hero p { margin: 14px 0 22px; font-size: 16px; line-height: 1.55; }
+  .lp-hero .lp-cta { justify-content: flex-start; }
+  .lp-hero .lp-btn-quiet { display: none; }
+  .lp-hero .lp-btn-gold { flex: 0 1 auto; width: 100%; min-height: 48px; font-size: 15px; }
+  .lp-tenant-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 6px; font-size: 15px; font-weight: 500; color: ${TXT2} !important; text-decoration: none; }
+  .lp-tenant-link:hover { color: ${TXT} !important; }
+  .lp-full-mock { display: none; }
+  .lp-mobile-mock { display: block; }
+  .lp .lp-hero-visual { margin-top: 28px; }
+  .lp-light { padding: 56px 0; }
+  .lp-light h2 { font-size: 28px; }
+  .lp-split, .lp-split-rev { gap: 32px; }
+  .lp-split-copy p { font-size: 16px; margin-top: 14px; }
+  .lp-points { margin-top: 20px; }
+  .lp-benefit { padding: 24px 22px; }
+  .lp-benefit-icon { margin-bottom: 14px; }
+  .lp-final { padding: 64px 0; }
+  .lp-final h2 { font-size: 30px; margin-bottom: 24px; }
+  .lp-footer-row { min-height: 72px; }
 }
 @media (prefers-reduced-motion: reduce) { .lp * { transition: none !important; } }
 `;
