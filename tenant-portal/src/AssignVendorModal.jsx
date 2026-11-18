@@ -146,7 +146,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: 500, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, width: "min(500px, calc(100vw - 24px))", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: "18px 22px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

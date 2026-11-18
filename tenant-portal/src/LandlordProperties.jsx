@@ -110,7 +110,7 @@ function AddPropertyModal({ onClose, onSaved }) {
 
   return (
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center" }} onClick={onClose}>
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:480,maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:"min(480px, calc(100vw - 24px))",maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
         <div style={{ padding:"20px 24px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div style={{ fontSize:15,fontWeight:600,color:C.text }}>Add property</div>
           <button onClick={onClose} style={{ background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textSub }}>✕</button>
@@ -168,7 +168,7 @@ function AddUnitModal({ propertyId, onClose, onSaved }) {
 
   return (
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center" }} onClick={onClose}>
-      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:480,maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+      <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:"min(480px, calc(100vw - 24px))",maxHeight:"90vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
         <div style={{ padding:"20px 24px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div style={{ fontSize:15,fontWeight:600,color:C.text }}>Add unit</div>
           <button onClick={onClose} style={{ background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textSub }}>✕</button>
