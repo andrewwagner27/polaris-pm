@@ -2,20 +2,21 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { PrimaryBtn } from "./ui/Button";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -71,14 +72,6 @@ function Select({ value, onChange, children }) {
   );
 }
 
-function PrimaryBtn({ children, onClick, disabled }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{ background: "transparent", border: `1px solid ${C.goldDim}`, color: C.gold, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s", opacity: disabled ? 0.6 : 1 }}
-      onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
-      onMouseOut={e => e.currentTarget.style.background = "transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small, danger }) {
   const borderColor = danger ? "rgba(224,85,85,0.3)" : C.border;

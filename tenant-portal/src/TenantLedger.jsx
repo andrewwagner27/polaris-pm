@@ -4,8 +4,8 @@ import { CHARGE_CATEGORIES, fmtCents, parseDollarsToCents, ledgerBalanceCents, t
 import { A3_ENABLED } from "./lib/release";
 
 const C = {
-  surface:"#14181F", raised:"#1A1F29", border:"rgba(255,255,255,0.08)", text:"#EDEAE2", textSub:"#9095A0",
-  textMuted:"#5C6270", gold:"#C9A96E", goldDim:"#6B4F24", green:"#72B02A", red:"#E05555", amber:"#F0A430", blue:"#4A9AE8",
+  surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4",
+  textMuted:"#9298A3", gold:"#C9A968", goldDim:"#6B4F24", green:"#72B02A", red:"#F07070", amber:"#F0A430", blue:"#6AAEF0",
 };
 const field = { padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark",minWidth:0 };
 const btn = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"4px 9px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" });

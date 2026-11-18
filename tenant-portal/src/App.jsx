@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { PropertyScopeProvider } from "./lib/propertyScope";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import AuthLinkError, { LinkErrorCatcher } from "./AuthLinkError";
@@ -94,23 +95,26 @@ export default function App() {
 
         {/* Landlord */}
         <Route path="/landlord/login"           element={<LandlordLogin/>}/>
-        <Route path="/landlord"                 element={<ProtectedLandlordRoute><LandlordDashboard/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/properties"      element={<ProtectedLandlordRoute><LandlordProperties/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/tenants"         element={<ProtectedLandlordRoute><LandlordTenants/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/tenants/:id"     element={<ProtectedLandlordRoute><LandlordTenantDetail/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/applications"    element={<ProtectedLandlordRoute><LandlordApplications/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/maintenance"     element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/maintenance/:id" element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/financials"              element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/financials/:tenantId"   element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/messages"        element={<ProtectedLandlordRoute><LandlordMessages/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/reports"         element={<ProtectedLandlordRoute><LandlordReports/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/snapshot"        element={<ProtectedLandlordRoute><FinancialSnapshot/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/budgets"         element={<ProtectedLandlordRoute><BudgetVsActual/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/agent"           element={<ProtectedLandlordRoute><LandlordAgentCenter/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/settings"        element={<ProtectedLandlordRoute><LandlordSettings/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/evictions"       element={<ProtectedLandlordRoute><EvictionWatch/></ProtectedLandlordRoute>}/>
-        <Route path="/landlord/inspections"     element={<ProtectedLandlordRoute><LandlordInspection/></ProtectedLandlordRoute>}/>
+        {/* One property scope for the whole management app (survives navigation between landlord pages). */}
+        <Route element={<PropertyScopeProvider><Outlet/></PropertyScopeProvider>}>
+          <Route path="/landlord"                 element={<ProtectedLandlordRoute><LandlordDashboard/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/properties"      element={<ProtectedLandlordRoute><LandlordProperties/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/tenants"         element={<ProtectedLandlordRoute><LandlordTenants/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/tenants/:id"     element={<ProtectedLandlordRoute><LandlordTenantDetail/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/applications"    element={<ProtectedLandlordRoute><LandlordApplications/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/maintenance"     element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/maintenance/:id" element={<ProtectedLandlordRoute><LandlordMaintenance/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/financials"              element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/financials/:tenantId"   element={<ProtectedLandlordRoute><LandlordFinancials/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/messages"        element={<ProtectedLandlordRoute><LandlordMessages/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/reports"         element={<ProtectedLandlordRoute><LandlordReports/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/snapshot"        element={<ProtectedLandlordRoute><FinancialSnapshot/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/budgets"         element={<ProtectedLandlordRoute><BudgetVsActual/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/agent"           element={<ProtectedLandlordRoute><LandlordAgentCenter/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/settings"        element={<ProtectedLandlordRoute><LandlordSettings/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/evictions"       element={<ProtectedLandlordRoute><EvictionWatch/></ProtectedLandlordRoute>}/>
+          <Route path="/landlord/inspections"     element={<ProtectedLandlordRoute><LandlordInspection/></ProtectedLandlordRoute>}/>
+        </Route>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Routes>

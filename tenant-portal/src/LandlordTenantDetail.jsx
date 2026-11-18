@@ -10,40 +10,41 @@ import PaymentLinesField from "./PaymentLinesField";
 import PaymentActions from "./PaymentActions";
 import TenantLedger from "./TenantLedger";
 import { fetchLandlordBalances, rentStanding, standingDisplay } from "./lib/tenantFinancials";
+import { PrimaryBtn } from "./ui/Button";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
 const STATUS = {
   current:     { label:"Current",     color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
   pending:     { label:"Pending",     color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
-  late:        { label:"Late",        color:"#E05555", bg:"rgba(224,85,85,0.13)"   },
+  late:        { label:"Late",        color:"#F07070", bg:"rgba(224,85,85,0.13)"   },
   paid:        { label:"Paid",        color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
-  upcoming:    { label:"Upcoming",    color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
-  failed:      { label:"Failed",      color:"#E05555", bg:"rgba(224,85,85,0.13)"   },
-  in_progress: { label:"In Progress", color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
+  upcoming:    { label:"Upcoming",    color:"#6AAEF0", bg:"rgba(74,154,232,0.13)"  },
+  failed:      { label:"Failed",      color:"#F07070", bg:"rgba(224,85,85,0.13)"   },
+  in_progress: { label:"In Progress", color:"#6AAEF0", bg:"rgba(74,154,232,0.13)"  },
   resolved:    { label:"Resolved",    color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
   open:        { label:"Open",        color:"#F0A430", bg:"rgba(240,164,48,0.13)"  },
   // Tenant standing (receivables ledger only; see rentStanding in lib/tenantFinancials)
-  owes:        { label:"Balance due",         color:"#E05555", bg:"rgba(224,85,85,0.13)"   },
+  owes:        { label:"Balance due",         color:"#F07070", bg:"rgba(224,85,85,0.13)"   },
   credit:      { label:"Credit",              color:"#72B02A", bg:"rgba(114,176,42,0.13)"  },
-  untracked:   { label:"Balance not tracked", color:"#9095A0", bg:"rgba(144,149,160,0.13)" },
-  priority_high:   { label:"High priority", color:"#E05555", bg:"rgba(224,85,85,0.13)"  },
-  priority_normal: { label:"Normal",        color:"#4A9AE8", bg:"rgba(74,154,232,0.13)"  },
-  archived:    { label:"Past tenant",         color:"#9095A0", bg:"rgba(144,149,160,0.13)" },
+  untracked:   { label:"Balance not tracked", color:"#B7BBC4", bg:"rgba(144,149,160,0.13)" },
+  priority_high:   { label:"High priority", color:"#F07070", bg:"rgba(224,85,85,0.13)"  },
+  priority_normal: { label:"Normal",        color:"#6AAEF0", bg:"rgba(74,154,232,0.13)"  },
+  archived:    { label:"Past tenant",         color:"#B7BBC4", bg:"rgba(144,149,160,0.13)" },
 };
 
 const TABS = ["Overview","Ledger","Payments","Recurring","Maintenance","Lease","Inspections","Notes"];
@@ -73,15 +74,6 @@ function Badge({ status }) {
   return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color,whiteSpace:"nowrap" }}>{cfg.label}</span>;
 }
 
-function PrimaryBtn({ children, onClick, disabled, small }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s",opacity:disabled?0.6:1,whiteSpace:"nowrap" }}
-      onMouseOver={e=>!disabled&&(e.currentTarget.style.background="rgba(201,169,110,0.07)")}
-      onMouseOut={e=>e.currentTarget.style.background="transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, disabled, small }) {
   return (

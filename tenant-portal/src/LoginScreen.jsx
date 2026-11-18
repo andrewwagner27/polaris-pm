@@ -3,17 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 
 const C = {
-  bg:       "#0A0B0D",
+  bg:       "#0B0D10",
   surface:  "#111316",
   raised:   "#181C21",
   border:   "#252930",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#7A5C2E",
-  blue:     "#4A9AE8",
-  red:      "#E05555",
+  blue:     "#6AAEF0",
+  red:      "#F07070",
 };
 
 function ModusMark({ size = 32 }) {
@@ -67,7 +67,7 @@ export default function LoginScreen({ onSuccess }) {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:#0A0B0D;}
+        body{background:#0B0D10;}
       `}</style>
 
       {/* Header */}
@@ -109,7 +109,7 @@ export default function LoginScreen({ onSuccess }) {
           </div>
 
           <div style={{ textAlign:"right",marginBottom:22 }}>
-            <button onClick={()=>navigate("/forgot-password")} style={{ fontSize:12,color:C.goldDim,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:0,transition:"color 0.15s" }}
+            <button onClick={()=>navigate("/forgot-password")} style={{ fontSize:12,color:"#C9A968",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:0,transition:"color 0.15s" }}
               onMouseOver={e=>e.currentTarget.style.color=C.gold}
               onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
             >Forgot password?</button>

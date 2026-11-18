@@ -3,19 +3,19 @@ import { supabase } from "./supabase";
 import { defaultVendorFor, isPreferredVendor, contractorContacts, responsibilityFor, isEmergencyTicket, specialistFor, ownerTopic } from "./lib/vendorRouting";
 
 const C = {
-  bg:        "#0A0B0D",
+  bg:        "#0B0D10",
   surface:   "#111316",
   raised:    "#181C21",
   border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
+  text:      "#F5F2EB",
+  textSub:   "#B7BBC4",
+  textMuted: "#9298A3",
+  gold:      "#C9A968",
   goldDim:   "#7A5C2E",
   green:     "#72B02A",
-  red:       "#E05555",
+  red:       "#F07070",
   amber:     "#F0A430",
-  blue:      "#4A9AE8",
+  blue:      "#6AAEF0",
 };
 
 const CATEGORY_ICONS = {
@@ -219,7 +219,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                 <div style={{ marginBottom: 20 }}>
                   {vendors.length > 0 && (
                     <button onClick={() => { setUseCustom(false); setVendorName(""); setVendorPhone(""); }}
-                      style={{ fontSize: 12, color: C.goldDim, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 12, padding: 0 }}>← Back to saved vendors</button>
+                      style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 12, padding: 0 }}>← Back to saved vendors</button>
                   )}
                   {vendors.length === 0 && (
                     <div style={{ fontSize: 12, color: C.textSub, marginBottom: 12 }}>No saved vendors for this property. <a href="/landlord/settings" style={{ color: C.gold }}>Add vendors in Settings →</a></div>

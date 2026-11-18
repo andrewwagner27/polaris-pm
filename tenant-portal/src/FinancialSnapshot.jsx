@@ -16,7 +16,7 @@ import { C, font } from "./lib/financialTheme";
 
 const serif = "'Cormorant Garamond', serif";
 const KIND_COLOR = { actual: "#7FA35A", scheduled: "#6F8FB8", entered: "#B5893F", estimate: "#A88A5C" };
-const INCOME = "#B5893F", EXPENSE = "#5A8FD6";   // validated pair: dataviz validator, dark mode, surface #14181F
+const INCOME = "#B5893F", EXPENSE = "#5A8FD6";   // validated pair: dataviz validator, dark mode, surface #15191F
 const selectStyle = { padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: "transparent", color: C.textSub, outline: "none", fontFamily: font, cursor: "pointer" };
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 };
 

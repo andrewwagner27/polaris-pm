@@ -15,7 +15,7 @@ import {
 // Actuals come only from the ledger (a32_monthly_actuals). Every definition lives in lib/budget.js.
 
 const serif = "'Cormorant Garamond', serif";
-const ACTUAL = "#B5893F", BUDGET = "#5A8FD6";   // validated pair (dataviz validator, dark surface #14181F)
+const ACTUAL = "#B5893F", BUDGET = "#5A8FD6";   // validated pair (dataviz validator, dark surface #15191F)
 const GOOD = "#7FA35A", BAD = "#D27C7C";
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 };
 const selectStyle = { padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: "transparent", color: C.textSub, outline: "none", fontFamily: font, cursor: "pointer" };

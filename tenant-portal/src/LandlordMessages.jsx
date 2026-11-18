@@ -2,21 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { PrimaryBtn } from "./ui/Button";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -44,21 +45,6 @@ function FieldLabel({ children }) {
   return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{children}</label>;
 }
 
-function PrimaryBtn({ children, onClick, disabled, small }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      background: "transparent", border: `1px solid ${C.goldDim}`,
-      color: C.gold, fontSize: small ? 11 : 13, fontWeight: 500,
-      padding: small ? "5px 10px" : "9px 18px", borderRadius: 7,
-      cursor: disabled ? "default" : "pointer",
-      fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s",
-      opacity: disabled ? 0.5 : 1,
-    }}
-      onMouseOver={e => !disabled && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
-      onMouseOut={e => e.currentTarget.style.background = "transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small }) {
   return (

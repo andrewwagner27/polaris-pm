@@ -3,17 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 
 const C = {
-  bg:       "#0A0B0D",
+  bg:       "#0B0D10",
   surface:  "#111316",
   raised:   "#181C21",
   border:   "#252930",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#7A5C2E",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
 };
 
 function ModusMark({ size = 32 }) {
@@ -69,7 +69,7 @@ export default function ForgotPassword() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0A0B0D; }
+        body { background: #0B0D10; }
       `}</style>
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "40px 36px", width: "100%", maxWidth: 400 }}>

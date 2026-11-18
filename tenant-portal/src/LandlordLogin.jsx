@@ -7,18 +7,18 @@ const LANDLORD_EMAILS = [
 ];
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -74,7 +74,7 @@ export default function LandlordLogin() {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0C0E12; }
+        body { background: #0B0D10; }
       `}</style>
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "40px 36px", width: "100%", maxWidth: 400 }}>
@@ -109,7 +109,7 @@ export default function LandlordLogin() {
         </div>
 
         <div style={{ textAlign: "right", marginBottom: 24 }}>
-          <button onClick={() => navigate("/forgot-password")} style={{ fontSize: 12, color: C.goldDim, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s" }}
+          <button onClick={() => navigate("/forgot-password")} style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s" }}
             onMouseOver={e => e.currentTarget.style.color = C.gold}
             onMouseOut={e => e.currentTarget.style.color = C.goldDim}
           >Forgot password?</button>

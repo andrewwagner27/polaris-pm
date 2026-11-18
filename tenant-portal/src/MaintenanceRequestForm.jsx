@@ -21,13 +21,13 @@ const C = {
   border:   "#E4E1DA",
   text:     "#18181B",
   textSub:  "#52525B",
-  textMuted:"#A1A1AA",
-  gold:     "#8B6914",
+  textMuted:"#6B6B73",
+  gold:     "#7A5C12",
   goldBg:   "#FBF6EC",
   goldDim:  "#C9A96E",
   blue:     "#1D4ED8",
   green:    "#15803D",
-  red:      "#DC2626",
+  red:      "#B91C1C",
   amber:    "#92400E",
 };
 

@@ -7,9 +7,9 @@
 export function notifyStatusLabel(row) {
   const s = row?.raw_openai_response?.notify?.status;
   if (s === "sent") return { label: "emailed", color: "#72B02A", ok: true };
-  if (s === "duplicate") return { label: "duplicate (handled by another record)", color: "#9095A0", ok: true };
-  if (s === "failed") return { label: "EMAIL FAILED", color: "#E05555", ok: false };
-  if (s === "unconfirmed") return { label: "EMAIL NOT CONFIRMED", color: "#E05555", ok: false };
+  if (s === "duplicate") return { label: "duplicate (handled by another record)", color: "#B7BBC4", ok: true };
+  if (s === "failed") return { label: "EMAIL FAILED", color: "#F07070", ok: false };
+  if (s === "unconfirmed") return { label: "EMAIL NOT CONFIRMED", color: "#F07070", ok: false };
   if (s === "pending") return { label: "email not confirmed", color: "#F0A430", ok: false };
   return { label: "not emailed", color: "#F0A430", ok: false };
 }

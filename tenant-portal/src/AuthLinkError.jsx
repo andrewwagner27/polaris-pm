@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AUTH_LINK_MESSAGES, linkErrorRedirect } from "./lib/onboardingLink";
 
-const C = { bg: "#F5F3EE", surface: "#FFFFFF", border: "#E4E1DA", text: "#18181B", textSub: "#52525B", gold: "#8B6914" };
+const C = { bg: "#F5F3EE", surface: "#FFFFFF", border: "#E4E1DA", text: "#18181B", textSub: "#52525B", gold: "#7A5C12" };
 
 export default function AuthLinkError() {
   const navigate = useNavigate();

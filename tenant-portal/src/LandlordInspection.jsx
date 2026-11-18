@@ -5,18 +5,18 @@ import { getSignedStorageUrl } from "./storageUtils";
 import { escapeHtml, textToHtml } from "./lib/emailSafety";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -49,7 +49,7 @@ function SignedPhoto({ urlOrPath, style, captionStyle, room, caption }) {
   }, [urlOrPath]);
   if (!src) return (
     <div style={{ ...style, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <span style={{ fontSize:9, color:"#5C6270" }}>…</span>
+      <span style={{ fontSize:9, color:"#9298A3" }}>…</span>
     </div>
   );
   return (
@@ -250,12 +250,12 @@ async function sendInspectionEmail({ to, subject, html }) {
 }
 
 function inspectionEmailBase(bodyContent) {
-  return `<div style="font-family:'DM Sans',Arial,sans-serif;background:#0A0B0D;padding:32px;border-radius:8px;max-width:600px;margin:auto">
-  <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#C9A96E;margin-bottom:4px">Modus Property Management</div>
+  return `<div style="font-family:'DM Sans',Arial,sans-serif;background:#0B0D10;padding:32px;border-radius:8px;max-width:600px;margin:auto">
+  <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#C9A968;margin-bottom:4px">Modus Property Management</div>
   <hr style="border:none;border-top:1px solid #252930;margin:14px 0 20px"/>
   ${bodyContent}
   <hr style="border:none;border-top:1px solid #252930;margin:24px 0 14px"/>
-  <p style="font-size:11px;color:#5C6270">This is an automated message from Modus Property Management. Do not reply to this email.</p>
+  <p style="font-size:11px;color:#9298A3">This is an automated message from Modus Property Management. Do not reply to this email.</p>
 </div>`;
 }
 
@@ -359,17 +359,17 @@ export default function LandlordInspection() {
         to: tenantRec.email,
         subject: "Your Move-In Inspection Is Ready — Please Complete Your Walkthrough",
         html: inspectionEmailBase(`
-          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tenantRec.name?.split(" ")[0] || "there")},</p>
-          <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:16px">
+          <p style="color:#F5F2EB;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tenantRec.name?.split(" ")[0] || "there")},</p>
+          <p style="color:#B7BBC4;font-size:14px;line-height:1.6;margin-bottom:16px">
             Your property manager has completed the pre-move-in inspection for your unit.
             Please log in to the tenant portal and complete your own walkthrough to confirm the unit's condition.
           </p>
           <div style="text-align:center;margin:24px 0">
-            <a href="https://www.getmodusam.com/inspection" style="display:inline-block;padding:12px 28px;background:#7A5C2E;border-radius:6px;color:#C9A96E;font-weight:600;font-size:14px;text-decoration:none">
+            <a href="https://www.getmodusam.com/inspection" style="display:inline-block;padding:12px 28px;background:#7A5C2E;border-radius:6px;color:#C9A968;font-weight:600;font-size:14px;text-decoration:none">
               Complete My Walkthrough →
             </a>
           </div>
-          <p style="color:#5C6270;font-size:12px">Inspection date: ${escapeHtml(fDate)}</p>
+          <p style="color:#9298A3;font-size:12px">Inspection date: ${escapeHtml(fDate)}</p>
         `),
       });
     }
@@ -420,23 +420,23 @@ export default function LandlordInspection() {
       const totalDed   = deductions.reduce((s,d)=>s+(parseFloat(d.amount)||0),0);
       const dep        = parseFloat(moDeposit)||0;
       const refundAmt  = Math.max(0, dep - totalDed);
-      const deductRows = deductions.map(d=>`<tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">${escapeHtml(d.description)}</td><td style="padding:5px 8px;color:#E05555;font-size:13px;text-align:right">-$${parseFloat(d.amount).toFixed(2)}</td></tr>`).join("");
+      const deductRows = deductions.map(d=>`<tr><td style="padding:5px 8px;color:#B7BBC4;font-size:13px">${escapeHtml(d.description)}</td><td style="padding:5px 8px;color:#F07070;font-size:13px;text-align:right">-$${parseFloat(d.amount).toFixed(2)}</td></tr>`).join("");
       await sendInspectionEmail({
         to: tRec.email,
         subject: "Move-Out Inspection Complete — Deposit Summary",
         html: inspectionEmailBase(`
-          <p style="color:#EDEAE2;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tRec.name?.split(" ")[0] || "there")},</p>
-          <p style="color:#9095A0;font-size:14px;line-height:1.6;margin-bottom:20px">
+          <p style="color:#F5F2EB;font-size:15px;margin-bottom:16px">Hi ${escapeHtml(tRec.name?.split(" ")[0] || "there")},</p>
+          <p style="color:#B7BBC4;font-size:14px;line-height:1.6;margin-bottom:20px">
             Your move-out inspection has been completed. Here is your deposit summary:
           </p>
           <table style="width:100%;border-collapse:collapse;background:#111316;border-radius:6px;overflow:hidden;margin-bottom:16px">
-            <tr style="background:#181C21"><td style="padding:8px;color:#5C6270;font-size:11px;font-weight:600">ITEM</td><td style="padding:8px;color:#5C6270;font-size:11px;font-weight:600;text-align:right">AMOUNT</td></tr>
-            <tr><td style="padding:5px 8px;color:#9095A0;font-size:13px">Deposit held</td><td style="padding:5px 8px;color:#EDEAE2;font-size:13px;text-align:right">$${dep.toFixed(2)}</td></tr>
+            <tr style="background:#181C21"><td style="padding:8px;color:#9298A3;font-size:11px;font-weight:600">ITEM</td><td style="padding:8px;color:#9298A3;font-size:11px;font-weight:600;text-align:right">AMOUNT</td></tr>
+            <tr><td style="padding:5px 8px;color:#B7BBC4;font-size:13px">Deposit held</td><td style="padding:5px 8px;color:#F5F2EB;font-size:13px;text-align:right">$${dep.toFixed(2)}</td></tr>
             ${deductRows}
-            <tr style="background:#181C21"><td style="padding:8px;color:#EDEAE2;font-size:14px;font-weight:700">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#E05555"};font-size:14px;font-weight:700;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
+            <tr style="background:#181C21"><td style="padding:8px;color:#F5F2EB;font-size:14px;font-weight:700">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#F07070"};font-size:14px;font-weight:700;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
           </table>
-          ${moNotes ? `<p style="color:#5C6270;font-size:12px;line-height:1.5">${textToHtml(moNotes)}</p>` : ""}
-          <p style="color:#5C6270;font-size:12px;margin-top:12px">Please contact us with any questions about this summary.</p>
+          ${moNotes ? `<p style="color:#9298A3;font-size:12px;line-height:1.5">${textToHtml(moNotes)}</p>` : ""}
+          <p style="color:#9298A3;font-size:12px;margin-top:12px">Please contact us with any questions about this summary.</p>
         `),
       });
     }

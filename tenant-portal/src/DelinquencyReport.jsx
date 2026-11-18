@@ -3,8 +3,8 @@ import { supabase } from "./supabase";
 import { SCOPES, balanceDisplayRows, delinquencyCSV, fmtCents, todayNY } from "./lib/accounting";
 
 const C = {
-  surface:"#14181F", raised:"#1A1F29", border:"rgba(255,255,255,0.08)", text:"#EDEAE2", textSub:"#9095A0",
-  textMuted:"#5C6270", gold:"#C9A96E", goldDim:"#6B4F24", green:"#72B02A", red:"#E05555", amber:"#F0A430", blue:"#4A9AE8",
+  surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4",
+  textMuted:"#9298A3", gold:"#C9A968", goldDim:"#6B4F24", green:"#72B02A", red:"#F07070", amber:"#F0A430", blue:"#6AAEF0",
 };
 const selectStyle = { padding:"8px 12px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark" };
 const th = (right) => ({ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });

@@ -4,8 +4,8 @@ import { fmtCents, paymentCents, parseDollarsToCents, todayNY, isCollected } fro
 import { A3_ENABLED } from "./lib/release";
 
 const C = {
-  surface:"#14181F", raised:"#1A1F29", border:"rgba(255,255,255,0.08)", text:"#EDEAE2", textSub:"#9095A0",
-  textMuted:"#5C6270", gold:"#C9A96E", goldDim:"#6B4F24", red:"#E05555",
+  surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4",
+  textMuted:"#9298A3", gold:"#C9A968", goldDim:"#6B4F24", red:"#F07070",
 };
 const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark" };
 const small = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginRight:6,whiteSpace:"nowrap" });

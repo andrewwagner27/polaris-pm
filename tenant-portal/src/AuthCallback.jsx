@@ -95,13 +95,13 @@ export default function AuthCallback() {
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
       minHeight: "100vh", fontFamily: "'DM Sans', sans-serif",
-      flexDirection: "column", gap: 12, color: "#9095A0",
-      background: "#0A0B0D",
+      flexDirection: "column", gap: 12, color: "#B7BBC4",
+      background: "#0B0D10",
     }}>
       <div style={{
         width: 36, height: 36,
         border: "3px solid rgba(201,169,110,0.2)",
-        borderTopColor: "#C9A96E",
+        borderTopColor: "#C9A968",
         borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
       }} />

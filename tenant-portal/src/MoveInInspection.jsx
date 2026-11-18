@@ -8,9 +8,9 @@ import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:"#F5F3EE", surface:"#FFFFFF", raised:"#F8F7F4", border:"#E4E1DA",
-  text:"#18181B", textSub:"#52525B", textMuted:"#A1A1AA",
-  gold:"#8B6914", goldBg:"#FBF6EC", goldDim:"#C9A96E",
-  blue:"#1D4ED8", green:"#15803D", red:"#DC2626", amber:"#92400E",
+  text:"#18181B", textSub:"#52525B", textMuted:"#6B6B73",
+  gold:"#7A5C12", goldBg:"#FBF6EC", goldDim:"#C9A96E",
+  blue:"#1D4ED8", green:"#15803D", red:"#B91C1C", amber:"#92400E",
 };
 
 
@@ -207,7 +207,7 @@ export default function MoveInInspection() {
                 </div>
                 <div style={{ padding:"10px 16px 12px" }}>
                   {(room.items||[]).map((item,ii) => {
-                    const STATUS_COLOR = { Good:"#72B02A", Fair:"#F0A430", Poor:"#E05555", "N/A":"#5C6270" };
+                    const STATUS_COLOR = { Good:"#166534", Fair:"#92400E", Poor:"#B91C1C", "N/A":"#6B6B73" };
                     return (
                       <div key={ii} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
                         <span style={{ color:C.textSub }}>{item.name}</span>

@@ -2,18 +2,18 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const C = {
-  bg:       "#0A0B0D",
+  bg:       "#0B0D10",
   surface:  "#111316",
   raised:   "#181C21",
   border:   "#252930",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#7A5C2E",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -66,10 +66,10 @@ export default function LandingPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0A0B0D; }
+        body { background: #0B0D10; }
         @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .m-nav-btn:hover { background: rgba(201,169,110,0.07) !important; }
-        .m-nav-ghost:hover { border-color: #353A44 !important; color: #EDEAE2 !important; }
+        .m-nav-ghost:hover { border-color: #353A44 !important; color: #F5F2EB !important; }
         .m-feature:hover { border-color: #353A44 !important; background: #181C21 !important; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #252930; border-radius: 2px; }
       `}</style>

@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { PAYMENT_CATEGORIES, fmtCents, centsToDecimal, openByCategory } from "./lib/accounting";
 
 const C = {
-  raised:"#1A1F29", border:"rgba(255,255,255,0.08)", text:"#EDEAE2", textSub:"#9095A0", textMuted:"#5C6270", gold:"#C9A96E",
+  raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4", textMuted:"#9298A3", gold:"#C9A968",
 };
 const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif" };
 const labelStyle = { fontSize:11,fontWeight:600,color:C.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em" };

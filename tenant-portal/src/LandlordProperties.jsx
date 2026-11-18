@@ -4,34 +4,35 @@ import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { paymentCents } from "./lib/accounting";
 import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
+import { PrimaryBtn } from "./ui/Button";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
 const STATUS = {
   paid:    { label: "Paid",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
   pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
-  vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
+  late:    { label: "Late",    color: "#F07070", bg: "rgba(224,85,85,0.13)" },
+  vacant:  { label: "Vacant",  color: "#9298A3", bg: "rgba(92,98,112,0.15)" },
   // Tenant standing from the receivables ledger (lib/tenantFinancials rentStanding); never inferred from rent.
-  owes:      { label: "Balance due", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  owes:      { label: "Balance due", color: "#F07070", bg: "rgba(224,85,85,0.13)" },
   current:   { label: "Paid up",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
   credit:    { label: "Credit",      color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  untracked: { label: "Not tracked", color: "#9095A0", bg: "rgba(144,149,160,0.13)" },
-  upcoming:  { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
+  untracked: { label: "Not tracked", color: "#B7BBC4", bg: "rgba(144,149,160,0.13)" },
+  upcoming:  { label: "Upcoming",    color: "#6AAEF0", bg: "rgba(74,154,232,0.13)" },
 };
 
 const PROP_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
@@ -52,14 +53,6 @@ function Badge({ status }) {
   return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:cfg.bg,color:cfg.color }}>{cfg.label}</span>;
 }
 
-function PrimaryBtn({ children, onClick, small }) {
-  return (
-    <button onClick={onClick} style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:small?11:13,fontWeight:500,padding:small?"6px 12px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.04em",transition:"background 0.15s" }}
-      onMouseOver={e=>e.currentTarget.style.background="rgba(201,169,110,0.07)"}
-      onMouseOut={e=>e.currentTarget.style.background="transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small }) {
   return (

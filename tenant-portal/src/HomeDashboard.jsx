@@ -8,10 +8,10 @@ import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:"#F5F3EE", surface:"#FFFFFF", raised:"#F8F7F4", border:"#E4E1DA",
-  text:"#18181B", textSub:"#52525B", textMuted:"#A1A1AA",
-  gold:"#8B6914", goldBg:"#FBF6EC", goldDim:"#C9A96E",
+  text:"#18181B", textSub:"#52525B", textMuted:"#6B6B73",
+  gold:"#7A5C12", goldBg:"#FBF6EC", goldDim:"#C9A96E",
   green:"#15803D", greenBg:"#F0FDF4",
-  red:"#DC2626", redBg:"#FEF2F2",
+  red:"#B91C1C", redBg:"#FEF2F2",
   blue:"#1D4ED8", blueBg:"#EFF6FF",
   amber:"#92400E", amberBg:"#FFFBEB",
 };

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabase";
 
-const C = { red:"#E05555", text:"#EDEAE2", textSub:"#9095A0", gold:"#C9A96E" };
+const C = { red:"#F07070", text:"#F5F2EB", textSub:"#B7BBC4", gold:"#C9A968" };
 
 const PROBLEM = {
   no_owner_email:      "no owner email on the property",

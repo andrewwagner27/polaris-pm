@@ -8,7 +8,7 @@ html, body, #root {
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
-  background: #0A0B0D;
+  background: #0B0D10;
 }
 
 #root {
@@ -30,3 +30,49 @@ html, body, #root {
 @media (max-width: 767px) {
   .full-height { height: calc(100vh - 118px - env(safe-area-inset-bottom)); height: calc(100dvh - 118px - env(safe-area-inset-bottom)); }
 }
+
+/* ── Modus design system (src/lib/tokens.js) ───────────────────────────────────────────────────────────── */
+/* Buttons: one treatment everywhere. Filled primary = Action Gold with dark text; ghost = Action Gold text. */
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 18px;
+  border-radius: 10px; border: 1px solid transparent; font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+  cursor: pointer; white-space: nowrap; transition: filter .15s, background .15s, border-color .15s; }
+.m-btn-small { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.m-btn-ghost { background: transparent; }
+.m-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.m-btn-ghost:hover:not(:disabled) { background: rgba(201,169,104,0.08); }
+.m-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+@media (max-width: 720px) { .m-btn, .m-btn-small { min-height: 44px; } }
+
+/* Keyboard focus: always visible, never on mouse click. Gold on dark, deep gold on the light tenant portal. */
+:focus-visible { outline: 2px solid #C9A968; outline-offset: 2px; }
+.t-light :focus-visible { outline-color: #7A5C12; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* Placeholders and disabled fields keep AA contrast (were browser default ~#757575 on #1C2129: 3.6:1). */
+.l-shell input::placeholder, .l-shell textarea::placeholder { color: #9298A3; opacity: 1; }
+.t-light input::placeholder, .t-light textarea::placeholder { color: #6B6B73; opacity: 1; }
+
+/* Responsive helpers used by the management screens. */
+.m-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.m-grid-2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.m-only-mobile { display: none; }
+@media (max-width: 720px) {
+  .m-only-desktop { display: none !important; }
+  .m-only-mobile { display: block; }
+  .m-page { padding: 16px !important; }
+}
+.m-page { padding: 28px 32px; max-width: 1440px; }
+@media (min-width: 721px) and (max-width: 1024px) { .m-page { padding: 24px !important; } }
+
+/* Drawer / sheet: right-hand slide-over on desktop, full-height sheet on phones. */
+@keyframes m-slide-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes m-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes m-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+.m-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); z-index: 400; overflow-y: auto;
+  animation: m-slide-in .2s ease-out; overscroll-behavior: contain; }
+.m-scrim { position: fixed; inset: 0; z-index: 390; background: rgba(0,0,0,0.6); animation: m-fade-in .15s ease-out; }
+@media (max-width: 720px) {
+  .m-drawer { width: 100vw; top: env(safe-area-inset-top); animation: m-sheet-in .22s ease-out;
+    border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+@media (prefers-reduced-motion: reduce) { .m-drawer, .m-scrim { animation: none !important; } }

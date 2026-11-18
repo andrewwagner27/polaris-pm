@@ -3,19 +3,19 @@ import { useParams, useNavigate } from "react-router-dom";
 import { vendorPreview, vendorVerifyPin, vendorCall, clearLegacyVendorStorage, VendorAuthError } from "./vendorApi";
 
 const C = {
-  bg:        "#0A0B0D",
+  bg:        "#0B0D10",
   surface:   "#111316",
   raised:    "#181C21",
   border:    "#252930",
-  text:      "#EDEAE2",
-  textSub:   "#9095A0",
-  textMuted: "#5C6270",
-  gold:      "#C9A96E",
+  text:      "#F5F2EB",
+  textSub:   "#B7BBC4",
+  textMuted: "#9298A3",
+  gold:      "#C9A968",
   goldDim:   "#7A5C2E",
   green:     "#72B02A",
-  red:       "#E05555",
+  red:       "#F07070",
   amber:     "#F0A430",
-  blue:      "#4A9AE8",
+  blue:      "#6AAEF0",
 };
 
 function ModusMark({ size = 32 }) {

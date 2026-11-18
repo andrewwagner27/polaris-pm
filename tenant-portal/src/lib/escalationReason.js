@@ -10,15 +10,15 @@ import { wantsHuman } from "../../api/_lib/aiSafety.js";
 import { detectEmergency } from "../../api/_lib/emergencyRules.js";
 
 export const REASONS = Object.freeze({
-  safety:           { label: "Safety emergency",              color: "#E05555", gap: false },
+  safety:           { label: "Safety emergency",              color: "#F07070", gap: false },
   maintenance:      { label: "Maintenance issue",            color: "#F0A430", gap: false },
-  human_request:    { label: "Asked for a person",            color: "#4A9AE8", gap: false },
-  missing_property: { label: "Missing property information",  color: "#C9A96E", gap: true  },
-  missing_policy:   { label: "Missing policy or procedure",   color: "#C9A96E", gap: true  },
-  management_decision: { label: "Needs a management decision", color: "#9095A0", gap: false },
-  ai_unavailable:   { label: "AI unavailable",                color: "#E05555", gap: false },
+  human_request:    { label: "Asked for a person",            color: "#6AAEF0", gap: false },
+  missing_property: { label: "Missing property information",  color: "#C9A968", gap: true  },
+  missing_policy:   { label: "Missing policy or procedure",   color: "#C9A968", gap: true  },
+  management_decision: { label: "Needs a management decision", color: "#B7BBC4", gap: false },
+  ai_unavailable:   { label: "AI unavailable",                color: "#F07070", gap: false },
   ai_uncertain:     { label: "AI uncertain",                  color: "#F0A430", gap: false },
-  other:            { label: "Other",                         color: "#9095A0", gap: false },
+  other:            { label: "Other",                         color: "#B7BBC4", gap: false },
 });
 
 // The phrases the system prompt tells the AI to use when the knowledge base doesn't cover a question.

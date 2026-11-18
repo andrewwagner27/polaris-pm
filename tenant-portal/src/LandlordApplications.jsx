@@ -4,20 +4,21 @@ import { supabase, authHeaders } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { getSignedStorageUrl } from "./storageUtils";
 import { escapeHtml, textToHtml } from "./lib/emailSafety";
+import { PrimaryBtn } from "./ui/Button";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -58,15 +59,6 @@ function Field({ label, value, onChange, type="text", placeholder, required }) {
   );
 }
 
-function PrimaryBtn({ children, onClick, disabled, small }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s",opacity:disabled?0.6:1,whiteSpace:"nowrap" }}
-      onMouseOver={e=>!disabled&&(e.currentTarget.style.background="rgba(201,169,110,0.07)")}
-      onMouseOut={e=>e.currentTarget.style.background="transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small }) {
   return (
@@ -272,20 +264,20 @@ export default function LandlordApplications() {
             to: app.email,
             subject: "Your rental application — update",
             html: `
-              <div style="background:#0A0B0D;padding:32px 20px;font-family:'Helvetica Neue',sans-serif;">
+              <div style="background:#0B0D10;padding:32px 20px;font-family:'Helvetica Neue',sans-serif;">
                 <div style="background:#111316;border:1px solid #252930;border-radius:12px;max-width:560px;margin:0 auto;overflow:hidden;">
                   <div style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
-                    <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
-                    <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Application Update</h2>
+                    <p style="margin:0;font-size:11px;font-weight:600;color:#9298A3;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
+                    <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#F5F2EB;font-family:Georgia,serif;">Application Update</h2>
                   </div>
                   <div style="padding:24px 32px;">
-                    <p style="color:#9095A0;font-size:14px;margin:0 0 16px;">Hi ${escapeHtml(app.name)},</p>
-                    <p style="color:#9095A0;font-size:14px;margin:0 0 16px;">Thank you for your interest in our property. After careful review, we are unable to approve your application at this time.</p>
-                    ${declineReason ? `<p style="color:#9095A0;font-size:14px;margin:0 0 16px;">${textToHtml(declineReason)}</p>` : ""}
-                    <p style="color:#9095A0;font-size:14px;margin:0;">If you have any questions, please don't hesitate to reach out.</p>
+                    <p style="color:#B7BBC4;font-size:14px;margin:0 0 16px;">Hi ${escapeHtml(app.name)},</p>
+                    <p style="color:#B7BBC4;font-size:14px;margin:0 0 16px;">Thank you for your interest in our property. After careful review, we are unable to approve your application at this time.</p>
+                    ${declineReason ? `<p style="color:#B7BBC4;font-size:14px;margin:0 0 16px;">${textToHtml(declineReason)}</p>` : ""}
+                    <p style="color:#B7BBC4;font-size:14px;margin:0;">If you have any questions, please don't hesitate to reach out.</p>
                   </div>
                   <div style="padding:16px 32px;border-top:1px solid #252930;">
-                    <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management</p>
+                    <p style="margin:0;font-size:11px;color:#9298A3;">Modus Property Management</p>
                   </div>
                 </div>
               </div>
