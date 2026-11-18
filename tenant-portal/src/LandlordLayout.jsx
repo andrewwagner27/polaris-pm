@@ -202,19 +202,19 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         .l-account{display:flex;align-items:center;gap:10px;width:100%;padding:14px 18px;background:transparent;border:none;cursor:pointer;font:inherit;color:inherit;}
         .l-scope{position:relative;display:inline-flex;align-items:center;gap:8px;min-height:40px;max-width:min(260px,52vw);padding:0 10px 0 12px;border:1px solid ${C.border};border-radius:10px;background:${C.surface};cursor:pointer;}
         .l-scope:focus-within{outline:2px solid ${C.focus};outline-offset:2px;}
-        .l-scope select{appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:${C.text};font:inherit;font-size:13px;font-weight:500;padding-right:16px;min-width:0;max-width:100%;text-overflow:ellipsis;cursor:pointer;color-scheme:dark;}
+        .l-scope select{appearance:none;-webkit-appearance:none;align-self:stretch;min-height:38px;background:transparent;border:none;outline:none;color:${C.text};font:inherit;font-size:13px;font-weight:500;padding-right:16px;min-width:0;max-width:100%;text-overflow:ellipsis;cursor:pointer;color-scheme:dark;}
         .l-scope select:focus-visible{outline:none;}
         .l-scope::after{content:"";position:absolute;right:12px;top:50%;width:6px;height:6px;border-right:1.5px solid ${C.textSub};border-bottom:1.5px solid ${C.textSub};transform:translateY(-70%) rotate(45deg);pointer-events:none;}
         .l-scope-static{font-size:13px;color:${C.textSub};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
         .l-header{position:sticky;top:0;z-index:150;display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 32px;background:rgba(11,13,16,0.94);backdrop-filter:blur(8px);border-bottom:1px solid ${C.border};}
         .l-bottom{display:none;}
         .l-content{flex:1;min-width:0;display:flex;flex-direction:column;}
-        @media (max-width:1024px){ .l-header{padding:8px 24px;} }
+        @media (max-width:1024px){ .l-header{padding:8px 24px;} .l-nav{min-height:44px!important;} .l-scope{min-height:44px;} .l-scope select{min-height:42px;} }
         @media (max-width:720px){
           .l-shell{flex-direction:column;}
           .l-side{display:none!important;}
           .l-header{padding:6px 12px 6px 14px;padding-top:max(6px, env(safe-area-inset-top));}
-          .l-scope{min-height:44px;}
+          .l-scope{min-height:44px;} .l-scope select{min-height:42px;}
           .l-main{padding-bottom:calc(76px + env(safe-area-inset-bottom));}
           .l-bottom{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:300;background:${C.bg};border-top:1px solid ${C.border};padding:4px 4px calc(4px + env(safe-area-inset-bottom));}
           .l-tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;border:none;background:transparent;color:${C.textSub};font:inherit;font-size:11px;font-weight:500;text-decoration:none;border-radius:10px;cursor:pointer;}

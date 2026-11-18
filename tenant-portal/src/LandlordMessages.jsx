@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { PrimaryBtn } from "./ui/Button";
+import { usePropertyScope, ALL } from "./lib/propertyScope";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -135,7 +136,9 @@ export default function LandlordMessages() {
   const [input, setInput]               = useState("");
   const [search, setSearch]             = useState("");
   const [filter, setFilter]             = useState("all");
-  const [propFilter, setPropFilter]     = useState("all");
+  // The conversation list follows the global property scope in the header (no second, conflicting filter).
+  const { selectedPropertyId } = usePropertyScope();
+  const propFilter = selectedPropertyId === ALL ? "all" : selectedPropertyId;
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastSent, setBroadcastSent] = useState(null);
   const [loading, setLoading]           = useState(true);
@@ -305,14 +308,10 @@ export default function LandlordMessages() {
 
           {/* Filters */}
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
-            <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ width: "100%", padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
-              <option value="all">All properties</option>
-              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
             <div style={{ display: "flex", gap: 6 }}>
               {["all", "unread"].map(f => (
-                <button key={f} onClick={() => setFilter(f)} style={{
-                  padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 500,
+                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} style={{
+                  minHeight: 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
                   background: filter === f ? "rgba(201,169,110,0.12)" : "transparent",
                   color: filter === f ? C.text : C.textSub,
                   border: `1px solid ${filter === f ? C.goldDim : C.border}`,

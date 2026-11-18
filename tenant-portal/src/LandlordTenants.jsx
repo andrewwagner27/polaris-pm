@@ -441,6 +441,7 @@ export default function LandlordTenants() {
         .t-tabs{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid ${C.border};}
         .t-tabs::-webkit-scrollbar{display:none;}
         .t-sort{background:none;border:none;font:inherit;color:inherit;cursor:pointer;text-transform:inherit;letter-spacing:inherit;padding:0;}
+        @media (max-width:1024px){ .t-sort{min-height:44px;} }
       `}</style>
 
       <div className="m-page" style={{ color:C.text,fontFamily:"'DM Sans',sans-serif" }}>

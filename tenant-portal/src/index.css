@@ -37,11 +37,12 @@ html, body, #root {
   border-radius: 10px; border: 1px solid transparent; font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
   cursor: pointer; white-space: nowrap; transition: filter .15s, background .15s, border-color .15s; }
 .m-btn-small { min-height: 34px; padding: 0 12px; font-size: 12px; }
-.m-btn-ghost { background: transparent; }
+.m-btn-ghost { background: transparent; color: #C9A968; border-color: #303640; }
+.t-light .m-btn-ghost { color: #7A5C12; border-color: #E4E1DA; }
 .m-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .m-btn-ghost:hover:not(:disabled) { background: rgba(201,169,104,0.08); }
 .m-btn:disabled { cursor: not-allowed; opacity: 0.55; }
-@media (max-width: 720px) { .m-btn, .m-btn-small { min-height: 44px; } }
+@media (max-width: 1024px) { .m-btn, .m-btn-small { min-height: 44px; } }
 
 /* Keyboard focus: always visible, never on mouse click. Gold on dark, deep gold on the light tenant portal. */
 :focus-visible { outline: 2px solid #C9A968; outline-offset: 2px; }
@@ -53,7 +54,7 @@ html, body, #root {
 .t-light input::placeholder, .t-light textarea::placeholder { color: #6B6B73; opacity: 1; }
 
 /* Responsive helpers used by the management screens. */
-.m-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.m-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr)); }
 .m-grid-2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
 .m-only-mobile { display: none; }
 @media (max-width: 720px) {
@@ -76,3 +77,12 @@ html, body, #root {
     border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
 @media (prefers-reduced-motion: reduce) { .m-drawer, .m-scrim { animation: none !important; } }
+
+/* Horizontal chip rows: scroll without a visible scrollbar. */
+.m-scroll-x { overflow-x: auto; scrollbar-width: none; }
+.m-scroll-x::-webkit-scrollbar { display: none; }
+/* Small inline record actions (Refund / Void / Returned) stay compact on desktop, 44px on phones. */
+@media (max-width: 1024px) { .pa-btn { min-height: 44px; padding: 0 14px !important; font-size: 13px !important; } }
+
+/* Search fields wrapped in a 44px label: the input itself fills the label so the whole area is tappable. */
+label > input[type="search"], label > input:not([type]) { align-self: stretch; min-height: 40px; }

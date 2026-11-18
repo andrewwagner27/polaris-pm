@@ -307,7 +307,7 @@ export default function MessagingScreen() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-            placeholder="Message Modus Property Management…"
+            placeholder="Write a message…"
             aria-label="Message to Modus Property Management"
             enterKeyHint="send"
             // On phones the keyboard can cover the composer: keep it in view once the keyboard has opened.

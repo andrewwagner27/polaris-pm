@@ -125,13 +125,13 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={() => navigate("/bulletin")}
-              style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:6, cursor:"pointer", padding:"4px 10px", fontSize:12, color:C.textSub, fontFamily:"'DM Sans',sans-serif" }}>
+              style={{ minHeight:44, background:"none", border:`1px solid ${C.border}`, borderRadius:10, cursor:"pointer", padding:"0 14px", fontSize:13, color:C.textSub, fontFamily:"'DM Sans',sans-serif" }}>
               Board
             </button>
-            <div onClick={() => navigate("/account")}
-              style={{ width:32, height:32, borderRadius:"50%", background:C.goldBg, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+            <button type="button" onClick={() => navigate("/account")} aria-label="Account"
+              style={{ width:44, height:44, borderRadius:"50%", background:C.goldBg, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, cursor:"pointer", padding:0 }}>
               {initials}
-            </div>
+            </button>
           </div>
         </div>
 

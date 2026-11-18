@@ -341,9 +341,9 @@ function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
   return (
     <div>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10 }}>
-        <div style={{ display:"flex",gap:8,overflowX:"auto",maxWidth:"100%" }}>
+        <div className="m-scroll-x" style={{ display:"flex",gap:8,maxWidth:"100%" }}>
           {["all","paid","pending","failed","returned","void"].map(f=>(
-            <button key={f} onClick={()=>setFilter(f)}
+            <button key={f} type="button" className="f-pill" aria-pressed={filter===f} onClick={()=>setFilter(f)}
               style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
@@ -545,7 +545,7 @@ function ExpensesTab({ expenses, properties, units, onRefresh }) {
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10 }}>
         <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
           {["all","paid","unpaid","void"].map(f=>(
-            <button key={f} onClick={()=>setFilter(f)}
+            <button key={f} type="button" className="f-pill" aria-pressed={filter===f} onClick={()=>setFilter(f)}
               style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
@@ -716,6 +716,8 @@ export default function LandlordFinancials() {
       <style>{`
         .f-tabs{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid ${C.border};margin-bottom:20px;}
         .f-tabs::-webkit-scrollbar{display:none;}
+        .f-pill{white-space:nowrap;flex-shrink:0;}
+        @media (max-width:1024px){ .f-pill{min-height:44px;padding:0 14px!important;font-size:13px!important;} }
         .f-tile{background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;}
         /* Phones: wide tables become record cards (each cell shows its column label). */
         @media (max-width:720px){

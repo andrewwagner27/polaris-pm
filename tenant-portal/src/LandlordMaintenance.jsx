@@ -498,7 +498,7 @@ export default function LandlordMaintenance() {
         .m-row:hover td{background:${C.raised}!important;}
         .m-stat{background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%;}
         .m-stat:hover{border-color:#3C4350;}
-        @media (max-width:720px){ .m-filter{min-height:44px;} .m-chip{min-height:44px;} .m-ticket-actions .m-btn{flex:1;} }
+        @media (max-width:1024px){ .m-filter{min-height:44px;} .m-chip{min-height:44px;} } @media (max-width:720px){ .m-ticket-actions .m-btn{flex:1;} }
       `}</style>
 
       <div className="m-page" style={{ color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
@@ -518,7 +518,7 @@ export default function LandlordMaintenance() {
         )}
 
         {/* Stats: each one filters the list */}
-        <div className="m-grid" style={{ marginBottom: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))" }}>
+        <div className="m-grid" style={{ marginBottom: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 148px), 1fr))" }}>
           {stats.map((s) => (
             <button key={s.label} type="button" className="m-stat" onClick={() => { if (s.tab) setActiveTab(s.tab); else { setActiveTab("Requests"); setStatusFilter(s.filter); } }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>

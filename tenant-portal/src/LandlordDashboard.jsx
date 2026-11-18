@@ -215,7 +215,7 @@ export default function LandlordDashboard() {
               return (
                 <div key={r.id} className="d-roll">
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, overflowWrap: "anywhere" }}>
                       Unit {r.unit}{r.tenant ? <span style={{ fontWeight: 400, color: C.textSub }}> · {r.tenant.name}</span> : null}
                     </div>
                     {isAll && <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{r.property}</div>}

@@ -60,9 +60,9 @@ export default function PaymentActions({ payment, refundedCents = 0, onDone }) {
   return (
     <>
       {/* With A3, rent adjustments are rental credits, so its refunds are for deposits and other non-rent money. */}
-      {(A3_ENABLED ? remaining > 0 && !isRent : remaining > 0) && <button style={small(C.textSub, C.border)} onClick={()=>open("refund")}>Refund</button>}
-      {A3_ENABLED && refundedCents === 0 && <button style={small(C.textSub, C.border)} onClick={()=>open("returned")}>Returned</button>}
-      <button style={small(C.red, "rgba(224,85,85,0.25)")} onClick={()=>open("void")}>Void</button>
+      {(A3_ENABLED ? remaining > 0 && !isRent : remaining > 0) && <button type="button" className="pa-btn" style={small(C.textSub, C.border)} onClick={()=>open("refund")}>Refund</button>}
+      {A3_ENABLED && refundedCents === 0 && <button type="button" className="pa-btn" style={small(C.textSub, C.border)} onClick={()=>open("returned")}>Returned</button>}
+      <button type="button" className="pa-btn" style={small(C.red, "rgba(224,85,85,0.25)")} onClick={()=>open("void")}>Void</button>
       {mode&&(
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }} onClick={()=>setMode(null)}>
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:420,maxWidth:"100%" }} onClick={e=>e.stopPropagation()}>
@@ -85,8 +85,8 @@ export default function PaymentActions({ payment, refundedCents = 0, onDone }) {
               <input aria-label="Reason" placeholder={mode==="void"?"Reason, e.g. entered twice":mode==="returned"?"Reason, e.g. insufficient funds":"Reason, e.g. overpayment returned"} value={reason} onChange={e=>setReason(e.target.value)} style={field}/>
             </div>
             <div style={{ padding:"12px 22px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,justifyContent:"flex-end" }}>
-              <button style={small(C.textSub, C.border)} onClick={()=>setMode(null)}>Cancel</button>
-              <button style={small(C.gold, C.goldDim)} disabled={saving} onClick={submit}>{saving?"Saving…":mode==="void"?"Void payment":mode==="returned"?"Record return":"Record refund"}</button>
+              <button type="button" className="pa-btn" style={small(C.textSub, C.border)} onClick={()=>setMode(null)}>Cancel</button>
+              <button type="button" className="pa-btn" style={small(C.gold, C.goldDim)} disabled={saving} onClick={submit}>{saving?"Saving…":mode==="void"?"Void payment":mode==="returned"?"Record return":"Record refund"}</button>
             </div>
           </div>
         </div>

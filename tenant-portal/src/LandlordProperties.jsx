@@ -266,7 +266,7 @@ export default function LandlordProperties() {
     { label:"Total properties",   value:loading?"—":properties.length,  sub:"in portfolio",              accent:C.gold  },
     { label:"Total units",        value:loading?"—":totalUnits,          sub:`${totalOccupied} occupied`, accent:C.blue  },
     { label:"Occupancy",          value:loading?"—":totalUnits>0?`${Math.round((totalOccupied/totalUnits)*100)}%`:"—", sub:"across all properties", accent:C.green },
-    { label:"Gross Rent Revenue", value:loading?"—":`$${grossRevenue.toLocaleString()}`, sub:"occupied units · monthly", accent:C.amber },
+    { label:"Monthly rent on file", value:loading?"—":`$${grossRevenue.toLocaleString()}`, sub:"occupied units · not money collected", accent:C.amber },
   ];
 
   return (
@@ -368,8 +368,8 @@ export default function LandlordProperties() {
                     </div>
 
                     <div style={{ display:"flex",gap:8,paddingTop:12,borderTop:`1px solid ${C.border}` }}>
-                      <button onClick={e=>{ e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }} style={{ flex:1,padding:"7px 0",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s" }}>View units</button>
-                      <button onClick={e=>{ e.stopPropagation(); navigate("/landlord/maintenance"); }} style={{ flex:1,padding:"7px 0",background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s" }}>Maintenance</button>
+                      <button onClick={e=>{ e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s" }}>View units</button>
+                      <button onClick={e=>{ e.stopPropagation(); navigate("/landlord/maintenance"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s" }}>Maintenance</button>
                     </div>
                   </div>
                 </div>
