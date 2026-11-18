@@ -118,7 +118,7 @@ export default function ForgotPassword() {
         )}
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <button onClick={() => navigate(-1)} style={{ fontSize: 12, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
+          <button type="button" onClick={() => navigate(-1)} style={{ minHeight: 44, padding: "0 8px", fontSize: 13, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
             onMouseOver={e => e.currentTarget.style.color = C.textSub}
             onMouseOut={e => e.currentTarget.style.color = C.textMuted}
           >← Back to login</button>

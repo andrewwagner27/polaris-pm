@@ -173,7 +173,7 @@ function WalletContent({ tenant, user }) {
   }
 
   if (loading) return (
-    <div style={{ textAlign:"center",padding:"60px 0",color:C.textSub,fontSize:13,display:"flex",flexDirection:"column",alignItems:"center",gap:12 }}>
+    <div style={{ textAlign:"center",padding:"28px 0",color:C.textSub,fontSize:13,display:"flex",flexDirection:"column",alignItems:"center",gap:12 }}>
       <Spinner/> Loading wallet…
     </div>
   );
@@ -330,7 +330,7 @@ export default function Wallet() {
         {tenant?.id ? (
           <WalletContent tenant={tenant} user={user}/>
         ) : (
-          <div style={{ textAlign:"center",padding:"60px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
+          <div style={{ textAlign:"center",padding:"28px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
         )}
       </div>
     </TenantLayout>

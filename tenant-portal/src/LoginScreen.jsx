@@ -102,16 +102,16 @@ export default function LoginScreen({ onSuccess }) {
             <FieldLabel>Password</FieldLabel>
             <div style={{ position:"relative" }}>
               <Input value={password} onChange={e=>{setPassword(e.target.value);setError("");}} placeholder="••••••••" type={showPw?"text":"password"} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/>
-              <button onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.textMuted,padding:0 }}>
+              <button type="button" aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw} onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute",right:2,top:"50%",transform:"translateY(-50%)",width:44,height:44,background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.textMuted,padding:0 }}>
                 {showPw?"○":"●"}
               </button>
             </div>
           </div>
 
           <div style={{ textAlign:"right",marginBottom:22 }}>
-            <button onClick={()=>navigate("/forgot-password")} style={{ fontSize:12,color:"#C9A968",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:0,transition:"color 0.15s" }}
+            <button onClick={()=>navigate("/forgot-password")} style={{ fontSize:12,color:"#C9A968",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:"0 4px",minHeight:44,transition:"color 0.15s" }}
               onMouseOver={e=>e.currentTarget.style.color=C.gold}
-              onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
+              onMouseOut={e=>e.currentTarget.style.color="#C9A968"}
             >Forgot password?</button>
           </div>
 
@@ -134,9 +134,9 @@ export default function LoginScreen({ onSuccess }) {
           </div>
 
           <div style={{ textAlign:"center",marginTop:20,paddingTop:20,borderTop:`1px solid ${C.border}` }}>
-            <button onClick={()=>navigate("/landlord/login")} style={{ fontSize:12,color:C.textMuted,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}
+            <button type="button" onClick={()=>navigate("/landlord/login")} style={{ minHeight:44,fontSize:13,color:C.textSub,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}
               onMouseOver={e=>e.currentTarget.style.color=C.gold}
-              onMouseOut={e=>e.currentTarget.style.color=C.textMuted}
+              onMouseOut={e=>e.currentTarget.style.color=C.textSub}
             >Landlord? Sign in here →</button>
           </div>
         </div>

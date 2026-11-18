@@ -47,6 +47,14 @@ function StatusBadge({ status }) {
   return <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:4,background:s.bg,color:s.c,whiteSpace:"nowrap",border:`1px solid ${s.c}22` }}>{s.label}</span>;
 }
 
+// Next occurrence of the tenant's rent due day (tenants.rent_due_day; 1st when not set), from today.
+function nextRentDate(dueDay, today = new Date()) {
+  const day = Math.min(Math.max(Number(dueDay) || 1, 1), 28);
+  const thisMonth = new Date(today.getFullYear(), today.getMonth(), day);
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return thisMonth >= t0 ? thisMonth : new Date(today.getFullYear(), today.getMonth() + 1, day);
+}
+
 export default function HomeDashboard() {
   const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
@@ -54,9 +62,15 @@ export default function HomeDashboard() {
   const [msgsLoading, setMsgsLoading] = useState(true);
   // { state: "loading" | "available" | "unavailable", cents?, reason? } — see lib/tenantFinancials.js
   const [balance, setBalance] = useState({ state: "loading" });
+  // Online rent payment is offered only when it really works for this tenant (same rule as Wallet and Pay):
+  // an active receivables ledger and a property set up with the payment processor. Unknown → not offered.
+  const [onlinePay, setOnlinePay] = useState(false);
 
   useEffect(() => {
-    if (user && tenant?.id) { fetchMessages(); fetchBalance(); }
+    if (!(user && tenant?.id)) return;
+    fetchMessages(); fetchBalance();
+    supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id })
+      .then(({ data, error }) => setOnlinePay(!error && !!data?.ledger_active && data?.online_available !== false));
   }, [user, tenant?.id]);
 
   async function fetchMessages() {
@@ -74,7 +88,7 @@ export default function HomeDashboard() {
   }
 
   if (loading) return (
-    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>
+    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textSub,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>
       Loading your portal…
     </div>
   );
@@ -89,11 +103,11 @@ export default function HomeDashboard() {
   const showLeaseAlert  = leaseDaysLeft !== null && leaseDaysLeft < 60 && leaseDaysLeft >= 0;
   const baseRent        = tenant?.rent ? Number(tenant.rent) : null;   // units.rent_amount, shown only as rent
   const monthly         = monthlyChargesSummary(tenant?.recurringCharges);
+  const hasRentSchedule = (baseRent && baseRent > 0) || monthly.hasCharges;
 
-  const now       = new Date();
-  const nextDue   = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > 1 ? 1 : 0), 1);
-  const nextDueStr = nextDue.toLocaleDateString("en-US",{month:"long",day:"numeric"});
-  const daysUntilDue = Math.ceil((nextDue - now) / (1000*60*60*24));
+  const nextDue      = nextRentDate(tenant?.raw?.rent_due_day);
+  const nextDueStr   = nextDue.toLocaleDateString("en-US",{ weekday:"short", month:"long", day:"numeric" });
+  const daysUntilDue = Math.round((nextDue - new Date(new Date().toDateString())) / (1000*60*60*24));
 
   const bal             = balancePresentation(balance);
   const balanceColor    = bal.tone === "due" ? C.red : bal.tone === "clear" ? C.green : C.textSub;
@@ -103,242 +117,166 @@ export default function HomeDashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
         *,*::before,*::after{box-sizing:border-box;}
-        .t-row:hover{background:${C.raised}!important;}
-        .t-action-btn:hover{opacity:0.88!important;}
-        @media(max-width:767px){
-          .home-grid-2{grid-template-columns:1fr!important;}
-          .home-pad{padding:16px 14px 24px!important;}
-          .hero-amount{font-size:40px!important;}
-          .hero-card{flex-direction:column!important;gap:16px!important;}
-          .hero-actions{flex-direction:column!important;}
-          .quick-grid{grid-template-columns:1fr 1fr!important;}
-        }
+        .t-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:52px;padding:10px 16px;background:transparent;border:none;border-bottom:1px solid ${C.border};font:inherit;color:inherit;text-align:left;cursor:pointer;}
+        .t-row:last-child{border-bottom:none;}
+        .t-row:hover{background:${C.raised};}
+        .t-quick{display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 14px;background:${C.surface};border:1px solid ${C.border};border-radius:12px;cursor:pointer;font:inherit;color:inherit;text-align:left;}
+        .t-quick:hover{border-color:${C.gold};}
+        .t-link{font:inherit;font-size:13px;font-weight:600;color:${C.gold};background:none;border:none;cursor:pointer;min-height:44px;padding:0 4px;}
+        .home-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));}
+        .quick-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));}
+        @media(max-width:767px){ .home-pad{padding:14px 14px 24px!important;} }
       `}</style>
 
-      <div className="home-pad" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"28px 24px 80px" }}>
+      <div className="home-pad t-light" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"24px 24px 64px", maxWidth:1100 }}>
 
-        {/* ── Greeting ── */}
-        <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:12, color:C.textMuted, marginBottom:3, letterSpacing:"0.02em" }}>Good {timeOfDay}</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:34, fontWeight:600, color:C.text, lineHeight:1.1 }}>{firstName}</div>
+        {/* Greeting */}
+        <div style={{ marginBottom:14 }}>
+          <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:"clamp(26px, 5vw, 32px)", fontWeight:600, color:C.text, lineHeight:1.1, margin:0 }}>Good {timeOfDay}, {firstName}</h1>
+          <div style={{ fontSize:13, color:C.textSub, marginTop:4 }}>Unit {tenant?.unit || "—"} · {tenant?.property || "—"}</div>
         </div>
 
-        {/* ── Lease alert ── */}
         {showLeaseAlert && (
-          <div style={{ marginBottom:16, padding:"11px 14px", background:C.amberBg, border:`1px solid #F59E0B40`, borderRadius:9, display:"flex", alignItems:"center", gap:10 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-            <span style={{ fontSize:13, color:C.amber, fontWeight:500 }}>Lease expires in {leaseDaysLeft} days</span>
-            <span style={{ fontSize:12, color:C.textSub }}>— Contact your property manager about renewal</span>
+          <div role="status" style={{ marginBottom:12, padding:"10px 14px", background:C.amberBg, border:"1px solid #F59E0B66", borderRadius:10, fontSize:13, color:C.amber, fontWeight:500 }}>
+            Lease expires in {leaseDaysLeft} days. Message management about renewal.
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════
-            HERO CARD — the 5 key tenant questions
-        ══════════════════════════════════════════════════════ */}
-        <Card style={{ padding:"24px 28px", marginBottom:16, borderColor: bal.tone === "due" ? "#FCA5A5" : C.border }}>
-
-          {/* Top row: balance + pay button */}
-          <div className="hero-card" style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:24, marginBottom:20 }}>
-
-            {/* Balance */}
-            <div style={{ flex:1 }}>
+        {/* Rent: next date, rent on file, balance status, and the one action that actually works */}
+        <Card style={{ padding:"18px 20px", marginBottom:12, borderColor: bal.tone === "due" ? "#FCA5A5" : C.border }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
+            <div style={{ flex:"1 1 220px", minWidth:0 }}>
               <Label>Balance Due</Label>
-              {bal.available ? (
-                <div className="hero-amount" style={{ fontFamily:"'DM Mono',monospace", fontSize:48, fontWeight:500, color:balanceColor, lineHeight:1, letterSpacing:"-0.02em", marginBottom:6 }}>
-                  {bal.amountText}
-                </div>
-              ) : (
-                <div data-balance-state={balance.state} style={{ fontSize:22, fontWeight:600, color:balanceColor, lineHeight:1.2, marginBottom:6 }}>
-                  {bal.amountText}
-                </div>
-              )}
-              <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textSub, maxWidth:420 }}>{bal.detail}</div>
+              <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 16, fontWeight:600, color:balanceColor, fontFamily: bal.available ? "'DM Mono',monospace" : "inherit", lineHeight:1.2 }}>{bal.amountText}</div>
+              <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:12, color:C.textSub, marginTop:3, lineHeight:1.45, maxWidth:420 }}>{bal.detail}</div>
             </div>
-
             {/* Due date + Pay CTA */}
-            <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"flex-end", minWidth:180 }}>
-              <div style={{ textAlign:"right" }}>
-                <Label>Next Due Date</Label>
-                <div style={{ fontSize:16, fontWeight:600, color:C.text, marginBottom:2 }}>{nextDueStr}</div>
-                <div style={{ fontSize:11, color: daysUntilDue <= 5 ? C.red : C.textMuted }}>
-                  {daysUntilDue <= 0 ? "Due today" : `${daysUntilDue} days away`}
-                </div>
-              </div>
-              <button onClick={() => navigate("/pay")} className="t-action-btn"
-                style={{ padding:"12px 24px", background:C.gold, border:"none", borderRadius:8, fontSize:14, fontWeight:600, color:"#FFFFFF", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.01em", transition:"opacity 0.15s", whiteSpace:"nowrap" }}>
-                Pay Now →
-              </button>
+            <div style={{ minWidth:170 }}>
+              <Label>Next Due Date</Label>
+              <div style={{ fontSize:17, fontWeight:600, color:C.text }}>{hasRentSchedule ? nextDueStr : "No rent schedule on file"}</div>
+              {hasRentSchedule && <div style={{ fontSize:12, color: daysUntilDue <= 3 ? C.red : C.textSub, marginTop:2 }}>{daysUntilDue <= 0 ? "Due today" : `In ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}</div>}
             </div>
           </div>
-
-          {/* Divider */}
-          <div style={{ height:1, background:C.border, marginBottom:16 }} />
-
-          {/* Quick-action row: Maintenance + Lease docs */}
-          <div className="quick-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-
-            {/* New maintenance request */}
-            <button onClick={() => navigate("/maintenance/new")} className="t-action-btn"
-              style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:30, height:30, borderRadius:7, background:"#FFF7ED", border:"1px solid #FED7AA", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C2410C" strokeWidth="2" strokeLinecap="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3-3a1 1 0 000-1.4l-1.6-1.6a1 1 0 00-1.4 0l-3 3z"/><path d="M11 13l-9 9"/></svg>
-              </div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:600, color:C.text }}>New Request</div>
-                <div style={{ fontSize:11, color:C.textMuted }}>Report an issue</div>
-              </div>
-            </button>
-
-            {/* Open requests count */}
-            <button onClick={() => navigate("/maintenance")} className="t-action-btn"
-              style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:30, height:30, borderRadius:7, background:openMaintenance.length > 0 ? "#FFFBEB" : C.greenBg, border:`1px solid ${openMaintenance.length > 0 ? "#FDE68A" : "#BBF7D0"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <span style={{ fontSize:13, fontWeight:700, color: openMaintenance.length > 0 ? C.amber : C.green }}>{openMaintenance.length}</span>
-              </div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:600, color:C.text }}>Open Tickets</div>
-                <div style={{ fontSize:11, color:C.textMuted }}>View all →</div>
-              </div>
-            </button>
-
-            {/* Lease docs */}
-            <button
-              onClick={async () => {
-                if (tenant?.lease_document_url) {
-                  const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
-                  if (signed) { window.open(signed, "_blank"); }
-                  else { navigate("/account"); }
-                } else {
-                  navigate("/account");
-                }
-              }}
-              className="t-action-btn"
-              style={{ padding:"12px 14px", background:C.raised, border:`1px solid ${tenant?.lease_document_url ? C.blue : C.border}`, borderRadius:8, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"opacity 0.15s", display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:30, height:30, borderRadius:7, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-              </div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:600, color:C.text }}>Lease &amp; Docs</div>
-                <div style={{ fontSize:11, color:tenant?.lease_document_url ? C.blue : C.textMuted }}>
-                  {tenant?.lease_document_url ? "View lease →" : fmtDate(tenant?.leaseEnd)}
-                </div>
-              </div>
-            </button>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+            {onlinePay ? (
+              <button type="button" onClick={() => navigate("/pay")} style={{ minHeight:48, padding:"0 22px", background:C.gold, border:"none", borderRadius:10, fontSize:15, fontWeight:600, color:"#FFFFFF", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                Pay rent
+              </button>
+            ) : (
+              <>
+                <span style={{ fontSize:13, color:C.textSub, flex:"1 1 240px" }}>Online payment isn't available yet. Pay the way your lease describes.</span>
+                <button type="button" className="t-link" onClick={() => navigate("/pay")}>Payment details →</button>
+              </>
+            )}
           </div>
         </Card>
 
-        {/* ── Secondary grid ── */}
-        <div className="home-grid-2" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        {/* Quick actions */}
+        <div className="quick-grid" style={{ marginBottom:12 }}>
+          <button type="button" className="t-quick" onClick={() => navigate("/maintenance/new")}>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:"#FFF7ED", border:"1px solid #FED7AA", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:"#9A3412", fontWeight:700 }}>+</span>
+            <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Report an issue</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>Maintenance request</span></span>
+          </button>
+          <button type="button" className="t-quick" onClick={() => navigate("/messages")}>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.blue, fontWeight:700 }}>{unreadCount > 0 ? unreadCount : "✉"}</span>
+            <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Messages</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>{unreadCount > 0 ? `${unreadCount} unread` : "Ask a question"}</span></span>
+          </button>
+          <button type="button" className="t-quick"
+            onClick={async () => {
+              if (tenant?.lease_document_url) {
+                const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
+                if (signed) { window.open(signed, "_blank"); } else { navigate("/account"); }
+              } else { navigate("/account"); }
+            }}>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.goldBg, border:`1px solid ${C.goldDim}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.gold, fontWeight:700 }}>§</span>
+            <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Lease &amp; documents</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>{tenant?.lease_document_url ? "Open your lease" : `Lease ends ${fmtDate(tenant?.leaseEnd)}`}</span></span>
+          </button>
+        </div>
 
-          {/* Upcoming Charges */}
-          <Card style={{ padding:"20px 22px" }}>
-            <Label>Monthly Recurring Charges</Label>
-            <div style={{ fontSize:11, color:C.textMuted, marginBottom:6 }}>
-              Scheduled each month. This is not your balance due.
+        <div className="home-grid">
+          {/* Maintenance */}
+          <Card style={{ overflow:"hidden", padding:0 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 8px 6px 16px", borderBottom:`1px solid ${C.border}` }}>
+              <h2 style={{ fontSize:14, fontWeight:600, margin:0 }}>Maintenance {openMaintenance.length > 0 && <span style={{ fontSize:12, fontWeight:500, color:C.amber }}>· {openMaintenance.length} open</span>}</h2>
+              <button type="button" className="t-link" onClick={() => navigate("/maintenance")}>See all →</button>
             </div>
-            {monthly.hasCharges ? (
-              <>
-                {monthly.items.map((c, i, arr) => (
-                  <div key={c.id || `charge-${i}`} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{c.label}</div>
-                      {(() => {
-                        // The Rent row's name already says "Rent"; other rows are marked as additional charges.
-                        const sub = [c.isRent ? null : "Additional recurring charge", c.note || null].filter(Boolean).join(" · ");
-                        return sub ? <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>{sub}</div> : null;
-                      })()}
-                    </div>
-                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>
-                      {c.cents == null ? "—" : formatCents(c.cents)}
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:10, marginTop:2, borderTop:`1px solid ${C.border}` }}>
-                  <span style={{ fontSize:11, color:C.textMuted, fontWeight:600 }}>Total monthly charges</span>
-                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:600, color:C.gold }}>{formatCents(monthly.totalCents)}</span>
-                </div>
-                <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>Next scheduled: {nextDueStr}</div>
-              </>
+            {maintenance.length === 0 ? (
+              <div style={{ padding:"14px 16px", color:C.textSub, fontSize:13 }}>No requests. Use “Report an issue” if something needs fixing.</div>
+            ) : maintenance.slice(0,3).map((m) => (
+              <button type="button" key={m.id} className="t-row" onClick={() => navigate(`/maintenance/${m.id}`)}>
+                <span style={{ minWidth:0 }}>
+                  <span style={{ display:"block", fontSize:14, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.title}</span>
+                  <span style={{ display:"block", fontSize:12, color:C.textSub, marginTop:1 }}>{new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                </span>
+                <StatusBadge status={m.status} />
+              </button>
+            ))}
+          </Card>
+
+          {/* Messages */}
+          <Card style={{ overflow:"hidden", padding:0 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 8px 6px 16px", borderBottom:`1px solid ${C.border}` }}>
+              <h2 style={{ fontSize:14, fontWeight:600, margin:0 }}>Messages {unreadCount > 0 && <span style={{ fontSize:12, fontWeight:600, color:C.blue }}>· {unreadCount} unread</span>}</h2>
+              <button type="button" className="t-link" onClick={() => navigate("/messages")}>Open →</button>
+            </div>
+            {msgsLoading ? (
+              <div style={{ padding:"14px 16px", color:C.textSub, fontSize:13 }}>Loading…</div>
+            ) : messages.length === 0 ? (
+              <div style={{ padding:"14px 16px", color:C.textSub, fontSize:13 }}>No messages yet.</div>
             ) : (
-              <div style={{ fontSize:13, color:C.textSub, padding:"9px 0" }}>
-                No recurring charges are set up on your account. Contact management with any billing questions.
-              </div>
+              <button type="button" className="t-row" onClick={() => navigate("/messages")}>
+                <span style={{ minWidth:0, flex:1 }}>
+                  <span style={{ display:"block", fontSize:13, fontWeight:600, marginBottom:2 }}>Modus Property Management</span>
+                  <span style={{ display:"block", fontSize:13, color:C.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{messages[0]?.body}</span>
+                </span>
+                <span style={{ fontSize:12, color:C.textSub, flexShrink:0 }}>{new Date(messages[0]?.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+              </button>
             )}
           </Card>
 
-          {/* Lease summary */}
-          <Card style={{ padding:"20px 22px" }}>
-            <Label>Lease</Label>
+          {/* Lease */}
+          <Card style={{ padding:"14px 16px" }}>
+            <h2 style={{ fontSize:14, fontWeight:600, margin:"0 0 4px" }}>Lease</h2>
             {[
               ["Unit",        `Unit ${tenant?.unit||"—"} · ${tenant?.property||"—"}`],
               ["Lease Start", fmtDate(tenant?.leaseStart)],
               ["Lease End",   fmtDate(tenant?.leaseEnd)],
               ["Base rent on file", baseRent != null ? fmt(baseRent) : "—"],
             ].map(([k, v], i, arr) => (
-              <div key={k} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                <span style={{ fontSize:12, color:C.textMuted }}>{k}</span>
-                <span style={{ fontSize:13, fontWeight: k === "Base rent on file" ? 600 : 400, color: k === "Base rent on file" ? C.gold : C.text, fontFamily: k === "Base rent on file" ? "'DM Mono',monospace" : "inherit" }}>{v}</span>
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <span style={{ fontSize:13, color:C.textSub }}>{k}</span>
+                <span style={{ fontSize:13, fontWeight: k === "Base rent on file" ? 600 : 500, color:C.text, fontFamily: k === "Base rent on file" ? "'DM Mono',monospace" : "inherit", textAlign:"right" }}>{v}</span>
               </div>
             ))}
           </Card>
-        </div>
 
-        {/* ── Bottom row: Maintenance + Messages ── */}
-        <div className="home-grid-2" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-
-          {/* Maintenance */}
-          <Card style={{ overflow:"hidden", padding:0 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom:`1px solid ${C.border}` }}>
-              <span style={{ fontSize:11, fontWeight:600, color:C.textMuted, letterSpacing:"0.08em", textTransform:"uppercase" }}>Maintenance</span>
-              <button onClick={() => navigate("/maintenance")}
-                style={{ fontSize:12, color:C.gold, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>
-                See all →
-              </button>
-            </div>
-            {maintenance.length === 0 ? (
-              <div style={{ padding:"20px", textAlign:"center", color:C.textMuted, fontSize:13 }}>No open requests.</div>
-            ) : maintenance.slice(0,3).map((m, i) => (
-              <div key={m.id} className="t-row"
-                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 18px", borderBottom: i < 2 && i < maintenance.length - 1 ? `1px solid ${C.border}` : "none", cursor:"pointer", transition:"background 0.12s" }}
-                onClick={() => navigate(`/maintenance/${m.id}`)}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{m.title}</div>
-                  <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>{new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+          {/* Scheduled monthly charges: what is billed each month, never the balance */}
+          <Card style={{ padding:"14px 16px" }}>
+            <Label>Monthly Recurring Charges</Label>
+            <div style={{ fontSize:12, color:C.textSub, marginBottom:4 }}>Scheduled each month. This is not your balance due.</div>
+            {monthly.hasCharges ? (
+              <>
+                {monthly.items.map((c, i, arr) => (
+                  <div key={c.id || `charge-${i}`} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, padding:"8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{c.label}</div>
+                      {(() => {
+                        // The Rent row's name already says "Rent"; other rows are marked as additional charges.
+                        const sub = [c.isRent ? null : "Additional recurring charge", c.note || null].filter(Boolean).join(" · ");
+                        return sub ? <div style={{ fontSize:12, color:C.textSub, marginTop:1 }}>{sub}</div> : null;
+                      })()}
+                    </div>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>{c.cents == null ? "—" : formatCents(c.cents)}</div>
+                  </div>
+                ))}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:8, marginTop:2, borderTop:`1px solid ${C.border}` }}>
+                  <span style={{ fontSize:12, color:C.textSub, fontWeight:600 }}>Total monthly charges</span>
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:600, color:C.text }}>{formatCents(monthly.totalCents)}</span>
                 </div>
-                <StatusBadge status={m.status} />
-              </div>
-            ))}
-          </Card>
-
-          {/* Messages */}
-          <Card style={{ overflow:"hidden", padding:0 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:11, fontWeight:600, color:C.textMuted, letterSpacing:"0.08em", textTransform:"uppercase" }}>Messages</span>
-                {unreadCount > 0 && (
-                  <span style={{ fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:8, background:C.blue, color:"#fff" }}>{unreadCount}</span>
-                )}
-              </div>
-              <button onClick={() => navigate("/messages")}
-                style={{ fontSize:12, color:C.gold, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>
-                Open →
-              </button>
-            </div>
-            {msgsLoading ? (
-              <div style={{ padding:"20px", color:C.textMuted, fontSize:13 }}>Loading…</div>
-            ) : messages.length === 0 ? (
-              <div style={{ padding:"20px", textAlign:"center", color:C.textMuted, fontSize:13 }}>No messages yet.</div>
+              </>
             ) : (
-              <div className="t-row"
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", cursor:"pointer", transition:"background 0.12s" }}
-                onClick={() => navigate("/messages")}>
-                <div style={{ width:34, height:34, borderRadius:"50%", background:C.goldBg, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, flexShrink:0 }}>M</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:2 }}>Modus Property Management</div>
-                  <div style={{ fontSize:12, color:C.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{messages[0]?.body}</div>
-                  {unreadCount > 0 && <div style={{ fontSize:11, color:C.blue, marginTop:2, fontWeight:500 }}>{unreadCount} unread</div>}
-                </div>
-                <span style={{ fontSize:10, color:C.textMuted, flexShrink:0 }}>{new Date(messages[0]?.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+              <div style={{ fontSize:13, color:C.textSub, padding:"6px 0" }}>
+                No recurring charges are set up on your account. Contact management with any billing questions.
               </div>
             )}
           </Card>

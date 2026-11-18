@@ -64,3 +64,13 @@ test("#8B6914 is retired for interactive text (light portal uses the AA token #7
   const offenders = files.filter((f) => fs.readFileSync(f, "utf8").toUpperCase().includes("#8B6914")).map((f) => path.basename(f));
   assert.deepEqual(offenders, []);
 });
+
+test("light tenant screens don't use dark-theme status colours as text (all below 3.2:1 on white)", () => {
+  const offenders = [];
+  for (const f of files) {
+    const s = fs.readFileSync(f, "utf8");
+    if (!/#F5F3EE/i.test(s) || /#0B0D10/i.test(s)) continue;          // light screens only
+    for (const hex of ["#F0A430", "#4A9AE8", "#72B02A", "#E05555"]) if (s.toUpperCase().includes(hex)) offenders.push(`${path.basename(f)} ${hex}`);
+  }
+  assert.deepEqual(offenders, []);
+});

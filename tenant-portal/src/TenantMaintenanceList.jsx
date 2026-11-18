@@ -22,11 +22,14 @@ const C = {
   amber:    "#92400E",
 };
 
+// Light-surface status colours (AA on white and on the tinted chip). Stages the tenant can't act on read as
+// "In progress"; nothing about contractors, quotes or approvals is shown here.
 const STATUS = {
-  open:        { label: "Open",        color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  in_progress: { label: "In Progress", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  resolved:    { label: "Resolved",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  open:        { label: "Received",    color: "#92400E", bg: "#FFFBEB", border: "#FDE68A" },
+  in_progress: { label: "In progress", color: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
+  resolved:    { label: "Resolved",    color: "#166534", bg: "#F0FDF4", border: "#BBF7D0" },
 };
+const statusOf = (s) => (s === "resolved" ? "resolved" : s === "open" ? "open" : "in_progress");
 
 const CATEGORY_ICONS = {
   plumbing: "🚿", electrical: "⚡", hvac: "🌡️",
@@ -35,10 +38,10 @@ const CATEGORY_ICONS = {
 
 export default function TenantMaintenanceList() {
   const navigate = useNavigate();
-  const { tenant, user } = useTenant();
+  const { tenant } = useTenant();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState("all");
+  const [filter, setFilter]   = useState("active");
 
   useEffect(() => { if (tenant?.id) fetchTickets(); }, [tenant?.id]);
 
@@ -53,74 +56,67 @@ export default function TenantMaintenanceList() {
     setLoading(false);
   }
 
-  const filtered   = filter === "all" ? tickets : tickets.filter(t => t.status === filter);
-  const openCount  = tickets.filter(t => t.status === "open" || t.status === "in_progress").length;
+  const activeCount   = tickets.filter(t => t.status !== "resolved").length;
+  const resolvedCount = tickets.length - activeCount;
+  const filtered = filter === "all" ? tickets : filter === "active" ? tickets.filter(t => t.status !== "resolved") : tickets.filter(t => t.status === "resolved");
+  const FILTERS = [["active", `Active (${activeCount})`], ["resolved", `Resolved (${resolvedCount})`], ["all", `All (${tickets.length})`]];
 
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
-        .t-ticket:hover { border-color: #353A44 !important; }
-        .t-filter:hover { color: ${C.text} !important; border-color: #353A44 !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+        .t-ticket{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;min-height:64px;}
+        .t-ticket:hover{border-color:${C.gold};}
+        .t-filter{min-height:44px;padding:0 16px;border-radius:999px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
+        .t-new{min-height:44px;padding:0 16px;background:${C.gold};border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;color:#FFFFFF;cursor:pointer;white-space:nowrap;}
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "24px 20px", maxWidth: 820, margin: "0 auto" }}>
+      <div className="t-light" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "20px 16px 24px", maxWidth: 820, margin: "0 auto" }}>
 
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>Maintenance</div>
-            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>
-              {loading ? "Loading…" : `${openCount} active request${openCount !== 1 ? "s" : ""}`}
+            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.text, margin: 0 }}>Maintenance</h1>
+            <div style={{ fontSize: 13, color: C.textSub, marginTop: 2 }}>
+              {loading ? "Loading…" : `${activeCount} active request${activeCount !== 1 ? "s" : ""}`}
             </div>
           </div>
-          <button onClick={() => navigate("/maintenance/new")} style={{ padding: "9px 16px", background: "transparent", border: `1px solid ${C.goldDim}`, borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.15s" }}
-            onMouseOver={e => e.currentTarget.style.background = "rgba(201,169,110,0.07)"}
-            onMouseOut={e => e.currentTarget.style.background = "transparent"}
-          >+ New request</button>
+          <button type="button" className="t-new" onClick={() => navigate("/maintenance/new")}>+ New request</button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {["all", "open", "in_progress", "resolved"].map(f => (
-            <button key={f} className="t-filter" onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: filter === f ? C.goldDim : "transparent", color: filter === f ? C.text : C.textSub, border: `1px solid ${filter === f ? C.goldDim : C.border}`, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s" }}>
-              {f === "all" ? `All (${tickets.length})` : f === "in_progress" ? `In Progress (${tickets.filter(t => t.status === "in_progress").length})` : `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t => t.status === f).length})`}
+        <div role="group" aria-label="Show requests" style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto" }}>
+          {FILTERS.map(([f, label]) => (
+            <button key={f} type="button" className="t-filter" aria-pressed={filter === f} onClick={() => setFilter(f)}
+              style={{ background: filter === f ? C.goldBg : C.surface, color: filter === f ? C.gold : C.textSub, border: `1px solid ${filter === f ? C.gold : C.border}`, fontWeight: filter === f ? 600 : 500 }}>
+              {label}
             </button>
           ))}
         </div>
 
-        {loading && <div style={{ textAlign: "center", padding: 40, color: C.textSub, fontSize: 13 }}>Loading tickets…</div>}
+        {loading && <div style={{ textAlign: "center", padding: 24, color: C.textSub, fontSize: 13 }}>Loading requests…</div>}
 
         {!loading && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 40, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>⚙</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{filter === "all" ? "No requests yet" : `No ${filter.replace("_", " ")} requests`}</div>
-            <div style={{ fontSize: 13, color: C.textSub, marginBottom: 16 }}>{filter === "all" && "Submit a request and we'll take care of it."}</div>
-            {filter === "all" && (
-              <button onClick={() => navigate("/maintenance/new")} style={{ padding: "9px 18px", background: "transparent", border: `1px solid ${C.goldDim}`, borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>+ New request</button>
-            )}
+          <div style={{ padding: "18px 16px", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 14, color: C.textSub }}>
+            {filter === "resolved" ? "No resolved requests yet." : tickets.length === 0 ? "No requests yet. Tap “New request” if something needs fixing." : "Nothing active right now."}
           </div>
         )}
 
         {!loading && filtered.map(ticket => {
-          const sc   = STATUS[ticket.status] || STATUS.open;
+          const sc   = STATUS[statusOf(ticket.status)];
           const date = new Date(ticket.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
           const icon = CATEGORY_ICONS[ticket.category] || "🔧";
           return (
-            <div key={ticket.id} className="t-ticket"
-              onClick={() => navigate(`/maintenance/${ticket.id}`)}
-              style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${sc.color}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 14, transition: "border-color 0.15s" }}>
-              <div style={{ width: 40, height: 40, borderRadius: 9, background: sc.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{ticket.title}</div>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: sc.bg, color: sc.color, whiteSpace: "nowrap", flexShrink: 0 }}>{sc.label}</span>
-                </div>
-                {ticket.description && <div style={{ fontSize: 12, color: C.textSub, marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.description}</div>}
-                <div style={{ fontSize: 11, color: C.textMuted }}>Submitted {date}</div>
-              </div>
-            </div>
+            <button type="button" key={ticket.id} className="t-ticket" onClick={() => navigate(`/maintenance/${ticket.id}`)}>
+              <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10, background: sc.bg, border: `1px solid ${sc.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{ticket.title}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, whiteSpace: "nowrap", flexShrink: 0 }}>{sc.label}</span>
+                </span>
+                {ticket.description && <span style={{ display: "block", fontSize: 13, color: C.textSub, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.description}</span>}
+                <span style={{ display: "block", fontSize: 12, color: C.textMuted, marginTop: 4 }}>Submitted {date}</span>
+              </span>
+            </button>
           );
         })}
       </div>

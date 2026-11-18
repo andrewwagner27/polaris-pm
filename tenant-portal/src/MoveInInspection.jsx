@@ -254,12 +254,12 @@ export default function MoveInInspection() {
                 {inspection.deposit_deductions.map((d,i) => (
                   <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
                     <span style={{ color:C.textSub }}>{d.description}</span>
-                    <span style={{ color:"#E05555", fontWeight:600 }}>-${Number(d.amount).toFixed(2)}</span>
+                    <span style={{ color:"#B91C1C", fontWeight:600 }}>-${Number(d.amount).toFixed(2)}</span>
                   </div>
                 ))}
                 <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:700 }}>
                   <span style={{ color:C.text }}>Your refund</span>
-                  <span style={{ color:"#72B02A" }}>${Math.max(0, (inspection.deposit_held||0) - (inspection.total_deducted||0)).toFixed(2)}</span>
+                  <span style={{ color:"#166534" }}>${Math.max(0, (inspection.deposit_held||0) - (inspection.total_deducted||0)).toFixed(2)}</span>
                 </div>
               </div>
             )}

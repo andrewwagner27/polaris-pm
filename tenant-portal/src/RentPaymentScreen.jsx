@@ -264,7 +264,7 @@ export default function RentPaymentScreen() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media(max-width:767px){.pay-wrap{padding:20px 14px 72px!important;}}
+        @media(max-width:767px){.pay-wrap{padding:16px 14px 24px!important;}}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
       `}</style>
@@ -276,12 +276,25 @@ export default function RentPaymentScreen() {
           {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}
         </div>
 
+        {/* Receivables not active: one short explanation instead of an empty amount and a repeated notice below it */}
+        {due && !due.ledger_active && (
+          <div role="status" style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 18px",marginBottom:14 }}>
+            <div style={{ fontSize:15,fontWeight:600,color:C.text,marginBottom:4 }}>Online payment isn't available yet</div>
+            <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55 }}>
+              Modus doesn't track your balance online yet, so there's no amount to pay here and nothing has been charged.
+              Pay rent the way your lease describes, or message management with any billing question.
+            </div>
+            <div style={{ fontSize:12,color:C.textSub,marginTop:10 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
+          </div>
+        )}
+
         {/* Amount summary */}
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"24px 22px",marginBottom:20 }}>
+        {(!due || due.ledger_active) && (
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",marginBottom:14 }}>
           <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Amount due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:600,color:C.gold,lineHeight:1 }}>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:600,color:C.gold,lineHeight:1 }}>
                 {due?.ledger_active ? money(payableCents) : "—"}
               </div>
               {due?.ledger_active && payableCents===0 && <div style={{ fontSize:12,color:C.green,marginTop:6 }}>{pendingCents>0 ? `Your ${money(pendingCents)} payment is processing. Nothing more to pay right now.` : "Nothing to pay right now."}</div>}
@@ -316,15 +329,15 @@ export default function RentPaymentScreen() {
             </div>
           )}
         </div>
+        )}
 
         <AutopayUnavailable/>
 
-        {/* Payment form */}
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 22px" }}>
+        {/* Payment form (only where a payment can actually be made or its absence explained) */}
+        {(!due || due.ledger_active) && (
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px" }}>
           {!due ? (
-            <div style={{ textAlign:"center",padding:"40px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
-          ) : !due.ledger_active ? (
-            <div style={{ textAlign:"center",padding:"24px 0",color:C.textSub,fontSize:13,lineHeight:1.6 }}>Online rent payment isn't available yet. Please contact your property manager.</div>
+            <div style={{ textAlign:"center",padding:"20px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
           ) : due.online_available === false ? (
             <div role="status" style={{ textAlign:"center",padding:"24px 8px",fontSize:13,lineHeight:1.6 }}>
               <div style={{ fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't set up for your property yet</div>
@@ -336,13 +349,16 @@ export default function RentPaymentScreen() {
             </Elements>
           )}
         </div>
+        )}
 
-        {/* Wallet link */}
-        <div style={{ marginTop:16,textAlign:"center" }}>
-          <a href="/wallet" style={{ fontSize:12,color:C.textSub,textDecoration:"none",borderBottom:`1px solid ${C.border}`,paddingBottom:1 }}>
-            Manage saved bank accounts →
-          </a>
-        </div>
+        {/* Wallet link: only when online payment is actually available */}
+        {due?.ledger_active && due.online_available !== false && (
+          <div style={{ marginTop:12,textAlign:"center" }}>
+            <a href="/wallet" style={{ display:"inline-flex",alignItems:"center",minHeight:44,fontSize:13,color:C.gold,textDecoration:"none" }}>
+              Manage saved bank accounts →
+            </a>
+          </div>
+        )}
       </div>
     </TenantLayout>
   );

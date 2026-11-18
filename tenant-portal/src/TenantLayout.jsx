@@ -114,7 +114,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
     const mobileNav = NAV_ITEMS.filter(n => n.route !== "/bulletin");
 
     return (
-      <div style={{ display:"flex", flexDirection:"column", minHeight:"100vh", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
+      <div className="t-light" style={{ display:"flex", flexDirection:"column", minHeight:"100vh", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
         <style>{globalStyles}</style>
 
         {/* Top bar */}
@@ -163,7 +163,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
 
   // ── Desktop ───────────────────────────────────────────────────
   return (
-    <div style={{ display:"flex", fontFamily:"'DM Sans',sans-serif", fontSize:14, color:C.text, background:C.bg, minHeight:"100vh" }}>
+    <div className="t-light" style={{ display:"flex", fontFamily:"'DM Sans',sans-serif", fontSize:14, color:C.text, background:C.bg, minHeight:"100vh" }}>
       <style>{globalStyles}</style>
 
       {/* Sidebar */}

@@ -75,7 +75,7 @@ export default function ActivityLedger() {
         {/* Header */}
         <div style={{ marginBottom:28 }}>
           <div style={{ fontSize:12,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 }}>Payment History</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:34,fontWeight:600,color:C.text,lineHeight:1 }}>Activity Ledger</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(24px, 5vw, 30px)",fontWeight:600,color:C.text,lineHeight:1.1 }}>Activity Ledger</div>
         </div>
 
         {/* Summary: the actual balance (or why it's unavailable), then the scheduled monthly charges */}
@@ -120,9 +120,9 @@ export default function ActivityLedger() {
               </div>
 
               {fetching ? (
-                <div style={{ padding:"40px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading ledger…</div>
+                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading ledger…</div>
               ) : entries.length === 0 ? (
-                <div style={{ padding:"40px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No posted activity yet.</div>
+                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No posted activity yet.</div>
               ) : entries.map((e, i) => {
                 const isCharge = e.type === "charge";
                 const isPayment = e.type === "payment";
@@ -164,11 +164,11 @@ export default function ActivityLedger() {
               </div>
 
               {fetching || !records ? (
-                <div style={{ padding:"40px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading payment records…</div>
+                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading payment records…</div>
               ) : records.error ? (
-                <div role="status" style={{ padding:"40px",textAlign:"center",color:C.textSub,fontSize:13 }}>We couldn't load your payment records. Refresh the page, or contact management.</div>
+                <div role="status" style={{ padding:"18px 16px",textAlign:"center",color:C.textSub,fontSize:13 }}>We couldn't load your payment records. Refresh the page, or contact management.</div>
               ) : records.rows.length === 0 ? (
-                <div style={{ padding:"40px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No payment records on file.</div>
+                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No payment records on file.</div>
               ) : records.rows.map((r, i) => (
                 <div key={r.id || i} className="ledger-table ledger-row"
                   style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 200px",gap:0,padding:"13px 20px",borderBottom:i<records.rows.length-1?`1px solid ${C.border}`:"none",transition:"background 0.1s",alignItems:"center",fontSize:13 }}>

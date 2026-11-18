@@ -192,13 +192,13 @@ export default function MessagingScreen() {
             </div>
           </div>
           <button onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)} disabled={sending}
-            style={{ padding:"7px 12px", background:C.gold, border:"none", borderRadius:16, fontSize:12, fontWeight:600, color:C.text, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+            style={{ minHeight:44, padding:"0 14px", background:C.gold, border:"none", borderRadius:22, fontSize:13, fontWeight:600, color:"#FFFFFF", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
             Talk to a person
           </button>
         </div>
 
         {/* AI disclosure — always visible */}
-        <div role="note" style={{ background:C.raised, borderBottom:`1px solid ${C.border}`, padding:"8px 20px", fontSize:11, color:C.textSub, lineHeight:1.5, flexShrink:0 }}>
+        <div role="note" style={{ background:C.raised, borderBottom:`1px solid ${C.border}`, padding:"8px 16px", fontSize:12, color:C.textSub, lineHeight:1.5, flexShrink:0 }}>
           {AI_DISCLOSURE}
         </div>
 
@@ -233,7 +233,7 @@ export default function MessagingScreen() {
               <div key={item.id}>
                 {/* Sender label above management-side messages: the AI is always labelled as the AI */}
                 {fromProperty && (
-                  <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
+                  <div style={{ fontSize:11, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
                     {isAiMessage(item) ? `${AI_LABEL} · AI` : "Modus Property Management"}
                   </div>
                 )}
@@ -241,11 +241,11 @@ export default function MessagingScreen() {
                   {fromProperty && (
                     <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{isAiMessage(item) ? "AI" : "M"}</div>
                   )}
-                  <div style={{ maxWidth:"75%", padding:"10px 14px", borderRadius:fromProperty?"4px 14px 14px 14px":"14px 4px 14px 14px", background:fromProperty?C.surface:C.goldDim, border:fromProperty?`1px solid ${C.border}`:"none", fontSize:13, color:C.text, lineHeight:1.5 }}>
+                  <div style={{ maxWidth:"75%", padding:"10px 14px", borderRadius:fromProperty?"4px 14px 14px 14px":"14px 4px 14px 14px", background:fromProperty?C.surface:C.goldDim, border:fromProperty?`1px solid ${C.border}`:"none", fontSize:14, color:C.text, lineHeight:1.5, overflowWrap:"anywhere" }}>
                     {item.body}
                   </div>
                 </div>
-                <div style={{ fontSize:10, color:C.textMuted, textAlign:fromProperty?"left":"right", marginBottom:4, paddingLeft:fromProperty?34:0 }}>
+                <div style={{ fontSize:11, color:C.textMuted, textAlign:fromProperty?"left":"right", marginBottom:6, paddingLeft:fromProperty?34:0 }}>
                   {new Date(item.created_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" })}
                 </div>
               </div>
@@ -261,7 +261,7 @@ export default function MessagingScreen() {
           {/* Typing indicator — shown while AI is generating reply */}
           {awaitingReply && (
             <div>
-              <div style={{ fontSize:10, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
+              <div style={{ fontSize:11, color:C.textSub, marginBottom:3, paddingLeft:34, fontWeight:500 }}>
                 {AI_LABEL} · AI
               </div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
@@ -288,21 +288,21 @@ export default function MessagingScreen() {
         </div>
 
         {/* Quick replies */}
-        <div style={{ padding:"8px 16px 4px", display:"flex", gap:8, overflowX:"auto", flexShrink:0, background:C.surface, borderTop:`1px solid ${C.border}` }}>
+        <div role="group" aria-label="Suggested messages" style={{ padding:"8px 12px 6px", display:"flex", gap:8, overflowX:"auto", flexShrink:0, background:C.surface, borderTop:`1px solid ${C.border}`, scrollbarWidth:"none" }}>
           <button className="t-quick" onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)}
-            style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:14, fontSize:11, color:C.gold, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:600, flexShrink:0 }}>
+            style={{ minHeight:44, padding:"0 14px", background:C.goldBg, border:`1px solid ${C.gold}`, borderRadius:22, fontSize:13, color:C.gold, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:600, flexShrink:0 }}>
             Talk to a person
           </button>
           {QUICK_REPLIES.map((q, i) => (
             <button key={i} className="t-quick" onClick={() => sendMessage(q)}
-              style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:14, fontSize:11, color:C.textSub, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:500, transition:"all 0.12s", flexShrink:0 }}>
+              style={{ minHeight:44, padding:"0 14px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:22, fontSize:13, color:C.text, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:500, flexShrink:0 }}>
               {q}
             </button>
           ))}
         </div>
 
         {/* Input */}
-        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"flex-end", gap:10, flexShrink:0 }}>
+        <div className="msg-input-row" style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 12px 12px", display:"flex", alignItems:"flex-end", gap:8, flexShrink:0 }}>
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -313,13 +313,13 @@ export default function MessagingScreen() {
             // On phones the keyboard can cover the composer: keep it in view once the keyboard has opened.
             onFocus={e => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView?.({ block: "end", behavior: "smooth" }), 300); }}
             rows={1}
-            style={{ flex:1, padding:"10px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:18, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:100 }}
+            style={{ flex:1, minHeight:44, padding:"11px 16px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:22, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:120 }}
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || sending}
             aria-label="Send message"
-            style={{ width:44, height:44, borderRadius:"50%", background:input.trim()?C.goldDim:C.raised, border:`1px solid ${input.trim()?C.goldDim:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:input.trim()?C.gold:C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
+            style={{ width:44, height:44, borderRadius:"50%", background:input.trim()?C.gold:C.raised, border:`1px solid ${input.trim()?C.gold:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:input.trim()?"#FFFFFF":C.textMuted, flexShrink:0, transition:"all 0.15s" }}>
             ➤
           </button>
         </div>

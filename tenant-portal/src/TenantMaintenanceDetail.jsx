@@ -25,16 +25,16 @@ const C = {
 };
 
 const STATUS = {
-  open:        { label: "Open",        color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  in_progress: { label: "In Progress", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  resolved:    { label: "Resolved",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
+  open:        { label: "Open",        color: "#92400E", bg: "rgba(240,164,48,0.13)" },
+  in_progress: { label: "In Progress", color: "#1D4ED8", bg: "rgba(74,154,232,0.13)" },
+  resolved:    { label: "Resolved",    color: "#166534", bg: "rgba(114,176,42,0.13)" },
 };
 
 const PRIORITY = {
-  low:    { label: "Low",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  normal: { label: "Normal", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  high:   { label: "High",   color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  urgent: { label: "Urgent", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
+  low:    { label: "Low",    color: "#166534", bg: "rgba(114,176,42,0.13)" },
+  normal: { label: "Normal", color: "#1D4ED8", bg: "rgba(74,154,232,0.13)" },
+  high:   { label: "High",   color: "#92400E", bg: "rgba(240,164,48,0.13)" },
+  urgent: { label: "Urgent", color: "#B91C1C", bg: "rgba(224,85,85,0.13)" },
 };
 
 const CATEGORY_ICONS = {
@@ -153,7 +153,7 @@ export default function TenantMaintenanceDetail() {
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isDesktop ? "28px 32px" : "20px" }}>
 
         {/* Back */}
-        <button onClick={() => navigate("/maintenance")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.goldDim, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, marginBottom: 20, transition: "color 0.15s" }}
+        <button onClick={() => navigate("/maintenance")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, marginBottom: 20, transition: "color 0.15s" }}
           onMouseOver={e => e.currentTarget.style.color = C.gold}
           onMouseOut={e => e.currentTarget.style.color = C.goldDim}
         >← Back to requests</button>

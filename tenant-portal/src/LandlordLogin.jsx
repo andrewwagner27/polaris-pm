@@ -102,16 +102,16 @@ export default function LandlordLogin() {
           <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Password</label>
           <div style={{ position: "relative" }}>
             <Input value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="••••••••" type={showPw ? "text" : "password"} onKeyDown={e => e.key === "Enter" && handleLogin()} />
-            <button onClick={() => setShowPw(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 14, color: C.textMuted, padding: 0 }}>
+            <button type="button" aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw} onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute",right:2,top:"50%",transform:"translateY(-50%)",width:44,height:44,background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.textMuted,padding:0 }}>
               {showPw ? "○" : "●"}
             </button>
           </div>
         </div>
 
         <div style={{ textAlign: "right", marginBottom: 24 }}>
-          <button onClick={() => navigate("/forgot-password")} style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s" }}
+          <button onClick={() => navigate("/forgot-password")} style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "0 4px",minHeight:44, transition: "color 0.15s" }}
             onMouseOver={e => e.currentTarget.style.color = C.gold}
-            onMouseOut={e => e.currentTarget.style.color = C.goldDim}
+            onMouseOut={e => e.currentTarget.style.color = "#C9A968"}
           >Forgot password?</button>
         </div>
 
@@ -131,7 +131,7 @@ export default function LandlordLogin() {
         </button>
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <button onClick={() => navigate("/")} style={{ fontSize: 12, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
+          <button type="button" onClick={() => navigate("/")} style={{ minHeight: 44, padding: "0 8px", fontSize: 13, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
             onMouseOver={e => e.currentTarget.style.color = C.textSub}
             onMouseOut={e => e.currentTarget.style.color = C.textMuted}
           >← Back to home</button>
