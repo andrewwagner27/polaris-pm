@@ -196,11 +196,11 @@ function TicketCard({ ticket, expanded, showProperty, vendorPhone, onToggle, onO
         <span aria-hidden="true" style={{ alignSelf: "stretch", background: PRIORITY[priority]?.color || C.border, borderRadius: "0 3px 3px 0" }}/>
         <span style={{ minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{field(ticket, "title")}</span>
-          <span style={{ display: "block", fontSize: 12, color: C.textSub, marginTop: 3, overflowWrap: "anywhere" }}>{place}</span>
+          <span style={{ display: "block", fontSize: 13, color: C.textSub, marginTop: 4, overflowWrap: "anywhere" }}>{place}</span>
           <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
-            <Badge type="priority" value={priority} />
+            {(priority === "high" || priority === "urgent") && <Badge type="priority" value={priority} />}
             <Badge type="status" value={status} />
-            {ticket.is_emergency && <span style={{ fontSize: 10, fontWeight:600, padding: "3px 8px", borderRadius: 5, background: "rgba(240,112,112,0.15)", color: C.red }}>Emergency</span>}
+            {ticket.is_emergency && <span style={{ fontSize: 12, fontWeight: 600, color: C.red }}>Emergency</span>}
             <span style={{ fontSize: 12, color: C.textMuted }}>· {ageLabel(ticket.created_at)} ago</span>
           </span>
         </span>
@@ -487,24 +487,25 @@ export default function LandlordMaintenance() {
   return (
     <LandlordLayout openMaintenance={activeCount} unreadMessages={0}>
       <style>{`
-        .m-ticket{background:${C.surface};border:1px solid ${C.border};border-radius:12px;margin-bottom:10px;overflow:hidden;}
-        .m-ticket:hover{border-color:#3C4350;}
-        .m-ticket-head{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:12px 14px 12px 0;background:transparent;border:none;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:64px;}
+        .m-ticket{background:${C.surface};border:none;border-radius:14px;margin-bottom:12px;overflow:hidden;}
+        .m-ticket:hover{background:#181D24;}
+        .m-ticket-head{display:grid;grid-template-columns:3px minmax(0,1fr) auto;gap:16px;align-items:center;width:100%;padding:16px 16px 16px 0;background:transparent;border:none;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:64px;}
         .m-chip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid ${C.border};background:${C.raised};color:${C.text};font-size:13px;font-weight:500;text-decoration:none;}
         .m-chip:hover{border-color:${C.gold};}
         .m-filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
         .m-filters::-webkit-scrollbar{display:none;}
-        .m-filter{flex-shrink:0;min-height:36px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;}
+        .m-filter{flex-shrink:0;min-height:36px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;border:none!important;}
+        .m-filter:hover{color:${C.text}!important;}
         .m-row:hover td{background:${C.raised}!important;}
-        .m-stat{background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%;}
-        .m-stat:hover{border-color:#3C4350;}
+        .m-stat{background:${C.surface};border:none;border-radius:12px;padding:14px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%;}
+        .m-stat:hover{background:${C.raised};}
         @media (max-width:1024px){ .m-filter{min-height:44px;} .m-chip{min-height:44px;} } @media (max-width:720px){ .m-ticket-actions .m-btn{flex:1;} }
       `}</style>
 
       <div className="m-page" style={{ color: C.text, fontFamily: "var(--m-font)" }}>
 
         <div style={{ marginBottom: 18 }}>
-          <h1 style={{ fontFamily: "var(--m-font)", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, margin: 0 }}>Maintenance</h1>
+          <h1 style={{ fontFamily: "var(--m-font)", fontSize: "var(--m-fs-title)", fontWeight: 600, margin: 0 }}>Maintenance</h1>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>
             {loading ? "Loading…" : `${activeCount} active ticket${activeCount === 1 ? "" : "s"} · ${selectedName}`}
           </div>
@@ -523,10 +524,10 @@ export default function LandlordMaintenance() {
             <button key={s.label} type="button" className="m-stat" onClick={() => { if (s.tab) setActiveTab(s.tab); else { setActiveTab("Requests"); setStatusFilter(s.filter); } }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
-                <span style={{ fontSize:12, fontWeight: 600, color: C.textSub, }}>{s.label}</span>
+                <span style={{ fontSize: 13, color: C.textSub }}>{s.label}</span>
               </div>
-              <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: C.text, lineHeight: 1.1 }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{s.sub}</div>
+              <div style={{ fontFamily: "var(--m-font)", fontSize: 20, fontWeight: 600, color: C.text, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{s.sub}</div>
             </button>
           ))}
         </div>
@@ -557,7 +558,7 @@ export default function LandlordMaintenance() {
                   <button key={f} type="button" className="m-filter" aria-pressed={statusFilter === f} onClick={() => setStatusFilter(f)} style={{
                     background: statusFilter === f ? "rgba(201,169,104,0.14)" : "transparent",
                     color: statusFilter === f ? C.text : C.textSub,
-                    border: `1px solid ${statusFilter === f ? C.gold : C.border}`,
+                    border: "none",
                   }}>{label}</button>
                 ))}
               </div>

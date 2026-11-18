@@ -181,7 +181,7 @@ describe("tenant Home dashboard wiring", () => {
 
   test("existing dashboard features are still present", () => {
     for (const s of ['navigate("/pay")', 'navigate("/maintenance/new")', 'navigate("/maintenance")', "lease_document_url", "Next Due Date",
-                     "fetchMessages()", "Lease expires in", "Unit ${tenant?.unit"]) assert.ok(dashboard.includes(s), s);
+                     "fetchMessages()", "Lease expires in", "unit={tenant?.unit}", "HomeHeader"]) assert.ok(dashboard.includes(s), s);
   });
 });
 

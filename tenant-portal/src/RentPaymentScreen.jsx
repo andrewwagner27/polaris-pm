@@ -40,13 +40,13 @@ const monthOf = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { m
 // Nothing collects rent automatically yet, so this is a notice and not a setting.
 function AutopayUnavailable() {
   return (
-    <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:16 }}>
+    <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"16px 20px",marginBottom:16 }}>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
         <div>
-          <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-          <div style={{ fontSize:11,color:C.textSub }}>Automatic rent payments aren't available yet. Rent is only paid when you submit a payment here.</div>
+          <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
+          <div style={{ fontSize:13,color:C.textSub }}>Automatic payments aren't available yet. Rent is only paid when you submit it here.</div>
         </div>
-        <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:C.raised,color:C.textSub,border:`1px solid ${C.border}`,borderRadius:20,flexShrink:0 }}>Not available yet</span>
+        <span style={{ fontSize:12,fontWeight:500,padding:"4px 10px",background:C.raised,color:C.textSub,borderRadius:999,flexShrink:0 }}>Not available yet</span>
       </div>
     </div>
   );
@@ -269,28 +269,27 @@ export default function RentPaymentScreen() {
         body{background:${C.bg};}
       `}</style>
 
-      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"28px 20px 60px" }}>
+      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100%",color:C.text,fontFamily:"var(--m-font)",padding:"32px 24px 64px",maxWidth:720,margin:"0 auto" }}>
 
         <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
-        <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>
+        <div style={{ fontSize:14,color:C.textSub,marginBottom:24 }}>
           {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}
         </div>
 
         {/* Receivables not active: one short explanation instead of an empty amount and a repeated notice below it */}
         {due && !due.ledger_active && (
-          <div role="status" style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 18px",marginBottom:14 }}>
-            <div style={{ fontSize:15,fontWeight:600,color:C.text,marginBottom:4 }}>Online payment isn't available yet</div>
-            <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55 }}>
-              Modus doesn't track your balance online yet, so there's no amount to pay here and nothing has been charged.
-              Pay rent the way your lease describes, or message management with any billing question.
+          <div role="status" style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
+            <div style={{ fontSize:16,fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't available yet</div>
+            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6 }}>
+              There's no amount to pay here and nothing has been charged. Pay rent the way your lease describes, or message management with billing questions.
             </div>
-            <div style={{ fontSize:12,color:C.textSub,marginTop:10 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
+            <div style={{ fontSize:13,color:C.textMuted,marginTop:12 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
           </div>
         )}
 
         {/* Amount summary */}
         {(!due || due.ledger_active) && (
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",marginBottom:14 }}>
+        <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
           <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:8 }}>Amount due</div>
@@ -331,11 +330,12 @@ export default function RentPaymentScreen() {
         </div>
         )}
 
-        <AutopayUnavailable/>
+        {/* Autopay notice only where online payment exists at all (otherwise the card above already says so) */}
+        {(!due || due.ledger_active) && <AutopayUnavailable/>}
 
         {/* Payment form (only where a payment can actually be made or its absence explained) */}
         {(!due || due.ledger_active) && (
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px" }}>
+        <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px" }}>
           {!due ? (
             <div style={{ textAlign:"center",padding:"20px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
           ) : due.online_available === false ? (

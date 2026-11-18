@@ -21,7 +21,7 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 }
 
-const cardLabel = { fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 };
+const cardLabel = { fontSize:13,fontWeight:500,color:C.textMuted,marginBottom:8 };
 
 export default function ActivityLedger() {
   const { tenant, loading } = useTenant();
@@ -60,49 +60,62 @@ export default function ActivityLedger() {
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
       <style>{`
-        
         *,*::before,*::after{box-sizing:border-box;}
+        .a-card{background:${C.surface};border-radius:16px;box-shadow:0 1px 2px rgba(24,24,27,0.04),0 4px 16px rgba(24,24,27,0.04);}
         .ledger-row:hover{background:${C.raised}!important;}
+        .a-row{display:grid;align-items:center;column-gap:16px;padding:14px 20px;border-top:1px solid ${C.border};font-size:14px;}
+        .a-row:first-child{border-top:none;}
+        .a-head{display:grid;column-gap:16px;padding:12px 20px;font-size:13px;font-weight:500;color:${C.textMuted};border-bottom:1px solid ${C.border};}
+        .a-ledger{grid-template-columns:130px minmax(0,1fr) 110px 110px 120px;}
+        .a-records{grid-template-columns:130px minmax(0,1fr) 110px 190px;}
+        .a-num{text-align:right;font-variant-numeric:tabular-nums;}
+        .a-mob{display:none;}
         @media(max-width:767px){
-          .ledger-pad{padding:16px!important;}
-          .ledger-table{font-size:12px!important;}
+          .ledger-pad{padding:20px 16px 32px!important;}
+          .a-head{display:none;}
+          .a-row{grid-template-columns:minmax(0,1fr) auto!important;row-gap:4px;padding:14px 16px;}
+          .a-date{order:3;font-size:13px!important;}
+          .a-desc{order:1;}
+          .a-main-num{order:2;}
+          .a-status{order:4;text-align:right;}
           .ledger-col-hide{display:none!important;}
+          .a-mob{display:inline;}
         }
       `}</style>
 
-      <div className="ledger-pad" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"36px 40px 80px",maxWidth:1000,margin:"0 auto" }}>
+      <div className="ledger-pad" style={{ background:C.bg,minHeight:"100%",color:C.text,fontFamily:"var(--m-font)",padding:"32px 32px 72px",maxWidth:960,margin:"0 auto" }}>
 
         {/* Header */}
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:12,color:C.textMuted,marginBottom:6 }}>Payment History</div>
-          <div style={{ fontFamily:"var(--m-font)",fontSize:"clamp(24px, 5vw, 30px)",fontWeight:600,color:C.text,lineHeight:1.1 }}>Activity Ledger</div>
+        <div style={{ marginBottom:24 }}>
+          <h1 style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,lineHeight:1.2,margin:0 }}>Activity</h1>
+          <div style={{ fontSize:14,color:C.textSub,marginTop:4 }}>Your payment history</div>
         </div>
 
         {/* Summary: the actual balance (or why it's unavailable), then the scheduled monthly charges */}
-        <div style={{ display:"flex",gap:14,marginBottom:24,flexWrap:"wrap" }}>
-          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 22px",flex:1,minWidth:200 }}>
+        <div style={{ display:"grid",gap:16,marginBottom:28,gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,260px),1fr))" }}>
+          <div className="a-card" style={{ padding:"20px 22px" }}>
             <div style={cardLabel}>Current Balance</div>
             {bal.available ? (
               <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:bal.tone==="due"?C.red:bal.tone==="clear"?C.green:C.textSub }}>
                 {ledger.balance.cents<0?"CR ":""}{bal.amountText}
               </div>
             ) : (
-              <div data-balance-state={ledger ? ledger.balance.state : "loading"} style={{ fontSize:18,fontWeight:600,color:C.textSub,lineHeight:1.3 }}>{bal.amountText}</div>
+              <div data-balance-state={ledger ? ledger.balance.state : "loading"} style={{ fontSize:17,fontWeight:500,color:C.textSub,lineHeight:1.3 }}>{bal.amountText}</div>
             )}
-            <div role={ledger && !bal.available ? "status" : undefined} style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>{bal.detail}</div>
+            <div role={ledger && !bal.available ? "status" : undefined} style={{ fontSize:13,color:C.textMuted,marginTop:6,lineHeight:1.5 }}>{bal.detail}</div>
           </div>
-          <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 22px",flex:1,minWidth:200 }}>
+          <div className="a-card" style={{ padding:"20px 22px" }}>
             <div style={cardLabel}>Monthly Recurring Charges</div>
             {monthly.hasCharges ? (
               <>
-                <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:C.gold }}>{formatCents(monthly.totalCents)}</div>
-                <div style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>
+                <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:C.text }}>{formatCents(monthly.totalCents)}</div>
+                <div style={{ fontSize:13,color:C.textMuted,marginTop:6 }}>
                   {monthly.items.map(i => `${i.label} ${i.cents == null ? "—" : formatCents(i.cents)}`).join(" · ")}
                 </div>
-                <div style={{ fontSize:11,color:C.textMuted,marginTop:2 }}>Scheduled each month. Not a balance due.</div>
+                <div style={{ fontSize:13,color:C.textMuted,marginTop:2 }}>Scheduled each month. Not a balance due.</div>
               </>
             ) : (
-              <div style={{ fontSize:13,color:C.textSub }}>No recurring charges are set up on your account.</div>
+              <div style={{ fontSize:14,color:C.textSub }}>No recurring charges are set up on your account.</div>
             )}
           </div>
         </div>
@@ -110,77 +123,71 @@ export default function ActivityLedger() {
         {isLedger ? (
           <>
             {/* Receivables ledger: posted charges and payments with the running balance */}
-            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 120px 130px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:12,fontWeight:600,color:C.textMuted,}}>
-                <div>Date Posted</div>
+            <div className="a-card" style={{ overflow:"hidden" }}>
+              <div className="a-head a-ledger">
+                <div>Date posted</div>
                 <div>Description</div>
-                <div className="ledger-col-hide" style={{ textAlign:"right" }}>Charges</div>
-                <div className="ledger-col-hide" style={{ textAlign:"right" }}>Payment</div>
-                <div style={{ textAlign:"right" }}>Balance</div>
+                <div className="a-num">Charges</div>
+                <div className="a-num">Payment</div>
+                <div className="a-num">Balance</div>
               </div>
-
+              <div>
               {fetching ? (
-                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading ledger…</div>
+                <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:14 }}>Loading ledger…</div>
               ) : entries.length === 0 ? (
-                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No posted activity yet.</div>
-              ) : entries.map((e, i) => {
+                <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:14 }}>No posted activity yet.</div>
+              ) : entries.map((e) => {
                 const isCharge = e.type === "charge";
                 const isPayment = e.type === "payment";
                 const balColor = e.running_balance > 0 ? C.red : e.running_balance < 0 ? C.green : C.textSub;
                 return (
-                  <div key={e.id} className="ledger-table ledger-row"
-                    style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 120px 130px",gap:0,padding:"13px 20px",borderBottom:i<entries.length-1?`1px solid ${C.border}`:"none",transition:"background 0.1s",alignItems:"center",fontSize:13 }}>
-                    <div style={{ color:C.textSub,fontSize:12 }}>{fmtDate(e.posted_at)}</div>
-                    <div style={{ fontWeight:500,color:C.text }}>{e.description}</div>
-                    <div className="ledger-col-hide" style={{ textAlign:"right",color:isCharge?C.red:C.textMuted,fontWeight:isCharge?500:400 }}>
-                      {isCharge ? fmt(e.amount) : "—"}
-                    </div>
-                    <div className="ledger-col-hide" style={{ textAlign:"right",color:isPayment?C.green:C.textMuted,fontWeight:isPayment?500:400 }}>
-                      {isPayment ? fmt(e.amount) : "—"}
-                    </div>
-                    <div style={{ textAlign:"right",fontWeight:600,color:balColor }}>
-                      {e.running_balance<0?"CR ":""}{fmt(e.running_balance)}
-                    </div>
+                  <div key={e.id} className="a-row a-ledger ledger-row">
+                    <div className="a-date" style={{ color:C.textSub,fontSize:13 }}>{fmtDate(e.posted_at)}{isCharge ? <span className="a-mob"> · charge {fmt(e.amount)}</span> : isPayment ? <span className="a-mob"> · payment {fmt(e.amount)}</span> : null}</div>
+                    <div className="a-desc" style={{ fontWeight:500,color:C.text,minWidth:0,overflowWrap:"anywhere" }}>{e.description}</div>
+                    <div className="a-num ledger-col-hide" style={{ color:isCharge?C.red:C.textMuted }}>{isCharge ? fmt(e.amount) : "—"}</div>
+                    <div className="a-num ledger-col-hide" style={{ color:isPayment?C.green:C.textMuted }}>{isPayment ? fmt(e.amount) : "—"}</div>
+                    <div className="a-num a-main-num" style={{ fontWeight:600,color:balColor }}>{e.running_balance<0?"CR ":""}{fmt(e.running_balance)}</div>
                   </div>
                 );
               })}
+              </div>
             </div>
-            <div style={{ marginTop:16,fontSize:11,color:C.textMuted,textAlign:"right" }}>
-              Negative balance indicates a credit. Contact Modus Property Management with any discrepancies.
+            <div style={{ marginTop:14,fontSize:13,color:C.textMuted }}>
+              A negative balance is a credit. Contact Modus Property Management with any discrepancies.
             </div>
           </>
         ) : (
           <>
             {/* No authoritative ledger: payment records exactly as recorded, with their status. No balance. */}
-            <div style={{ fontSize:12,color:C.textSub,marginBottom:10,lineHeight:1.5 }}>
+            <div style={{ fontSize:14,color:C.textSub,marginBottom:12,lineHeight:1.55 }}>
               Payment records on file. These are not a statement of your balance. Only records marked Paid were received.
             </div>
-            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 200px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:12,fontWeight:600,color:C.textMuted,}}>
+            <div className="a-card" style={{ overflow:"hidden" }}>
+              <div className="a-head a-records">
                 <div>Date</div>
                 <div>Record</div>
-                <div style={{ textAlign:"right" }}>Amount</div>
-                <div style={{ textAlign:"right" }}>Status</div>
+                <div className="a-num">Amount</div>
+                <div className="a-num">Status</div>
               </div>
-
+              <div>
               {fetching || !records ? (
-                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>Loading payment records…</div>
+                <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:14 }}>Loading payment records…</div>
               ) : records.error ? (
-                <div role="status" style={{ padding:"18px 16px",textAlign:"center",color:C.textSub,fontSize:13 }}>We couldn't load your payment records. Refresh the page, or contact management.</div>
+                <div role="status" style={{ padding:"20px",textAlign:"center",color:C.textSub,fontSize:14 }}>We couldn't load your payment records. Refresh the page, or contact management.</div>
               ) : records.rows.length === 0 ? (
-                <div style={{ padding:"18px 16px",textAlign:"center",color:C.textMuted,fontSize:13 }}>No payment records on file.</div>
+                <div style={{ padding:"20px",textAlign:"center",color:C.textMuted,fontSize:14 }}>No payment records on file.</div>
               ) : records.rows.map((r, i) => (
-                <div key={r.id || i} className="ledger-table ledger-row"
-                  style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 200px",gap:0,padding:"13px 20px",borderBottom:i<records.rows.length-1?`1px solid ${C.border}`:"none",transition:"background 0.1s",alignItems:"center",fontSize:13 }}>
-                  <div style={{ color:C.textSub,fontSize:12 }}>{fmtDate(r.date)}</div>
-                  <div style={{ fontWeight:500,color:C.text }}>{r.description}</div>
-                  <div style={{ textAlign:"right",color:C.text }}>{r.cents == null ? "—" : formatCents(r.cents)}</div>
-                  <div style={{ textAlign:"right",fontWeight:600,color:r.received?C.green:C.amber }}>{r.statusLabel}</div>
+                <div key={r.id || i} className="a-row a-records ledger-row">
+                  <div className="a-date" style={{ color:C.textSub,fontSize:13 }}>{fmtDate(r.date)}</div>
+                  <div className="a-desc" style={{ fontWeight:500,color:C.text,minWidth:0,overflowWrap:"anywhere" }}>{r.description}</div>
+                  <div className="a-num a-main-num" style={{ color:C.text }}>{r.cents == null ? "—" : formatCents(r.cents)}</div>
+                  <div className="a-num a-status" style={{ fontSize:13,fontWeight:500,color:r.received?C.green:C.amber }}>{r.statusLabel}</div>
                 </div>
               ))}
+              </div>
             </div>
-            <div style={{ marginTop:16,fontSize:11,color:C.textMuted,textAlign:"right" }}>
-              Contact Modus Property Management to confirm your balance or with any discrepancies.
+            <div style={{ marginTop:14,fontSize:13,color:C.textMuted }}>
+              Questions about a record? Message management.
             </div>
           </>
         )}

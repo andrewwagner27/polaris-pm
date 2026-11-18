@@ -310,8 +310,8 @@ export default function LandlordMessages() {
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", gap: 6 }}>
               {["all", "unread"].map(f => (
-                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} style={{
-                  minHeight: 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                <button key={f} type="button" className="m-touch-min" aria-pressed={filter === f} onClick={() => setFilter(f)} style={{
+                  minHeight: isMobile ? 44 : 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
                   background: filter === f ? "rgba(201,169,110,0.12)" : "transparent",
                   color: filter === f ? C.text : C.textSub,
                   border: `1px solid ${filter === f ? C.goldDim : C.border}`,
