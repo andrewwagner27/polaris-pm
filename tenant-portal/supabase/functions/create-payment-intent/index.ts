@@ -77,6 +77,18 @@ serve(async (req) => {
     }
     if (!ownsCustomer) return json(req, { error: "Payment method does not belong to this tenant" }, 403);
 
+    // Verify the bank account is actually attached to the authenticated tenant's
+    // Stripe customer. A client-supplied payment_method_id must never select
+    // an unrelated account, even if the customer ID itself is legitimate.
+    const methodRes = await fetch(
+      `https://api.stripe.com/v1/payment_methods/${encodeURIComponent(payment_method_id)}`,
+      { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+    );
+    const method = await methodRes.json();
+    if (!methodRes.ok || method.error || method.type !== "us_bank_account" || method.customer !== customer_id) {
+      return json(req, { error: "Choose a verified bank account linked to your tenant profile." }, 403);
+    }
+
     const unit_id = tenant.unit_id || null;
 
     // The owner's Stripe account: tenant → unit → property → properties.owner_email → landlords.email.
@@ -107,9 +119,8 @@ serve(async (req) => {
       payment_method: payment_method_id,
       "payment_method_types[]": "us_bank_account",
       confirm: "true",
-      "mandate_data[customer_acceptance][type]": "online",
-      "mandate_data[customer_acceptance][online][ip_address]": "127.0.0.1",
-      "mandate_data[customer_acceptance][online][user_agent]": "Modus PM",
+      // The tenant accepted the ACH mandate during the bank-linking SetupIntent.
+      // Reuse that mandate; never invent a customer IP address or user agent.
       "metadata[tenant_id]": tenant_id,
       "metadata[unit_id]": unit_id || "",
       ...(isPayRent ? { "metadata[purpose]": "rent" } : {}),
