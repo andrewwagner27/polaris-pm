@@ -4,467 +4,234 @@ import { supabase } from "./supabase";
 import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import LandlordLayout from "./LandlordLayout";
 import { paymentCents } from "./lib/accounting";
-import { fetchLandlordBalances, rentStanding } from "./lib/tenantFinancials";
+import { fetchLandlordBalances, rentStanding, STANDING } from "./lib/tenantFinancials";
+import { usePropertyScope, useScopedLoad, ALL } from "./lib/propertyScope";
+import { buildAttention } from "./lib/attention";
+import { DARK as C } from "./lib/tokens";
+import { PrimaryBtn } from "./ui/Button";
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
-const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#F0EDE6",
-  textSub:  "#7A7F8A",
-  textMuted:"#4A4F5A",
-  gold:     "#B99A5B",
-  goldDim:  "rgba(185,154,91,0.18)",
-  goldText: "#C9A96E",
-  blue:     "#4A9AE8",
-  green:    "#4CAF50",
-  red:      "#E05555",
-  amber:    "#D4871A",
-};
+const TONE = { red: C.red, green: C.green, muted: C.textSub };
+const SEVERITY = [
+  { label: "Urgent",   color: C.red,   bg: "rgba(240,112,112,0.12)" },
+  { label: "Decision", color: C.amber, bg: "rgba(227,154,53,0.12)" },
+  { label: "Follow up", color: C.blue, bg: "rgba(106,174,240,0.12)" },
+];
 
-const STATUS = {
-  paid:    { label: "Paid",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  pending: { label: "Pending", color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  late:    { label: "Late",    color: "#E05555", bg: "rgba(224,85,85,0.13)" },
-  failed:  { label: "Failed",  color: "#E05555", bg: "rgba(224,85,85,0.13)" },
-  vacant:  { label: "Vacant",  color: "#5C6270", bg: "rgba(92,98,112,0.15)" },
-  // Tenant standing from the receivables ledger (lib/tenantFinancials rentStanding); never inferred from rent.
-  owes:      { label: "Balance due", color: "#E05555", bg: "rgba(224,85,85,0.13)" },
-  current:   { label: "Paid up",     color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  credit:    { label: "Credit",      color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  untracked: { label: "Not tracked", color: "#9095A0", bg: "rgba(144,149,160,0.13)" },
-  upcoming:  { label: "Upcoming",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-};
-
-const PRIORITY = {
-  low:    { label: "Low",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  normal: { label: "Normal", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  high:   { label: "High",   color: "#E05555", bg: "rgba(224,85,85,0.13)" },
-  urgent: { label: "Urgent", color: "#E05555", bg: "rgba(224,85,85,0.18)" },
-};
-
-const PROP_COLORS = [C.gold, C.blue, C.green, C.amber, C.red];
-
-function useWindowWidth() {
-  const [w, setW] = useState(window.innerWidth);
-  useEffect(() => {
-    const h = () => setW(window.innerWidth);
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
-  }, []);
-  return w;
+// Everything on this page for one scope (ALL or a property id). Each query names the property explicitly; RLS still
+// decides what the signed-in landlord may read.
+async function loadDashboard(propertyId) {
+  const scoped = propertyId !== ALL;
+  const q = {
+    properties: supabase.from("properties").select("id, name, address, city, state"),
+    units:      supabase.from("units").select("id, property_id, unit_number, rent_amount"),
+    tenants:    supabase.from("tenants").select(`id, name, unit_id, lease_start, lease_end, lease_end_action, insurance_expires, invite_sent_at, user_id, archived, units${scoped ? "!inner" : ""}(unit_number, property_id)`),
+    payments:   supabase.from("payments").select(`id, amount_cents, amount, status, paid_at, created_at, voided_at, unit_id, units${scoped ? "!inner" : ""}(property_id)`).is("voided_at", null).gte("created_at", new Date(Date.now() - 62 * 864e5).toISOString()),
+    tickets:    supabase.from("maintenance_requests").select(`${TICKET_COLUMNS}, units${scoped ? "!inner" : ""}(unit_number, property_id, properties(name))`).neq("status", "resolved").order("created_at", { ascending: false }),
+    incidents:  supabase.from("incident_logs").select("id, category, status, created_at, property_id, details_json, properties(name), tenants(name)").neq("status", "resolved").order("created_at", { ascending: false }).limit(50),
+  };
+  if (scoped) {
+    q.properties = q.properties.eq("id", propertyId);
+    q.units      = q.units.eq("property_id", propertyId);
+    q.tenants    = q.tenants.eq("units.property_id", propertyId);
+    q.payments   = q.payments.eq("units.property_id", propertyId);
+    q.tickets    = q.tickets.eq("units.property_id", propertyId);
+    q.incidents  = q.incidents.eq("property_id", propertyId);
+  }
+  const keys = Object.keys(q);
+  const results = await Promise.all(keys.map((k) => q[k]));
+  const out = {};
+  keys.forEach((k, i) => { out[k] = results[i].data || []; out[`${k}Error`] = results[i].error?.message || null; });
+  out.tenants = out.tenants.filter((t) => !t.archived);   // archived (past) tenants no longer occupy a unit (archived may be NULL)
+  out.balances = await fetchLandlordBalances(supabase);
+  return out;
 }
 
-// ─── M Mark ───────────────────────────────────────────────────────────────
-function ModusMark({ size = 30 }) {
+function Section({ title, sub, action, children }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M6 33V10L20 27L34 10V33" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6 10L20 27L34 10" stroke={C.goldDim} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
-// ─── Badge ─────────────────────────────────────────────────────────────────
-function Badge({ status, type = "status" }) {
-  const cfg = type === "status" ? STATUS[status] : PRIORITY[status];
-  if (!cfg) return null;
-  return (
-    <span style={{
-      fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 5,
-      background: cfg.bg, color: cfg.color, whiteSpace: "nowrap", letterSpacing: "0.02em",
-    }}>{cfg.label}</span>
-  );
-}
-
-// ─── Card shell ────────────────────────────────────────────────────────────
-function Card({ children, style }) {
-  return (
-    <div style={{
-      background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 10, overflow: "hidden", ...style,
-    }}>{children}</div>
-  );
-}
-
-// ─── Card header ───────────────────────────────────────────────────────────
-function CardHeader({ title, sub, action, onAction }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "14px 18px", borderBottom: `1px solid ${C.border}`,
-    }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: "0.01em" }}>{title}</div>
-        {sub && <div style={{ fontSize: 12, color: C.textSub, marginTop: 3 }}>{sub}</div>}
+    <section style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: C.text, margin: 0 }}>{title}</h2>
+          {sub && <div style={{ fontSize: 13, color: C.textSub, marginTop: 2 }}>{sub}</div>}
+        </div>
+        {action}
       </div>
-      {action && (
-        <button onClick={onAction} style={{
-          fontSize: 12, color: C.textSub, background: "none", border: "none",
-          cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, transition: "color 0.15s",
-        }}
-          onMouseOver={e => e.currentTarget.style.color = C.text}
-          onMouseOut={e => e.currentTarget.style.color = C.textSub}
-        >{action} →</button>
-      )}
-    </div>
+      {children}
+    </section>
   );
 }
 
-// ─── Stat card ─────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, accent, primary }) {
+function Stat({ label, value, sub, onClick }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div style={{
-      background: C.surface, border: `1px solid ${primary ? "rgba(185,154,91,0.25)" : C.border}`,
-      borderRadius: 10, padding: "18px 20px", position:"relative", overflow:"hidden",
-    }}>
-      {primary && <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.gold},transparent)` }}/>}
-      <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
-        {label}
-      </div>
-      <div style={{
-        fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 30, fontWeight: 600,
-        color: primary ? C.goldText : C.text,
-        lineHeight: 1, marginBottom: 6,
-      }}>{value}</div>
+    <Tag onClick={onClick} type={onClick ? "button" : undefined} className={onClick ? "d-stat d-stat-link" : "d-stat"}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: C.text, lineHeight: 1.1, margin: "6px 0 2px" }}>{value}</div>
       <div style={{ fontSize: 12, color: C.textSub }}>{sub}</div>
-    </div>
+    </Tag>
   );
 }
 
-// ─── Main ──────────────────────────────────────────────────────────────────
 export default function LandlordDashboard() {
-  const navigate  = useNavigate();
-  const width     = useWindowWidth();
-  const isMobile  = width < 768;
-
-  const [rentFilter, setRentFilter]   = useState("all");
-  const [properties, setProperties]   = useState([]);
-  const [units, setUnits]             = useState([]);
-  const [tenants, setTenants]         = useState([]);
-  const [payments, setPayments]       = useState([]);
-  const [maintenance, setMaintenance] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [balances, setBalances]       = useState({ mode: "loading", byTenant: new Map() });
+  const navigate = useNavigate();
+  const { selectedPropertyId, selectedName, isAll } = usePropertyScope();
+  const { data, loading, error, reload } = useScopedLoad("dashboard", loadDashboard);
   const [landlordName, setLandlordName] = useState("");
+  // "Show all" belongs to the scope it was opened in; a new scope starts with the short list again.
+  const [showAllFor, setShowAllFor] = useState(null);
+  const showAllAttention = showAllFor === selectedPropertyId;
+  const setShowAllAttention = (fn) => setShowAllFor(fn(showAllAttention) ? selectedPropertyId : null);
 
   useEffect(() => {
-    fetchAll();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user?.user_metadata?.full_name) setLandlordName(user.user_metadata.full_name);
     });
   }, []);
 
-  async function fetchAll() {
-    setLoading(true);
-    const [
-      { data: props },
-      { data: units },
-      { data: tenants },
-      { data: payments },
-      { data: maint },
-    ] = await Promise.all([
-      supabase.from("properties").select("*"),
-      supabase.from("units").select("*"),
-      supabase.from("tenants").select("*"),
-      supabase.from("payments").select("*, tenants(name), units(unit_number, properties(name))").order("created_at", { ascending: false }),
-      supabase.from("maintenance_requests").select(`${TICKET_COLUMNS}, units(unit_number, properties(name)), tenants(name)`).neq("status", "resolved").order("created_at", { ascending: false }),
-    ]);
-    setProperties(props || []);
-    setUnits(units || []);
-    setTenants((tenants || []).filter(t => !t.archived)); // archived (past) tenants no longer occupy a unit
-    setPayments((payments || []).filter(p => !p.voided_at));
-    setMaintenance(maint || []);
-    setBalances(await fetchLandlordBalances(supabase));
-    setLoading(false);
-  }
+  const d = data || { properties: [], units: [], tenants: [], payments: [], tickets: [], incidents: [], balances: { mode: "loading", byTenant: new Map() } };
+  const now = new Date();
+  const attention = loading && !data ? [] : buildAttention({ tickets: d.tickets, incidents: d.incidents, tenants: d.tenants, balances: d.balances, now });
+  const shown = showAllAttention ? attention : attention.slice(0, 6);
 
-  const now            = new Date();
-  const totalUnits     = units.length;
-  const occupiedUnits  = tenants.length;
-  const occupancyRate  = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
-
-  const thisMonth      = payments.filter(p => {
-    const d = new Date(p.created_at);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  const occupied = new Set(d.tenants.filter((t) => t.unit_id).map((t) => t.unit_id));
+  const totalUnits = d.units.length;
+  const occupiedUnits = d.units.filter((u) => occupied.has(u.id)).length;
+  const monthPaid = d.payments.filter((p) => {
+    if (p.status !== "paid") return false;
+    const dt = new Date(p.paid_at || p.created_at);
+    return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
   });
-  const collected      = (thisMonth.filter(p => p.status === "paid").reduce((s, p) => s + paymentCents(p), 0) / 100).toLocaleString("en-US");
-  // Rent on file for occupied units only (a vacant unit's rent is not expected from anyone).
-  const expected       = (units.filter(u => tenants.some(t => t.unit_id === u.id)).reduce((s, u) => s + ((u.rent_amount || 0) * 100), 0) / 100).toLocaleString("en-US");
-  const openMaint      = maintenance.filter(m => m.status !== "resolved");
+  const collectedCents = monthPaid.reduce((s, p) => s + paymentCents(p), 0);
+  const expectedCents = d.units.filter((u) => occupied.has(u.id)).reduce((s, u) => s + Math.round((Number(u.rent_amount) || 0) * 100), 0);
+  const activeMaint = d.tickets.length;
+  const urgentMaint = d.tickets.filter((t) => t.is_emergency || t.priority === "urgent").length;
+  const leasesSoon = d.tenants.filter((t) => { if (!t.lease_end) return false; const days = (new Date(`${t.lease_end}T12:00:00`) - now) / 864e5; return days >= 0 && days <= 60; }).length;
+  const ledger = d.balances?.mode === "ledger";
+  const owing = ledger ? d.tenants.filter((t) => rentStanding(t, d.balances).status === "owes").length : null;
+  const usd = (c) => `$${(c / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-  const rentRollRows   = units.map(unit => {
-    const tenant   = tenants.find(t => t.unit_id === unit.id);
-    const property = properties.find(p => p.id === unit.property_id);
-    if (!tenant) return { unit: unit.unit_number, property: property?.name || "—", tenant: "—", rent: unit.rent_amount || 0, status: "vacant" };
-    // Standing comes from the receivables ledger only; a missing payment record is not "late".
-    const status = rentStanding(tenant, balances).status;
-    return { unit: unit.unit_number, property: property?.name || "—", tenant: tenant.name, rent: unit.rent_amount || 0, status };
-  });
+  const rentRoll = d.units.map((u) => {
+    const tenant = d.tenants.find((t) => t.unit_id === u.id);
+    const property = d.properties.find((p) => p.id === u.property_id);
+    const standing = rentStanding(tenant, d.balances);
+    return { id: u.id, unit: u.unit_number, property: property?.name || "", tenant, rent: Number(u.rent_amount) || 0, standing };
+  }).sort((a, b) => String(a.unit).localeCompare(String(b.unit), undefined, { numeric: true }));
 
-  const filteredRoll   = rentFilter === "all" ? rentRollRows : rentRollRows.filter(r => r.status === rentFilter);
-  const recentActivity = payments.slice(0, 4).map(p => ({
-    paid: p.status === "paid",
-    text: `${p.tenants?.name || "Tenant"} ${p.status === "paid" ? "paid" : "payment failed"} $${(paymentCents(p) / 100).toLocaleString()} — Unit ${p.units?.unit_number || ""} · ${p.units?.properties?.name || ""}`,
-    time: new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-  }));
-
-  const stats = [
-    { label: "Collected · " + now.toLocaleDateString("en-US", { month: "short" }), value: loading ? "—" : `$${collected}`, sub: `of $${expected} expected`, primary: true },
-    { label: "Balance due",      value: loading ? "—" : balances.mode === "ledger" ? String(rentRollRows.filter(r => r.status === "owes").length) : "—", sub: balances.mode === "ledger" ? "tenants with a ledger balance" : "receivables not active" },
-    { label: "Occupancy",        value: loading ? "—" : `${occupancyRate}%`, sub: `${occupiedUnits} of ${totalUnits} units` },
-    { label: "Open Maintenance", value: loading ? "—" : String(openMaint.length), sub: "active requests" },
-  ];
+  const hour = now.getHours();
+  const greeting = `Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}${landlordName ? `, ${landlordName.split(" ")[0]}` : ""}`;
 
   return (
-    <LandlordLayout openMaintenance={openMaint.length} unreadMessages={0}>
+    <LandlordLayout openMaintenance={activeMaint} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${C.bg}; }
-        .m-action:hover  { color: ${C.text} !important; }
-        .m-row:hover td  { background: ${C.raised} !important; }
-        .m-addbtn:hover  { background: rgba(255,255,255,0.04) !important; color: #F0EDE6 !important; border-color: rgba(255,255,255,0.2) !important; }
-        .m-prop:hover    { border-color: #353A44 !important; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .d-stat{display:block;width:100%;text-align:left;background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:16px 18px;font:inherit;color:inherit;}
+        .d-stat-link{cursor:pointer;} .d-stat-link:hover{border-color:${C.textMuted};}
+        .d-att{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid ${C.border};}
+        .d-att:last-child{border-bottom:none;}
+        .d-roll{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid ${C.border};}
+        .d-roll:last-child{border-bottom:none;}
+        @media (max-width:720px){
+          .d-att{grid-template-columns:1fr;gap:8px;}
+          .d-att .m-btn{width:100%;}
+          .d-roll{grid-template-columns:minmax(0,1fr) auto;}
+          .d-roll-rent{display:none;}
+        }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
-        <div style={{ padding: isMobile ? "20px 16px" : "32px 32px 48px" }}>
-
-          {/* ── Greeting ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 24 : 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <ModusMark size={isMobile ? 28 : 36} />
-              <div>
-                <div style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: isMobile ? 22 : 26, fontWeight: 600,
-                  color: C.text, letterSpacing: "0.01em", lineHeight: 1.2,
-                }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}{landlordName ? `, ${landlordName.split(" ")[0]}` : ""}</div>
-                <div style={{ fontSize: 13, color: C.textSub, marginTop: 4, letterSpacing: "0.02em" }}>
-                  {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                </div>
-              </div>
-            </div>
-            {!isMobile && (
-              <button className="m-addbtn" onClick={() => navigate("/landlord/tenants")} style={{
-                background: "transparent", border: `1px solid ${C.border}`,
-                color: C.textSub, fontSize: 13, fontWeight: 500,
-                padding: "9px 20px", borderRadius: 7, cursor: "pointer",
-                fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.02em", transition: "all 0.15s",
-              }}>+ Add Tenant</button>
-            )}
-          </div>
-
-          {/* ── KPI Cards ── */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)",
-            gap: 12, marginBottom: 28,
-          }}>
-            {stats.map((s, i) => <StatCard key={i} {...s} />)}
-          </div>
-
-          {/* ── Properties ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.12em", textTransform: "uppercase" }}>Properties</span>
-            <button className="m-action" onClick={() => navigate("/landlord/properties")} style={{ fontSize: 12, color: C.textSub, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}>+ Add property</button>
-          </div>
-
-          {loading ? (
-            <div style={{ color: C.textSub, fontSize: 13, marginBottom: 28 }}>Loading…</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 28 }}>
-              {properties.map((prop, i) => {
-                const propUnits    = units.filter(u => u.property_id === prop.id);
-                const propTenants  = tenants.filter(t => propUnits.some(u => u.id === t.unit_id));
-                const occ          = propTenants.length;
-                const total        = propUnits.length;
-                const pct          = total > 0 ? Math.round((occ / total) * 100) : 0;
-                const color        = PROP_COLORS[i % PROP_COLORS.length];
-                const propPaid     = payments.filter(p => propUnits.some(u => u.id === p.unit_id) && p.status === "paid");
-                const propTotal    = (propPaid.reduce((s, p) => s + paymentCents(p), 0) / 100).toLocaleString();
-                return (
-                  <div key={prop.id} className="m-prop" style={{
-                    background: C.surface, border: `1px solid ${C.border}`,
-                    borderRadius: 10, padding: "18px 18px 16px", transition: "border-color 0.15s",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 1 }} />
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{prop.name}</div>
-                        <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{prop.address}, {prop.city} {prop.state}</div>
-                      </div>
-                    </div>
-                    <div style={{ height: 2, background: C.raised, borderRadius: 1, overflow: "hidden", marginBottom: 6 }}>
-                      <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 1 }} />
-                    </div>
-                    <div style={{ fontSize: 12, color: C.textSub, marginBottom: 12 }}>{occ}/{total} units · {pct}% occupied</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <div style={{ background: C.raised, borderRadius: 7, padding: "10px 12px", textAlign: "center" }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color }}>${propTotal}</div>
-                        <div style={{ fontSize: 11, color: C.textSub, marginTop: 3 }}>Collected</div>
-                      </div>
-                      <div style={{ background: C.raised, borderRadius: 7, padding: "10px 12px", textAlign: "center" }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{total}</div>
-                        <div style={{ fontSize: 11, color: C.textSub, marginTop: 3 }}>Total units</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {properties.length === 0 && (
-                <div style={{ color: C.textSub, fontSize: 13, padding: 24, textAlign: "center" }}>No properties yet.</div>
-              )}
-              <div onClick={() => navigate("/landlord/properties")} style={{
-                background: "transparent", border: `1px dashed ${C.border}`,
-                borderRadius: 10, minHeight: 130,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer",
-              }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 24, color: C.goldDim, marginBottom: 6 }}>+</div>
-                  <div style={{ fontSize: 12, color: C.textSub, letterSpacing: "0.06em" }}>Add property</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Rent Roll + Right column ── */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-
-            {/* Rent Roll */}
-            <Card>
-              <CardHeader
-                title={`Rent Roll — ${now.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
-                sub={balances.mode === "ledger" ? `${rentRollRows.filter(r => r.status === "current" || r.status === "credit").length} paid up · ${rentRollRows.filter(r => r.status === "owes").length} with a balance due` : "Balances aren't tracked until receivables are active"}
-                action="View all"
-                onAction={() => navigate("/landlord/rentroll")}
-              />
-              {/* Filter pills */}
-              <div style={{ display: "flex", gap: 6, padding: "10px 16px", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
-                {["all","owes","current","untracked","vacant"].map(f => (
-                  <button key={f} onClick={() => setRentFilter(f)} style={{
-                    padding: "4px 12px", borderRadius: 5, fontSize: 12, fontWeight: 500,
-                    background: rentFilter === f ? "rgba(201,169,110,0.12)" : "transparent",
-                    color: rentFilter === f ? C.text : C.textSub,
-                    border: `1px solid ${rentFilter === f ? C.goldDim : C.border}`,
-                    cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                    textTransform: "capitalize", transition: "all 0.12s",
-                  }}>{f === "all" ? "All" : STATUS[f]?.label || f}</button>
-                ))}
-              </div>
-              <div style={{ overflowY: "auto", maxHeight: 340 }}>
-                {loading ? (
-                  <div style={{ padding: 24, color: C.textSub, fontSize: 13, textAlign: "center" }}>Loading…</div>
-                ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        {["Unit", "Tenant", ...(!isMobile ? ["Rent"] : []), "Status"].map(h => (
-                          <th key={h} style={{
-                            fontSize: 11, fontWeight: 600, color: C.textSub,
-                            textTransform: "uppercase", letterSpacing: "0.08em",
-                            padding: "10px 16px", textAlign: h === "Rent" ? "right" : "left",
-                            borderBottom: `1px solid ${C.border}`, background: C.raised,
-                          }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRoll.length === 0 && (
-                        <tr><td colSpan={4} style={{ padding: 24, color: C.textSub, fontSize: 13, textAlign: "center" }}>No records.</td></tr>
-                      )}
-                      {filteredRoll.map((row, i) => (
-                        <tr key={i} className="m-row">
-                          <td style={{ fontSize: 13, color: C.text, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-                            <div style={{ fontWeight: 600 }}>{row.unit}</div>
-                            <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{row.property}</div>
-                          </td>
-                          <td style={{ fontSize: 13, color: C.textSub, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>{row.tenant}</td>
-                          {!isMobile && (
-                            <td style={{ fontSize: 13, color: C.text, padding: "12px 16px", borderBottom: `1px solid ${C.border}`, textAlign: "right", fontWeight: 600 }}>
-                              ${(row.rent || 0).toLocaleString()}
-                            </td>
-                          )}
-                          <td style={{ fontSize: 13, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-                            <Badge status={row.status} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </Card>
-
-            {/* Right column */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-              {/* Maintenance */}
-              <Card>
-                <CardHeader
-                  title="Maintenance Queue"
-                  sub={`${openMaint.length} open request${openMaint.length !== 1 ? "s" : ""}`}
-                  action="View all"
-                  onAction={() => navigate("/landlord/maintenance")}
-                />
-                {loading && <div style={{ padding: 18, color: C.textSub, fontSize: 13 }}>Loading…</div>}
-                {!loading && openMaint.length === 0 && (
-                  <div style={{ padding: 24, color: C.textSub, fontSize: 13, textAlign: "center" }}>No open requests</div>
-                )}
-                {!loading && openMaint.slice(0, 5).map((m, i, arr) => (
-                  <div key={m.id} style={{
-                    padding: "13px 18px",
-                    borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
-                    display: "flex", alignItems: "flex-start", gap: 12,
-                  }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: "50%", marginTop: 5, flexShrink: 0,
-                      background: PRIORITY[m.priority]?.color || C.textSub,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 3 }}>{m.title}</div>
-                      <div style={{ fontSize: 12, color: C.textSub }}>
-                        {m.units?.properties?.name || "—"} · Unit {m.units?.unit_number || "—"} · {m.tenants?.name || "Unknown"}
-                      </div>
-                    </div>
-                    <Badge status={m.priority} type="priority" />
-                  </div>
-                ))}
-              </Card>
-
-              {/* Activity */}
-              <Card>
-                <CardHeader title="Recent Activity" />
-                {loading && <div style={{ padding: 18, color: C.textSub, fontSize: 13 }}>Loading…</div>}
-                {!loading && recentActivity.length === 0 && (
-                  <div style={{ padding: 24, color: C.textSub, fontSize: 13, textAlign: "center" }}>No recent activity.</div>
-                )}
-                {!loading && recentActivity.map((a, i, arr) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 18px",
-                    borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
-                  }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0, marginTop: 5,
-                      background: a.paid ? "#4CAF50" : "#E05555",
-                    }}/>
-                    <div>
-                      <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{a.text}</div>
-                      <div style={{ fontSize: 11, color: C.textSub, marginTop: 3 }}>{a.time}</div>
-                    </div>
-                  </div>
-                ))}
-              </Card>
-            </div>
+      <div className="m-page" style={{ color: C.text }}>
+        <div style={{ marginBottom: 22 }}>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(24px, 4vw, 30px)", fontWeight: 600, margin: 0, lineHeight: 1.15 }}>{greeting}</h1>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 4 }}>
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · {selectedName}
           </div>
         </div>
+
+        {error && (
+          <div role="alert" style={{ background: "rgba(240,112,112,0.1)", border: "1px solid rgba(240,112,112,0.35)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.red, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            The dashboard couldn't load: {error}
+            <button type="button" onClick={reload} className="m-btn m-btn-ghost m-btn-small" style={{ color: C.red, borderColor: "rgba(240,112,112,0.4)" }}>Retry</button>
+          </div>
+        )}
+
+        {/* 1. Needs Attention */}
+        <Section title="Needs attention"
+          sub={loading && !data ? "Checking maintenance, owner-action items and leases…" : attention.length ? `${attention.length} item${attention.length === 1 ? "" : "s"} waiting on you` : "Nothing is waiting on you right now."}>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+            {loading && !data && <div style={{ padding: 18, fontSize: 13, color: C.textSub }}>Loading…</div>}
+            {!loading && attention.length === 0 && (
+              <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: C.textSub }}>
+                <span aria-hidden="true" style={{ color: C.green, fontSize: 16 }}>✓</span>
+                No urgent maintenance, quotes to approve, owner-action items, or lease deadlines{isAll ? "" : " for this property"}.
+              </div>
+            )}
+            {shown.map((a) => {
+              const sev = SEVERITY[a.severity];
+              return (
+                <div key={a.id} className="d-att">
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, color: sev.color, background: sev.bg, whiteSpace: "nowrap", justifySelf: "start" }}>{sev.label}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{a.title}</div>
+                    <div style={{ fontSize: 12, color: C.textSub, marginTop: 2, overflowWrap: "anywhere" }}>{a.detail}</div>
+                  </div>
+                  <PrimaryBtn small onClick={() => navigate(a.action.to)}>{a.action.label}</PrimaryBtn>
+                </div>
+              );
+            })}
+            {attention.length > 6 && (
+              <button type="button" onClick={() => setShowAllAttention((v) => !v)} className="m-btn m-btn-ghost" style={{ width: "100%", borderRadius: 0, border: "none", borderTop: `1px solid ${C.border}`, color: C.action }}>
+                {showAllAttention ? "Show fewer" : `Show all ${attention.length}`}
+              </button>
+            )}
+          </div>
+          {!loading && d.balances?.mode !== "ledger" && (
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
+              Rent balances aren't listed: receivables aren't active, so Modus doesn't know who owes what.
+            </div>
+          )}
+        </Section>
+
+        {/* 2. Portfolio Snapshot */}
+        <Section title={isAll ? "Portfolio snapshot" : `${selectedName} snapshot`}>
+          <div className="m-grid">
+            <Stat label="Occupancy" value={loading && !data ? "—" : totalUnits ? `${Math.round((occupiedUnits / totalUnits) * 100)}%` : "—"}
+              sub={`${occupiedUnits} of ${totalUnits} units occupied`} onClick={() => navigate("/landlord/tenants")}/>
+            <Stat label={`Collected · ${now.toLocaleDateString("en-US", { month: "short" })}`} value={loading && !data ? "—" : usd(collectedCents)}
+              sub={expectedCents ? `Recorded payments · rent on file ${usd(expectedCents)}` : "Recorded payments this month"} onClick={() => navigate("/landlord/financials")}/>
+            <Stat label="Active maintenance" value={loading && !data ? "—" : String(activeMaint)}
+              sub={urgentMaint ? `${urgentMaint} urgent` : "No urgent tickets"} onClick={() => navigate("/landlord/maintenance")}/>
+            {ledger
+              ? <Stat label="Balances due" value={String(owing)} sub="Tenants with a ledger balance" onClick={() => navigate("/landlord/financials")}/>
+              : <Stat label="Leases ending" value={loading && !data ? "—" : String(leasesSoon)} sub="In the next 60 days" onClick={() => navigate("/landlord/tenants")}/>}
+          </div>
+        </Section>
+
+        {/* 3. Rent roll (compact) */}
+        <Section title="Rent roll" sub={ledger ? "Standing from the receivables ledger" : "Balances aren't tracked until receivables are active"}
+          action={<button type="button" className="m-btn m-btn-ghost m-btn-small" onClick={() => navigate("/landlord/tenants")}>All tenants →</button>}>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+            {loading && !data && <div style={{ padding: 18, fontSize: 13, color: C.textSub }}>Loading…</div>}
+            {!loading && rentRoll.length === 0 && <div style={{ padding: 18, fontSize: 13, color: C.textSub }}>No units{isAll ? "" : " for this property"} yet.</div>}
+            {rentRoll.slice(0, 8).map((r) => {
+              const st = STANDING[r.standing.status] || STANDING.untracked;
+              return (
+                <div key={r.id} className="d-roll">
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      Unit {r.unit}{r.tenant ? <span style={{ fontWeight: 400, color: C.textSub }}> · {r.tenant.name}</span> : null}
+                    </div>
+                    {isAll && <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{r.property}</div>}
+                  </div>
+                  <div className="d-roll-rent" style={{ fontSize: 13, color: C.text, fontVariantNumeric: "tabular-nums" }}>{r.rent ? `$${r.rent.toLocaleString("en-US")}/mo` : "—"}</div>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6, color: TONE[st.tone] || C.textSub, background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{st.label}</span>
+                </div>
+              );
+            })}
+            {rentRoll.length > 8 && (
+              <button type="button" onClick={() => navigate("/landlord/tenants")} className="m-btn m-btn-ghost" style={{ width: "100%", borderRadius: 0, border: "none", borderTop: `1px solid ${C.border}` }}>
+                View all {rentRoll.length} units
+              </button>
+            )}
+          </div>
+        </Section>
       </div>
     </LandlordLayout>
   );

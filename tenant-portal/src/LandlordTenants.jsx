@@ -1,22 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
-import { fetchLandlordBalances, rentStanding, standingDisplay, totalOwedCents } from "./lib/tenantFinancials";
+import { fetchLandlordBalances, rentStanding, standingDisplay } from "./lib/tenantFinancials";
+import { usePropertyScope, useScopedLoad, ALL } from "./lib/propertyScope";
+import { telHref } from "./lib/maintenanceView";
+import { PrimaryBtn } from "./ui/Button";
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
@@ -52,22 +55,9 @@ function Select({ value, onChange, children, disabled }) {
   );
 }
 
-function PrimaryBtn({ children, onClick, small, disabled }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{ background:"transparent",border:`1px solid ${C.goldDim}`,color:C.gold,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.04em",transition:"background 0.15s",whiteSpace:"nowrap",opacity:disabled?0.6:1 }}
-      onMouseOver={e=>!disabled&&(e.currentTarget.style.background="rgba(201,169,110,0.07)")}
-      onMouseOut={e=>e.currentTarget.style.background="transparent"}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small }) {
-  return (
-    <button onClick={onClick} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap" }}
-      onMouseOver={e=>{ e.currentTarget.style.color=C.text; e.currentTarget.style.borderColor="#353A44"; }}
-      onMouseOut={e=>{ e.currentTarget.style.color=C.textSub; e.currentTarget.style.borderColor=C.border; }}
-    >{children}</button>
-  );
+  return <button type="button" onClick={onClick} className={`m-btn m-btn-ghost${small?" m-btn-small":""}`} style={{ borderColor:C.border,color:C.textSub,fontWeight:500,fontFamily:"'DM Sans',sans-serif" }}>{children}</button>;
 }
 
 // ─── Lease countdown badge ─────────────────────────────────────────────────
@@ -221,49 +211,133 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────
-export default function LandlordTenants() {
+// Everything on the tenants page for one scope. The property id is passed explicitly; RLS decides what is readable.
+async function loadTenants(propertyId) {
+  const scoped = propertyId !== ALL;
+  let tq = supabase.from("tenants").select(`*, units${scoped ? "!inner" : ""}(property_id)`);
+  let uq = supabase.from("units").select("id, property_id, unit_number, rent_amount");
+  let pq = supabase.from("properties").select("id, name, address, city, state");
+  let payq = supabase.from("payments").select(`id, tenant_id, status, paid_at, created_at, voided_at, units${scoped ? "!inner" : ""}(property_id)`).order("created_at", { ascending: false }).limit(500);
+  if (scoped) { tq = tq.eq("units.property_id", propertyId); uq = uq.eq("property_id", propertyId); pq = pq.eq("id", propertyId); payq = payq.eq("units.property_id", propertyId); }
+  const [t, u, p, pay] = await Promise.all([tq, uq, pq, payq]);
+  const err = t.error || u.error || p.error;
+  if (err) throw new Error(err.message);
+  return { tenants: t.data || [], units: u.data || [], properties: p.data || [], payments: (pay.data || []).filter((x) => !x.voided_at), balances: await fetchLandlordBalances(supabase) };
+}
+
+function H({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", margin: "20px 0 6px" }}>{children}</div>;
+}
+
+// Tenant detail drawer: who, where, lease, how to reach them, their maintenance, and their ledger standing (only when
+// the receivables ledger is active). Actions go to the full profile, messages or the ledger.
+function TenantDrawer({ t, balancesMode, onClose }) {
   const navigate = useNavigate();
+  const [tickets, setTickets] = useState(null);
+  const ref = useRef(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from("maintenance_requests").select("id, title, status, priority, created_at").eq("tenant_id", t.id).order("created_at", { ascending: false }).limit(8)
+      .then(({ data }) => { if (live) setTickets(data || []); });
+    return () => { live = false; };
+  }, [t.id]);
+  useEffect(() => {
+    ref.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const tel = telHref(t.phone);
+  const v = standingDisplay({ status: t.payStatus, cents: t.balance });
+  const fmt = (d) => d ? new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const row = (k, val) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
+      <span style={{ fontSize: 13, color: C.textSub }}>{k}</span><span style={{ fontSize: 13, fontWeight: 500, color: C.text, textAlign: "right", overflowWrap: "anywhere" }}>{val}</span>
+    </div>
+  );
+  return (
+    <>
+      <div className="m-scrim" onClick={onClose}/>
+      <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="tenant-drawer-title" className="m-drawer" style={{ background: C.surface, borderLeft: `1px solid ${C.border}`, outline: "none" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 2, background: C.raised, borderBottom: `1px solid ${C.border}`, padding: "16px 20px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2 id="tenant-drawer-title" style={{ fontSize: 18, fontWeight: 600, margin: 0, color: C.text, overflowWrap: "anywhere" }}>{t.name || "Tenant"}</h2>
+            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>{t.property} · Unit {t.unit}{t.archived ? " · Past tenant" : ""}</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close tenant details" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textSub, cursor: "pointer", fontSize: 15 }}>✕</button>
+        </div>
+        <div style={{ padding: "4px 20px 24px" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "16px 0 4px" }}>
+            {tel && <a className="t-chip" href={tel} aria-label={`Call ${t.name}`}>📞 Call</a>}
+            {t.email && <a className="t-chip" href={`mailto:${t.email}`} aria-label={`Email ${t.name}`}>✉ Email</a>}
+            <button type="button" className="t-chip" onClick={() => navigate("/landlord/messages", { state: { tenantId: t.id } })}>💬 Message</button>
+          </div>
+
+          <H>Lease</H>
+          {row("Rent on file", t.rent ? `$${Number(t.rent).toLocaleString("en-US")}/mo` : "—")}
+          {row("Lease start", fmt(t.lease_start))}
+          {row("Lease end", t.lease_end ? `${fmt(t.lease_end)}${t.daysLeft != null ? (t.daysLeft >= 0 ? ` · ${t.daysLeft} d left` : " · ended") : ""}` : "No end date")}
+          {row("Rent due day", t.rent_due_day ? `Day ${t.rent_due_day}` : "—")}
+          {row("Portal", t.isRegistered ? "Registered" : t.isInvited ? "Invitation sent" : "Not invited")}
+          {row("Autopay", "Autopay not available yet")}
+
+          <H>Contact</H>
+          {row("Phone", t.phone || "—")}
+          {row("Email", t.email || "—")}
+          {t.emergency_contact_name && row("Emergency contact", `${t.emergency_contact_name}${t.emergency_contact_relationship ? ` (${t.emergency_contact_relationship})` : ""}`)}
+
+          <H>Balance</H>
+          <div style={{ padding: "10px 12px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: v.tone === "red" ? C.red : v.tone === "green" ? C.green : C.text }}>{balancesMode === "loading" ? "—" : (v.amountText ?? v.label)}</div>
+            {v.note && <div style={{ fontSize: 12, color: C.textSub, marginTop: 4, lineHeight: 1.45 }}>{v.note}</div>}
+          </div>
+
+          <H>Maintenance</H>
+          {tickets === null && <div style={{ fontSize: 13, color: C.textSub }}>Loading…</div>}
+          {tickets?.length === 0 && <div style={{ fontSize: 13, color: C.textSub }}>No maintenance requests.</div>}
+          {tickets?.map((m) => (
+            <button key={m.id} type="button" onClick={() => navigate(`/landlord/maintenance/${m.id}`)} className="t-related">
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title || "Request"}</span>
+              <span style={{ fontSize: 12, color: m.status === "resolved" ? C.green : C.amber, whiteSpace: "nowrap" }}>{m.status === "resolved" ? "Resolved" : String(m.status || "open").replace(/_/g, " ")}</span>
+            </button>
+          ))}
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 24 }}>
+            <PrimaryBtn onClick={() => navigate(`/landlord/tenants/${t.id}`)}>Open full profile</PrimaryBtn>
+            <GhostBtn onClick={() => navigate(`/landlord/financials/${t.id}`)}>Payments &amp; ledger</GhostBtn>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function LandlordTenants() {
   const width    = useWindowWidth();
   const isMobile = width < 768;
+  const { selectedPropertyId, selectedName, isAll } = usePropertyScope();
+  const { data, loading: loadingAny, error, reload: fetchAll } = useScopedLoad("tenants", loadTenants);
+  const loading = loadingAny && !data;
+  const tenants = data?.tenants || [], units = data?.units || [], properties = data?.properties || [], payments = data?.payments || [];
+  const balances = data?.balances || { mode: "loading", byTenant: new Map() };
 
-  const [tenants,    setTenants]    = useState([]);
-  const [units,      setUnits]      = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [payments,   setPayments]   = useState([]);
-  const [balances,   setBalances]   = useState({ mode:"loading", byTenant:new Map() });
-  const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
-  const [propFilter, setPropFilter] = useState("all");
-  const [activeTab,  setActiveTab]  = useState("all");   // all | ending_soon | new_move_ins | past
+  const [activeTab,  setActiveTab]  = useState("all");   // all | late | ending_soon | new_move_ins | past
   const [sortCol,    setSortCol]    = useState("name");
   const [sortDir,    setSortDir]    = useState("asc");
   const [showAdd,    setShowAdd]    = useState(false);
+  // Drawer selection belongs to the scope it was opened in: switching property closes it.
+  const [openFor,    setOpenFor]    = useState(null);    // { id, scope }
+  const openId = openFor?.scope === selectedPropertyId ? openFor.id : null;
+  const openerRef = useRef(null);
+  const openTenant = (id) => { openerRef.current = document.activeElement; setOpenFor({ id, scope: selectedPropertyId }); };
+  const closeTenant = () => { setOpenFor(null); const el = openerRef.current; if (el?.isConnected) setTimeout(() => el.focus(), 0); };
 
-  useEffect(() => { fetchAll(); }, []);
+  const [todayDate] = useState(() => new Date());   // one clock per visit: lease countdowns don't shift mid-render
+  const now = todayDate.getTime();
 
-  async function fetchAll() {
-    setLoading(true);
-    const [{ data:tenantsData },{ data:unitsData },{ data:propsData },{ data:paymentsData }] = await Promise.all([
-      supabase.from("tenants").select("*"),
-      supabase.from("units").select("*"),
-      supabase.from("properties").select("*"),
-      supabase.from("payments").select("*").order("created_at",{ ascending:false }),
-    ]);
-    setTenants(tenantsData||[]);
-    setUnits(unitsData||[]);
-    setProperties(propsData||[]);
-    setPayments(paymentsData||[]);
-    setBalances(await fetchLandlordBalances(supabase));
-    setLoading(false);
-  }
-
-  const now = Date.now();
-  const todayDate = new Date();
-
-  // Helper: has tenant paid rent this calendar month?
   function paidThisMonth(tenantId) {
-    const y = todayDate.getFullYear();
-    const m = todayDate.getMonth();
+    const y = todayDate.getFullYear(), m = todayDate.getMonth();
     return payments.some(p => {
       if (p.tenant_id !== tenantId || p.status !== "paid") return false;
       const d = new Date(p.paid_at || p.created_at);
@@ -271,61 +345,45 @@ export default function LandlordTenants() {
     });
   }
 
-  // Helper: is rent currently late? (today > due day and not paid this month)
   const enriched = tenants.map((t,i) => {
     const unit        = units.find(u=>u.id===t.unit_id);
     const property    = properties.find(p=>p.id===unit?.property_id);
     const latestPay   = payments.find(p=>p.tenant_id===t.id);
     const accentColor = AVATAR_COLORS[i%AVATAR_COLORS.length];
     const initials    = (t.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-
-    // Onboarding / registration status
     const isRegistered = !!t.user_id;
     const isInvited    = !t.user_id && !!t.invite_sent_at;
-
-
-    // Lease timing
     const leaseEnd   = t.lease_end   ? new Date(t.lease_end)   : null;
     const leaseStart = t.lease_start ? new Date(t.lease_start) : null;
     const daysLeft   = leaseEnd ? Math.ceil((leaseEnd.getTime() - now) / 86400000) : null;
     const isEndingSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= 90;
     const isNewMoveIn  = leaseStart && ((now - leaseStart.getTime()) / 86400000) <= 30;
-
-    // Payment / late status
     // Balance and "balance due" come only from the receivables ledger, never from rent minus payment records.
     const hasPaidThisMonth = paidThisMonth(t.id);
     const standing  = rentStanding(t, balances);
     const isLate    = !t.archived && standing.status === "owes";
-    const payStatus = standing.status;
-
-    const rentAmount = unit?.rent_amount || 0;
-    const balance = standing.cents;   // cents, or null when not tracked
-
     return {
       ...t,
       unit:        unit?.unit_number||"—",
       property:    property?.name||"—",
       property_id: property?.id,
-      rent:        rentAmount,
+      rent:        unit?.rent_amount || 0,
       isRegistered, isInvited,
       daysLeft, isEndingSoon, isNewMoveIn,
-      payStatus, isLate, hasPaidThisMonth,
+      payStatus: standing.status, isLate, hasPaidThisMonth,
       lastPaid:  latestPay?.paid_at ? new Date(latestPay.paid_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—",
-      balance,
+      balance: standing.cents,
       initials, accentColor,
     };
   });
 
   const activeEnriched   = enriched.filter(t=>!t.archived);
   const archivedEnriched = enriched.filter(t=>t.archived);
-
-  // Tab counts
   const endingSoonCount = activeEnriched.filter(t=>t.isEndingSoon).length;
   const newMoveInCount  = activeEnriched.filter(t=>t.isNewMoveIn).length;
   const lateCount       = activeEnriched.filter(t=>t.isLate).length;
   const pastCount       = archivedEnriched.length;
 
-  // Tab → base pool
   let tabPool;
   if (activeTab==="ending_soon")  tabPool = activeEnriched.filter(t=>t.isEndingSoon);
   else if (activeTab==="new_move_ins") tabPool = activeEnriched.filter(t=>t.isNewMoveIn);
@@ -333,28 +391,20 @@ export default function LandlordTenants() {
   else if (activeTab==="past")    tabPool = archivedEnriched;
   else                            tabPool = activeEnriched;
 
-  // Search + property filter
-  const filtered = tabPool.filter(t => {
-    const matchSearch = (t.name||"").toLowerCase().includes(search.toLowerCase())
-      || (t.unit||"").toLowerCase().includes(search.toLowerCase())
-      || (t.email||"").toLowerCase().includes(search.toLowerCase());
-    const matchProp = propFilter==="all" || t.property_id===propFilter;
-    return matchSearch && matchProp;
-  });
+  const q = search.trim().toLowerCase();
+  const filtered = tabPool.filter(t => !q || [t.name, t.unit, t.email, t.phone, t.property].some(v => String(v||"").toLowerCase().includes(q)));
 
   function handleSort(col) {
     if (sortCol===col) setSortDir(d=>d==="asc"?"desc":"asc");
     else { setSortCol(col); setSortDir("asc"); }
   }
-
   function SortIcon({ col }) {
-    if (sortCol!==col) return <span style={{ color:C.textMuted,marginLeft:3 }}>↕</span>;
-    return <span style={{ color:C.gold,marginLeft:3 }}>{sortDir==="asc"?"↑":"↓"}</span>;
+    if (sortCol!==col) return <span aria-hidden="true" style={{ color:C.textMuted,marginLeft:3 }}>↕</span>;
+    return <span aria-hidden="true" style={{ color:C.gold,marginLeft:3 }}>{sortDir==="asc"?"↑":"↓"}</span>;
   }
-
   const sorted = [...filtered].sort((a,b) => {
     let aVal, bVal;
-    if (sortCol==="name")     { aVal=a.name;    bVal=b.name; }
+    if (sortCol==="name")     { aVal=a.name||"";    bVal=b.name||""; }
     if (sortCol==="property") { aVal=a.property+a.unit; bVal=b.property+b.unit; }
     if (sortCol==="rent")     { aVal=a.rent;    bVal=b.rent; }
     if (sortCol==="lease")    { aVal=a.daysLeft??99999; bVal=b.daysLeft??99999; }
@@ -364,199 +414,160 @@ export default function LandlordTenants() {
   });
 
   const TABS = [
-    { key:"all",          label:"All Leases",  count:activeEnriched.length },
-    { key:"late",         label:"Balance due", count:lateCount,       accent:C.red },
-    { key:"ending_soon",  label:"Ending Soon", count:endingSoonCount, accent:C.amber },
-    { key:"new_move_ins", label:"New Move-Ins",count:newMoveInCount,  accent:C.green },
-    { key:"past",         label:"Past Tenants",count:pastCount,       accent:C.textSub },
+    { key:"all",          label:"All leases",  count:activeEnriched.length },
+    ...(balances.mode === "ledger" ? [{ key:"late", label:"Balance due", count:lateCount, accent:C.red }] : []),
+    { key:"ending_soon",  label:"Ending soon", count:endingSoonCount, accent:C.amber },
+    { key:"new_move_ins", label:"New move-ins",count:newMoveInCount,  accent:C.green },
+    { key:"past",         label:"Past tenants",count:pastCount,       accent:C.textSub },
   ];
+  const emptyText = activeTab==="late"?"No tenant has a ledger balance due.":activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":q?"No tenants match your search.":`No tenants${isAll?"":" at this property"} yet.`;
+  const balanceText = (t) => { const v = standingDisplay({ status:t.payStatus, cents:t.balance }); return { v, text: balances.mode==="loading" ? "—" : (v.amountText ?? v.label) }; };
+  const portalBadge = (t) => t.isRegistered
+    ? <span className="t-badge" style={{ color:C.green, borderColor:"rgba(93,187,99,0.35)" }}>Registered</span>
+    : t.isInvited ? <span className="t-badge" style={{ color:C.blue, borderColor:"rgba(106,174,240,0.35)" }}>Invite sent</span>
+    : <span className="t-badge">Not invited</span>;
+  const openTenantRow = enriched.find(t => t.id === openId);
 
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};}
         .m-row:hover td{background:${C.raised}!important;cursor:pointer;}
-        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
+        .t-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid ${C.border};color:${C.textSub};white-space:nowrap;}
+        .t-card{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;}
+        .t-card:hover{border-color:#3C4350;}
+        .t-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid ${C.border};background:${C.raised};color:${C.text};font:inherit;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;}
+        .t-chip:hover{border-color:${C.gold};}
+        .t-related{display:flex;justify-content:space-between;gap:12px;align-items:center;width:100%;min-height:44px;padding:0 12px;margin-bottom:6px;background:${C.raised};border:1px solid ${C.border};border-radius:10px;color:${C.text};font:inherit;font-size:13px;cursor:pointer;text-align:left;}
+        .t-tabs{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid ${C.border};}
+        .t-tabs::-webkit-scrollbar{display:none;}
+        .t-sort{background:none;border:none;font:inherit;color:inherit;cursor:pointer;text-transform:inherit;letter-spacing:inherit;padding:0;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
-
-        {/* Top bar */}
-        <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10 }}>
+      <div className="m-page" style={{ color:C.text,fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12 }}>
           <div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?20:24,fontWeight:600,color:C.text }}>Tenants</div>
-            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>
-              {loading?"Loading…":`${activeEnriched.length} active leases across ${properties.length} properties`}
-            </div>
+            <h1 style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Tenants</h1>
+            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${activeEnriched.length} active lease${activeEnriched.length===1?"":"s"} · ${selectedName}`}</div>
           </div>
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            {!isMobile&&(
-              <div style={{ display:"flex",alignItems:"center",gap:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,padding:"8px 12px",width:240 }}>
-                <span style={{ color:C.textMuted,fontSize:13 }}>⌕</span>
-                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, unit, email…"
-                  style={{ flex:1,border:"none",outline:"none",fontSize:13,fontFamily:"'DM Sans',sans-serif",background:"transparent",color:C.text }}/>
-              </div>
-            )}
-            <select value={propFilter} onChange={e=>setPropFilter(e.target.value)} style={{ padding:"8px 12px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:C.surface,color:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
-              <option value="all">All Properties</option>
-              {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <PrimaryBtn onClick={()=>setShowAdd(true)}>+ Add tenant</PrimaryBtn>
-          </div>
+          <PrimaryBtn onClick={()=>setShowAdd(true)}>+ Add tenant</PrimaryBtn>
         </div>
 
-        {isMobile&&(
-          <div style={{ display:"flex",alignItems:"center",gap:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,padding:"8px 12px",marginBottom:16 }}>
-            <span style={{ color:C.textMuted }}>⌕</span>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, unit, email…"
-              style={{ flex:1,border:"none",outline:"none",fontSize:13,fontFamily:"'DM Sans',sans-serif",background:"transparent",color:C.text }}/>
+        {error && (
+          <div role="alert" style={{ background:"rgba(240,112,112,0.1)",border:"1px solid rgba(240,112,112,0.35)",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:C.red,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap" }}>
+            Tenants couldn't load: {error}
+            <button type="button" onClick={fetchAll} className="m-btn m-btn-ghost m-btn-small" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Retry</button>
           </div>
         )}
 
-        {/* Stat ribbon */}
-        {!loading&&(
-          <div style={{ display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:24 }}>
-            {[
-              { label:"Active Leases",      value:activeEnriched.length,                                                          color:C.gold,                              tab:"all"         },
-              { label:"Balance Due",         value:balances.mode==="ledger"?lateCount:"—",                                        color:lateCount>0?C.red:C.textSub,         tab:"late"        },
-              { label:"Ending Soon",         value:endingSoonCount,                                                               color:endingSoonCount>0?C.amber:C.textSub, tab:"ending_soon" },
-              { label:"Outstanding",         value:(()=>{ const c=totalOwedCents(activeEnriched.map(t=>({ cents:t.balance }))); return c==null?"Not tracked":`${(c/100).toLocaleString("en-US",{minimumFractionDigits:2})}`; })(), color:activeEnriched.some(t=>t.balance>0)?C.red:C.textSub, tab:null },
-            ].map(s=>(
-              <div key={s.label}
-                onClick={s.tab?()=>setActiveTab(s.tab):undefined}
-                style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",cursor:s.tab?"pointer":"default",transition:"border-color 0.15s,background 0.15s" }}
-                onMouseEnter={s.tab?e=>{e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.background=C.raised;}:undefined}
-                onMouseLeave={s.tab?e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.surface;}:undefined}
-              >
-                <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>{s.label}</div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:s.color,lineHeight:1 }}>{s.value}</div>
-                {s.tab&&<div style={{ fontSize:10,color:C.textMuted,marginTop:8 }}>Click to filter →</div>}
-              </div>
-            ))}
-          </div>
-        )}
+        <label style={{ display:"flex",alignItems:"center",gap:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"0 12px",minHeight:44,maxWidth:420,marginBottom:14 }}>
+          <span aria-hidden="true" style={{ color:C.textMuted }}>⌕</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, unit, email or phone" aria-label="Search tenants"
+            style={{ flex:1,minWidth:0,border:"none",outline:"none",fontSize:14,fontFamily:"'DM Sans',sans-serif",background:"transparent",color:C.text }}/>
+        </label>
 
-        {/* Smart lease filter tabs */}
-        <div style={{ display:"flex",gap:0,marginBottom:0,borderBottom:`1px solid ${C.border}` }}>
+        <div className="t-tabs" role="tablist" aria-label="Lease filters">
           {TABS.map(tab=>{
             const active = activeTab===tab.key;
             const accentCol = tab.accent||C.gold;
             return (
-              <button key={tab.key} onClick={()=>setActiveTab(tab.key)}
-                style={{ padding:"10px 18px",fontSize:13,fontWeight:active?600:400,color:active?(tab.accent||C.gold):C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${tab.accent||C.gold}`:"2px solid transparent",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6 }}>
+              <button key={tab.key} type="button" role="tab" aria-selected={active} onClick={()=>setActiveTab(tab.key)}
+                style={{ minHeight:44,padding:"0 16px",fontSize:13,fontWeight:active?600:500,color:active?accentCol:C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${accentCol}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 {tab.label}
-                {tab.count>0&&(
-                  <span style={{ fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:10,background:active?`${accentCol}22`:`${C.textMuted}22`,color:active?accentCol:C.textMuted }}>
-                    {tab.count}
-                  </span>
-                )}
+                {tab.count>0&&<span style={{ fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:10,background:C.raised,color:active?accentCol:C.textSub }}>{tab.count}</span>}
               </button>
             );
           })}
-          <span style={{ marginLeft:"auto",display:"flex",alignItems:"center",padding:"0 4px",fontSize:12,color:C.textMuted }}>{filtered.length} results</span>
         </div>
+        {balances.mode !== "ledger" && balances.mode !== "loading" && (
+          <div style={{ fontSize:12,color:C.textMuted,margin:"10px 0 0" }}>Balances aren't tracked: receivables aren't active, so "Not tracked" means unknown, not $0.</div>
+        )}
 
-        {/* Table */}
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",overflowX:"auto" }}>
-          {loading?(
-            <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading tenants…</div>
-          ):(
-            <table style={{ width:"100%",borderCollapse:"collapse" }}>
-              <thead>
-                <tr>
-                  {[
-                    { col:"name",     label:"Tenant",         always:true  },
-                    { col:"property", label:"Property · Unit", always:false },
-                    { col:"lease",    label:"Lease Status",    always:true  },
-                    { col:"balance",  label:"Balance",         always:true,  right:true },
-                    { col:null,       label:"Actions",         always:true  },
-                  ].filter(h=>h.always||!isMobile).map(h=>(
-                    <th key={h.label} onClick={h.col?()=>handleSort(h.col):undefined}
-                      style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 18px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,cursor:h.col?"pointer":"default",whiteSpace:"nowrap" }}>
-                      {h.label}{h.col&&<SortIcon col={h.col}/>}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.length===0&&(
-                  <tr><td colSpan={6} style={{ padding:40,textAlign:"center",color:C.textSub,fontSize:13 }}>
-                    {activeTab==="late"?"No late tenants this month.":activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":"No tenants match your search."}
-                  </td></tr>
-                )}
-                {sorted.map(t=>(
-                  <tr key={t.id} className="m-row" onClick={()=>navigate(`/landlord/tenants/${t.id}`)}>
-                    {/* Tenant name + three status badges */}
-                    <td style={{ fontSize:13,color:C.text,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
-                      <div style={{ display:"flex",alignItems:"flex-start",gap:12 }}>
-                        <div style={{ width:38,height:38,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}44`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0,marginTop:1 }}>{t.initials}</div>
-                        <div>
-                          <div style={{ fontSize:14,fontWeight:600,color:C.text,marginBottom:4 }}>{t.name}</div>
-                          <div style={{ fontSize:12,color:C.textSub,marginBottom:6 }}>
-                            {isMobile?`${t.property} · Unit ${t.unit}`:(t.email||"—")}
-                          </div>
-                          {/* Three status badges */}
-                          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-                            <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.12)",color:C.textSub,border:`1px solid ${C.border}` }}>Autopay not available yet</span>
-                            {/* Registration */}
-                            {t.isRegistered
-                              ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(114,176,42,0.12)",color:C.green,border:"1px solid rgba(114,176,42,0.2)" }}>✓ Registered</span>
-                              : t.isInvited
-                                ? <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(74,154,232,0.1)",color:C.blue,border:"1px solid rgba(74,154,232,0.2)" }}>✉ Invite Sent</span>
-                                : <span style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:4,background:"rgba(92,98,112,0.15)",color:C.textSub,border:`1px solid ${C.border}` }}>✕ Pending Invite</span>
-                            }
-                            {/* Late rent */}
-                            {t.isLate&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.18)",color:C.red,border:"1px solid rgba(224,85,85,0.35)" }}>⚠ Balance due</span>}
-                            {/* Eviction watch */}
-                            {t.eviction_watch&&<span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+        <div style={{ marginTop:14 }}>
+          {loading && <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>Loading tenants…</div>}
+          {!loading && sorted.length===0 && <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:14,border:`1px dashed ${C.border}`,borderRadius:12 }}>{emptyText}</div>}
 
-                    {!isMobile&&(
-                      <td style={{ fontSize:13,color:C.text,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
-                        <div style={{ fontWeight:500,fontSize:13 }}>{t.property}</div>
-                        <div style={{ fontSize:12,color:C.textSub,marginTop:3 }}>Unit {t.unit}</div>
-                      </td>
-                    )}
+          {/* Phones: readable record cards */}
+          {!loading && isMobile && sorted.map(t => {
+            const b = balanceText(t);
+            return (
+              <button key={t.id} type="button" className="t-card" onClick={()=>openTenant(t.id)} aria-haspopup="dialog">
+                <span style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
+                  <span style={{ minWidth:0 }}>
+                    <span style={{ display:"block",fontSize:15,fontWeight:600,overflowWrap:"anywhere" }}>{t.name}</span>
+                    <span style={{ display:"block",fontSize:12,color:C.textSub,marginTop:2 }}>{isAll?`${t.property} · `:""}Unit {t.unit}{t.rent?` · $${Number(t.rent).toLocaleString("en-US")}/mo`:""}</span>
+                  </span>
+                  <span style={{ fontSize:13,fontWeight:600,whiteSpace:"nowrap",color:b.v.tone==="red"?C.red:b.v.tone==="green"?C.green:C.textSub }}>{b.text}</span>
+                </span>
+                <span style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:10,alignItems:"center" }}>
+                  {portalBadge(t)}
+                  {t.isLate&&<span className="t-badge" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Balance due</span>}
+                  {t.eviction_watch&&<span className="t-badge" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Eviction watch</span>}
+                  <span style={{ fontSize:12,color:t.daysLeft!=null&&t.daysLeft<=90?C.amber:C.textSub }}>{t.daysLeft==null?"No lease end date":t.daysLeft<=0?"Lease ended":`Lease ends in ${t.daysLeft} d`}</span>
+                </span>
+              </button>
+            );
+          })}
 
-                    {/* Lease status column */}
-                    <td style={{ fontSize:13,padding:"14px 18px",borderBottom:`1px solid ${C.border}` }}>
-                      <LeaseBadge daysLeft={t.daysLeft} leaseEnd={t.lease_end}/>
-                    </td>
-
-                    <td style={{ fontSize:13,padding:"14px 18px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
-                      {(()=>{ const v=standingDisplay({ status:t.payStatus, cents:t.balance }); return (
-                        <span title={v.note} style={{ fontSize:v.amountText?14:12,fontWeight:600,color:v.tone==="red"?C.red:v.tone==="green"?C.green:C.textSub }}>
-                          {balances.mode==="loading" ? "—" : (v.amountText ?? v.label)}
-                        </span>); })()}
-                    </td>
-
-                    <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }} onClick={e=>e.stopPropagation()}>
-                      <div style={{ display:"flex",gap:6,alignItems:"center" }}>
-                        <button onClick={()=>navigate("/landlord/messages",{ state:{ tenantId:t.id } })}
-                          title="Message tenant"
-                          style={{ width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.15s,color 0.15s" }}
-                          onMouseEnter={e=>{e.currentTarget.style.background=C.raised;e.currentTarget.style.color=C.text;}}
-                          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=C.textSub;}}
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
+          {/* Tablet & desktop: efficient table */}
+          {!loading && !isMobile && sorted.length>0 && (
+            <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",overflowX:"auto" }}>
+              <table style={{ width:"100%",borderCollapse:"collapse" }}>
+                <thead>
+                  <tr>
+                    {[
+                      { col:"name",     label:"Tenant" },
+                      { col:"property", label:isAll?"Property · Unit":"Unit" },
+                      { col:"lease",    label:"Lease" },
+                      { col:"balance",  label:"Balance", right:true },
+                      { col:null,       label:"" },
+                    ].map(h=>(
+                      <th key={h.label||"actions"} scope="col" aria-sort={h.col&&sortCol===h.col?(sortDir==="asc"?"ascending":"descending"):undefined}
+                        style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"12px 16px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>
+                        {h.col ? <button type="button" className="t-sort" onClick={()=>handleSort(h.col)}>{h.label}<SortIcon col={h.col}/></button> : h.label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sorted.map(t=>{
+                    const b = balanceText(t);
+                    return (
+                      <tr key={t.id} className="m-row" onClick={()=>openTenant(t.id)}>
+                        <td style={{ padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                            <div aria-hidden="true" style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}55`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0 }}>{t.initials}</div>
+                            <div style={{ minWidth:0 }}>
+                              <button type="button" onClick={(e)=>{ e.stopPropagation(); openTenant(t.id); }} style={{ background:"none",border:"none",padding:0,font:"inherit",fontSize:14,fontWeight:600,color:C.text,cursor:"pointer",textAlign:"left" }}>{t.name}</button>
+                              <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:4 }}>
+                                {portalBadge(t)}
+                                {t.isLate&&<span className="t-badge" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Balance due</span>}
+                                {t.eviction_watch&&<span className="t-badge" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Eviction watch</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize:13,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
+                          {isAll&&<div style={{ fontWeight:500 }}>{t.property}</div>}
+                          <div style={{ fontSize:12,color:C.textSub,marginTop:isAll?2:0 }}>Unit {t.unit}{t.rent?` · $${Number(t.rent).toLocaleString("en-US")}/mo`:""}</div>
+                        </td>
+                        <td style={{ padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}><LeaseBadge daysLeft={t.daysLeft} leaseEnd={t.lease_end}/></td>
+                        <td style={{ padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
+                          <span title={b.v.note} style={{ fontSize:b.v.amountText?14:12,fontWeight:600,color:b.v.tone==="red"?C.red:b.v.tone==="green"?C.green:C.textSub }}>{b.text}</span>
+                        </td>
+                        <td style={{ padding:"12px 16px",borderBottom:`1px solid ${C.border}`,textAlign:"right" }}>
+                          <span aria-hidden="true" style={{ color:C.textMuted }}>›</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
 
+      {openTenantRow && <TenantDrawer t={openTenantRow} balancesMode={balances.mode} onClose={closeTenant}/>}
       {showAdd&&(
         <AddTenantModal properties={properties} units={units} onClose={()=>setShowAdd(false)} onSaved={()=>{ setShowAdd(false); fetchAll(); }}/>
       )}

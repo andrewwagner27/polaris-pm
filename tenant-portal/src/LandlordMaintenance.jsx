@@ -1,47 +1,60 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import LandlordLayout from "./LandlordLayout";
 import AssignVendorModal from "./AssignVendorModal";
 import { notifyTicketStatusUpdate, notifyTenantNewComment, notifyVendorApproved, notifyVendorMoreWork } from "./notifications";
 import { getSignedStorageUrl } from "./storageUtils";
+import { PrimaryBtn } from "./ui/Button";
+import { usePropertyScope, useScopedLoad, ALL } from "./lib/propertyScope";
+import { ticketTimeline, nextAction, ageLabel, telHref } from "./lib/maintenanceView";
+
+// All tickets for one scope (ALL or a property id), newest first. The property id is passed explicitly; RLS decides
+// what the landlord may read. Contractor phone numbers come from the landlord-only vendor directory (the ticket's own
+// contractor contact columns are server-only since migration 20261117000000).
+async function loadTickets(propertyId) {
+  const scoped = propertyId !== ALL;
+  let q = supabase.from("maintenance_requests")
+    .select(`${TICKET_COLUMNS}, units${scoped ? "!inner" : ""}(unit_number, property_id, properties(name, address, city, state)), tenants(name, phone)`)
+    .order("created_at", { ascending: false });
+  if (scoped) q = q.eq("units.property_id", propertyId);
+  const [{ data, error }, { data: vendors }] = await Promise.all([q, supabase.from("vendors").select("name, phone, property_id, active")]);
+  if (error) throw new Error(error.message);
+  return { tickets: data || [], vendors: vendors || [] };
+}
 
 const C = {
-  bg:       "#0C0E12",
-  surface:  "#14181F",
-  raised:   "#1A1F29",
-  border:   "rgba(255,255,255,0.08)",
-  text:     "#EDEAE2",
-  textSub:  "#9095A0",
-  textMuted:"#5C6270",
-  gold:     "#C9A96E",
+  bg:       "#0B0D10",
+  surface:  "#15191F",
+  raised:   "#1C2129",
+  border:   "#303640",
+  text:     "#F5F2EB",
+  textSub:  "#B7BBC4",
+  textMuted:"#9298A3",
+  gold:     "#C9A968",
   goldDim:  "#6B4F24",
-  blue:     "#4A9AE8",
+  blue:     "#6AAEF0",
   green:    "#72B02A",
-  red:      "#E05555",
+  red:      "#F07070",
   amber:    "#F0A430",
 };
 
 const PRIORITY = {
   low:    { label: "Low",    color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
-  normal: { label: "Normal", color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
+  normal: { label: "Normal", color: "#6AAEF0", bg: "rgba(74,154,232,0.13)" },
   high:   { label: "High",   color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  urgent: { label: "Urgent", color: "#E05555", bg: "rgba(224,85,85,0.15)" },
+  urgent: { label: "Urgent", color: "#F07070", bg: "rgba(224,85,85,0.15)" },
 };
 
 const STATUS = {
   open:           { label: "Open",           color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
   quote_submitted: { label: "Quote In",       color: "#F0A430", bg: "rgba(240,164,48,0.13)" },
-  in_progress:    { label: "In Progress",    color: "#4A9AE8", bg: "rgba(74,154,232,0.13)" },
-  pending_review: { label: "Pending Review", color: "#C9A96E", bg: "rgba(201,169,110,0.13)" },
+  in_progress:    { label: "In Progress",    color: "#6AAEF0", bg: "rgba(74,154,232,0.13)" },
+  pending_review: { label: "Pending Review", color: "#C9A968", bg: "rgba(201,169,110,0.13)" },
   resolved:       { label: "Resolved",       color: "#72B02A", bg: "rgba(114,176,42,0.13)" },
 };
 
-const CATEGORY_ICONS = {
-  plumbing: "🚿", electrical: "⚡", hvac: "🌡️",
-  appliance: "🍳", pest: "🐛", other: "🔧",
-};
 
 // ─── LightboxView — navigable full-screen photo viewer with signed URLs ──────
 function LightboxView({ lightbox, setLightbox }) {
@@ -83,7 +96,7 @@ function SignedMaintenancePhoto({ urlOrPath, onClick, style }) {
     getSignedStorageUrl("maintenance-photos", urlOrPath).then(s => setSrc(s));
   }, [urlOrPath]);
   if (!src) return <div style={{ ...style, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-    <span style={{ fontSize:10, color:"#5C6270" }}>…</span></div>;
+    <span style={{ fontSize:10, color:"#9298A3" }}>…</span></div>;
   return <img src={src} alt="" style={style} onClick={() => onClick?.(src)} />;
 }
 
@@ -136,34 +149,88 @@ function Badge({ type, value }) {
   return <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: cfg.bg, color: cfg.color, whiteSpace: "nowrap" }}>{cfg.label}</span>;
 }
 
-function PrimaryBtn({ children, onClick, disabled, color }) {
-  const bg = color || C.goldDim;
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      background: color ? color : "transparent",
-      border: color ? "none" : `1px solid ${bg}`,
-      color: color ? "#fff" : C.gold,
-      fontSize: 13, fontWeight: 500, padding: "8px 16px", borderRadius: 7,
-      cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
-      transition: "background 0.15s", opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap",
-    }}
-      onMouseOver={e => !disabled && !color && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
-      onMouseOut={e => !color && (e.currentTarget.style.background = "transparent")}
-    >{children}</button>
-  );
-}
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick} style={{
-      background: "transparent", border: `1px solid ${C.border}`,
-      color: C.textSub, fontSize: small ? 11 : 13, fontWeight: 500,
-      padding: small ? "5px 10px" : "8px 16px", borderRadius: 7,
-      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
-    }}
-      onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
-      onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
-    >{children}</button>
+    <button type="button" onClick={onClick} className={`m-btn m-btn-ghost${small ? " m-btn-small" : ""}`}
+      style={{ borderColor: C.border, color: C.textSub, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{children}</button>
+  );
+}
+
+// Reported → Assigned → Quoted → Approved → Resolved, from the ticket's recorded fields only (lib/maintenanceView).
+// Skipped stages are drawn hollow and labelled "skipped"; nothing is shown as done that the ticket doesn't record.
+function StageTimeline({ ticket, compact }) {
+  const stages = ticketTimeline(ticket);
+  const fmt = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+  return (
+    <ol aria-label="Ticket progress" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: `repeat(${stages.length}, minmax(0,1fr))`, gap: 4 }}>
+      {stages.map((s, i) => {
+        const color = s.state === "done" ? C.green : s.state === "current" ? C.gold : C.textMuted;
+        return (
+          <li key={s.key} aria-label={`${s.label}: ${s.state === "done" ? `done${s.at ? ` ${fmt(s.at)}` : ""}` : s.state}`} style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: s.state === "done" ? color : "transparent", border: `2px ${s.state === "skipped" ? "dashed" : "solid"} ${color}` }}/>
+              {i < stages.length - 1 && <span aria-hidden="true" style={{ flex: 1, height: 2, background: s.state === "done" ? C.green : C.border, borderRadius: 1 }}/>}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: s.state === "current" ? 700 : 500, color: s.state === "upcoming" || s.state === "skipped" ? C.textMuted : C.text, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
+            {!compact && <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: "nowrap" }}>{s.state === "skipped" ? "skipped" : s.state === "done" ? (fmt(s.at) || "done") : s.state === "current" ? "next" : ""}</div>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// One ticket in the list: collapsed = title, place, priority, status, age; expanded = progress, next action, call chips,
+// the stage's primary action and Open details. The same card serves phone, tablet and desktop.
+function TicketCard({ ticket, expanded, showProperty, vendorPhone, onToggle, onOpen, onAssign, onResolve, onApprove, onMoreWork }) {
+  const priority = field(ticket, "priority"), status = field(ticket, "status");
+  const next = nextAction(ticket);
+  const tenantTel = telHref(ticket.tenants?.phone);
+  const vendorTel = telHref(vendorPhone);
+  const panelId = `ticket-panel-${ticket.id}`;
+  const place = [showProperty ? field(ticket, "property") : null, `Unit ${field(ticket, "unit")}`, field(ticket, "tenant")].filter(Boolean).join(" · ");
+  return (
+    <div className="m-ticket">
+      <button type="button" className="m-ticket-head" aria-expanded={expanded} aria-controls={panelId} onClick={onToggle}>
+        <span aria-hidden="true" style={{ alignSelf: "stretch", background: PRIORITY[priority]?.color || C.border, borderRadius: "0 3px 3px 0" }}/>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{field(ticket, "title")}</span>
+          <span style={{ display: "block", fontSize: 12, color: C.textSub, marginTop: 3, overflowWrap: "anywhere" }}>{place}</span>
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+            <Badge type="priority" value={priority} />
+            <Badge type="status" value={status} />
+            {ticket.is_emergency && <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 5, background: "rgba(240,112,112,0.15)", color: C.red }}>Emergency</span>}
+            <span style={{ fontSize: 12, color: C.textMuted }}>· {ageLabel(ticket.created_at)} ago</span>
+          </span>
+        </span>
+        <span aria-hidden="true" style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: C.textSub, transform: expanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}>⌄</span>
+      </button>
+      {expanded && (
+        <div id={panelId} style={{ padding: "4px 16px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ padding: "14px 0 12px" }}><StageTimeline ticket={ticket} compact /></div>
+          {next && (
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 12px", borderRadius: 10, background: C.raised, border: `1px solid ${next.tone === "urgent" ? "rgba(240,112,112,0.45)" : C.border}`, marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: next.owner === "you" ? C.gold : C.textSub, whiteSpace: "nowrap", paddingTop: 2 }}>{next.owner === "you" ? "Next · you" : `Waiting · ${next.owner}`}</span>
+              <span style={{ fontSize: 13, color: C.text, lineHeight: 1.45 }}>{next.label}</span>
+            </div>
+          )}
+          {(tenantTel || vendorTel) && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              {tenantTel && <a className="m-chip" href={tenantTel} aria-label={`Call tenant ${field(ticket, "tenant")}`}>📞 Tenant</a>}
+              {vendorTel && <a className="m-chip" href={vendorTel} aria-label={`Call contractor ${ticket.vendor_name}`}>📞 {ticket.vendor_name}</a>}
+            </div>
+          )}
+          <div className="m-ticket-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {status === "open" && !ticket.vendor_name && <PrimaryBtn onClick={onAssign}>Assign contractor</PrimaryBtn>}
+            {status === "quote_submitted" && <PrimaryBtn onClick={onOpen}>Review quote</PrimaryBtn>}
+            {status === "in_progress" && <PrimaryBtn color={C.green} onClick={onResolve}>Mark resolved</PrimaryBtn>}
+            {status === "pending_review" && (<><PrimaryBtn color={C.green} onClick={onApprove}>Approve & close</PrimaryBtn><GhostBtn onClick={onMoreWork}>More work</GhostBtn></>)}
+            <GhostBtn onClick={onOpen}>Open details</GhostBtn>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -190,15 +257,27 @@ function field(ticket, key) {
 export default function LandlordMaintenance() {
   const width    = useWindowWidth();
   const isMobile = width < 768;
+  const navigate = useNavigate();
+  const { id: routeTicketId } = useParams();
+  const { selectedPropertyId, selectedName, isAll } = usePropertyScope();
+  const scopedLoad = useScopedLoad("maintenance", loadTickets);
 
   const [activeTab, setActiveTab]       = useState("Requests");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [propFilter, setPropFilter]     = useState("all");
   const [search, setSearch]             = useState("");
   const [selected, setSelected]         = useState(null);
-  const [tickets, setTickets]           = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [fetchError, setFetchError]     = useState(null);
+  const [expandedId, setExpandedId]     = useState(null);
+  // Local optimistic edits sit on top of the loaded list and are dropped when a fresh load (or another scope) arrives.
+  const [override, setOverride]         = useState(null);   // { base, list }
+  const tickets = override && override.base === scopedLoad.data ? override.list : (scopedLoad.data?.tickets || []);
+  const setTickets = (fn) => setOverride((o) => {
+    const current = o && o.base === scopedLoad.data ? o.list : (scopedLoad.data?.tickets || []);
+    return { base: scopedLoad.data, list: typeof fn === "function" ? fn(current) : fn };
+  });
+  const loading    = scopedLoad.loading && !scopedLoad.data;
+  const fetchError = scopedLoad.error;
+  const fetchTickets = scopedLoad.reload;
+  const vendorsByName = new Map((scopedLoad.data?.vendors || []).map((v) => [String(v.name || "").trim().toLowerCase(), v]));
   const [notes, setNotes]               = useState("");
   const [saving, setSaving]             = useState(false);
   const [lightbox, setLightbox]         = useState(null);
@@ -211,10 +290,51 @@ export default function LandlordMaintenance() {
   const [rejectTicket, setRejectTicket]   = useState(null);
   const [rejectNotes, setRejectNotes]     = useState("");
   const [rejecting, setRejecting]         = useState(false);
+  // Escape closes the top-most layer only: the confirm/rejection dialogs sit above the drawer.
+  const showConfirmRef = useRef(false), rejectOpenRef = useRef(false);
+  useEffect(() => { showConfirmRef.current = showConfirm; rejectOpenRef.current = !!rejectTicket; }, [showConfirm, rejectTicket]);
 
-  // Opening the queue also sends any new-request alert a tenant's browser never delivered (server-side, idempotent).
-  useEffect(() => { fetchTickets(); }, []);   // missed-alert safety net: LandlordLayout runs the safety sweep on every management page
+  // Missed-alert safety net: LandlordLayout runs the safety sweep on every management page.
+  // The scoped loader fetches on mount and on every scope change; local edits update `tickets` optimistically.
+
+  // Scope change: close the drawer and collapse cards (a ticket from the old scope must not stay open); keep the status
+  // filter and search, which mean the same thing in every scope.
+  const firstScope = useRef(true);
+  useEffect(() => {
+    if (firstScope.current) { firstScope.current = false; return; }
+    setSelected(null); setExpandedId(null);
+    if (routeTicketId) navigate("/landlord/maintenance", { replace: true });
+  }, [selectedPropertyId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep link /landlord/maintenance/:id (from the dashboard) opens that ticket's drawer once it is loaded.
+  useEffect(() => {
+    if (!routeTicketId || !tickets.length) return;
+    const t = tickets.find((x) => x.id === routeTicketId);
+    if (t && selected?.id !== t.id) openDetail(t, { fromRoute: true });
+  }, [routeTicketId, tickets]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { if (selected) fetchComments(selected.id); }, [selected?.id]);
+
+  // Drawer: Escape closes; focus moves into it and back to the card that opened it; list position is untouched
+  // because the list stays mounted underneath.
+  const drawerRef = useRef(null), openerRef = useRef(null);
+  function openDetail(ticket, { fromRoute } = {}) {
+    if (!fromRoute) openerRef.current = document.activeElement;
+    setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden");
+  }
+  function closeDetail() {
+    setSelected(null);
+    if (routeTicketId) navigate("/landlord/maintenance", { replace: true });
+    const el = openerRef.current; openerRef.current = null;
+    if (el?.isConnected) setTimeout(() => el.focus(), 0);
+  }
+  useEffect(() => {
+    if (!selected) return;
+    drawerRef.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape" && !showConfirmRef.current && !rejectOpenRef.current) closeDetail(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Vendor link + PIN are not readable from the ticket row (tenants share the database role): landlord-only RPC.
   const [vendorAccess, setVendorAccess] = useState(null);
@@ -227,17 +347,6 @@ export default function LandlordMaintenance() {
     });
     return () => { live = false; };
   }, [selected?.id, selected?.vendor_token_expires_at, selected?.vendor_name]);
-
-  async function fetchTickets() {
-    setLoading(true); setFetchError(null);
-    const { data, error } = await supabase
-      .from("maintenance_requests")
-      .select(`${TICKET_COLUMNS}, units(unit_number, property_id, properties(name, address, city, state)), tenants(name)`)
-      .order("created_at", { ascending: false });
-    if (error) setFetchError(error.message);
-    else setTickets(data || []);
-    setLoading(false);
-  }
 
   async function fetchComments(requestId) {
     const { data } = await supabase.from("maintenance_comments").select("*").eq("request_id", requestId).order("created_at", { ascending: true });
@@ -337,84 +446,99 @@ export default function LandlordMaintenance() {
     setPosting(false);
   }
 
+  const now             = new Date();
   const openCount       = tickets.filter(t => t.status === "open").length;
   const pendingReviewCount = tickets.filter(t => t.status === "pending_review").length;
+  const quoteCount      = tickets.filter(t => t.status === "quote_submitted").length;
   const inProgressCount = tickets.filter(t => t.status === "in_progress").length;
-  const resolvedCount   = tickets.filter(t => t.status === "resolved").length;
-  const totalCost       = tickets.reduce((sum, t) => sum + (t.cost || 0), 0);
+  // Resolved this calendar month (by resolved_at; tickets without a resolved date are not counted).
+  const resolvedMonth   = tickets.filter(t => t.status === "resolved" && t.resolved_at && new Date(t.resolved_at).getMonth() === now.getMonth() && new Date(t.resolved_at).getFullYear() === now.getFullYear()).length;
+  const costRows        = tickets.filter(t => Number(t.cost) > 0);
+  const totalCost       = costRows.reduce((sum, t) => sum + Number(t.cost || 0), 0);
+  const yearCost        = costRows.filter(t => new Date(t.updated_at || t.created_at).getFullYear() === now.getFullYear()).reduce((sum, t) => sum + Number(t.cost || 0), 0);
+  const activeCount     = openCount + inProgressCount + quoteCount + pendingReviewCount;
 
+  const q = search.trim().toLowerCase();
   const filtered = tickets.filter(t => {
-    const prop = field(t, "property");
-    const matchStatus = statusFilter === "all" || t.status === statusFilter;
-    const matchProp   = propFilter === "all"
-      || (propFilter === "clifton" && prop.includes("Clifton"))
-      || (propFilter === "stpete"  && prop.includes("18th"));
-    const matchSearch = field(t, "title").toLowerCase().includes(search.toLowerCase())
-      || field(t, "tenant").toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchProp && matchSearch;
+    const matchStatus = statusFilter === "all" || (statusFilter === "active" ? t.status !== "resolved" : t.status === statusFilter);
+    const matchSearch = !q || [field(t, "title"), field(t, "tenant"), field(t, "unit"), field(t, "property"), t.vendor_name || ""].some(v => String(v).toLowerCase().includes(q));
+    return matchStatus && matchSearch;
   });
 
   const stats = [
-    { label: "Open",             value: loading ? "—" : openCount,       sub: "awaiting action",  accent: C.amber },
-    { label: "In Progress",      value: loading ? "—" : inProgressCount, sub: "vendor assigned",  accent: C.blue },
-    { label: "Pending Review",     value: loading ? "—" : pendingReviewCount, sub: "awaiting approval", accent: C.gold },
-    { label: "Resolved (MTD)",   value: loading ? "—" : resolvedCount,   sub: "this month",       accent: C.green },
-    { label: "Maintenance Cost", value: loading ? "—" : `$${totalCost.toLocaleString()}`, sub: "total spent YTD", accent: C.gold },
+    { label: "Needs you",       value: loading ? "—" : openCount + quoteCount + pendingReviewCount, sub: "to assign, approve or review", accent: C.amber, filter: "active" },
+    { label: "In progress",     value: loading ? "—" : inProgressCount, sub: "contractor working", accent: C.blue, filter: "in_progress" },
+    { label: "Resolved",        value: loading ? "—" : resolvedMonth,   sub: `in ${now.toLocaleDateString("en-US", { month: "long" })}`, accent: C.green, filter: "resolved" },
+    { label: "Recorded cost",   value: loading ? "—" : `$${yearCost.toLocaleString("en-US")}`, sub: `on tickets updated in ${now.getFullYear()}`, accent: C.gold, tab: "Cost Tracker" },
   ];
 
+  function exportCostsCsv() {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["Property", "Unit", "Issue", "Contractor", "Cost (USD)", "Status", "Updated"]]
+      .concat(costRows.map(t => [field(t, "property"), field(t, "unit"), field(t, "title"), t.vendor_name || "", Number(t.cost).toFixed(2), t.status, (t.updated_at || t.created_at || "").slice(0, 10)]));
+    const blob = new Blob([rows.map(r => r.map(esc).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `maintenance-costs-${isAll ? "all-properties" : selectedName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${now.toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
   return (
-    <LandlordLayout openMaintenance={openCount + inProgressCount} unreadMessages={0}>
+    <LandlordLayout openMaintenance={activeCount} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${C.bg}; }
-        .m-ticket:hover { border-color: #353A44 !important; }
-        .m-row:hover td { background: ${C.raised} !important; }
-        .m-filter:hover { color: ${C.text} !important; border-color: #353A44 !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+        .m-ticket{background:${C.surface};border:1px solid ${C.border};border-radius:12px;margin-bottom:10px;overflow:hidden;}
+        .m-ticket:hover{border-color:#3C4350;}
+        .m-ticket-head{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:12px 14px 12px 0;background:transparent;border:none;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:64px;}
+        .m-chip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid ${C.border};background:${C.raised};color:${C.text};font-size:13px;font-weight:500;text-decoration:none;}
+        .m-chip:hover{border-color:${C.gold};}
+        .m-filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
+        .m-filters::-webkit-scrollbar{display:none;}
+        .m-filter{flex-shrink:0;min-height:36px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;}
+        .m-row:hover td{background:${C.raised}!important;}
+        .m-stat{background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%;}
+        .m-stat:hover{border-color:#3C4350;}
+        @media (max-width:720px){ .m-filter{min-height:44px;} .m-chip{min-height:44px;} .m-ticket-actions .m-btn{flex:1;} }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
+      <div className="m-page" style={{ color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
 
-        {/* Top bar */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Maintenance</div>
-            <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>
-              {loading ? "Loading…" : `${openCount + inProgressCount} active tickets across all properties`}
-            </div>
+        <div style={{ marginBottom: 18 }}>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, margin: 0 }}>Maintenance</h1>
+          <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>
+            {loading ? "Loading…" : `${activeCount} active ticket${activeCount === 1 ? "" : "s"} · ${selectedName}`}
           </div>
         </div>
 
         {fetchError && (
-          <div style={{ background: "rgba(224,85,85,0.1)", border: `1px solid rgba(224,85,85,0.2)`, borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.red }}>
-            ⚠️ {fetchError}
-            <button onClick={fetchTickets} style={{ marginLeft: 12, fontSize: 12, color: C.red, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>Retry</button>
+          <div role="alert" style={{ background: "rgba(240,112,112,0.1)", border: "1px solid rgba(240,112,112,0.35)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.red, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            Tickets couldn't load: {fetchError}
+            <button type="button" onClick={fetchTickets} className="m-btn m-btn-ghost m-btn-small" style={{ color: C.red, borderColor: "rgba(240,112,112,0.4)" }}>Retry</button>
           </div>
         )}
 
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 10, marginBottom: 24 }}>
-          {stats.map((s, i) => (
-            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
+        {/* Stats: each one filters the list */}
+        <div className="m-grid" style={{ marginBottom: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))" }}>
+          {stats.map((s) => (
+            <button key={s.label} type="button" className="m-stat" onClick={() => { if (s.tab) setActiveTab(s.tab); else { setActiveTab("Requests"); setStatusFilter(s.filter); } }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</span>
               </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: s.accent, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: C.textSub }}>{s.sub}</div>
-            </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.text, lineHeight: 1.1 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{s.sub}</div>
+            </button>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 20 }}>
+        <div role="tablist" aria-label="Maintenance views" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 16 }}>
           {["Requests", "Cost Tracker"].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: "10px 18px", fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
+            <button key={tab} role="tab" aria-selected={activeTab === tab} type="button" onClick={() => setActiveTab(tab)} style={{
+              minHeight: 44, padding: "0 18px", fontSize: 14, fontWeight: activeTab === tab ? 600 : 500,
               color: activeTab === tab ? C.gold : C.textSub, background: "none", border: "none",
               borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
-              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s",
+              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
             }}>{tab}</button>
           ))}
         </div>
@@ -422,152 +546,120 @@ export default function LandlordMaintenance() {
         {/* ── Requests tab ── */}
         {activeTab === "Requests" && (
           <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 12px", flex: 1, maxWidth: 260 }}>
-                <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…"
-                  style={{ flex: 1, border: "none", outline: "none", fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "0 12px", minHeight: 44, maxWidth: 420 }}>
+                <span aria-hidden="true" style={{ color: C.textMuted, fontSize: 15 }}>⌕</span>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search issue, tenant, unit or contractor" aria-label="Search tickets"
+                  style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
+              </label>
+              <div className="m-filters" role="group" aria-label="Filter by status">
+                {[["all", `All (${tickets.length})`], ["active", `Active (${activeCount})`], ["open", `Open (${openCount})`], ["quote_submitted", `Quote in (${quoteCount})`], ["in_progress", `In progress (${inProgressCount})`], ["pending_review", `Review (${pendingReviewCount})`], ["resolved", `Resolved (${tickets.length - activeCount})`]].map(([f, label]) => (
+                  <button key={f} type="button" className="m-filter" aria-pressed={statusFilter === f} onClick={() => setStatusFilter(f)} style={{
+                    background: statusFilter === f ? "rgba(201,169,104,0.14)" : "transparent",
+                    color: statusFilter === f ? C.text : C.textSub,
+                    border: `1px solid ${statusFilter === f ? C.gold : C.border}`,
+                  }}>{label}</button>
+                ))}
               </div>
-              {["all","open","in_progress","quote_submitted","pending_review","resolved"].map(f => (
-                <button key={f} className="m-filter" onClick={() => setStatusFilter(f)} style={{
-                  padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  background: statusFilter === f ? "rgba(201,169,110,0.12)" : "transparent",
-                  color: statusFilter === f ? C.text : C.textSub,
-                  border: `1px solid ${statusFilter === f ? C.goldDim : C.border}`,
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif", textTransform: "capitalize", transition: "all 0.12s",
-                }}>
-                  {f === "all" ? `All (${tickets.length})` :
-                f === "in_progress" ? `In Progress (${inProgressCount})` :
-                f === "quote_submitted" ? `Quote In (${tickets.filter(t=>t.status==="quote_submitted").length})` :
-                f === "pending_review" ? `Pending Review (${tickets.filter(t=>t.status==="pending_review").length})` :
-                `${f.charAt(0).toUpperCase()+f.slice(1)} (${tickets.filter(t=>t.status===f).length})`}
-                </button>
-              ))}
-              {!isMobile && (
-                <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
-                  <option value="all">All properties</option>
-                  <option value="clifton">Clifton Manor</option>
-                  <option value="stpete">944 18th Ave S</option>
-                </select>
-              )}
             </div>
 
             {loading && <div style={{ textAlign: "center", padding: 40, color: C.textSub, fontSize: 13 }}>Loading tickets…</div>}
             {!loading && filtered.length === 0 && (
-              <div style={{ textAlign: "center", padding: 40, color: C.textSub, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
-                {tickets.length === 0 ? "No maintenance requests yet." : "No tickets match your filters."}
+              <div style={{ textAlign: "center", padding: 32, color: C.textSub, fontSize: 14, border: `1px dashed ${C.border}`, borderRadius: 12 }}>
+                {tickets.length === 0 ? `No maintenance requests${isAll ? "" : " for this property"} yet.` : "No tickets match these filters."}
               </div>
             )}
 
-            {!loading && filtered.map(ticket => {
-              const priority = field(ticket, "priority");
-              const status   = field(ticket, "status");
-              return (
-                <div key={ticket.id} className="m-ticket"
-                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${PRIORITY[priority]?.color || C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, cursor: "pointer", transition: "border-color 0.15s" }}
-                  onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 16 }}>{CATEGORY_ICONS[field(ticket, "category")] || "🔧"}</span>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{field(ticket, "title")}</div>
-                      </div>
-                      <div style={{ fontSize: 12, color: C.textSub }}>{field(ticket, "property")} · Unit {field(ticket, "unit")} · {field(ticket, "tenant")}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <Badge type="priority" value={priority} />
-                      {!isMobile && <Badge type="status" value={status} />}
-                    </div>
-                  </div>
-
-                  {!isMobile && field(ticket, "description") && (
-                    <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5, marginBottom: 10 }}>{field(ticket, "description")}</div>
-                  )}
-
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, color: C.textMuted }}>📅 {field(ticket, "submittedAt")}</span>
-                      {!isMobile && field(ticket, "vendor") && <span style={{ fontSize: 11, color: C.blue }}>🔧 {field(ticket, "vendor")}</span>}
-                      {!isMobile && field(ticket, "cost") && <span style={{ fontSize: 11, color: C.textMuted }}>💰 ${field(ticket, "cost")}</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-                      {status === "open"        && <PrimaryBtn onClick={() => setVendorTicket(ticket)}>{isMobile ? "→" : "Assign vendor"}</PrimaryBtn>}
-                      {status === "in_progress" && <PrimaryBtn color={C.green} onClick={() => updateStatus(ticket.id, "resolved")}>{isMobile ? "✓" : "Mark resolved"}</PrimaryBtn>}
-                      {status === "pending_review" && (
-                        <>
-                          <PrimaryBtn color={C.green} onClick={() => approveTicket(ticket)}>{isMobile ? "✓" : "Approve"}</PrimaryBtn>
-                          <GhostBtn small onClick={() => { setRejectTicket(ticket); setRejectNotes(""); }}>↩ More work</GhostBtn>
-                        </>
-                      )}
-                      {status === "resolved"    && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Resolved</span>}
-                      <GhostBtn small onClick={() => { setSelected(ticket); setNotes(field(ticket, "notes")); setNewComment(""); setVisibility("hidden"); }}>View</GhostBtn>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {!loading && filtered.map(ticket => (
+              <TicketCard key={ticket.id} ticket={ticket} expanded={expandedId === ticket.id} showProperty={isAll}
+                vendorPhone={vendorsByName.get(String(ticket.vendor_name || "").trim().toLowerCase())?.phone}
+                onToggle={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
+                onOpen={() => openDetail(ticket)}
+                onAssign={() => setVendorTicket(ticket)}
+                onResolve={() => updateStatus(ticket.id, "resolved")}
+                onApprove={() => approveTicket(ticket)}
+                onMoreWork={() => { setRejectTicket(ticket); setRejectNotes(""); }} />
+            ))}
           </>
         )}
 
         {/* ── Cost Tracker tab ── */}
         {activeTab === "Cost Tracker" && (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-            <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Maintenance spend by ticket</div>
-              <GhostBtn small>⬇ Export CSV</GhostBtn>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Recorded cost by ticket</div>
+                <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{selectedName} · costs entered on tickets, not a ledger</div>
+              </div>
+              <GhostBtn small onClick={exportCostsCsv}>⬇ Export CSV</GhostBtn>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    {["Property", "Unit", "Issue", "Vendor", "Cost", "Date"].map(h => (
-                      <th key={h} style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", padding: "10px 16px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.filter(t => t.cost).map(t => (
-                    <tr key={t.id} className="m-row">
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}` }}>{field(t, "property")}</td>
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>Unit {field(t, "unit")}</td>
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}` }}>{field(t, "title")}</td>
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>{field(t, "vendor") || "—"}</td>
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, fontWeight: 600, borderBottom: `1px solid ${C.border}` }}>${t.cost}</td>
-                      <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>{field(t, "updatedAt")}</td>
+            {costRows.length === 0 && <div style={{ padding: 24, fontSize: 13, color: C.textSub, textAlign: "center" }}>No costs recorded{isAll ? "" : " for this property"} yet.</div>}
+            {costRows.length > 0 && (isMobile ? (
+              <div>
+                {costRows.map(t => (
+                  <div key={t.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{field(t, "title")}</div>
+                      <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{[isAll ? field(t, "property") : null, `Unit ${field(t, "unit")}`, t.vendor_name, field(t, "updatedAt")].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>${Number(t.cost).toLocaleString("en-US")}</div>
+                  </div>
+                ))}
+                <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", background: C.raised, fontWeight: 700 }}>
+                  <span>Total</span><span style={{ color: C.gold }}>${totalCost.toLocaleString("en-US")}</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Property", "Unit", "Issue", "Contractor", "Cost", "Updated"].map(h => (
+                        <th key={h} scope="col" style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: h === "Cost" ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                  {tickets.filter(t => t.cost).length === 0 && (
-                    <tr><td colSpan={6} style={{ padding: 24, fontSize: 13, color: C.textSub, textAlign: "center" }}>No costs recorded yet.</td></tr>
-                  )}
-                  {tickets.some(t => t.cost) && (
+                  </thead>
+                  <tbody>
+                    {costRows.map(t => (
+                      <tr key={t.id} className="m-row">
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}` }}>{field(t, "property")}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>Unit {field(t, "unit")}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}` }}>{field(t, "title")}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>{field(t, "vendor") || "—"}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.text, fontWeight: 600, borderBottom: `1px solid ${C.border}`, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>${Number(t.cost).toLocaleString("en-US")}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: C.textSub, borderBottom: `1px solid ${C.border}` }}>{field(t, "updatedAt")}</td>
+                      </tr>
+                    ))}
                     <tr>
                       <td colSpan={4} style={{ padding: "11px 16px", fontSize: 13, fontWeight: 700, color: C.text, background: C.raised }}>Total</td>
-                      <td style={{ padding: "11px 16px", fontSize: 14, fontWeight: 700, color: C.gold, background: C.raised }}>${totalCost.toLocaleString()}</td>
+                      <td style={{ padding: "11px 16px", fontSize: 14, fontWeight: 700, color: C.gold, background: C.raised, textAlign: "right" }}>${totalCost.toLocaleString("en-US")}</td>
                       <td style={{ background: C.raised }} />
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* ── Detail panel ── */}
+      {/* ── Detail drawer: slide-over on desktop, full-height sheet on phones ── */}
       {selected && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={() => setSelected(null)}>
-          <div style={{ width: "min(520px,100vw)", background: C.surface, height: "100vh", overflowY: "auto", borderLeft: `1px solid ${C.border}` }} onClick={e => e.stopPropagation()}>
+        <>
+        <div className="m-scrim" onClick={closeDetail} />
+        <div ref={drawerRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ticket-drawer-title" className="m-drawer"
+          style={{ background: C.surface, borderLeft: `1px solid ${C.border}`, outline: "none" }}>
+          <div style={{ position: "relative" }}>
 
-            <div style={{ background: C.raised, borderBottom: `1px solid ${C.border}`, padding: "20px 20px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 4 }}>{field(selected, "title")}</div>
+            <div style={{ background: C.raised, borderBottom: `1px solid ${C.border}`, padding: "16px 20px", position: "sticky", top: 0, zIndex: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  <h2 id="ticket-drawer-title" style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: "0 0 4px", overflowWrap: "anywhere" }}>{field(selected, "title")}</h2>
                   <div style={{ fontSize: 12, color: C.textSub }}>{field(selected, "property")} · Unit {field(selected, "unit")} · {field(selected, "tenant")}</div>
                 </div>
-                <button onClick={() => setSelected(null)} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.textSub, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>✕</button>
+                <button type="button" onClick={closeDetail} aria-label="Close ticket details" style={{ flexShrink: 0, width: 44, height: 44, background: C.surface, border: `1px solid ${C.border}`, color: C.textSub, borderRadius: 10, cursor: "pointer", fontSize: 15 }}>✕</button>
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <Badge type="priority" value={field(selected, "priority")} />
                 <Badge type="status" value={field(selected, "status")} />
                 {field(selected, "vendor") && <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 5, background: `${C.blue}18`, color: C.blue }}>🔧 {field(selected, "vendor")}</span>}
@@ -583,6 +675,19 @@ export default function LandlordMaintenance() {
             </div>
 
             <div style={{ padding: "20px" }}>
+              <div style={{ marginBottom: 18 }}><StageTimeline ticket={selected} /></div>
+              {nextAction(selected) && (
+                <div style={{ padding: "10px 12px", borderRadius: 10, background: C.raised, border: `1px solid ${C.border}`, marginBottom: 18, fontSize: 13, color: C.text, lineHeight: 1.45 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: nextAction(selected).owner === "you" ? C.gold : C.textSub, marginRight: 8 }}>{nextAction(selected).owner === "you" ? "Next · you" : `Waiting · ${nextAction(selected).owner}`}</span>
+                  {nextAction(selected).label}
+                </div>
+              )}
+              {(telHref(selected.tenants?.phone) || telHref(vendorsByName.get(String(selected.vendor_name || "").trim().toLowerCase())?.phone)) && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+                  {telHref(selected.tenants?.phone) && <a className="m-chip" href={telHref(selected.tenants?.phone)} aria-label={`Call tenant ${field(selected, "tenant")}`}>📞 Call tenant</a>}
+                  {telHref(vendorsByName.get(String(selected.vendor_name || "").trim().toLowerCase())?.phone) && <a className="m-chip" href={telHref(vendorsByName.get(String(selected.vendor_name || "").trim().toLowerCase())?.phone)} aria-label={`Call contractor ${selected.vendor_name}`}>📞 Call {selected.vendor_name}</a>}
+                </div>
+              )}
 
               {field(selected, "description") && (
                 <div style={{ marginBottom: 20 }}>
@@ -761,7 +866,7 @@ export default function LandlordMaintenance() {
               </div>
 
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Timeline</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Activity</div>
                 {[
                   { color: C.amber, text: `Submitted by ${field(selected, "tenant")}`, time: field(selected, "submittedAt") },
                   field(selected, "vendor")    && { color: C.blue,  text: `Assigned to ${field(selected, "vendor")}`, time: field(selected, "updatedAt") },
@@ -780,6 +885,7 @@ export default function LandlordMaintenance() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* Lightbox */}
@@ -808,14 +914,14 @@ export default function LandlordMaintenance() {
       {rejectTicket && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, width:"100%", maxWidth:440, padding:"28px 24px" }}>
-            <div style={{ fontSize:15, fontWeight:600, color:"#EDEAE2", marginBottom:6 }}>Request more work</div>
-            <div style={{ fontSize:13, color:"#9095A0", marginBottom:16 }}>Tell the vendor what still needs to be done. They'll be notified via email.</div>
+            <div style={{ fontSize:15, fontWeight:600, color:"#F5F2EB", marginBottom:6 }}>Request more work</div>
+            <div style={{ fontSize:13, color:"#B7BBC4", marginBottom:16 }}>Tell the vendor what still needs to be done. They'll be notified via email.</div>
             <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
               placeholder="e.g. The leak is still present under the sink. Please return to complete the repair."
               rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-              <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A96E", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif", opacity:rejectNotes.trim()?1:0.5 }}>
+              <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A968", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif", opacity:rejectNotes.trim()?1:0.5 }}>
                 {rejecting ? "Sending…" : "↩ Send to vendor"}
               </button>
             </div>
