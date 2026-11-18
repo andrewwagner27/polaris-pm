@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const paymentSource = readFileSync(new URL('../supabase/functions/create-payment-intent/index.ts', import.meta.url), 'utf8');
 
 test('ACH only: no card or other payment methods accepted by rent endpoint', () => {
-  assert.match(paymentSource, /"payment_method_types\\[\\]": "us_bank_account"/);
+  assert.match(paymentSource, /"payment_method_types\[\]": "us_bank_account"/);
   assert.match(paymentSource, /method\.type !== "us_bank_account"/);
 });
 
@@ -17,7 +17,7 @@ test('bank payment method must be attached to the authenticated tenant customer'
 
 test('never fabricate online ACH mandate acceptance evidence', () => {
   assert.doesNotMatch(paymentSource, /127\.0\.0\.1/);
-  assert.doesNotMatch(paymentSource, /mandate_data\\[customer_acceptance\\]\\[online\\]/);
+  assert.doesNotMatch(paymentSource, /mandate_data\[customer_acceptance\]\[online\]/);
 });
 
 test('server controls rent due, requires a connected owner, and allocates 5 percent to Modus', () => {
@@ -26,7 +26,7 @@ test('server controls rent due, requires a connected owner, and allocates 5 perc
   assert.match(paymentSource, /if \(!ownerStripeAccountId\)/);
   assert.match(paymentSource, /Math\.round\(amount_cents \* 0\.05\)/);
   assert.match(paymentSource, /application_fee_amount/);
-  assert.match(paymentSource, /transfer_data\\[destination\\]/);
+  assert.match(paymentSource, /transfer_data\[destination\]/);
 });
 
 test('representative rent allocations preserve gross rent exactly', () => {
