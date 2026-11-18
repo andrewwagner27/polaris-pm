@@ -9,7 +9,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -64,7 +64,7 @@ export default function TenantMaintenanceList() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         body { background: ${C.bg}; }
         .t-ticket{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;min-height:64px;}
         .t-ticket:hover{border-color:${C.gold};}
@@ -72,11 +72,11 @@ export default function TenantMaintenanceList() {
         .t-new{min-height:44px;padding:0 16px;background:${C.gold};border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;color:#FFFFFF;cursor:pointer;white-space:nowrap;}
       `}</style>
 
-      <div className="t-light" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "20px 16px 24px", maxWidth: 820, margin: "0 auto" }}>
+      <div className="t-light" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)", padding: "20px 16px 24px", maxWidth: 820, margin: "0 auto" }}>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.text, margin: 0 }}>Maintenance</h1>
+            <h1 style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text, margin: 0 }}>Maintenance</h1>
             <div style={{ fontSize: 13, color: C.textSub, marginTop: 2 }}>
               {loading ? "Loading…" : `${activeCount} active request${activeCount !== 1 ? "s" : ""}`}
             </div>

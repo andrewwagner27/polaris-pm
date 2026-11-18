@@ -6,7 +6,7 @@ const C = {
   bg:        "#0B0D10",
   surface:   "#111316",
   raised:    "#181C21",
-  border:    "#252930",
+  border:    "#262B33",
   text:      "#F5F2EB",
   textSub:   "#B7BBC4",
   textMuted: "#9298A3",
@@ -174,9 +174,9 @@ export default function VendorTicket() {
   const isPending  = ticket.status === "pending_review";
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"'DM Sans',sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"var(--m-font)" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
@@ -187,7 +187,7 @@ export default function VendorTicket() {
       <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12 }}>
         <ModusMark size={26}/>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:15, fontWeight:600, color:C.text, letterSpacing:"0.08em" }}>MODUS</div>
+          <div style={{ fontFamily:"var(--m-font-brand)", fontSize:15, fontWeight:600, color:C.text, letterSpacing:"0.08em" }}>MODUS</div>
           <div style={{ fontSize:10, color:C.textMuted, letterSpacing:"0.12em" }}>VENDOR PORTAL</div>
         </div>
         <div style={{ fontSize:12, color:C.textSub }}>Welcome, {vendorName}</div>
@@ -198,7 +198,7 @@ export default function VendorTicket() {
         {/* Ticket header */}
         <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"20px", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12 }}>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text }}>{ticket.title}</div>
+            <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text }}>{ticket.title}</div>
             <span style={{ fontSize:10, fontWeight:600, padding:"4px 10px", borderRadius:5, background:statusCfg.bg, color:statusCfg.color, whiteSpace:"nowrap", marginLeft:12 }}>
               {ticket.status === "pending_review" ? "Pending Review" : ticket.status?.replace("_"," ").replace(/\b\w/g, l => l.toUpperCase())}
             </span>
@@ -219,7 +219,7 @@ export default function VendorTicket() {
           )}
           {ticket.entry_instructions && (
             <div style={{ marginTop:8, padding:"10px 14px", background:`${C.blue}0A`, border:`1px solid ${C.blue}33`, borderRadius:8 }}>
-              <div style={{ fontSize:10, fontWeight:600, color:C.blue, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Entry instructions</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.blue, marginBottom:4 }}>Entry instructions</div>
               <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{ticket.entry_instructions}</div>
             </div>
           )}
@@ -230,7 +230,7 @@ export default function VendorTicket() {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", borderBottom:`1px solid ${C.border}` }}>
             <div style={{ fontSize:13, fontWeight:600, color:C.text }}>Photos</div>
             {!isResolved && (
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ fontSize:12, fontWeight:500, padding:"6px 12px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:6 }}>
+              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ fontSize:12, fontWeight:500, padding:"6px 12px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, cursor:"pointer", fontFamily:"var(--m-font)", display:"flex", alignItems:"center", gap:6 }}>
                 {uploading ? <><Spinner/> Uploading…</> : "+ Upload photo"}
               </button>
             )}
@@ -274,9 +274,9 @@ export default function VendorTicket() {
               <textarea value={comment} onChange={e => setComment(e.target.value)}
                 onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendComment();} }}
                 placeholder="Add a comment or update…" rows={2}
-                style={{ flex:1, padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4 }}
+                style={{ flex:1, padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.4 }}
               />
-              <button onClick={sendComment} disabled={!comment.trim() || sending} style={{ padding:"0 16px", background:comment.trim() ? C.goldDim : C.raised, border:`1px solid ${comment.trim() ? C.goldDim : C.border}`, borderRadius:8, color:comment.trim() ? C.text : C.textMuted, cursor:comment.trim() ? "pointer" : "not-allowed", fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:500, whiteSpace:"nowrap" }}>
+              <button onClick={sendComment} disabled={!comment.trim() || sending} style={{ padding:"0 16px", background:comment.trim() ? C.goldDim : C.raised, border:`1px solid ${comment.trim() ? C.goldDim : C.border}`, borderRadius:8, color:comment.trim() ? C.text : C.textMuted, cursor:comment.trim() ? "pointer" : "not-allowed", fontFamily:"var(--m-font)", fontSize:13, fontWeight:500, whiteSpace:"nowrap" }}>
                 {sending ? <Spinner/> : "Send"}
               </button>
             </div>
@@ -288,7 +288,7 @@ export default function VendorTicket() {
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px 20px", marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:4 }}>Submit a quote</div>
             <div style={{ fontSize:12, color:C.textSub, marginBottom:12 }}>After assessing the job, submit your quote for approval before starting work.</div>
-            <button onClick={() => setShowQuoteForm(true)} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:7, fontSize:13, fontWeight:500, color:C.gold, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+            <button onClick={() => setShowQuoteForm(true)} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.goldDim}`, borderRadius:7, fontSize:13, fontWeight:500, color:C.gold, cursor:"pointer", fontFamily:"var(--m-font)" }}>
               Submit quote →
             </button>
           </div>
@@ -300,22 +300,22 @@ export default function VendorTicket() {
 
             {/* Amount */}
             <div style={{ marginBottom:12 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Total amount ($) *</label>
+              <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Total amount ($) *</label>
               <input type="number" value={quoteAmount} onChange={e => setQuoteAmount(e.target.value)} placeholder="e.g. 350"
-                style={{ width:"100%", padding:"11px 14px", fontSize:18, fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'Cormorant Garamond',serif", boxSizing:"border-box" }}/>
+                style={{ width:"100%", padding:"11px 14px", fontSize:"var(--m-fs-section)", fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"var(--m-font)", boxSizing:"border-box" }}/>
             </div>
 
             {/* Notes */}
             <div style={{ marginBottom:12 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Notes <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
+              <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Notes <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
               <textarea value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)}
                 placeholder="Parts + labor breakdown, timeline, anything relevant…"
-                rows={2} style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
+                rows={2} style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.5, boxSizing:"border-box" }}/>
             </div>
 
             {/* Photos */}
             <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Photos <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
+              <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Photos <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></label>
               {quotePhotos.length > 0 && (
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
                   {quotePhotos.map((p,i) => (
@@ -326,7 +326,7 @@ export default function VendorTicket() {
                   ))}
                 </div>
               )}
-              <button onClick={() => quotePhotoRef.current?.click()} style={{ padding:"8px 14px", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:7, fontSize:12, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              <button onClick={() => quotePhotoRef.current?.click()} style={{ padding:"8px 14px", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:7, fontSize:12, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>
                 📷 Add photos
               </button>
               <input ref={quotePhotoRef} type="file" accept="image/*" multiple
@@ -337,8 +337,8 @@ export default function VendorTicket() {
             </div>
 
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => { setShowQuoteForm(false); setQuotePhotos([]); }} style={{ padding:"9px 16px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-              <button onClick={submitQuote} disabled={submittingQuote || !quoteAmount} style={{ flex:1, padding:"10px", background:quoteAmount?C.goldDim:C.raised, border:`1px solid ${quoteAmount?C.goldDim:C.border}`, borderRadius:7, fontSize:13, fontWeight:500, color:quoteAmount?C.text:C.textMuted, cursor:quoteAmount?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
+              <button onClick={() => { setShowQuoteForm(false); setQuotePhotos([]); }} style={{ padding:"9px 16px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>Cancel</button>
+              <button onClick={submitQuote} disabled={submittingQuote || !quoteAmount} style={{ flex:1, padding:"10px", background:quoteAmount?C.goldDim:C.raised, border:`1px solid ${quoteAmount?C.goldDim:C.border}`, borderRadius:7, fontSize:13, fontWeight:500, color:quoteAmount?C.text:C.textMuted, cursor:quoteAmount?"pointer":"not-allowed", fontFamily:"var(--m-font)" }}>
                 {submittingQuote ? "Submitting…" : "Submit quote"}
               </button>
             </div>
@@ -359,7 +359,7 @@ export default function VendorTicket() {
 
         {/* Mark complete */}
         {quoteApproved && !isResolved && !showCompleteForm && (
-          <button onClick={() => setShowCompleteForm(true)} style={{ width:"100%", padding:"13px", background:"rgba(114,176,42,0.08)", border:`1px solid rgba(114,176,42,0.25)`, borderRadius:8, fontSize:14, fontWeight:500, color:C.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          <button onClick={() => setShowCompleteForm(true)} style={{ width:"100%", padding:"13px", background:"rgba(114,176,42,0.08)", border:`1px solid rgba(114,176,42,0.25)`, borderRadius:8, fontSize:14, fontWeight:500, color:C.green, cursor:"pointer", fontFamily:"var(--m-font)", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             ✓ Mark work as complete
           </button>
         )}
@@ -372,15 +372,15 @@ export default function VendorTicket() {
 
             {/* Invoice amount */}
             <div style={{ marginBottom:12 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Invoice amount ($) *</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.textSub, marginBottom:8 }}>Invoice amount ($) *</div>
               <input type="number" value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)}
                 placeholder="e.g. 165"
-                style={{ width:"100%", padding:"11px 14px", fontSize:18, fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"'Cormorant Garamond',serif", boxSizing:"border-box" }}/>
+                style={{ width:"100%", padding:"11px 14px", fontSize:"var(--m-fs-section)", fontWeight:600, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", fontFamily:"var(--m-font)", boxSizing:"border-box" }}/>
             </div>
 
             {/* Optional photo */}
             <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Invoice photo <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.textSub, marginBottom:8 }}>Invoice photo <span style={{ color:C.textMuted, fontWeight:400, textTransform:"none" }}>(optional)</span></div>
               {invoiceFile ? (
                 <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:C.raised, border:`1px solid ${C.green}44`, borderRadius:8 }}>
                   <span style={{ fontSize:13, color:C.green }}>📄</span>
@@ -388,7 +388,7 @@ export default function VendorTicket() {
                   <button onClick={() => setInvoiceFile(null)} style={{ fontSize:11, color:C.red, background:"none", border:"none", cursor:"pointer" }}>Remove</button>
                 </div>
               ) : (
-                <button onClick={() => invoiceRef.current?.click()} style={{ width:"100%", padding:"12px", background:"transparent", border:`2px dashed ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                <button onClick={() => invoiceRef.current?.click()} style={{ width:"100%", padding:"12px", background:"transparent", border:`2px dashed ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>
                   📷 Take photo of invoice
                 </button>
               )}
@@ -396,10 +396,10 @@ export default function VendorTicket() {
             </div>
 
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setShowCompleteForm(false)} style={{ padding:"10px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              <button onClick={() => setShowCompleteForm(false)} style={{ padding:"10px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>
                 Cancel
               </button>
-              <button onClick={markComplete} disabled={completing} style={{ flex:1, padding:"12px", background:"rgba(114,176,42,0.1)", border:`1px solid rgba(114,176,42,0.3)`, borderRadius:8, fontSize:14, fontWeight:500, color:C.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <button onClick={markComplete} disabled={completing} style={{ flex:1, padding:"12px", background:"rgba(114,176,42,0.1)", border:`1px solid rgba(114,176,42,0.3)`, borderRadius:8, fontSize:14, fontWeight:500, color:C.green, cursor:"pointer", fontFamily:"var(--m-font)", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
                 {completing ? <><Spinner/> Submitting…</> : "✓ Submit for review"}
               </button>
             </div>

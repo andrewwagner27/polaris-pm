@@ -20,7 +20,7 @@ function NotifyBadge({ log }) {
   const smsText = smsStatusText(log);
   return (
     <span data-notify-status={log.raw_openai_response?.notify?.status || "none"} title={err || undefined}
-      style={{ fontSize: 10, fontWeight: 700, color: st.color, padding: "2px 6px", background: `${st.color}18`, borderRadius: 4, whiteSpace: "nowrap" }}>
+      style={{ fontSize: 10, fontWeight:600, color: st.color, padding: "2px 6px", background: `${st.color}18`, borderRadius: 4, whiteSpace: "nowrap" }}>
       ✉ {st.label}{smsText ? ` · ${smsText}` : ""}
     </span>
   );
@@ -134,9 +134,9 @@ function OverrideModal({ log, onClose, onSave }) {
       <div style={{
         background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
         padding: "24px 26px", width: "100%", maxWidth: 480,
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "var(--m-font)",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, marginBottom: 4 }}>
+        <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, marginBottom: 4 }}>
           Train Agent
         </div>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 20 }}>
@@ -145,17 +145,17 @@ function OverrideModal({ log, onClose, onSave }) {
 
         {/* Original message */}
         <div style={{ background: C.raised, borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: C.textSub, lineHeight: 1.6, borderLeft: `3px solid ${C.border}` }}>
-          <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.1em" }}>Original message</div>
+          <div style={{ fontSize:12, color: C.textMuted, marginBottom: 4, }}>Original message</div>
           {log.raw_message || <span style={{ color: C.textMuted }}>(original message not available){log.detected_intent ? ` · AI summary: ${log.detected_intent}` : ""}</span>}
         </div>
 
         {/* Category */}
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>Correct Category</label>
+          <label style={{ fontSize:12, color: C.textMuted, display: "block", marginBottom: 6 }}>Correct Category</label>
           <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{
             width: "100%", background: C.raised, border: `1px solid ${C.border}`,
             borderRadius: 7, padding: "9px 12px", color: C.text,
-            fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none",
+            fontSize: 13, fontFamily: "var(--m-font)", outline: "none",
           }}>
             {["MAINTENANCE","NOISE_COMPLAINT","PARKING_DISPUTE","LEASE_LEGAL","PAYMENT","GENERAL_INQUIRY","EMERGENCY"].map(c => (
               <option key={c} value={c}>{c.replace(/_/g, " ")}</option>
@@ -165,13 +165,13 @@ function OverrideModal({ log, onClose, onSave }) {
 
         {/* Action */}
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>Correct Action</label>
+          <label style={{ fontSize:12, color: C.textMuted, display: "block", marginBottom: 6 }}>Correct Action</label>
           <div style={{ display: "flex", gap: 8 }}>
             {ESCALATION_LEVELS.map((lvl) => (
               <button key={lvl} onClick={() => setNewAction(lvl)} style={{
                 flex: 1, padding: "8px 4px", borderRadius: 7, fontSize: 11,
                 fontWeight: newAction === lvl ? 600 : 400, cursor: "pointer",
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "var(--m-font)",
                 background: newAction === lvl ? `${C.gold}18` : C.raised,
                 border: `1px solid ${newAction === lvl ? C.gold : C.border}`,
                 color: newAction === lvl ? C.gold : C.textSub,
@@ -184,7 +184,7 @@ function OverrideModal({ log, onClose, onSave }) {
 
         {/* Add keyword to training */}
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>
+          <label style={{ fontSize:12, color: C.textMuted, display: "block", marginBottom: 6 }}>
             Add Keyword to Rule <span style={{ color: C.textMuted, fontWeight: 400 }}>(optional)</span>
           </label>
           <input
@@ -194,7 +194,7 @@ function OverrideModal({ log, onClose, onSave }) {
             style={{
               width: "100%", background: C.raised, border: `1px solid ${C.border}`,
               borderRadius: 7, padding: "9px 12px", color: C.text,
-              fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none",
+              fontSize: 13, fontFamily: "var(--m-font)", outline: "none",
             }}
           />
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>
@@ -207,14 +207,14 @@ function OverrideModal({ log, onClose, onSave }) {
             flex: 1, padding: "10px", background: "transparent",
             border: `1px solid ${C.border}`, borderRadius: 8,
             fontSize: 13, color: C.textSub, cursor: "pointer",
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "var(--m-font)",
           }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{
             flex: 2, padding: "10px", background: "rgba(201,169,110,0.12)", border: `1px solid ${C.gold}`,
             border: "none", borderRadius: 8,
             fontSize: 13, fontWeight: 500, color: C.text,
             cursor: saving ? "default" : "pointer",
-            fontFamily: "'DM Sans', sans-serif", display: "flex",
+            fontFamily: "var(--m-font)", display: "flex",
             alignItems: "center", justifyContent: "center", gap: 8,
           }}>
             {saving ? <><Spinner/> Saving…</> : "✓ Save & Train Agent"}
@@ -270,7 +270,7 @@ function RuleRow({ rule, onUpdate, onDelete }) {
               <select value={level} onChange={(e) => setLevel(e.target.value)} style={{
                 background: C.surface, border: `1px solid ${C.border}`,
                 borderRadius: 5, padding: "2px 8px", color: C.text,
-                fontSize: 11, fontFamily: "'DM Sans', sans-serif", outline: "none",
+                fontSize: 11, fontFamily: "var(--m-font)", outline: "none",
               }}>
                 {ESCALATION_LEVELS.map(l => <option key={l} value={l}>{l.replace(/_/g," ")}</option>)}
               </select>
@@ -287,7 +287,7 @@ function RuleRow({ rule, onUpdate, onDelete }) {
                   style={{
                     width: 52, background: C.surface, border: `1px solid ${C.border}`,
                     borderRadius: 4, padding: "1px 5px", color: C.text,
-                    fontSize: 11, fontFamily: "'DM Sans', sans-serif", outline: "none",
+                    fontSize: 11, fontFamily: "var(--m-font)", outline: "none",
                   }}
                 />
               ) : <span style={{ color: C.gold }}>{(rule.confidence_threshold * 100).toFixed(0)}%</span>}
@@ -301,16 +301,16 @@ function RuleRow({ rule, onUpdate, onDelete }) {
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           {editing ? (
             <>
-              <button onClick={save} disabled={saving} style={{ padding: "5px 12px", background: "rgba(201,169,110,0.10)", border: `1px solid ${C.gold}`, borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={save} disabled={saving} style={{ padding: "5px 12px", background: "rgba(201,169,110,0.10)", border: `1px solid ${C.gold}`, borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.gold, cursor: "pointer", fontFamily: "var(--m-font)" }}>
                 {saving ? "…" : "Save"}
               </button>
-              <button onClick={() => setEditing(false)} style={{ padding: "5px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => setEditing(false)} style={{ padding: "5px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>
                 Cancel
               </button>
             </>
           ) : (
             <>
-              <button onClick={() => setEditing(true)} style={{ padding: "5px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => setEditing(true)} style={{ padding: "5px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>
                 Edit
               </button>
               <button onClick={toggle} style={{
@@ -318,7 +318,7 @@ function RuleRow({ rule, onUpdate, onDelete }) {
                 border: `1px solid ${rule.is_active ? C.border : C.green}`,
                 borderRadius: 6, fontSize: 11, cursor: "pointer",
                 color: rule.is_active ? C.textMuted : C.green,
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "var(--m-font)",
               }}>
                 {rule.is_active ? "Disable" : "Enable"}
               </button>
@@ -449,7 +449,7 @@ export default function LandlordAgentCenter() {
   return (
     <LandlordLayout>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
@@ -460,13 +460,13 @@ export default function LandlordAgentCenter() {
         @media (max-width: 640px) { .agent-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .agent-page { padding: 18px 12px 40px; } }
       `}</style>
 
-      <div className="agent-page" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="agent-page" style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)" }}>
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.green, animation: "pulse 2s infinite" }} />
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.text }}>
+            <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text }}>
               Agent Activity & Escalation Center
             </div>
           </div>
@@ -484,9 +484,9 @@ export default function LandlordAgentCenter() {
             { label: "Auto-replied",      value: stats.autoreplied, color: C.green, icon: "↩" },
           ].map((s) => (
             <div key={s.label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{s.label}</div>
+              <div style={{ fontSize:12, color: C.textMuted, marginBottom: 8 }}>{s.label}</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.value}</span>
+                <span style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.value}</span>
                 <span style={{ fontSize: 16 }}>{s.icon}</span>
               </div>
             </div>
@@ -505,7 +505,7 @@ export default function LandlordAgentCenter() {
               borderBottom: `2px solid ${tab === t.key ? C.gold : "transparent"}`,
               color: tab === t.key ? C.gold : C.textSub,
               fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
-              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              cursor: "pointer", fontFamily: "var(--m-font)",
               transition: "all 0.12s", marginBottom: -1,
             }}>{t.label}</button>
           ))}
@@ -517,7 +517,7 @@ export default function LandlordAgentCenter() {
               {FILTERS.filter(([v]) => agentTables || (v !== "UNRESOLVED" && v !== "RESOLVED")).map(([val, lbl]) => (
                 <button key={val} onClick={() => setFilter(val)} style={{
                   padding: "6px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer", minHeight: 32,
-                  fontFamily: "'DM Sans', sans-serif", fontWeight: filter === val ? 600 : 400,
+                  fontFamily: "var(--m-font)", fontWeight: filter === val ? 600 : 400,
                   background: filter === val ? `${C.gold}18` : C.raised,
                   border: `1px solid ${filter === val ? C.goldDim : C.border}`,
                   color: filter === val ? C.gold : C.textSub,
@@ -566,7 +566,7 @@ export default function LandlordAgentCenter() {
                         <Badge action={isOverridden ? log.manager_override_action : log.action_taken} />
                         <NotifyBadge log={log} />
                         {x.escalation && agentTables && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, color: x.state.resolved ? C.green : C.amber, background: x.state.resolved ? `${C.green}18` : `${C.amber}18` }}>
+                          <span style={{ fontSize: 10, fontWeight:600, padding: "2px 6px", borderRadius: 4, color: x.state.resolved ? C.green : C.amber, background: x.state.resolved ? `${C.green}18` : `${C.amber}18` }}>
                             {x.state.resolved ? "✓ Resolved" : "● Unresolved"}
                           </span>
                         )}
@@ -622,7 +622,7 @@ export default function LandlordAgentCenter() {
                 style={{
                   padding: "8px 16px", background: "rgba(201,169,110,0.10)", border: `1px solid ${C.gold}`,
                   borderRadius: 8, fontSize: 12, fontWeight: 500, color: C.text,
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                  cursor: "pointer", fontFamily: "var(--m-font)",
                 }}>
                 + Add Rule
               </button>
@@ -642,7 +642,7 @@ export default function LandlordAgentCenter() {
 
             {/* Legend */}
             <div style={{ marginTop: 24, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Action Reference</div>
+              <div style={{ fontSize:12, color: C.textMuted, marginBottom: 12 }}>Action Reference</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {Object.entries(ACTION_META).filter(([k]) => k !== "NO_ACTION").map(([k, v]) => (
                   <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>

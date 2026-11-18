@@ -8,7 +8,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -51,7 +51,7 @@ const SETTING_SECTIONS = [
 ];
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.07em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{children}</label>;
+  return <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 5 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type = "text" }) {
@@ -59,14 +59,14 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
     />
   );
 }
 
 function Select({ value, onChange, children }) {
   return (
-    <select value={value} onChange={onChange} style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+    <select value={value} onChange={onChange} style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", cursor: "pointer" }}>
       {children}
     </select>
   );
@@ -77,7 +77,7 @@ function GhostBtn({ children, onClick, small, danger }) {
   const borderColor = danger ? "rgba(224,85,85,0.3)" : C.border;
   const textColor   = danger ? C.red : C.textSub;
   return (
-    <button onClick={onClick} style={{ background: danger ? "rgba(224,85,85,0.08)" : "transparent", border: `1px solid ${borderColor}`, color: textColor, fontSize: small ? 11 : 13, fontWeight: 500, padding: small ? "6px 12px" : "8px 16px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}
+    <button className="m-touch-min" onClick={onClick} style={{ background: danger ? "rgba(224,85,85,0.08)" : "transparent", border: `1px solid ${borderColor}`, color: textColor, fontSize: small ? 11 : 13, fontWeight: 500, padding: small ? "6px 12px" : "8px 16px", borderRadius: 7, cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.15s" }}
       onMouseOver={e => !danger && (e.currentTarget.style.color = C.text)}
       onMouseOut={e => !danger && (e.currentTarget.style.color = textColor)}
     >{children}</button>
@@ -172,7 +172,7 @@ function VendorModal({ vendor, properties, onClose, onSaved }) {
           <div style={{ marginBottom: 20 }}>
             <FieldLabel>Notes</FieldLabel>
             <textarea value={form.notes} onChange={e => update("notes", e.target.value)} placeholder="Reliable, good pricing, available weekends…" rows={3}
-              style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", resize: "none", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5, boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", resize: "none", fontFamily: "var(--m-font)", lineHeight: 1.5, boxSizing: "border-box" }} />
           </div>
         </div>
         <div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -239,11 +239,11 @@ function VendorsSection() {
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+        <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "var(--m-font)", cursor: "pointer" }}>
           <option value="all">All properties</option>
           {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: C.surface, color: C.textSub, outline: "none", fontFamily: "var(--m-font)", cursor: "pointer" }}>
           <option value="all">All trades</option>
           {TRADE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
         </select>
@@ -417,17 +417,17 @@ export default function LandlordSettings() {
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
         .m-setting-nav-item:hover { background: ${C.raised} !important; color: ${C.text} !important; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: "28px 32px 48px" }}>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)", padding: "28px 32px 48px" }}>
 
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: C.text }}>Settings</div>
+          <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text }}>Settings</div>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Manage your account, notifications, and integrations</div>
         </div>
 
@@ -526,7 +526,7 @@ export default function LandlordSettings() {
               <Card>
                 <CardHeader title="Team members" sub="Invite property managers or maintenance staff" action={<PrimaryBtn onClick={() => {}}>+ Invite member</PrimaryBtn>} />
                 <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${C.gold}22`, border: `1px solid ${C.gold}44`, color: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>AW</div>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${C.gold}22`, border: `1px solid ${C.gold}44`, color: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight:600 }}>AW</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Andrew Wagner</div>
                     <div style={{ fontSize: 11, color: C.textSub }}>andrewwagner27@gmail.com</div>
@@ -583,7 +583,7 @@ export default function LandlordSettings() {
                       </div>
                     ) : (
                       <button onClick={handleStripeConnect} disabled={stripeLoading}
-                        style={{ background: stripeLoading ? "rgba(74,154,232,0.05)" : "rgba(74,154,232,0.1)", border: `1px solid rgba(74,154,232,0.3)`, color: C.blue, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: stripeLoading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", opacity: stripeLoading ? 0.7 : 1 }}>
+                        style={{ background: stripeLoading ? "rgba(74,154,232,0.05)" : "rgba(74,154,232,0.1)", border: `1px solid rgba(74,154,232,0.3)`, color: C.blue, fontSize: 13, fontWeight: 500, padding: "9px 20px", borderRadius: 7, cursor: stripeLoading ? "not-allowed" : "pointer", fontFamily: "var(--m-font)", opacity: stripeLoading ? 0.7 : 1 }}>
                         {stripeLoading ? "Redirecting to Stripe…" : "Connect bank account →"}
                       </button>
                     )}
@@ -630,7 +630,7 @@ export default function LandlordSettings() {
                 <Card>
                   <CardHeader title="Current plan" sub="Modus PM — Self-hosted" action={<span style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", background: `${C.green}15`, color: C.green, borderRadius: 20 }}>Active</span>} />
                   <div style={{ padding: "20px" }}>
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: C.gold, marginBottom: 6 }}>$0<span style={{ fontSize: 14, fontWeight: 400, color: C.textSub }}>/month</span></div>
+                    <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums", fontWeight: 600, color: C.gold, marginBottom: 6 }}>$0<span style={{ fontSize: 14, fontWeight:600, color: C.textSub }}>/month</span></div>
                     <div style={{ fontSize: 13, color: C.textSub, marginBottom: 18 }}>You built this. No subscription fees.</div>
                     {["Unlimited properties", "Unlimited tenants", "Rent collection via Stripe", "Maintenance tracking", "Financial reports & DSCR"].map((f, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, color: C.textSub }}>

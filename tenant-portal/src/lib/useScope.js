@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { SCOPES } from "./accounting";
 
-export const selectStyle = { padding: "7px 12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, fontSize: 12, background: "#1C2129", color: "#B7BBC4", outline: "none", fontFamily: "'DM Sans', sans-serif", colorScheme: "dark" };
+export const selectStyle = { padding: "7px 12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, fontSize: 12, background: "#1C2129", color: "#B7BBC4", outline: "none", fontFamily: "var(--m-font)", colorScheme: "dark" };
 
 // Portfolio / ownership entity / set of books / property, the same four views on every financial report.
 export function useScope() {

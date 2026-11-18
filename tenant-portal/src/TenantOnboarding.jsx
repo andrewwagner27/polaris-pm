@@ -8,7 +8,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -48,7 +48,7 @@ function ModusMark({ size=32 }) {
 function ContinueBtn({ onClick, loading, label="Continue →" }) {
   return (
     <button onClick={onClick} disabled={loading}
-      style={{ width:"100%",padding:"12px",border:`1px solid ${C.goldDim}`,borderRadius:8,fontSize:14,fontWeight:500,background:loading?"rgba(201,169,110,0.07)":"transparent",color:C.gold,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:"'DM Sans',sans-serif",opacity:loading?0.7:1 }}>
+      style={{ width:"100%",padding:"12px",border:`1px solid ${C.goldDim}`,borderRadius:8,fontSize:14,fontWeight:500,background:loading?"rgba(201,169,110,0.07)":"transparent",color:C.gold,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:"var(--m-font)",opacity:loading?0.7:1 }}>
       {loading?<><Spinner/> Saving…</>:label}
     </button>
   );
@@ -58,10 +58,10 @@ function InputField({ label, value, onChange, type="text", placeholder }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom:14 }}>
-      <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>{label}</label>
+      <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:6 }}>{label}</label>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
         onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-        style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:8,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",transition:"border-color 0.15s",boxShadow:focused?`0 0 0 3px rgba(201,169,110,0.08)`:"none" }}/>
+        style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:8,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",transition:"border-color 0.15s",boxShadow:focused?`0 0 0 3px rgba(201,169,110,0.08)`:"none" }}/>
     </div>
   );
 }
@@ -274,16 +274,16 @@ export default function TenantOnboarding() {
   if (linkState.state !== "ready") {
     const msg = LINK_MESSAGES[linkState.state];
     return (
-      <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 16px",boxSizing:"border-box" }}>
+      <div style={{ width:"100%",fontFamily:"var(--m-font)",background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 16px",boxSizing:"border-box" }}>
         <div role={msg ? "alert" : "status"} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"28px 24px",width:"100%",maxWidth:440,textAlign:"center" }}>
           <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><ModusMark size={32}/></div>
           {!msg ? <div style={{ fontSize:14,color:C.textSub }}>Checking your invitation…</div> : (
             <>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:10 }}>{msg.title}</div>
+              <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:10 }}>{msg.title}</div>
               <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:22 }}>{msg.body}</div>
               <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                <button onClick={()=>navigate("/login")} style={{ padding:"12px",borderRadius:8,border:"none",background:C.gold,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Sign in</button>
-                <button onClick={()=>navigate("/forgot-password")} style={{ padding:"12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Forgot or never set a password?</button>
+                <button onClick={()=>navigate("/login")} style={{ padding:"12px",borderRadius:8,border:"none",background:C.gold,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"var(--m-font)" }}>Sign in</button>
+                <button onClick={()=>navigate("/forgot-password")} style={{ padding:"12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textSub,fontSize:14,cursor:"pointer",fontFamily:"var(--m-font)" }}>Forgot or never set a password?</button>
               </div>
             </>
           )}
@@ -293,9 +293,9 @@ export default function TenantOnboarding() {
   }
 
   return (
-    <div style={{ width:"100%",fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",flexDirection:"column" }}>
+    <div style={{ width:"100%",fontFamily:"var(--m-font)",background:C.bg,minHeight:"100vh",display:"flex",flexDirection:"column" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -306,7 +306,7 @@ export default function TenantOnboarding() {
       {/* Header */}
       <div style={{ background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"28px 24px 24px",textAlign:"center" }}>
         <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><ModusMark size={36}/></div>
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,letterSpacing:"0.1em" }}>MODUS</div>
+        <div style={{ fontFamily:"var(--m-font-brand)",fontSize:20,fontWeight:600,color:C.text,letterSpacing:"0.1em" }}>MODUS</div>
         <div style={{ fontSize:9,color:C.textMuted,letterSpacing:"0.18em",marginTop:2,marginBottom:12 }}>PROPERTY MANAGEMENT</div>
         <div style={{ fontSize:13,color:C.textSub }}>Let's get your account set up — takes about 3 minutes</div>
       </div>
@@ -330,7 +330,7 @@ export default function TenantOnboarding() {
         {/* ── Your info ── */}
         {stepName==="Your info"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Your information</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Your information</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>This is how your landlord will identify you and how we'll address your receipts and documents.</div>
             <InputField label="Full name"    value={fullName} onChange={v=>{setFullName(v);setError("");}} placeholder="Maria Rodriguez"/>
             <InputField label="Phone number" value={phone}    onChange={v=>{setPhone(v);setError("");}}    placeholder="(614) 555-0192" type="tel"/>
@@ -341,7 +341,7 @@ export default function TenantOnboarding() {
         {/* ── Set password (invited only) ── */}
         {stepName==="Set password"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Create a password</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Create a password</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Set a password so you can log back in anytime.</div>
             <InputField label="Password"         value={password}        onChange={v=>{setPassword(v);setError("");}}        placeholder="At least 8 characters" type="password"/>
             <InputField label="Confirm password" value={confirmPassword} onChange={v=>{setConfirmPassword(v);setError("");}} placeholder="Repeat your password"    type="password"/>
@@ -363,7 +363,7 @@ export default function TenantOnboarding() {
         {/* ── Your unit (invited — read only) ── */}
         {stepName==="Your unit"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Your unit</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Your unit</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Your unit has already been linked to your account via your invite.</div>
             {foundProperty?(
               <div style={{ background:`${C.green}0F`,border:`1px solid ${C.green}33`,borderRadius:10,padding:"20px",marginBottom:24 }}>
@@ -390,7 +390,7 @@ export default function TenantOnboarding() {
         {/* ── Find your unit (self-signup only) ── */}
         {stepName==="Find your unit"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Find your unit</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Find your unit</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Enter the property code your landlord gave you, then your unit number.</div>
             {foundProperty&&(
               <div style={{ background:`${C.green}0F`,border:`1px solid ${C.green}33`,borderRadius:10,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12 }}>
@@ -404,14 +404,14 @@ export default function TenantOnboarding() {
               </div>
             )}
             <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>Property code</label>
+              <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:6 }}>Property code</label>
               <input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setError("");setFoundProperty(null);}} placeholder="e.g. CLIFTON" maxLength={10}
-                style={{ width:"100%",padding:"14px",fontSize:22,fontWeight:700,border:`1px solid ${C.border}`,borderRadius:8,textAlign:"center",letterSpacing:"0.15em",outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",color:C.gold,background:C.raised }}/>
+                style={{ width:"100%",padding:"14px",fontSize:22,fontWeight:600,border:`1px solid ${C.border}`,borderRadius:8,textAlign:"center",outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",color:C.gold,background:C.raised }}/>
               <div style={{ fontSize:11,color:C.textMuted,textAlign:"center",marginTop:8 }}>Your landlord provided this code when you were added as a tenant.</div>
             </div>
             <InputField label="Unit number" value={unitNum} onChange={v=>{setUnitNum(v);setError("");}} placeholder="e.g. 3"/>
             <ContinueBtn onClick={handlePropertyCode} loading={loading} label="Verify & continue →"/>
-            <button onClick={()=>setStep(s=>s+1)} style={{ width:"100%",padding:"10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:500,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:10 }}>
+            <button onClick={()=>setStep(s=>s+1)} style={{ width:"100%",padding:"10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:500,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)",marginTop:10 }}>
               Skip for now
             </button>
           </>
@@ -420,23 +420,23 @@ export default function TenantOnboarding() {
         {/* ── Emergency contact ── */}
         {stepName==="Emergency contact"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Emergency contact</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Emergency contact</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>Who should your property manager contact in case of an emergency?</div>
             <InputField label="Full name"    value={ecName}  onChange={v=>{setEcName(v);setError("");}}  placeholder="Jane Rodriguez"/>
             <InputField label="Phone number" value={ecPhone} onChange={v=>{setEcPhone(v);setError("");}} placeholder="(614) 555-0100" type="tel"/>
             <div style={{ marginBottom:24 }}>
-              <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:8 }}>Relationship</label>
+              <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:8 }}>Relationship</label>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {RELATIONSHIPS.map(r=>(
                   <button key={r} className="rel-btn" onClick={()=>setEcRelationship(r)}
-                    style={{ padding:"7px 14px",borderRadius:20,fontSize:13,fontWeight:500,background:ecRelationship===r?C.goldDim:"transparent",color:ecRelationship===r?C.text:C.textSub,border:`1px solid ${ecRelationship===r?C.goldDim:C.border}`,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s" }}>
+                    style={{ padding:"7px 14px",borderRadius:20,fontSize:13,fontWeight:500,background:ecRelationship===r?C.goldDim:"transparent",color:ecRelationship===r?C.text:C.textSub,border:`1px solid ${ecRelationship===r?C.goldDim:C.border}`,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.12s" }}>
                     {r}
                   </button>
                 ))}
               </div>
             </div>
             <ContinueBtn onClick={handleEmergencyContact} loading={loading}/>
-            <button onClick={()=>setStep(s=>s+1)} style={{ width:"100%",padding:"10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:500,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:10 }}>
+            <button onClick={()=>setStep(s=>s+1)} style={{ width:"100%",padding:"10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:500,background:"transparent",color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)",marginTop:10 }}>
               Skip for now
             </button>
           </>
@@ -445,7 +445,7 @@ export default function TenantOnboarding() {
         {/* ── Move-in checklist ── */}
         {stepName==="Move-in checklist"&&(
           <>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Move-in checklist</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:6 }}>Move-in checklist</div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6,marginBottom:8 }}>Document the condition of each area when you move in. This protects your deposit.</div>
             <div style={{ fontSize:12,color:C.textMuted,marginBottom:24 }}>{completedRooms} of {ROOMS.length} areas completed</div>
             <div style={{ display:"flex",flexDirection:"column",gap:12,marginBottom:24 }}>
@@ -464,14 +464,14 @@ export default function TenantOnboarding() {
                             background:item.condition===c?(c==="Good"?`${C.green}20`:c==="Fair"?`${C.amber}20`:`${C.red}20`):"transparent",
                             color:item.condition===c?(c==="Good"?C.green:c==="Fair"?C.amber:C.red):C.textSub,
                             border:`1px solid ${item.condition===c?(c==="Good"?C.green:c==="Fair"?C.amber:C.red):C.border}`,
-                            cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s" }}>
+                            cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.12s" }}>
                           {c}
                         </button>
                       ))}
                     </div>
                     {item.condition&&(
                       <input value={item.notes} onChange={e=>updateChecklist(i,"notes",e.target.value)} placeholder="Add notes (optional)…"
-                        style={{ width:"100%",padding:"8px 10px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }}/>
+                        style={{ width:"100%",padding:"8px 10px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",boxSizing:"border-box" }}/>
                     )}
                   </div>
                 );
@@ -485,7 +485,7 @@ export default function TenantOnboarding() {
         {stepName==="All set"&&(
           <>
             <div style={{ width:72,height:72,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:28,color:C.green,animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>✓</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,textAlign:"center",marginBottom:6 }}>You're all set!</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,textAlign:"center",marginBottom:6 }}>You're all set!</div>
             <div style={{ fontSize:14,color:C.textSub,textAlign:"center",marginBottom:24 }}>Your account is ready. Here's what we set up:</div>
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:24 }}>
               {[

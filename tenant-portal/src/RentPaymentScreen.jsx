@@ -14,7 +14,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -166,10 +166,10 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
   if (step === "success") return (
     <div style={{ textAlign:"center",padding:"32px 0" }}>
       <div style={{ width:64,height:64,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px",fontSize:26,color:C.green }}>✓</div>
-      <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
+      <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
       <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>{money(payableCents)} via ACH bank transfer</div>
       <div style={{ fontSize:12,color:C.textMuted,marginBottom:28 }}>ACH transfers take 2–3 business days to settle.</div>
-      <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+      <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}>
         ← Back to home
       </button>
     </div>
@@ -193,11 +193,11 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
             </div>
             <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",background:`${C.green}15`,color:C.green,borderRadius:5 }}>Linked</span>
           </div>
-          <button onClick={payNow} disabled={!(payableCents > 0)} style={{ opacity:payableCents > 0 ? 1 : 0.5,width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em",marginBottom:10 }}>
+          <button onClick={payNow} disabled={!(payableCents > 0)} style={{ opacity:payableCents > 0 ? 1 : 0.5,width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"var(--m-font)",letterSpacing:"0.02em",marginBottom:10 }}>
             Pay {money(payableCents)} →
           </button>
           {savedMethod && (
-            <button onClick={()=>{ setSavedMethod(null); setStep("idle"); }} style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+            <button onClick={()=>{ setSavedMethod(null); setStep("idle"); }} style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}>
               Use a different bank account
             </button>
           )}
@@ -211,7 +211,7 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
           <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>
             Connect your bank via ACH for free transfers.<br/>No fees — funds arrive in 2–3 business days.
           </div>
-          <button onClick={linkBank} style={{ width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}>
+          <button onClick={linkBank} style={{ width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"var(--m-font)",letterSpacing:"0.02em" }}>
             Link bank account →
           </button>
         </div>
@@ -262,16 +262,16 @@ export default function RentPaymentScreen() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         @media(max-width:767px){.pay-wrap{padding:16px 14px 24px!important;}}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
       `}</style>
 
-      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 60px" }}>
+      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"28px 20px 60px" }}>
 
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
+        <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
         <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>
           {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}
         </div>
@@ -293,8 +293,8 @@ export default function RentPaymentScreen() {
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",marginBottom:14 }}>
           <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
-              <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Amount due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:600,color:C.gold,lineHeight:1 }}>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:8 }}>Amount due</div>
+              <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:C.gold,lineHeight:1 }}>
                 {due?.ledger_active ? money(payableCents) : "—"}
               </div>
               {due?.ledger_active && payableCents===0 && <div style={{ fontSize:12,color:C.green,marginTop:6 }}>{pendingCents>0 ? `Your ${money(pendingCents)} payment is processing. Nothing more to pay right now.` : "Nothing to pay right now."}</div>}

@@ -10,7 +10,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -22,12 +22,12 @@ const C = {
   amber:    "#F0A430",
 };
 
-const field = { padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark" };
+const field = { padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",colorScheme:"dark" };
 
 function Btn({ children, onClick, disabled, gold }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      style={{ background:"transparent",border:`1px solid ${gold?C.goldDim:C.border}`,color:gold?C.gold:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:disabled?0.5:1,whiteSpace:"nowrap" }}>
+      style={{ background:"transparent",border:`1px solid ${gold?C.goldDim:C.border}`,color:gold?C.gold:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontFamily:"var(--m-font)",opacity:disabled?0.5:1,whiteSpace:"nowrap" }}>
       {children}
     </button>
   );
@@ -49,7 +49,7 @@ function Card({ title, sub, children, right }) {
 }
 
 function TH({ children, right }) {
-  return <th style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>;
+  return <th style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>;
 }
 function TD({ children, right, bold, color }) {
   return <td style={{ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:"9px 12px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",fontVariantNumeric:"tabular-nums" }}>{children}</td>;
@@ -261,8 +261,8 @@ export default function Receivables({ tenants, onChanged }) {
           {[["Balance due", totals.balance_cents, totals.balance_cents>0?C.red:C.green],
             ["Open charges", totals.open_cents, C.text], ["Tenant credits", totals.credit_cents, C.blue]].map(([l,v,c])=>(
             <div key={l} style={{ background:C.raised,borderRadius:8,padding:"12px 14px" }}>
-              <div style={{ fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6 }}>{l}</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:c }}>{fmtCents(v)}</div>
+              <div style={{ fontSize:12,color:C.textMuted,marginBottom:6 }}>{l}</div>
+              <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:c }}>{fmtCents(v)}</div>
             </div>
           ))}
         </div>

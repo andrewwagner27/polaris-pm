@@ -5,8 +5,8 @@ import { PAYMENT_CATEGORIES, fmtCents, centsToDecimal, openByCategory } from "./
 const C = {
   raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4", textMuted:"#9298A3", gold:"#C9A968",
 };
-const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif" };
-const labelStyle = { fontSize:11,fontWeight:600,color:C.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em" };
+const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)" };
+const labelStyle = { fontSize:12,fontWeight:600,color:C.textSub,marginBottom:5,};
 
 // D5: payments apply within their own category, so one payment covering rent and a late fee is
 // recorded as one line per category. Shows the tenant's open charges once receivables are active.
@@ -36,7 +36,7 @@ export default function PaymentLinesField({ tenantId, lines, onChange }) {
         <div style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:12 }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
             <div style={labelStyle}>Open charges</div>
-            <button type="button" onClick={fillOpen} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:0 }}>Use these amounts</button>
+            <button type="button" onClick={fillOpen} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"var(--m-font)",padding:0 }}>Use these amounts</button>
           </div>
           {open.map(o=>(
             <div key={o.category} style={{ display:"flex",justifyContent:"space-between",fontSize:12,color:C.textSub,padding:"2px 0" }}>
@@ -60,7 +60,7 @@ export default function PaymentLinesField({ tenantId, lines, onChange }) {
             : <span/>}
         </div>
       ))}
-      <button type="button" onClick={add} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:0 }}>+ Add another category</button>
+      <button type="button" onClick={add} style={{ background:"none",border:"none",color:C.gold,fontSize:12,cursor:"pointer",fontFamily:"var(--m-font)",padding:0 }}>+ Add another category</button>
       <div style={{ fontSize:11,color:C.textSub,marginTop:6,lineHeight:1.5 }}>You are recording money received offline. Each line applies only to charges of its category. Online Pay Rent payments arrive through Stripe and apply to Rent only; late fees are paid offline for now.</div>
     </div>
   );

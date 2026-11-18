@@ -9,7 +9,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -21,15 +21,15 @@ const C = {
   amber:    "#F0A430",
 };
 
-const selectStyle = { padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" };
+const selectStyle = { padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "var(--m-font)" };
 const dateStyle   = { ...selectStyle, colorScheme: "dark" };
 
 function GhostBtn({ children, onClick, small, disabled }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{
+    <button className="m-touch-min" onClick={onClick} disabled={disabled} style={{
       background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
       fontSize: small ? 11 : 12, fontWeight: 500, padding: small ? "5px 10px" : "7px 14px",
-      borderRadius: 7, cursor: disabled ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif", opacity: disabled ? 0.5 : 1,
+      borderRadius: 7, cursor: disabled ? "default" : "pointer", fontFamily: "var(--m-font)", opacity: disabled ? 0.5 : 1,
     }}>{children}</button>
   );
 }
@@ -41,7 +41,7 @@ function download(name, text) {
 }
 
 function TH({ children, right }) {
-  return <th style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>;
+  return <th style={{ fontSize:12, fontWeight: 600, color: C.textSub, padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>;
 }
 function TD({ children, right, bold, color, indent }) {
   return <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: `10px 16px 10px ${indent ? 32 : 16}px`, borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", fontVariantNumeric: "tabular-nums" }}>{children}</td>;
@@ -204,7 +204,7 @@ export default function IncomeStatement({ properties }) {
       {(errors.length > 0 || outOfBalance.length > 0) && (
         <div style={{ margin: "14px 20px 0", background: `${C.amber}11`, border: `1px solid ${C.amber}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.amber, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span>⚠ <strong>{errors.length}</strong> transaction{errors.length === 1 ? "" : "s"} could not be posted and {errors.length === 1 ? "is" : "are"} not in this report.</span>
-          <button onClick={() => setShowRecon(s => !s)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.amber, textDecoration: "underline", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+          <button onClick={() => setShowRecon(s => !s)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.amber, textDecoration: "underline", cursor: "pointer", fontSize: 12, fontFamily: "var(--m-font)" }}>
             {showRecon ? "Hide reconciliation" : "Review reconciliation"}
           </button>
         </div>
@@ -228,7 +228,7 @@ export default function IncomeStatement({ properties }) {
                 const open = line && drill?.code === r.code;
                 return [
                   header && r.section !== "Net" && (
-                    <tr key={`h-${r.section}`}><td colSpan={COLS} style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", padding: "14px 16px 6px" }}>{r.section}</td></tr>
+                    <tr key={`h-${r.section}`}><td colSpan={COLS} style={{ fontSize:12, fontWeight: 600, color: C.textSub, padding: "14px 16px 6px" }}>{r.section}</td></tr>
                   ),
                   <tr key={`${r.section}-${r.code || r.name}`} className={line ? "m-row" : ""} style={{ cursor: line ? "pointer" : "default", background: r.section === "Net" ? C.raised : undefined }}
                     onClick={() => line && openDrill(r)} title={line ? "Show transactions" : undefined}>
@@ -330,7 +330,7 @@ function Drill({ drill, range }) {
         <GhostBtn small onClick={() => download(`Modus_${drill.code}_${slug(drill.name)}_${range.from}_${range.to}.csv`, transactionsCSV(drill.rows, { accountLabel: `${drill.code} ${drill.name}`, from: range.from, to: range.to }))}>⬇ CSV</GhostBtn>
       </div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead><tr>{["Date", "Description", "Books", "Property", "Tenant", "Amount"].map((h, i) => <th key={h} style={{ ...cell, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: i === 5 ? "right" : "left", fontWeight: 600 }}>{h}</th>)}</tr></thead>
+        <thead><tr>{["Date", "Description", "Books", "Property", "Tenant", "Amount"].map((h, i) => <th key={h} style={{ ...cell, fontSize:12, textAlign: i === 5 ? "right" : "left", fontWeight: 600 }}>{h}</th>)}</tr></thead>
         <tbody>
           {drill.rows.map(r => (
             <tr key={r.entry_id}>

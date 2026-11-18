@@ -40,7 +40,7 @@ function Modal({ title, onClose, children, footer }) {
 function Field({ label, hint, children }) {
   return (
     <label style={{ display: "grid", gap: 6 }}>
-      <span style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.09em" }}>{label}</span>
+      <span style={{ fontSize:12, fontWeight: 600, color: C.textSub, }}>{label}</span>
       {children}
       {hint && <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.45 }}>{hint}</span>}
     </label>

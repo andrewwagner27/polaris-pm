@@ -10,7 +10,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -38,7 +38,7 @@ function Modal({ title, onClose, children }) {
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto" }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px 16px",borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,color:C.text }}>{title}</div>
+          <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text }}>{title}</div>
           <button onClick={onClose} style={{ background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:18 }}>✕</button>
         </div>
         <div style={{ padding:"20px 24px" }}>{children}</div>
@@ -50,11 +50,11 @@ function Modal({ title, onClose, children }) {
 function Field({ label, value, onChange, type="text", placeholder, required }) {
   return (
     <div style={{ marginBottom:14 }}>
-      <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5 }}>
+      <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>
         {label}{required&&<span style={{ color:C.red }}> *</span>}
       </label>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif" }}/>
+        style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)" }}/>
     </div>
   );
 }
@@ -62,8 +62,8 @@ function Field({ label, value, onChange, type="text", placeholder, required }) {
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick}
-      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" }}
+    <button className="m-touch-min" onClick={onClick}
+      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap" }}
       onMouseOver={e=>{ e.currentTarget.style.color=C.text; e.currentTarget.style.borderColor="#353A44"; }}
       onMouseOut={e=>{ e.currentTarget.style.color=C.textSub; e.currentTarget.style.borderColor=C.border; }}
     >{children}</button>
@@ -72,8 +72,8 @@ function GhostBtn({ children, onClick, small }) {
 
 function DangerBtn({ children, onClick }) {
   return (
-    <button onClick={onClick}
-      style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:13,fontWeight:500,padding:"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" }}
+    <button className="m-touch-min" onClick={onClick}
+      style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:13,fontWeight:500,padding:"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap" }}
     >{children}</button>
   );
 }
@@ -302,7 +302,7 @@ export default function LandlordApplications() {
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .app-row:hover td{background:${C.raised}!important;cursor:pointer;}
@@ -310,16 +310,16 @@ export default function LandlordApplications() {
       `}</style>
 
       {toast&&(
-        <div style={{ position:"fixed",top:20,right:20,zIndex:300,background:toast.isError?C.red:C.green,color:"#fff",padding:"10px 18px",borderRadius:8,fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",boxShadow:"0 4px 16px rgba(0,0,0,0.4)",maxWidth:360 }}>
+        <div style={{ position:"fixed",top:20,right:20,zIndex:300,background:toast.isError?C.red:C.green,color:"#fff",padding:"10px 18px",borderRadius:8,fontSize:13,fontWeight:500,fontFamily:"var(--m-font)",boxShadow:"0 4px 16px rgba(0,0,0,0.4)",maxWidth:360 }}>
           {toast.msg}
         </div>
       )}
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 32px 48px" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"28px 32px 48px" }}>
 
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28 }}>
           <div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text }}>Applications</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text }}>Applications</div>
             <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{applications.length} total · {pending.length} pending review</div>
           </div>
           <PrimaryBtn onClick={()=>setShowAdd(true)}>+ New application</PrimaryBtn>
@@ -328,13 +328,13 @@ export default function LandlordApplications() {
         {/* Pending */}
         {pending.length > 0 && (
           <>
-            <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Pending review</div>
+            <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Pending review</div>
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",marginBottom:24 }}>
               <table style={{ width:"100%",borderCollapse:"collapse" }}>
                 <thead>
                   <tr>
                     {["Applicant","Property · Unit","Move-in","Income","Status","Report"].map(h=>(
-                      <th key={h} style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 16px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
+                      <th key={h} style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"10px 16px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -375,13 +375,13 @@ export default function LandlordApplications() {
         {/* Decided */}
         {decided.length > 0 && (
           <>
-            <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Past applications</div>
+            <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Past applications</div>
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
               <table style={{ width:"100%",borderCollapse:"collapse" }}>
                 <thead>
                   <tr>
                     {["Applicant","Property · Unit","Decision date","Status"].map(h=>(
-                      <th key={h} style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 16px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
+                      <th key={h} style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"10px 16px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -437,7 +437,7 @@ export default function LandlordApplications() {
             <div style={{ padding:"20px 24px" }}>
 
               {/* Info */}
-              <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Application details</div>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Application details</div>
               <div style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",marginBottom:20 }}>
                 {[
                   ["Property",      selectedProperty?.name||"—"],
@@ -456,13 +456,13 @@ export default function LandlordApplications() {
               {/* Notes */}
               {selected.notes&&(
                 <>
-                  <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Notes</div>
+                  <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:8 }}>Notes</div>
                   <div style={{ background:C.raised,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",marginBottom:20,fontSize:13,color:C.textSub,lineHeight:1.6 }}>{selected.notes}</div>
                 </>
               )}
 
               {/* Screening report */}
-              <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Screening report</div>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Screening report</div>
               <div style={{ background:C.raised,border:`1px solid ${selected.screening_report_url?C.green:C.border}`,borderRadius:8,padding:"14px",marginBottom:20 }}>
                 {selected.screening_report_url?(
                   <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
@@ -493,7 +493,7 @@ export default function LandlordApplications() {
                   <div style={{ marginTop:10,textAlign:"center" }}>
                     <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display:"none" }}
                       onChange={()=>handleUploadReport(selected.id)}/>
-                    <button onClick={()=>fileInputRef.current?.click()} style={{ fontSize:12,color:C.textMuted,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline" }}>
+                    <button onClick={()=>fileInputRef.current?.click()} style={{ fontSize:12,color:C.textMuted,background:"none",border:"none",cursor:"pointer",fontFamily:"var(--m-font)",textDecoration:"underline" }}>
                       Replace report
                     </button>
                   </div>
@@ -503,7 +503,7 @@ export default function LandlordApplications() {
               {/* Decline reason */}
               {selected.status==="declined"&&selected.decline_reason&&(
                 <div style={{ background:`${C.red}10`,border:`1px solid ${C.red}25`,borderRadius:8,padding:"12px 14px",marginBottom:20 }}>
-                  <div style={{ fontSize:11,fontWeight:600,color:C.red,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4 }}>Decline reason</div>
+                  <div style={{ fontSize:12,fontWeight:600,color:C.red,marginBottom:4 }}>Decline reason</div>
                   <div style={{ fontSize:13,color:C.textSub }}>{selected.decline_reason}</div>
                 </div>
               )}
@@ -512,11 +512,11 @@ export default function LandlordApplications() {
               {selected.status==="pending"&&(
                 <div style={{ display:"flex",gap:10,marginTop:8 }}>
                   <button onClick={()=>handleApprove(selected)} disabled={converting}
-                    style={{ flex:1,padding:"12px",background:`${C.green}18`,border:`1px solid ${C.green}33`,borderRadius:8,fontSize:14,fontWeight:500,color:C.green,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                    style={{ flex:1,padding:"12px",background:`${C.green}18`,border:`1px solid ${C.green}33`,borderRadius:8,fontSize:14,fontWeight:500,color:C.green,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                     {converting?"Processing…":"✓ Approve & invite to portal"}
                   </button>
                   <button onClick={()=>setShowDeclineModal(true)}
-                    style={{ flex:1,padding:"12px",background:`${C.red}10`,border:`1px solid rgba(224,85,85,0.25)`,borderRadius:8,fontSize:14,fontWeight:500,color:C.red,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                    style={{ flex:1,padding:"12px",background:`${C.red}10`,border:`1px solid rgba(224,85,85,0.25)`,borderRadius:8,fontSize:14,fontWeight:500,color:C.red,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                     ✕ Decline
                   </button>
                 </div>
@@ -528,7 +528,7 @@ export default function LandlordApplications() {
                     ✓ Approved — tenant record created
                   </div>
                   <button onClick={()=>handleResendInvite(selected)} disabled={sendingInvite}
-                    style={{ width:"100%",padding:"11px",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,cursor:sendingInvite?"not-allowed":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:sendingInvite?0.7:1 }}>
+                    style={{ width:"100%",padding:"11px",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,cursor:sendingInvite?"not-allowed":"pointer",fontFamily:"var(--m-font)",opacity:sendingInvite?0.7:1 }}>
                     {sendingInvite?"Sending…":"↺ Resend portal invite"}
                   </button>
                 </div>
@@ -547,17 +547,17 @@ export default function LandlordApplications() {
             <Field label="Phone" value={form.phone} onChange={v=>update("phone",v)} placeholder="(614) 555-0100"/>
           </div>
           <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5 }}>Property</label>
+            <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>Property</label>
             <select value={form.property_id} onChange={e=>{ update("property_id",e.target.value); update("unit_id",""); }}
-              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:form.property_id?C.text:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif" }}>
+              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:form.property_id?C.text:C.textSub,outline:"none",fontFamily:"var(--m-font)" }}>
               <option value="">Select property…</option>
               {properties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5 }}>Unit</label>
+            <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>Unit</label>
             <select value={form.unit_id} onChange={e=>update("unit_id",e.target.value)} disabled={!form.property_id}
-              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:form.unit_id?C.text:C.textSub,outline:"none",fontFamily:"'DM Sans',sans-serif",opacity:!form.property_id?0.5:1 }}>
+              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:form.unit_id?C.text:C.textSub,outline:"none",fontFamily:"var(--m-font)",opacity:!form.property_id?0.5:1 }}>
               <option value="">Select unit…</option>
               {filteredUnits.map(u=><option key={u.id} value={u.id}>Unit {u.unit_number}</option>)}
             </select>
@@ -567,9 +567,9 @@ export default function LandlordApplications() {
             <Field label="Monthly income" value={form.monthly_income} onChange={v=>update("monthly_income",v)} placeholder="4500" type="number"/>
           </div>
           <div style={{ marginBottom:20 }}>
-            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5 }}>Notes</label>
+            <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>Notes</label>
             <textarea value={form.notes} onChange={e=>update("notes",e.target.value)} placeholder="Any additional notes…"
-              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",resize:"vertical",minHeight:70,boxSizing:"border-box" }}/>
+              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",resize:"vertical",minHeight:70,boxSizing:"border-box" }}/>
           </div>
           <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
             <GhostBtn onClick={()=>setShowAdd(false)}>Cancel</GhostBtn>
@@ -585,10 +585,10 @@ export default function LandlordApplications() {
             Declining will send an email notification to <strong style={{ color:C.text }}>{selected.name}</strong>.
           </p>
           <div style={{ marginBottom:20 }}>
-            <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5 }}>Reason (optional)</label>
+            <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>Reason (optional)</label>
             <textarea value={declineReason} onChange={e=>setDeclineReason(e.target.value)}
               placeholder="e.g. Income does not meet minimum requirements…"
-              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",resize:"vertical",minHeight:80,boxSizing:"border-box" }}/>
+              style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",resize:"vertical",minHeight:80,boxSizing:"border-box" }}/>
           </div>
           <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
             <GhostBtn onClick={()=>{ setShowDeclineModal(false); setDeclineReason(""); }}>Cancel</GhostBtn>

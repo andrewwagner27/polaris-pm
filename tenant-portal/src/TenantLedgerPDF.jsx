@@ -252,12 +252,12 @@ const s = {
     justifyContent: "space-between",
     marginBottom: 14,
   },
-  title: { fontSize: 13, fontWeight: 700, color: "#1a1a1a" },
+  title: { fontSize: 13, fontWeight:600, color: "#1a1a1a" },
   subtitle: { fontSize: 11, color: "#888", marginTop: 2 },
   previewTable: { width: "100%", borderCollapse: "collapse", marginBottom: 14 },
   th: {
     fontSize: 10, fontWeight: 600, color: "#555",
-    textTransform: "uppercase", letterSpacing: "0.05em",
+    
     padding: "6px 8px", borderBottom: "2px solid #e8eaed",
     textAlign: "left",
   },
@@ -290,7 +290,7 @@ const s = {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     transition: "background 0.15s",
   }),
   summaryRow: {
@@ -307,7 +307,7 @@ const s = {
   }),
   summaryVal: (color) => ({
     fontSize: 15,
-    fontWeight: 700,
+    fontWeight:600,
     color,
     display: "block",
     marginBottom: 2,
@@ -315,7 +315,7 @@ const s = {
   summaryLbl: {
     fontSize: 10,
     color: "#888",
-    textTransform: "uppercase",
+    
     letterSpacing: "0.05em",
   },
 };

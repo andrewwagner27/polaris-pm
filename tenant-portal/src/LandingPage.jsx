@@ -47,16 +47,16 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.text, background: C.bg, minHeight: "100vh" }}>
+    <div style={{ fontFamily: "var(--m-font)", color: C.text, background: C.bg, minHeight: "100vh" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+        
         @keyframes fadeUp { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .lp-hero { animation: none !important; } }
         .lp-nav { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 clamp(16px, 4vw, 48px); min-height:64px; border-bottom:1px solid ${C.border}; position:sticky; top:0; background:rgba(11,13,16,0.94); backdrop-filter:blur(12px); z-index:100; }
         .lp-section { padding: clamp(40px, 7vw, 80px) clamp(16px, 4vw, 48px); }
         .lp-two { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); max-width:1100px; margin:0 auto; }
         .lp-steps { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); max-width:960px; margin:0 auto; }
-        .lp-h2 { font-family:'Cormorant Garamond', serif; font-size: clamp(28px, 5vw, 42px); font-weight:600; color:${C.text}; margin:0 0 10px; line-height:1.15; }
+        .lp-h2 { font-family:var(--m-font-brand); font-size: clamp(28px, 5vw, 42px); font-weight:600; color:${C.text}; margin:0 0 10px; line-height:1.15; }
         .lp-cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
         .lp-cta .m-btn { min-height:48px; padding:0 24px; font-size:15px; }
         .lp-navbtns .m-btn { min-height:44px; }
@@ -71,7 +71,7 @@ export default function LandingPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <ModusMark size={28} />
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
+            <div style={{ fontFamily: "var(--m-font-brand)", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
             <div className="lp-tag" style={{ fontSize: 9, color: C.textMuted, letterSpacing: "0.16em" }}>PROPERTY MANAGEMENT</div>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function LandingPage() {
       <header className="lp-section" style={{ textAlign: "center", position: "relative", overflow: "hidden", borderBottom: `1px solid ${C.border}` }}>
         <div aria-hidden="true" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(600px, 100%)", height: 400, background: "radial-gradient(ellipse, rgba(201,169,104,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div className="lp-hero" style={{ position: "relative", animation: "fadeUp 0.5s ease" }}>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 8vw, 64px)", fontWeight: 600, color: C.text, lineHeight: 1.08, maxWidth: 760, margin: "0 auto 18px", letterSpacing: "-0.01em" }}>
+          <h1 style={{ fontFamily: "var(--m-font-brand)", fontSize: "clamp(36px, 8vw, 64px)", fontWeight: 600, color: C.text, lineHeight: 1.08, maxWidth: 760, margin: "0 auto 18px", letterSpacing: "-0.01em" }}>
             Calm, organized<br /><span style={{ color: C.action }}>property management.</span>
           </h1>
           <p style={{ fontSize: "clamp(15px, 2.4vw, 18px)", color: C.textSub, lineHeight: 1.6, maxWidth: 560, margin: "0 auto 28px" }}>
@@ -105,13 +105,13 @@ export default function LandingPage() {
         </div>
         <div className="lp-two">
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: `2px solid ${C.gold}`, borderRadius: 14, padding: "clamp(20px, 4vw, 32px)" }}>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.action, margin: "0 0 6px" }}>Landlord portal</h3>
+            <h3 style={{ fontFamily: "var(--m-font-brand)", fontSize: 26, fontWeight: 600, color: C.action, margin: "0 0 6px" }}>Landlord portal</h3>
             <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, margin: "0 0 18px" }}>Run your rentals from one dashboard, on your phone or your desk.</p>
             <FeatureList items={FEATURES_LANDLORD} accent={C.gold} />
             <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/landlord/login")} style={{ width: "100%", minHeight: 48, color: C.action, borderColor: C.border }}>Go to landlord dashboard →</button>
           </div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: `2px solid ${C.blue}`, borderRadius: 14, padding: "clamp(20px, 4vw, 32px)" }}>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.blue, margin: "0 0 6px" }}>Tenant portal</h3>
+            <h3 style={{ fontFamily: "var(--m-font-brand)", fontSize: 26, fontWeight: 600, color: C.blue, margin: "0 0 6px" }}>Tenant portal</h3>
             <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, margin: "0 0 18px" }}>Report issues, ask questions and keep your lease handy, from your phone.</p>
             <FeatureList items={FEATURES_TENANT} accent={C.blue} />
             <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/login")} style={{ width: "100%", minHeight: 48, color: C.blue, borderColor: C.border }}>Go to tenant portal →</button>
@@ -126,7 +126,7 @@ export default function LandingPage() {
         <ol className="lp-steps" style={{ listStyle: "none", padding: 0 }}>
           {HOW.map((step) => (
             <li key={step.num} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px 20px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: C.action, marginBottom: 10, lineHeight: 1 }}>{step.num}</div>
+              <div style={{ fontFamily: "var(--m-font-brand)", fontSize: 30, fontWeight: 600, color: C.action, marginBottom: 10, lineHeight: 1 }}>{step.num}</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 6 }}>{step.title}</div>
               <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6 }}>{step.text}</div>
             </li>
@@ -146,7 +146,7 @@ export default function LandingPage() {
       <footer style={{ borderTop: `1px solid ${C.border}`, padding: "20px clamp(16px, 4vw, 48px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ModusMark size={22} />
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: "0.08em" }}>MODUS</div>
+          <div style={{ fontFamily: "var(--m-font-brand)", fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: "0.08em" }}>MODUS</div>
         </div>
         <div style={{ fontSize: 12, color: C.textMuted }}>Built by Polaris Property Solutions LLC · Columbus, OH</div>
         <div style={{ fontSize: 12, color: C.textMuted }}>© {new Date().getFullYear()} All rights reserved</div>

@@ -28,7 +28,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -153,7 +153,7 @@ function Badge({ type, value }) {
 function GhostBtn({ children, onClick, small }) {
   return (
     <button type="button" onClick={onClick} className={`m-btn m-btn-ghost${small ? " m-btn-small" : ""}`}
-      style={{ borderColor: C.border, color: C.textSub, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{children}</button>
+      style={{ borderColor: C.border, color: C.textSub, fontWeight: 500, fontFamily: "var(--m-font)" }}>{children}</button>
   );
 }
 
@@ -200,7 +200,7 @@ function TicketCard({ ticket, expanded, showProperty, vendorPhone, onToggle, onO
           <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
             <Badge type="priority" value={priority} />
             <Badge type="status" value={status} />
-            {ticket.is_emergency && <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 5, background: "rgba(240,112,112,0.15)", color: C.red }}>Emergency</span>}
+            {ticket.is_emergency && <span style={{ fontSize: 10, fontWeight:600, padding: "3px 8px", borderRadius: 5, background: "rgba(240,112,112,0.15)", color: C.red }}>Emergency</span>}
             <span style={{ fontSize: 12, color: C.textMuted }}>· {ageLabel(ticket.created_at)} ago</span>
           </span>
         </span>
@@ -211,7 +211,7 @@ function TicketCard({ ticket, expanded, showProperty, vendorPhone, onToggle, onO
           <div style={{ padding: "14px 0 12px" }}><StageTimeline ticket={ticket} compact /></div>
           {next && (
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 12px", borderRadius: 10, background: C.raised, border: `1px solid ${next.tone === "urgent" ? "rgba(240,112,112,0.45)" : C.border}`, marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: next.owner === "you" ? C.gold : C.textSub, whiteSpace: "nowrap", paddingTop: 2 }}>{next.owner === "you" ? "Next · you" : `Waiting · ${next.owner}`}</span>
+              <span style={{ fontSize:12, fontWeight:600, color: next.owner === "you" ? C.gold : C.textSub, whiteSpace: "nowrap", paddingTop: 2 }}>{next.owner === "you" ? "Next · you" : `Waiting · ${next.owner}`}</span>
               <span style={{ fontSize: 13, color: C.text, lineHeight: 1.45 }}>{next.label}</span>
             </div>
           )}
@@ -501,10 +501,10 @@ export default function LandlordMaintenance() {
         @media (max-width:1024px){ .m-filter{min-height:44px;} .m-chip{min-height:44px;} } @media (max-width:720px){ .m-ticket-actions .m-btn{flex:1;} }
       `}</style>
 
-      <div className="m-page" style={{ color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="m-page" style={{ color: C.text, fontFamily: "var(--m-font)" }}>
 
         <div style={{ marginBottom: 18 }}>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, margin: 0 }}>Maintenance</h1>
+          <h1 style={{ fontFamily: "var(--m-font)", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, margin: 0 }}>Maintenance</h1>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>
             {loading ? "Loading…" : `${activeCount} active ticket${activeCount === 1 ? "" : "s"} · ${selectedName}`}
           </div>
@@ -523,9 +523,9 @@ export default function LandlordMaintenance() {
             <button key={s.label} type="button" className="m-stat" onClick={() => { if (s.tab) setActiveTab(s.tab); else { setActiveTab("Requests"); setStatusFilter(s.filter); } }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: s.accent }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</span>
+                <span style={{ fontSize:12, fontWeight: 600, color: C.textSub, }}>{s.label}</span>
               </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.text, lineHeight: 1.1 }}>{s.value}</div>
+              <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: C.text, lineHeight: 1.1 }}>{s.value}</div>
               <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{s.sub}</div>
             </button>
           ))}
@@ -538,7 +538,7 @@ export default function LandlordMaintenance() {
               minHeight: 44, padding: "0 18px", fontSize: 14, fontWeight: activeTab === tab ? 600 : 500,
               color: activeTab === tab ? C.gold : C.textSub, background: "none", border: "none",
               borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
-              marginBottom: -1, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              marginBottom: -1, cursor: "pointer", fontFamily: "var(--m-font)",
             }}>{tab}</button>
           ))}
         </div>
@@ -550,7 +550,7 @@ export default function LandlordMaintenance() {
               <label style={{ display: "flex", alignItems: "center", gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "0 12px", minHeight: 44, maxWidth: 420 }}>
                 <span aria-hidden="true" style={{ color: C.textMuted, fontSize: 15 }}>⌕</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search issue, tenant, unit or contractor" aria-label="Search tickets"
-                  style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
+                  style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 14, fontFamily: "var(--m-font)", background: "transparent", color: C.text }} />
               </label>
               <div className="m-filters" role="group" aria-label="Filter by status">
                 {[["all", `All (${tickets.length})`], ["active", `Active (${activeCount})`], ["open", `Open (${openCount})`], ["quote_submitted", `Quote in (${quoteCount})`], ["in_progress", `In progress (${inProgressCount})`], ["pending_review", `Review (${pendingReviewCount})`], ["resolved", `Resolved (${tickets.length - activeCount})`]].map(([f, label]) => (
@@ -602,10 +602,10 @@ export default function LandlordMaintenance() {
                       <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{field(t, "title")}</div>
                       <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{[isAll ? field(t, "property") : null, `Unit ${field(t, "unit")}`, t.vendor_name, field(t, "updatedAt")].filter(Boolean).join(" · ")}</div>
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>${Number(t.cost).toLocaleString("en-US")}</div>
+                    <div style={{ fontSize: 14, fontWeight:600, color: C.text, whiteSpace: "nowrap" }}>${Number(t.cost).toLocaleString("en-US")}</div>
                   </div>
                 ))}
-                <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", background: C.raised, fontWeight: 700 }}>
+                <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", background: C.raised, fontWeight:600 }}>
                   <span>Total</span><span style={{ color: C.gold }}>${totalCost.toLocaleString("en-US")}</span>
                 </div>
               </div>
@@ -615,7 +615,7 @@ export default function LandlordMaintenance() {
                   <thead>
                     <tr>
                       {["Property", "Unit", "Issue", "Contractor", "Cost", "Updated"].map(h => (
-                        <th key={h} scope="col" style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: h === "Cost" ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{h}</th>
+                        <th key={h} scope="col" style={{ fontSize:12, fontWeight: 600, color: C.textSub, padding: "10px 16px", textAlign: h === "Cost" ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -631,8 +631,8 @@ export default function LandlordMaintenance() {
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ padding: "11px 16px", fontSize: 13, fontWeight: 700, color: C.text, background: C.raised }}>Total</td>
-                      <td style={{ padding: "11px 16px", fontSize: 14, fontWeight: 700, color: C.gold, background: C.raised, textAlign: "right" }}>${totalCost.toLocaleString("en-US")}</td>
+                      <td colSpan={4} style={{ padding: "11px 16px", fontSize: 13, fontWeight:600, color: C.text, background: C.raised }}>Total</td>
+                      <td style={{ padding: "11px 16px", fontSize: 14, fontWeight:600, color: C.gold, background: C.raised, textAlign: "right" }}>${totalCost.toLocaleString("en-US")}</td>
                       <td style={{ background: C.raised }} />
                     </tr>
                   </tbody>
@@ -669,7 +669,7 @@ export default function LandlordMaintenance() {
                   <div style={{ flex: 1, fontSize: 11, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     🔗 {window.location.origin}/vendor/{vendorAccess.vendor_token} · PIN: <strong style={{ color: C.gold }}>{vendorAccess.vendor_pin}</strong>
                   </div>
-                  <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vendor/${vendorAccess.vendor_token}`)} style={{ fontSize: 11, padding: "4px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>Copy link</button>
+                  <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vendor/${vendorAccess.vendor_token}`)} style={{ fontSize: 11, padding: "4px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)", whiteSpace: "nowrap" }}>Copy link</button>
                 </div>
               )}
             </div>
@@ -678,7 +678,7 @@ export default function LandlordMaintenance() {
               <div style={{ marginBottom: 18 }}><StageTimeline ticket={selected} /></div>
               {nextAction(selected) && (
                 <div style={{ padding: "10px 12px", borderRadius: 10, background: C.raised, border: `1px solid ${C.border}`, marginBottom: 18, fontSize: 13, color: C.text, lineHeight: 1.45 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: nextAction(selected).owner === "you" ? C.gold : C.textSub, marginRight: 8 }}>{nextAction(selected).owner === "you" ? "Next · you" : `Waiting · ${nextAction(selected).owner}`}</span>
+                  <span style={{ fontSize:12, fontWeight:600, color: nextAction(selected).owner === "you" ? C.gold : C.textSub, marginRight: 8 }}>{nextAction(selected).owner === "you" ? "Next · you" : `Waiting · ${nextAction(selected).owner}`}</span>
                   {nextAction(selected).label}
                 </div>
               )}
@@ -691,14 +691,14 @@ export default function LandlordMaintenance() {
 
               {field(selected, "description") && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Description</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Description</div>
                   <p style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, margin: 0 }}>{field(selected, "description")}</p>
                 </div>
               )}
 
               {selected.availability && (selected.availability.days?.length > 0 || selected.availability.times?.length > 0) && (
                 <div style={{ marginBottom: 20, background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Tenant availability</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.blue, marginBottom: 10 }}>Tenant availability</div>
                   {selected.availability.days?.length > 0 && (
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ fontSize: 11, color: C.textSub, marginBottom: 5 }}>Available days</div>
@@ -733,7 +733,7 @@ export default function LandlordMaintenance() {
 
               {selected.photos?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Photos ({selected.photos.length})</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Photos ({selected.photos.length})</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {selected.photos.map((urlOrPath, i) => (
                       <SignedMaintenancePhoto key={i} urlOrPath={urlOrPath}
@@ -747,11 +747,11 @@ export default function LandlordMaintenance() {
               {/* Invoice */}
               {(selected.invoice_url || selected.invoice_notes) && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Invoice</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Invoice</div>
                   {selected.invoice_notes && (
                     <div style={{ padding: "10px 14px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8 }}>
                       <div style={{ fontSize: 11, color: C.textSub, marginBottom: 2 }}>Amount</div>
-                      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 600, color: C.gold }}>${parseFloat(selected.invoice_notes).toLocaleString()}</div>
+                      <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: C.gold }}>${parseFloat(selected.invoice_notes).toLocaleString()}</div>
                     </div>
                   )}
                   {selected.invoice_url && (
@@ -763,7 +763,7 @@ export default function LandlordMaintenance() {
               )}
 
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Details</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Details</div>
                 {[
                   ["Submitted",    field(selected, "submittedAt")],
                   ["Last updated", field(selected, "updatedAt")],
@@ -781,7 +781,7 @@ export default function LandlordMaintenance() {
 
               {field(selected, "status") !== "resolved" && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Actions</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 10 }}>Actions</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {field(selected, "status") === "open" && (
                       <PrimaryBtn onClick={() => setVendorTicket(selected)}>Assign vendor</PrimaryBtn>
@@ -793,7 +793,7 @@ export default function LandlordMaintenance() {
                       <div style={{ width:"100%" }}>
                         <div style={{ padding:"12px 14px", background:`${C.amber}0A`, border:`1px solid ${C.amber}33`, borderRadius:8, marginBottom:10 }}>
                           <div style={{ fontSize:11, fontWeight:600, color:C.amber, marginBottom:4 }}>Quote received</div>
-                          <div style={{ fontSize:20, fontWeight:600, color:C.text, fontFamily:"'Cormorant Garamond',serif" }}>${selected.quote_amount?.toLocaleString()}</div>
+                          <div style={{ fontSize:"var(--m-fs-stat)", fontWeight:600, color:C.text, fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums" }}>${selected.quote_amount?.toLocaleString()}</div>
                           {selected.quote_notes && <div style={{ fontSize:12, color:C.textSub, marginTop:4 }}>{selected.quote_notes}</div>}
                         </div>
                         <div style={{ display:"flex", gap:8 }}>
@@ -828,7 +828,7 @@ export default function LandlordMaintenance() {
               )}
 
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Comments</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 10 }}>Comments</div>
                 <div style={{ maxHeight: 260, overflowY: "auto", marginBottom: 12 }}>
                   {comments.length === 0 && <div style={{ textAlign: "center", padding: "16px 0", color: C.textMuted, fontSize: 13 }}>No comments yet.</div>}
                   {comments.map(c => {
@@ -839,7 +839,7 @@ export default function LandlordMaintenance() {
                     return (
                       <div key={c.id} style={{ marginBottom: 14, display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexDirection: isMe ? "row-reverse" : "row" }}>
-                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? "rgba(201,169,110,0.18)" : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? "rgba(201,169,110,0.18)" : C.raised, border: `1px solid ${isMe ? C.gold : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight:600, flexShrink: 0 }}>{initials}</div>
                           <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub }}>{displayName}</span>
                           {!c.visible_to_tenant && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(240,164,48,0.13)", color: C.amber, fontWeight: 600 }}>🔒 Internal</span>}
                           {c.visible_to_tenant  && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 5, background: "rgba(114,176,42,0.13)", color: C.green, fontWeight: 600 }}>👁 Visible</span>}
@@ -853,20 +853,20 @@ export default function LandlordMaintenance() {
                   })}
                 </div>
                 <textarea value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment…" rows={3}
-                  style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "none", fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box", color: C.text, background: C.raised, lineHeight: 1.5, marginBottom: 8 }} />
+                  style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "none", fontFamily: "var(--m-font)", outline: "none", boxSizing: "border-box", color: C.text, background: C.raised, lineHeight: 1.5, marginBottom: 8 }} />
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <select value={visibility} onChange={e => setVisibility(e.target.value)} style={{ flex: 1, padding: "8px 10px", fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, fontFamily: "'DM Sans', sans-serif", outline: "none", color: C.textSub }}>
+                  <select value={visibility} onChange={e => setVisibility(e.target.value)} style={{ flex: 1, padding: "8px 10px", fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, fontFamily: "var(--m-font)", outline: "none", color: C.textSub }}>
                     <option value="hidden">🔒 Internal only</option>
                     <option value="visible">👁 Visible to tenant</option>
                   </select>
-                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{ padding: "8px 16px", background: newComment.trim() ? "rgba(201,169,110,0.12)" : C.raised, color: newComment.trim() ? C.gold : C.textMuted, border: `1px solid ${newComment.trim() ? C.gold : C.border}`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
+                  <button onClick={handlePostComment} disabled={posting || !newComment.trim()} style={{ padding: "8px 16px", background: newComment.trim() ? "rgba(201,169,110,0.12)" : C.raised, color: newComment.trim() ? C.gold : C.textMuted, border: `1px solid ${newComment.trim() ? C.gold : C.border}`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: newComment.trim() ? "pointer" : "default", fontFamily: "var(--m-font)", whiteSpace: "nowrap" }}>
                     {posting ? "Posting…" : "Post"}
                   </button>
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Activity</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 10 }}>Activity</div>
                 {[
                   { color: C.amber, text: `Submitted by ${field(selected, "tenant")}`, time: field(selected, "submittedAt") },
                   field(selected, "vendor")    && { color: C.blue,  text: `Assigned to ${field(selected, "vendor")}`, time: field(selected, "updatedAt") },
@@ -918,10 +918,10 @@ export default function LandlordMaintenance() {
             <div style={{ fontSize:13, color:"#B7BBC4", marginBottom:16 }}>Tell the vendor what still needs to be done. They'll be notified via email.</div>
             <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
               placeholder="e.g. The leak is still present under the sink. Please return to complete the repair."
-              rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
+              rows={4} style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.5, boxSizing:"border-box", marginBottom:16 }}/>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-              <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A968", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif", opacity:rejectNotes.trim()?1:0.5 }}>
+              <button onClick={() => { setRejectTicket(null); setRejectNotes(""); }} style={{ padding:"9px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>Cancel</button>
+              <button onClick={submitRejection} disabled={rejecting || !rejectNotes.trim()} style={{ flex:1, padding:"9px 18px", background:"transparent", border:"1px solid #7A5C2E", borderRadius:7, fontSize:13, fontWeight:500, color:"#C9A968", cursor:rejectNotes.trim()?"pointer":"not-allowed", fontFamily:"var(--m-font)", opacity:rejectNotes.trim()?1:0.5 }}>
                 {rejecting ? "Sending…" : "↩ Send to vendor"}
               </button>
             </div>

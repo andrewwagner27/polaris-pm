@@ -6,7 +6,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#111316",
   raised:   "#181C21",
-  border:   "#252930",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -34,7 +34,7 @@ function Input({ value, onChange, placeholder, type = "text", onKeyDown }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder} onKeyDown={onKeyDown}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={{ width: "100%", padding: "11px 14px", fontSize: 14, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+      style={{ width: "100%", padding: "11px 14px", fontSize: 14, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
     />
   );
 }
@@ -64,9 +64,9 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+    <div style={{ width: "100%", fontFamily: "var(--m-font)", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0B0D10; }
@@ -76,7 +76,7 @@ export default function ForgotPassword() {
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28 }}>
           <ModusMark size={36} />
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, letterSpacing: "0.08em", marginTop: 12 }}>Reset password</div>
+          <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, marginTop: 12 }}>Reset password</div>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 6, textAlign: "center", lineHeight: 1.6 }}>
             {sent ? "Check your email for a reset link." : "Enter your email and we'll send you a link to reset your password."}
           </div>
@@ -92,14 +92,14 @@ export default function ForgotPassword() {
               Reset link sent to <span style={{ fontWeight: 600, color: C.text }}>{email}</span>.<br />
               Check your inbox and click the link to set a new password.
             </div>
-            <button onClick={() => setSent(false)} style={{ width: "100%", padding: "12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 500, background: "transparent", color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            <button onClick={() => setSent(false)} style={{ width: "100%", padding: "12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 500, background: "transparent", color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>
               Resend email
             </button>
           </>
         ) : (
           <>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Email address</label>
+              <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 6 }}>Email address</label>
               <Input value={email} onChange={e => { setEmail(e.target.value); setError(""); }} placeholder="you@email.com" type="email" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
             </div>
             <button onClick={handleSubmit} disabled={loading} style={{
@@ -107,7 +107,7 @@ export default function ForgotPassword() {
               fontSize: 14, fontWeight: 500, background: loading ? "rgba(201,169,110,0.07)" : "transparent",
               color: C.gold, cursor: loading ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              fontFamily: "'DM Sans', sans-serif", opacity: loading ? 0.7 : 1,
+              fontFamily: "var(--m-font)", opacity: loading ? 0.7 : 1,
             }}
               onMouseOver={e => !loading && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
               onMouseOut={e => !loading && (e.currentTarget.style.background = "transparent")}
@@ -118,7 +118,7 @@ export default function ForgotPassword() {
         )}
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <button type="button" onClick={() => navigate(-1)} style={{ minHeight: 44, padding: "0 8px", fontSize: 13, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "color 0.15s" }}
+          <button type="button" onClick={() => navigate(-1)} style={{ minHeight: 44, padding: "0 8px", fontSize: 13, color: C.textMuted, background: "none", border: "none", cursor: "pointer", fontFamily: "var(--m-font)", transition: "color 0.15s" }}
             onMouseOver={e => e.currentTarget.style.color = C.textSub}
             onMouseOut={e => e.currentTarget.style.color = C.textMuted}
           >← Back to login</button>

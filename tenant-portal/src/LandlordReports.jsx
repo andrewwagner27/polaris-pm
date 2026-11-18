@@ -16,7 +16,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -80,10 +80,10 @@ function PropBadge({ name }) {
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick} style={{
+    <button className="m-touch-min" onClick={onClick} style={{
       background: "transparent", border: `1px solid ${C.border}`, color: C.textSub,
       fontSize: small ? 11 : 12, fontWeight: 500, padding: small ? "5px 10px" : "7px 14px",
-      borderRadius: 7, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+      borderRadius: 7, cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.15s",
     }}
       onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
       onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
@@ -92,14 +92,14 @@ function GhostBtn({ children, onClick, small }) {
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{children}</div>;
+  return <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>{children}</div>;
 }
 
 function StatBox({ label, value, accent }) {
   return (
     <div style={{ background: C.raised, borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
-      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: accent, lineHeight: 1, marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 10, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
+      <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: accent, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize:12, color: C.textSub, }}>{label}</div>
     </div>
   );
 }
@@ -237,7 +237,7 @@ export default function LandlordReports() {
   }
 
   const TH = ({ children, right }) => (
-    <th style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>
+    <th style={{ fontSize:12, fontWeight: 600, color: C.textSub, padding: "10px 16px", textAlign: right ? "right" : "left", borderBottom: `1px solid ${C.border}`, background: C.raised, whiteSpace: "nowrap" }}>{children}</th>
   );
   const TD = ({ children, right, bold, color }) => (
     <td style={{ fontSize: 13, color: color || (bold ? C.text : C.textSub), fontWeight: bold ? 600 : 400, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, textAlign: right ? "right" : "left", verticalAlign: "middle" }}>{children}</td>
@@ -246,7 +246,7 @@ export default function LandlordReports() {
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
         .m-report-card:hover { border-color: #353A44 !important; }
@@ -254,11 +254,11 @@ export default function LandlordReports() {
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)", padding: isMobile ? "20px 16px" : "28px 32px 48px" }}>
 
         {/* Top bar */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Reports</div>
+          <div style={{ fontFamily: "var(--m-font)", fontSize: isMobile ? 20 : 24, fontWeight: 600, color: C.text }}>Reports</div>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 3 }}>Portfolio reporting · {month}</div>
         </div>
 
@@ -314,7 +314,7 @@ export default function LandlordReports() {
                   <StatBox label="Paid up (ledger)" value={balances.mode === "ledger" ? String(paidUp.length) : "—"} accent={C.green} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}>
-                  <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                  <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ padding: "7px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.raised, color: C.textSub, outline: "none", fontFamily: "var(--m-font)" }}>
                     <option value="all">All properties</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -420,7 +420,7 @@ export default function LandlordReports() {
                             <TD>{r.tenant}</TD>
                             <TD right bold>${r.rent.toLocaleString()}</TD>
                             <TD>{r.leaseEnd}</TD>
-                            <TD><span style={{ fontSize: 13, fontWeight: 700, color: r.daysLeft < 60 ? C.red : r.daysLeft < 90 ? C.amber : C.green }}>{r.daysLeft}d</span></TD>
+                            <TD><span style={{ fontSize: 13, fontWeight:600, color: r.daysLeft < 60 ? C.red : r.daysLeft < 90 ? C.amber : C.green }}>{r.daysLeft}d</span></TD>
                             <TD><GhostBtn small onClick={() => navigate("/landlord/messages")}>Send renewal</GhostBtn></TD>
                           </tr>
                         ))}

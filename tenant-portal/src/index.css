@@ -4,32 +4,98 @@
   padding: 0;
 }
 
+/* ── Foundation tokens (mirrors src/lib/tokens.js) ─────────────────────────────────────────────────────── */
+:root {
+  --m-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --m-font-brand: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  /* Type scale: desktop values, phones below. */
+  --m-fs-title: 26px; --m-fs-section: 19px; --m-fs-stat: 24px;
+  /* Surfaces (dark management portal). */
+  --m-bg: #0B0D10; --m-surface: #15191F; --m-raised: #1C2129; --m-border: #262B33; --m-border-strong: #3A414C;
+  --m-radius-card: 12px; --m-shadow-card: none;
+  /* Scrollbars: subtle on dark. */
+  --m-sb-thumb: #3A414C; --m-sb-thumb-hover: #4B5360; --m-sb-track: transparent;
+}
+@media (max-width: 720px) { :root { --m-fs-title: 23px; --m-fs-section: 17px; --m-fs-stat: 21px; } }
+.t-light {
+  --m-bg: #F5F3EE; --m-surface: #FFFFFF; --m-raised: #F8F7F4; --m-border: #EAE6DE; --m-border-strong: #D6D0C4;
+  --m-shadow-card: 0 1px 2px rgba(24,24,27,0.04), 0 1px 3px rgba(24,24,27,0.04);
+  --m-sb-thumb: #CFC8BB; --m-sb-thumb-hover: #B5AD9F;
+}
+/* The document's own scrollbar follows the portal on screen (no bright native bar on the dark portal). */
+html:has(.l-shell) { color-scheme: dark; }
+html:has(.t-light) { color-scheme: light; --m-sb-thumb: #CFC8BB; --m-sb-thumb-hover: #B5AD9F; background: #F5F3EE; }
+
 html, body, #root {
   width: 100%;
   max-width: 100vw;
-  overflow-x: hidden;
   background: #0B0D10;
 }
+/* Clip sideways overflow without turning body/#root into scroll containers (overflow-x:hidden did, which made a
+   second, nested scroller and broke sticky headers). */
+html { overflow-x: hidden; }
+body, #root { overflow-x: clip; }
+html:has(.t-light) body, html:has(.t-light) #root { background: #F5F3EE; }
+
+body {
+  font-family: var(--m-font);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font-family: inherit; }
+/* Figures line up in tables and lists of amounts/dates. */
+table, .m-num, time { font-variant-numeric: tabular-nums; }
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
+
+/* ── Scrollbars ── Firefox / Chromium 121+ use the standard properties; Safari uses the pseudo-elements. */
+* { scrollbar-width: thin; scrollbar-color: var(--m-sb-thumb) var(--m-sb-track); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--m-sb-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--m-sb-thumb-hover); background-clip: padding-box; border: 2px solid transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
 
 /* Phones: iOS Safari zooms into any form field under 16px and the zoom often hides the chat composer under the
    keyboard. Keeping fields at 16px prevents that while pinch-zoom stays available (viewport no longer disables it). */
 @media (max-width: 767px) {
   input, textarea, select { font-size: 16px !important; }
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select { min-height: 44px; }
 }
 
-/* Full-screen views: dvh excludes the mobile browser toolbars (100vh doesn't on iOS Safari). */
-.full-height { height: 100vh; height: 100dvh; }
-/* Phones (TenantLayout mobile): the chat sits between the sticky top bar (~56px) and the fixed bottom nav (~62px plus
-   the home-indicator inset), so the composer is visible above the nav without scrolling. */
-@media (max-width: 767px) {
-  .full-height { height: calc(100vh - 118px - env(safe-area-inset-bottom)); height: calc(100dvh - 118px - env(safe-area-inset-bottom)); }
-}
+/* Form-field outlines stay visible now that dividers are softer (dividers are decoration, field edges are not). */
+/* Inline styles set the field borders, so this needs !important; error states (aria-invalid or a red inline border)
+   and focused fields keep their own colour. */
+:is(.l-shell, .t-light) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), textarea, select):not(:focus):not([aria-invalid="true"]):not([style*="rgb(240, 112, 112)"]):not([style*="rgb(185, 28, 28)"]):not([style*="rgb(224, 85, 85)"]) { border-color: var(--m-border-strong) !important; }
+
+/* ── Viewport-fitted app shell (Messages) ──────────────────────────────────────────────────────────────────
+   The whole shell fits 100dvh and never scrolls; only the conversation list and the message history do.
+   Header, sidebar/bottom navigation and composer stay put. Children take the REMAINING height (flex + min-height:0),
+   never another 100vh. */
+.m-fit { height: 100vh; height: 100dvh; min-height: 0 !important; overflow: hidden; }
+.m-fit .m-fit-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; flex: 1; }
+.m-chat { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.m-chat-split { flex-direction: row; }
+.m-chat-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.m-chat-history { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.m-chat-history:focus-visible { outline-offset: -2px; }
+.m-new-pill { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); min-height: 36px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--m-border-strong); background: var(--m-surface); color: inherit;
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
+@media (max-width: 1024px) { .m-new-pill { min-height: 44px; } }
+
+/* Text that must not overflow narrow columns. */
+.m-wrap { overflow-wrap: anywhere; min-width: 0; }
+.m-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* ── Modus design system (src/lib/tokens.js) ───────────────────────────────────────────────────────────── */
 /* Buttons: one treatment everywhere. Filled primary = Action Gold with dark text; ghost = Action Gold text. */
@@ -42,7 +108,7 @@ html, body, #root {
 .m-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .m-btn-ghost:hover:not(:disabled) { background: rgba(201,169,104,0.08); }
 .m-btn:disabled { cursor: not-allowed; opacity: 0.55; }
-@media (max-width: 1024px) { .m-btn, .m-btn-small { min-height: 44px; } }
+@media (max-width: 1024px) { .m-btn, .m-btn-small, .m-touch-min { min-height: 44px; } }
 
 /* Keyboard focus: always visible, never on mouse click. Gold on dark, deep gold on the light tenant portal. */
 :focus-visible { outline: 2px solid #C9A968; outline-offset: 2px; }
@@ -86,3 +152,6 @@ html, body, #root {
 
 /* Search fields wrapped in a 44px label: the input itself fills the label so the whole area is tappable. */
 label > input[type="search"], label > input:not([type]) { align-self: stretch; min-height: 40px; }
+
+/* Sign-in fields: full 44px touch targets on both login screens. */
+#tenant-login-email, #tenant-login-password, #landlord-login-email, #landlord-login-password { min-height: 44px; }

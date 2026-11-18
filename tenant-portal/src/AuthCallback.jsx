@@ -94,7 +94,7 @@ export default function AuthCallback() {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh", fontFamily: "'DM Sans', sans-serif",
+      minHeight: "100vh", fontFamily: "var(--m-font)",
       flexDirection: "column", gap: 12, color: "#B7BBC4",
       background: "#0B0D10",
     }}>

@@ -11,11 +11,11 @@ export default function AuthLinkError() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const msg = AUTH_LINK_MESSAGES[params.get("reason") === "invalid" ? "invalid" : "expired"];
-  const btn = { padding: "12px", minHeight: 44, borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%" };
+  const btn = { padding: "12px", minHeight: 44, borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "var(--m-font)", width: "100%" };
   return (
-    <main style={{ width: "100%", fontFamily: "'DM Sans',sans-serif", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", boxSizing: "border-box" }}>
+    <main style={{ width: "100%", fontFamily: "var(--m-font)", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", boxSizing: "border-box" }}>
       <div role="alert" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "28px 24px", width: "100%", maxWidth: 440, textAlign: "center", boxSizing: "border-box" }}>
-        <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 600, color: C.text, margin: "0 0 10px" }}>{msg.title}</h1>
+        <h1 style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text, margin: "0 0 10px" }}>{msg.title}</h1>
         <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, margin: "0 0 22px" }}>{msg.body}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={() => navigate("/forgot-password")} style={{ ...btn, border: "none", background: C.gold, color: "#fff", fontWeight: 600 }}>Send me a new password-reset link</button>

@@ -11,9 +11,9 @@ const C = {
   bg:"#0B0D10", surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4", textMuted:"#9298A3",
   gold:"#C9A968", goldDim:"#6B4F24", green:"#72B02A", red:"#F07070", amber:"#F0A430", blue:"#6AAEF0",
 };
-const th = (right) => ({ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
+const th = (right) => ({ fontSize:12,fontWeight:600,color:C.textSub,padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
 const td = (right, color, bold) => ({ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:"10px 12px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",fontVariantNumeric:"tabular-nums",verticalAlign:"top" });
-const btn = (gold) => ({ background:"transparent",border:`1px solid ${gold?C.goldDim:C.border}`,color:gold?C.gold:C.textSub,fontSize:11,padding:"4px 9px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" });
+const btn = (gold) => ({ background:"transparent",border:`1px solid ${gold?C.goldDim:C.border}`,color:gold?C.gold:C.textSub,fontSize:11,padding:"4px 9px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap" });
 const fmtDay = (d) => d ? new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString("en-US",{ month:"short",day:"numeric",year:"numeric" }) : "—";
 const STATUS_COLOR = { settling:C.blue, returned:C.red, failed:C.red, partial:C.amber, no_payment:C.red, not_yet_due:C.textSub };
 const AGE_FILTERS = [{ v:0, l:"All" }, { v:1, l:"Past due" }, { v:30, l:"30+ days" }, { v:60, l:"60+ days" }, { v:90, l:"90+ days" }];
@@ -85,15 +85,15 @@ export default function Collections({ onRecordPayment }) {
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:16 }}>
         {[["Open charges",totals.open,C.red],["Past due",totals.overdue,totals.overdue>0?C.red:C.green],["90+ days",totals.d90,totals.d90>0?C.red:C.textSub],["Tenants",totals.tenants,C.text,true],["Late fees open",totals.fees,totals.fees>0?C.amber:C.textSub]].map(([l,v,c,plain])=>(
           <div key={l} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-            <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>{l}</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:c }}>{plain?v:fmtCents(v)}</div>
+            <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>{l}</div>
+            <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:c }}>{plain?v:fmtCents(v)}</div>
           </div>
         ))}
       </div>
 
       <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
         {AGE_FILTERS.map(f=>(
-          <button key={f.v} onClick={()=>setAge(f.v)} style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${age===f.v?C.goldDim:C.border}`,background:age===f.v?"rgba(201,169,110,0.12)":"transparent",color:age===f.v?C.gold:C.textSub }}>{f.l}</button>
+          <button key={f.v} onClick={()=>setAge(f.v)} style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",border:`1px solid ${age===f.v?C.goldDim:C.border}`,background:age===f.v?"rgba(201,169,110,0.12)":"transparent",color:age===f.v?C.gold:C.textSub }}>{f.l}</button>
         ))}
         <select aria-label="Payment status" value={status} onChange={e=>setStatus(e.target.value)} style={selectStyle}>
           <option value="all">Any payment status</option>

@@ -27,7 +27,7 @@ export default function ResolveModal({ log, mode, onClose, onSaved }) {
     <div role="dialog" aria-modal="true" aria-label={resolving ? "Resolve escalation" : "Reopen escalation"} onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 22, width: "100%", maxWidth: 460, fontFamily: font, color: C.text }}>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 21, fontWeight: 600, marginBottom: 4 }}>{resolving ? "Resolve escalation" : "Reopen escalation"}</div>
+        <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, marginBottom: 4 }}>{resolving ? "Resolve escalation" : "Reopen escalation"}</div>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
           {resolving ? "Record what management did. The conversation and its history are kept." : "Mark this escalation as needing attention again."}
         </div>

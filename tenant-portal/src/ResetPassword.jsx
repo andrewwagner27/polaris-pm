@@ -7,7 +7,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#111316",
   raised:   "#181C21",
-  border:   "#252930",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -54,7 +54,7 @@ function InputField({ value, onChange, placeholder, hasError, showPw, onToggleSh
         autoComplete="new-password"
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         onKeyDown={e => e.key === "Enter" && onEnter()}
-        style={{ width: "100%", padding: "11px 44px 11px 14px", fontSize: 16, border: `1px solid ${borderColor}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+        style={{ width: "100%", padding: "11px 44px 11px 14px", fontSize: 16, border: `1px solid ${borderColor}`, borderRadius: 8, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
       />
       <button type="button" onClick={onToggleShow} aria-label={showPw ? "Hide password" : "Show password"} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.textMuted, padding: 0, minWidth: 40, minHeight: 40 }}>
         {showPw ? "○" : "●"}
@@ -125,23 +125,23 @@ export default function ResetPassword() {
   if (linkState !== "ready") {
     const msg = AUTH_LINK_MESSAGES[linkState] || AUTH_LINK_MESSAGES.invalid;
     return (
-      <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", fontFamily: "var(--m-font)", background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", boxSizing: "border-box" }}>
         <style>{`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } body { background: #0B0D10; }`}</style>
         <div role="alert" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "32px 24px", width: "100%", maxWidth: 400, textAlign: "center" }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}><ModusMark size={32} /></div>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 21, fontWeight: 600, color: C.text, marginBottom: 10 }}>{msg.title}</div>
+          <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, marginBottom: 10 }}>{msg.title}</div>
           <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, marginBottom: 22 }}>{msg.body}</div>
-          <button onClick={() => navigate("/forgot-password")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.goldDim}`, borderRadius: 8, fontSize: 14, fontWeight: 500, background: "transparent", color: C.gold, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>Send a new reset link →</button>
-          <button onClick={() => navigate("/login")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, background: "transparent", color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Back to sign in</button>
+          <button onClick={() => navigate("/forgot-password")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.goldDim}`, borderRadius: 8, fontSize: 14, fontWeight: 500, background: "transparent", color: C.gold, cursor: "pointer", fontFamily: "var(--m-font)", marginBottom: 10 }}>Send a new reset link →</button>
+          <button onClick={() => navigate("/login")} style={{ width: "100%", minHeight: 44, padding: "12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, background: "transparent", color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>Back to sign in</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+    <div style={{ width: "100%", fontFamily: "var(--m-font)", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0B0D10; }
@@ -151,7 +151,7 @@ export default function ResetPassword() {
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28 }}>
           <ModusMark size={36} />
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: C.text, letterSpacing: "0.08em", marginTop: 12 }}>Set new password</div>
+          <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, marginTop: 12 }}>Set new password</div>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 6, textAlign: "center" }}>Choose a strong password for your account.</div>
           {accountEmail && <div data-testid="reset-account" style={{ fontSize: 12, color: C.textMuted, marginTop: 6, textAlign: "center" }}>Account: <span style={{ color: C.text }}>{accountEmail}</span></div>}
         </div>
@@ -168,7 +168,7 @@ export default function ResetPassword() {
         ) : (
           <>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>New password</label>
+              <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 6 }}>New password</label>
               <InputField label="New password" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="Min. 8 characters" showPw={showPw} onToggleShow={() => setShowPw(v => !v)} onEnter={handleReset} />
               {password && (
                 <>
@@ -179,7 +179,7 @@ export default function ResetPassword() {
             </div>
 
             <div style={{ marginBottom: 22 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Confirm password</label>
+              <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 6 }}>Confirm password</label>
               <InputField label="Confirm password" value={confirm} onChange={e => { setConfirm(e.target.value); setError(""); }} placeholder="Repeat your new password" hasError={confirm && confirm !== password} showPw={showPw} onToggleShow={() => setShowPw(v => !v)} onEnter={handleReset} />
               {confirm && confirm !== password && (
                 <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Passwords don't match</div>
@@ -191,7 +191,7 @@ export default function ResetPassword() {
               fontSize: 14, fontWeight: 500, background: loading ? "rgba(201,169,110,0.07)" : "transparent",
               color: C.gold, cursor: loading ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              fontFamily: "'DM Sans', sans-serif", opacity: loading ? 0.7 : 1,
+              fontFamily: "var(--m-font)", opacity: loading ? 0.7 : 1,
             }}
               onMouseOver={e => !loading && (e.currentTarget.style.background = "rgba(201,169,110,0.07)")}
               onMouseOut={e => !loading && (e.currentTarget.style.background = "transparent")}

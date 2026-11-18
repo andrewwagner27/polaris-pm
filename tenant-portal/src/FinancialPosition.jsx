@@ -10,9 +10,9 @@ const C = {
   bg:"#0B0D10", surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4", textMuted:"#9298A3",
   gold:"#C9A968", green:"#72B02A", red:"#F07070", amber:"#F0A430", blue:"#6AAEF0",
 };
-const th = (right) => ({ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 16px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
+const th = (right) => ({ fontSize:12,fontWeight:600,color:C.textSub,padding:"10px 16px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
 const td = (right, bold, color, indent) => ({ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:`10px 16px 10px ${indent?32:16}px`,borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",fontVariantNumeric:"tabular-nums" });
-const Ghost = ({ children, onClick, disabled }) => <button onClick={onClick} disabled={disabled} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",opacity:disabled?0.5:1 }}>{children}</button>;
+const Ghost = ({ children, onClick, disabled }) => <button onClick={onClick} disabled={disabled} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:12,fontWeight:500,padding:"7px 14px",borderRadius:7,cursor:disabled?"default":"pointer",fontFamily:"var(--m-font)",opacity:disabled?0.5:1 }}>{children}</button>;
 const Note = ({ color, children }) => <div style={{ margin:"12px 20px 0",background:`${color}11`,border:`1px solid ${color}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color,lineHeight:1.5 }}>{children}</div>;
 const Empty = ({ children, color }) => <div style={{ padding:24,textAlign:"center",color:color||C.textSub,fontSize:13 }}>{children}</div>;
 
@@ -73,7 +73,7 @@ function Activity({ asOf, rpcScope, code, name }) {
     <div style={{ overflowX:"auto" }}>
       <div style={{ fontSize:11,color:C.textMuted,padding:"10px 0 6px" }}>{rows.length} entr{rows.length===1?"y":"ies"} · {code} {name}</div>
       <table style={{ width:"100%",borderCollapse:"collapse" }}>
-        <thead><tr>{["Date","Description","Books","Property","Tenant","Debit","Credit","Balance"].map((h,i)=><th key={h} style={{ ...cell,fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600,textAlign:i>=5?"right":"left" }}>{h}</th>)}</tr></thead>
+        <thead><tr>{["Date","Description","Books","Property","Tenant","Debit","Credit","Balance"].map((h,i)=><th key={h} style={{ ...cell,fontSize:12,fontWeight:600,textAlign:i>=5?"right":"left" }}>{h}</th>)}</tr></thead>
         <tbody>{rows.map(r=>(
           <tr key={r.entry_id}>
             <td style={cell}>{r.entry_date}</td>
@@ -131,7 +131,7 @@ export function BalanceSheet() {
   const badge = model && <span style={{ fontSize:12,fontWeight:600,color:model.balanced?C.green:C.red }}>{model.balanced?"✓ Balanced":`✗ Out of balance by ${fmtCents(model.difference)}`}</span>;
 
   const section = (title, list, totalLabel, total) => [
-    <tr key={`h-${title}`}><td colSpan={2} style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"14px 16px 6px" }}>{title}</td></tr>,
+    <tr key={`h-${title}`}><td colSpan={2} style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"14px 16px 6px" }}>{title}</td></tr>,
     ...list.map(l => {
       const can = !!l.code; const open = openCode === l.code && can;
       return [

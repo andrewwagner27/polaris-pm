@@ -51,7 +51,7 @@ function Section({ title, sub, action, children }) {
     <section style={{ marginBottom: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
         <div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: C.text, margin: 0 }}>{title}</h2>
+          <h2 style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, margin: 0 }}>{title}</h2>
           {sub && <div style={{ fontSize: 13, color: C.textSub, marginTop: 2 }}>{sub}</div>}
         </div>
         {action}
@@ -65,8 +65,8 @@ function Stat({ label, value, sub, onClick }) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick} type={onClick ? "button" : undefined} className={onClick ? "d-stat d-stat-link" : "d-stat"}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.textSub, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: C.text, lineHeight: 1.1, margin: "6px 0 2px" }}>{value}</div>
+      <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, }}>{label}</div>
+      <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontWeight: 600, color: C.text, lineHeight: 1.1, margin: "6px 0 2px" }}>{value}</div>
       <div style={{ fontSize: 12, color: C.textSub }}>{sub}</div>
     </Tag>
   );
@@ -139,7 +139,7 @@ export default function LandlordDashboard() {
 
       <div className="m-page" style={{ color: C.text }}>
         <div style={{ marginBottom: 22 }}>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(24px, 4vw, 30px)", fontWeight: 600, margin: 0, lineHeight: 1.15 }}>{greeting}</h1>
+          <h1 style={{ fontFamily: "var(--m-font)", fontSize: "clamp(24px, 4vw, 30px)", fontWeight: 600, margin: 0, lineHeight: 1.15 }}>{greeting}</h1>
           <div style={{ fontSize: 13, color: C.textSub, marginTop: 4 }}>
             {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · {selectedName}
           </div>
@@ -167,7 +167,7 @@ export default function LandlordDashboard() {
               const sev = SEVERITY[a.severity];
               return (
                 <div key={a.id} className="d-att">
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, color: sev.color, background: sev.bg, whiteSpace: "nowrap", justifySelf: "start" }}>{sev.label}</span>
+                  <span style={{ fontSize: 11, fontWeight:600, padding: "3px 8px", borderRadius: 6, color: sev.color, background: sev.bg, whiteSpace: "nowrap", justifySelf: "start" }}>{sev.label}</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{a.title}</div>
                     <div style={{ fontSize: 12, color: C.textSub, marginTop: 2, overflowWrap: "anywhere" }}>{a.detail}</div>

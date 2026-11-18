@@ -34,7 +34,7 @@ function Card({ children, style = {}, onClick }) {
 }
 
 function Label({ children }) {
-  return <div style={{ fontSize:10, fontWeight:600, color:C.textMuted, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>{children}</div>;
+  return <div style={{ fontSize:12, fontWeight:600, color:C.textMuted, marginBottom:6 }}>{children}</div>;
 }
 
 function StatusBadge({ status }) {
@@ -88,7 +88,7 @@ export default function HomeDashboard() {
   }
 
   if (loading) return (
-    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textSub,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>
+    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textSub,fontFamily:"var(--m-font)",fontSize:14 }}>
       Loading your portal…
     </div>
   );
@@ -115,7 +115,7 @@ export default function HomeDashboard() {
   return (
     <TenantLayout tenantName={tenant?.name || "Tenant"} unreadMessages={unreadCount}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;}
         .t-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:52px;padding:10px 16px;background:transparent;border:none;border-bottom:1px solid ${C.border};font:inherit;color:inherit;text-align:left;cursor:pointer;}
         .t-row:last-child{border-bottom:none;}
@@ -128,11 +128,11 @@ export default function HomeDashboard() {
         @media(max-width:767px){ .home-pad{padding:14px 14px 24px!important;} }
       `}</style>
 
-      <div className="home-pad t-light" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"24px 24px 64px", maxWidth:1100 }}>
+      <div className="home-pad t-light" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"var(--m-font)", padding:"24px 24px 64px", maxWidth:1100 }}>
 
         {/* Greeting */}
         <div style={{ marginBottom:14 }}>
-          <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:"clamp(26px, 5vw, 32px)", fontWeight:600, color:C.text, lineHeight:1.1, margin:0 }}>Good {timeOfDay}, {firstName}</h1>
+          <h1 style={{ fontFamily:"var(--m-font)", fontSize:"clamp(26px, 5vw, 32px)", fontWeight:600, color:C.text, lineHeight:1.1, margin:0 }}>Good {timeOfDay}, {firstName}</h1>
           <div style={{ fontSize:13, color:C.textSub, marginTop:4 }}>Unit {tenant?.unit || "—"} · {tenant?.property || "—"}</div>
         </div>
 
@@ -147,7 +147,7 @@ export default function HomeDashboard() {
           <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
             <div style={{ flex:"1 1 220px", minWidth:0 }}>
               <Label>Balance Due</Label>
-              <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 16, fontWeight:600, color:balanceColor, fontFamily: bal.available ? "'DM Mono',monospace" : "inherit", lineHeight:1.2 }}>{bal.amountText}</div>
+              <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 16, fontWeight:600, color:balanceColor, fontFamily: bal.available ? "var(--m-font)" : "inherit", lineHeight:1.2 }}>{bal.amountText}</div>
               <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:12, color:C.textSub, marginTop:3, lineHeight:1.45, maxWidth:420 }}>{bal.detail}</div>
             </div>
             {/* Due date + Pay CTA */}
@@ -159,7 +159,7 @@ export default function HomeDashboard() {
           </div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
             {onlinePay ? (
-              <button type="button" onClick={() => navigate("/pay")} style={{ minHeight:48, padding:"0 22px", background:C.gold, border:"none", borderRadius:10, fontSize:15, fontWeight:600, color:"#FFFFFF", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              <button type="button" onClick={() => navigate("/pay")} style={{ minHeight:48, padding:"0 22px", background:C.gold, border:"none", borderRadius:10, fontSize:15, fontWeight:600, color:"#FFFFFF", cursor:"pointer", fontFamily:"var(--m-font)" }}>
                 Pay rent
               </button>
             ) : (
@@ -174,11 +174,11 @@ export default function HomeDashboard() {
         {/* Quick actions */}
         <div className="quick-grid" style={{ marginBottom:12 }}>
           <button type="button" className="t-quick" onClick={() => navigate("/maintenance/new")}>
-            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:"#FFF7ED", border:"1px solid #FED7AA", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:"#9A3412", fontWeight:700 }}>+</span>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:"#FFF7ED", border:"1px solid #FED7AA", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:"#9A3412", fontWeight:600 }}>+</span>
             <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Report an issue</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>Maintenance request</span></span>
           </button>
           <button type="button" className="t-quick" onClick={() => navigate("/messages")}>
-            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.blue, fontWeight:700 }}>{unreadCount > 0 ? unreadCount : "✉"}</span>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.blueBg, border:"1px solid #BFDBFE", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.blue, fontWeight:600 }}>{unreadCount > 0 ? unreadCount : "✉"}</span>
             <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Messages</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>{unreadCount > 0 ? `${unreadCount} unread` : "Ask a question"}</span></span>
           </button>
           <button type="button" className="t-quick"
@@ -188,7 +188,7 @@ export default function HomeDashboard() {
                 if (signed) { window.open(signed, "_blank"); } else { navigate("/account"); }
               } else { navigate("/account"); }
             }}>
-            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.goldBg, border:`1px solid ${C.goldDim}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.gold, fontWeight:700 }}>§</span>
+            <span aria-hidden="true" style={{ width:32, height:32, borderRadius:8, background:C.goldBg, border:`1px solid ${C.goldDim}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:C.gold, fontWeight:600 }}>§</span>
             <span><span style={{ display:"block", fontSize:14, fontWeight:600 }}>Lease &amp; documents</span><span style={{ display:"block", fontSize:12, color:C.textSub }}>{tenant?.lease_document_url ? "Open your lease" : `Lease ends ${fmtDate(tenant?.leaseEnd)}`}</span></span>
           </button>
         </div>
@@ -245,7 +245,7 @@ export default function HomeDashboard() {
             ].map(([k, v], i, arr) => (
               <div key={k} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
                 <span style={{ fontSize:13, color:C.textSub }}>{k}</span>
-                <span style={{ fontSize:13, fontWeight: k === "Base rent on file" ? 600 : 500, color:C.text, fontFamily: k === "Base rent on file" ? "'DM Mono',monospace" : "inherit", textAlign:"right" }}>{v}</span>
+                <span style={{ fontSize:13, fontWeight: k === "Base rent on file" ? 600 : 500, color:C.text, fontFamily: k === "Base rent on file" ? "var(--m-font)" : "inherit", textAlign:"right" }}>{v}</span>
               </div>
             ))}
           </Card>
@@ -266,12 +266,12 @@ export default function HomeDashboard() {
                         return sub ? <div style={{ fontSize:12, color:C.textSub, marginTop:1 }}>{sub}</div> : null;
                       })()}
                     </div>
-                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:C.text }}>{c.cents == null ? "—" : formatCents(c.cents)}</div>
+                    <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums", fontSize:14, fontWeight:500, color:C.text }}>{c.cents == null ? "—" : formatCents(c.cents)}</div>
                   </div>
                 ))}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:8, marginTop:2, borderTop:`1px solid ${C.border}` }}>
                   <span style={{ fontSize:12, color:C.textSub, fontWeight:600 }}>Total monthly charges</span>
-                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:600, color:C.text }}>{formatCents(monthly.totalCents)}</span>
+                  <span style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums", fontSize:14, fontWeight:600, color:C.text }}>{formatCents(monthly.totalCents)}</span>
                 </div>
               </>
             ) : (

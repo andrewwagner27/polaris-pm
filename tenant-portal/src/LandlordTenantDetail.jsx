@@ -16,7 +16,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -77,8 +77,8 @@ function Badge({ status }) {
 
 function GhostBtn({ children, onClick, disabled, small }) {
   return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap",opacity:disabled?0.6:1 }}
+    <button className="m-touch-min" onClick={onClick} disabled={disabled}
+      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.15s",whiteSpace:"nowrap",opacity:disabled?0.6:1 }}
       onMouseOver={e=>{ e.currentTarget.style.color=C.text; e.currentTarget.style.borderColor="#353A44"; }}
       onMouseOut={e=>{ e.currentTarget.style.color=C.textSub; e.currentTarget.style.borderColor=C.border; }}
     >{children}</button>
@@ -87,15 +87,15 @@ function GhostBtn({ children, onClick, disabled, small }) {
 
 function DangerBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick}
-      style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" }}>
+    <button className="m-touch-min" onClick={onClick}
+      style={{ background:"rgba(224,85,85,0.1)",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:small?11:12,fontWeight:500,padding:small?"5px 10px":"7px 14px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap" }}>
       {children}
     </button>
   );
 }
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{children}</label>;
+  return <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type="text" }) {
@@ -103,7 +103,7 @@ function Input({ value, onChange, placeholder, type="text" }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
       onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s" }}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s" }}
     />
   );
 }
@@ -111,7 +111,7 @@ function Input({ value, onChange, placeholder, type="text" }) {
 function SelectField({ value, onChange, children }) {
   return (
     <select value={value} onChange={onChange}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",cursor:"pointer" }}>
       {children}
     </select>
   );
@@ -120,7 +120,7 @@ function SelectField({ value, onChange, children }) {
 function InfoCard({ title, children, borderColor }) {
   return (
     <div style={{ background:C.surface,border:`1px solid ${borderColor||C.border}`,borderRadius:10,overflow:"hidden" }}>
-      <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>{title}</div>
+      <div style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>{title}</div>
       <div style={{ padding:"14px 16px" }}>{children}</div>
     </div>
   );
@@ -136,7 +136,7 @@ function InfoRow({ label, value, last, valueColor }) {
 }
 
 const TH = ({ children, right }) => (
-  <th style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"10px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>
+  <th style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"10px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>
 );
 const TD = ({ children, right, bold, color }) => (
   <td style={{ fontSize:13,color:color||(bold?C.text:C.textSub),fontWeight:bold?600:400,padding:"11px 14px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",verticalAlign:"middle" }}>{children}</td>
@@ -212,7 +212,7 @@ function ArchiveModal({ tenantName, onConfirm, onCancel, archiving }) {
   return (
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center" }}>
       <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,width:400,padding:"28px 28px 24px" }}>
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:10 }}>Archive tenant?</div>
+        <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:10 }}>Archive tenant?</div>
         <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>
           <strong style={{ color:C.text }}>{tenantName}</strong> will be removed from your active tenant list. Their records will be preserved.
         </div>
@@ -246,7 +246,7 @@ function InsuranceCard({ tenant }) {
   const cfg = CFG[status];
   return (
     <div style={{ background:C.surface,border:`1px solid ${status==="verified"?C.green:status==="missing"||status==="expired"?C.red:C.border}`,borderRadius:10,overflow:"hidden" }}>
-      <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Renters Insurance</div>
+      <div style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>Renters Insurance</div>
       <div style={{ padding:"14px 16px" }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
           <div style={{ display:"flex",alignItems:"center",gap:12 }}>
@@ -382,7 +382,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
         ):charges.length===0?(
           <div style={{ padding:32,textAlign:"center",color:C.textSub,fontSize:13 }}>
             No recurring charges yet.{" "}
-            <button onClick={()=>setShowAdd(true)} style={{ background:"none",border:"none",color:C.gold,cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>Add one</button>
+            <button onClick={()=>setShowAdd(true)} style={{ background:"none",border:"none",color:C.gold,cursor:"pointer",fontSize:13,fontFamily:"var(--m-font)" }}>Add one</button>
           </div>
         ):(
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
@@ -409,7 +409,7 @@ function RecurringChargesTab({ tenantId, unit, onChargeChanged }) {
                   <TD>
                     <div style={{ display:"flex",gap:6 }}>
 <button onClick={()=>deleteCharge(c.id)}
-                        style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                        style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                         Delete
                       </button>
                     </div>
@@ -529,7 +529,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
       )}
 
       <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"18px 20px" }}>
-        <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14 }}>Lease Dates</div>
+        <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:14 }}>Lease Dates</div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14 }}>
           <div><FieldLabel>Lease Start</FieldLabel><Input type="date" value={form.lease_start} onChange={e=>update("lease_start",e.target.value)}/></div>
           <div><FieldLabel>Lease End</FieldLabel><Input type="date" value={form.lease_end} onChange={e=>update("lease_end",e.target.value)}/></div>
@@ -589,7 +589,7 @@ function LeaseTab({ tenant, unit, property, onUpdate }) {
 
       {/* ── Lease Document Upload ─────────────────────────────── */}
       <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"18px 20px" }}>
-        <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14 }}>Lease Document</div>
+        <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:14 }}>Lease Document</div>
 
         {uploadMsg && (
           <div style={{ background:"rgba(114,176,42,0.10)",border:`1px solid rgba(114,176,42,0.25)`,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:C.green }}>
@@ -761,16 +761,16 @@ export default function LandlordTenantDetail() {
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .m-row:hover td{background:${C.raised}!important;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
 
-        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.gold,background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginBottom:20,padding:0 }}
+        <button onClick={()=>navigate("/landlord/tenants")} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.gold,background:"none",border:"none",cursor:"pointer",fontFamily:"var(--m-font)",marginBottom:20,padding:0 }}
           onMouseOver={e=>e.currentTarget.style.color=C.gold}
           onMouseOut={e=>e.currentTarget.style.color=C.goldDim}
         >← Back to Tenants</button>
@@ -778,7 +778,7 @@ export default function LandlordTenantDetail() {
         {tenant.archived&&(
           <div style={{ background:"rgba(240,164,48,0.1)",border:`1px solid rgba(240,164,48,0.25)`,borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:13,color:C.amber,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
             <span>⚠ This tenant is archived.</span>
-            <button onClick={async()=>{ await supabase.from("tenants").update({archived:false}).eq("id",id); fetchAll(); }} style={{ background:"none",border:"none",color:C.amber,cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",textDecoration:"underline" }}>Unarchive</button>
+            <button onClick={async()=>{ await supabase.from("tenants").update({archived:false}).eq("id",id); fetchAll(); }} style={{ background:"none",border:"none",color:C.amber,cursor:"pointer",fontSize:12,fontFamily:"var(--m-font)",textDecoration:"underline" }}>Unarchive</button>
           </div>
         )}
 
@@ -787,9 +787,9 @@ export default function LandlordTenantDetail() {
           {/* Top row: avatar + name + actions */}
           <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginBottom:12 }}>
             <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-              <div style={{ width:46,height:46,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,flexShrink:0 }}>{initials}</div>
+              <div style={{ width:46,height:46,borderRadius:"50%",background:`${accentColor}22`,border:`1px solid ${accentColor}44`,color:accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:600,flexShrink:0 }}>{initials}</div>
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,lineHeight:1.2 }}>{tenant.name}</div>
+                <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,lineHeight:1.2 }}>{tenant.name}</div>
                 <div style={{ fontSize:12,color:C.textSub,marginTop:3 }}>
                   {property?.name||"—"} · Unit {unit?.unit_number||"—"}
                   {property?.address&&` · ${property.address}`}
@@ -843,7 +843,7 @@ export default function LandlordTenantDetail() {
                 <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:`${C.red}15`,color:C.red }}>No Insurance</span>
               )}
               {tenant.eviction_watch&&(
-                <span style={{ fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>
+                <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:5,background:"rgba(224,85,85,0.15)",color:C.red,border:"1px solid rgba(224,85,85,0.3)" }}>⚠ Eviction Watch</span>
               )}
             </div>
           </div>
@@ -853,7 +853,7 @@ export default function LandlordTenantDetail() {
         <div style={{ display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:20,overflowX:"auto" }}>
           {TABS.map(tab=>(
             <button key={tab} onClick={()=>setActiveTab(tab)}
-              style={{ padding:"10px 16px",fontSize:13,fontWeight:activeTab===tab?600:400,color:activeTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:activeTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s",whiteSpace:"nowrap" }}>
+              style={{ padding:"10px 16px",fontSize:13,fontWeight:activeTab===tab?600:400,color:activeTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:activeTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"var(--m-font)",transition:"color 0.15s",whiteSpace:"nowrap" }}>
               {tab}
             </button>
           ))}
@@ -863,7 +863,7 @@ export default function LandlordTenantDetail() {
         {activeTab==="Overview"&&(
           <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12 }}>
             <InfoCard title="Balance">
-              <div data-testid="tenant-balance" style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:balanceView.amountText?28:20,fontWeight:600,color:toneColor,marginBottom:4 }}>
+              <div data-testid="tenant-balance" style={{ fontFamily:"var(--m-font)",fontSize:balanceView.amountText?28:20,fontWeight:600,color:toneColor,marginBottom:4 }}>
                 {balances.mode==="loading" ? "—" : (balanceView.amountText ?? balanceView.label)}
               </div>
               <div style={{ fontSize:12,color:C.textSub,lineHeight:1.5 }}>
@@ -999,7 +999,7 @@ export default function LandlordTenantDetail() {
             </div>
             <a
               href="/landlord/inspections"
-              style={{ display:"inline-block",padding:"10px 20px",background:"rgba(201,169,110,0.12)",borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,textDecoration:"none",fontFamily:"'DM Sans',sans-serif" }}
+              style={{ display:"inline-block",padding:"10px 20px",background:"rgba(201,169,110,0.12)",borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,textDecoration:"none",fontFamily:"var(--m-font)" }}
             >
               Open Inspections →
             </a>
@@ -1015,7 +1015,7 @@ export default function LandlordTenantDetail() {
             </div>
             <div style={{ padding:16 }}>
               <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add private notes about this tenant…"
-                style={{ width:"100%",minHeight:140,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"'DM Sans',sans-serif",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}
+                style={{ width:"100%",minHeight:140,padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,resize:"vertical",fontFamily:"var(--m-font)",color:C.text,background:C.raised,outline:"none",lineHeight:1.6,boxSizing:"border-box" }}
               />
               <div style={{ display:"flex",alignItems:"center",gap:12,marginTop:10 }}>
                 <PrimaryBtn onClick={saveNotes} disabled={savingNotes}>{noteSaved?"✓ Saved!":savingNotes?"Saving…":"Save notes"}</PrimaryBtn>

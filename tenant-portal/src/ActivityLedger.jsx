@@ -21,7 +21,7 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 }
 
-const cardLabel = { fontSize:10,fontWeight:600,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 };
+const cardLabel = { fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 };
 
 export default function ActivityLedger() {
   const { tenant, loading } = useTenant();
@@ -50,7 +50,7 @@ export default function ActivityLedger() {
     setFetching(false);
   }
 
-  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
+  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"var(--m-font)",fontSize:14 }}>Loading…</div>;
 
   const isLedger = ledger?.mode === "ledger";
   const entries  = isLedger ? ledgerToActivity(ledger.rows) : [];
@@ -60,7 +60,7 @@ export default function ActivityLedger() {
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;}
         .ledger-row:hover{background:${C.raised}!important;}
         @media(max-width:767px){
@@ -70,12 +70,12 @@ export default function ActivityLedger() {
         }
       `}</style>
 
-      <div className="ledger-pad" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"36px 40px 80px",maxWidth:1000,margin:"0 auto" }}>
+      <div className="ledger-pad" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"36px 40px 80px",maxWidth:1000,margin:"0 auto" }}>
 
         {/* Header */}
         <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:12,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6 }}>Payment History</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(24px, 5vw, 30px)",fontWeight:600,color:C.text,lineHeight:1.1 }}>Activity Ledger</div>
+          <div style={{ fontSize:12,color:C.textMuted,marginBottom:6 }}>Payment History</div>
+          <div style={{ fontFamily:"var(--m-font)",fontSize:"clamp(24px, 5vw, 30px)",fontWeight:600,color:C.text,lineHeight:1.1 }}>Activity Ledger</div>
         </div>
 
         {/* Summary: the actual balance (or why it's unavailable), then the scheduled monthly charges */}
@@ -83,7 +83,7 @@ export default function ActivityLedger() {
           <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 22px",flex:1,minWidth:200 }}>
             <div style={cardLabel}>Current Balance</div>
             {bal.available ? (
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:bal.tone==="due"?C.red:bal.tone==="clear"?C.green:C.textSub }}>
+              <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:bal.tone==="due"?C.red:bal.tone==="clear"?C.green:C.textSub }}>
                 {ledger.balance.cents<0?"CR ":""}{bal.amountText}
               </div>
             ) : (
@@ -95,7 +95,7 @@ export default function ActivityLedger() {
             <div style={cardLabel}>Monthly Recurring Charges</div>
             {monthly.hasCharges ? (
               <>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.gold }}>{formatCents(monthly.totalCents)}</div>
+                <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:C.gold }}>{formatCents(monthly.totalCents)}</div>
                 <div style={{ fontSize:11,color:C.textMuted,marginTop:4 }}>
                   {monthly.items.map(i => `${i.label} ${i.cents == null ? "—" : formatCents(i.cents)}`).join(" · ")}
                 </div>
@@ -111,7 +111,7 @@ export default function ActivityLedger() {
           <>
             {/* Receivables ledger: posted charges and payments with the running balance */}
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 120px 130px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:11,fontWeight:600,color:C.textMuted,letterSpacing:"0.06em",textTransform:"uppercase" }}>
+              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 120px 130px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:12,fontWeight:600,color:C.textMuted,}}>
                 <div>Date Posted</div>
                 <div>Description</div>
                 <div className="ledger-col-hide" style={{ textAlign:"right" }}>Charges</div>
@@ -156,7 +156,7 @@ export default function ActivityLedger() {
               Payment records on file. These are not a statement of your balance. Only records marked Paid were received.
             </div>
             <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden" }}>
-              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 200px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:11,fontWeight:600,color:C.textMuted,letterSpacing:"0.06em",textTransform:"uppercase" }}>
+              <div className="ledger-table" style={{ display:"grid",gridTemplateColumns:"140px 1fr 120px 200px",gap:0,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",background:C.raised,fontSize:12,fontWeight:600,color:C.textMuted,}}>
                 <div>Date</div>
                 <div>Record</div>
                 <div style={{ textAlign:"right" }}>Amount</div>

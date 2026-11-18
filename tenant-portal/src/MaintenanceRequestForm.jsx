@@ -18,7 +18,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -56,7 +56,7 @@ function Spinner() {
 
 function SectionLabel({ children, optional }) {
   return (
-    <div style={{ fontSize:10, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10, marginTop:24 }}>
+    <div style={{ fontSize:12, fontWeight:600, color:C.textSub, marginBottom:10, marginTop:24 }}>
       {children}{optional && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:C.textMuted, fontSize:11, marginLeft:6 }}>(optional)</span>}
     </div>
   );
@@ -66,7 +66,7 @@ function Checkbox({ checked, onChange, label, sub }) {
   return (
     <div onClick={onChange} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", background:checked?`${C.gold}08`:C.raised, border:`1px solid ${checked?C.goldDim:C.border}`, borderRadius:8, cursor:"pointer", transition:"all 0.12s" }}>
       <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${checked?C.gold:C.border}`, background:checked?C.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1, transition:"all 0.12s" }}>
-        {checked && <span style={{ fontSize:10, color:C.bg, fontWeight:700 }}>✓</span>}
+        {checked && <span style={{ fontSize:10, color:C.bg, fontWeight:600 }}>✓</span>}
       </div>
       <div>
         <div style={{ fontSize:13, color:checked?C.text:C.textSub, fontWeight:checked?500:400 }}>{label}</div>
@@ -217,10 +217,10 @@ export default function MaintenanceRequestForm() {
 
   if (submitted) return (
     <TenantLayout tenantName={tenant?.name}>
-      <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", padding:20 }}>
+      <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--m-font)", padding:20 }}>
         <div style={{ width:"100%", maxWidth:420, textAlign:"center" }}>
           <div style={{ width:64, height:64, borderRadius:"50%", background:`${C.green}18`, border:`1px solid ${C.green}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:26, color:C.green }}>✓</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
+          <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text, marginBottom:6 }}>Request submitted</div>
           <div style={{ fontSize:14, color:C.textSub, marginBottom:notice?.emergency || safetyNow || topicNote || (notice && !["sent","duplicate"].includes(notice.status)) ? 14 : 28 }}>{topicNote ? "Your report was saved." : "We'll be in touch shortly to confirm a time."}</div>
           {(notice?.emergency || safetyNow) && (
             <div role="alert" style={{ background:`${C.red}12`, border:`1px solid ${C.red}55`, borderRadius:8, padding:"12px 14px", marginBottom:14, fontSize:13, color:C.text, textAlign:"left", lineHeight:1.5 }}>
@@ -248,7 +248,7 @@ export default function MaintenanceRequestForm() {
               </div>
             ))}
           </div>
-          <button onClick={() => navigate("/maintenance")} style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to requests</button>
+          <button onClick={() => navigate("/maintenance")} style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.textSub, cursor:"pointer", fontFamily:"var(--m-font)" }}>← Back to requests</button>
         </div>
       </div>
     </TenantLayout>
@@ -257,15 +257,15 @@ export default function MaintenanceRequestForm() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
       `}</style>
 
-      <div style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"24px 20px 80px", maxWidth:680, margin:"0 auto" }}>
+      <div style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"var(--m-font)", padding:"24px 20px 80px", maxWidth:680, margin:"0 auto" }}>
 
-        <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:4 }}>New request</div>
+        <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text, marginBottom:4 }}>New request</div>
         <div style={{ fontSize:13, color:C.textSub, marginBottom:24 }}>Unit {tenant?.unit || "—"} · {tenant?.property || "—"}</div>
 
         {/* Category */}
@@ -273,7 +273,7 @@ export default function MaintenanceRequestForm() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:4 }}>
           {CATEGORIES.map(cat => (
             <button key={cat.id} onClick={() => { setCategory(cat.id); setErrors(e=>({...e,category:""})); }}
-              style={{ padding:"14px 8px", border:`1px solid ${category===cat.id?C.goldDim:C.border}`, borderRadius:10, background:category===cat.id?`${C.gold}0F`:C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"'DM Sans',sans-serif" }}>
+              style={{ padding:"14px 8px", border:`1px solid ${category===cat.id?C.goldDim:C.border}`, borderRadius:10, background:category===cat.id?`${C.gold}0F`:C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"var(--m-font)" }}>
               <div style={{ fontSize:22, marginBottom:6 }}>{cat.icon}</div>
               <div style={{ fontSize:12, fontWeight:category===cat.id?600:400, color:category===cat.id?C.gold:C.textSub }}>{cat.label}</div>
             </button>
@@ -285,7 +285,7 @@ export default function MaintenanceRequestForm() {
         <SectionLabel>Brief description</SectionLabel>
         <input value={title} onChange={e=>{setTitle(e.target.value);setErrors(p=>({...p,title:""}));}}
           placeholder="e.g. Kitchen faucet is dripping constantly" maxLength={80}
-          style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${errors.title?C.red:C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+          style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${errors.title?C.red:C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"var(--m-font)" }}/>
         {errors.title && <p style={{ fontSize:11, color:C.red, marginTop:4, marginBottom:0 }}>{errors.title}</p>}
 
         {/* Description */}
@@ -293,7 +293,7 @@ export default function MaintenanceRequestForm() {
         <div style={{ position:"relative" }}>
           <textarea value={description} onChange={e=>setDesc(e.target.value)} maxLength={500}
             placeholder="When did it start? How often does it happen? Anything else we should know?" rows={4}
-            style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", minHeight:90, fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}/>
+            style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", minHeight:90, fontFamily:"var(--m-font)", lineHeight:1.5 }}/>
           <span style={{ position:"absolute", bottom:10, right:12, fontSize:10, color:C.textMuted }}>{description.length}/500</span>
         </div>
 
@@ -305,7 +305,7 @@ export default function MaintenanceRequestForm() {
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {PRIORITIES.map(p => (
             <button key={p.id} onClick={() => setPriority(p.id)}
-              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", border:`1px solid ${priority===p.id?p.color+"66":C.border}`, borderRadius:10, background:priority===p.id?`${p.color}0F`:C.surface, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}>
+              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", border:`1px solid ${priority===p.id?p.color+"66":C.border}`, borderRadius:10, background:priority===p.id?`${p.color}0F`:C.surface, cursor:"pointer", fontFamily:"var(--m-font)", transition:"all 0.15s" }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:8, height:8, borderRadius:"50%", background:p.color }}/>
                 <div style={{ textAlign:"left" }}>
@@ -370,7 +370,7 @@ export default function MaintenanceRequestForm() {
           <div style={{ marginBottom:16 }}>
             <input value={petDetails} onChange={e => setPetDetails(e.target.value)}
               placeholder="e.g. Large dog, friendly but will bark. Please keep door closed."
-              style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+              style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"var(--m-font)" }}/>
           </div>
         )}
 
@@ -378,7 +378,7 @@ export default function MaintenanceRequestForm() {
           <div style={{ fontSize:11, color:C.textSub, marginBottom:6, fontWeight:500 }}>Any other access notes?</div>
           <textarea value={accessNotes} onChange={e => setAccessNotes(e.target.value)}
             placeholder="e.g. Ring the doorbell first, park in the lot behind the building…" rows={2}
-            style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}/>
+            style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.5 }}/>
         </div>
 
         {/* Photos */}
@@ -418,10 +418,10 @@ export default function MaintenanceRequestForm() {
         {lockoutNotice && (
           <div role="note" data-lockout-notice style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}55`, borderRadius:8, padding:"12px 14px", marginTop:20, fontSize:13, color:C.text, lineHeight:1.5 }}>
             {LOCKOUT_NOTE}
-            <button onClick={() => handleSubmit(true)} disabled={loading} style={{ display:"block", marginTop:10, padding:"8px 12px", border:`1px solid ${C.border}`, borderRadius:7, background:"transparent", color:C.text, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>The lock itself is broken — submit the request</button>
+            <button onClick={() => handleSubmit(true)} disabled={loading} style={{ display:"block", marginTop:10, padding:"8px 12px", border:`1px solid ${C.border}`, borderRadius:7, background:"transparent", color:C.text, fontSize:12, cursor:"pointer", fontFamily:"var(--m-font)" }}>The lock itself is broken — submit the request</button>
           </div>
         )}
-        <button onClick={() => handleSubmit(false)} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"'DM Sans',sans-serif", opacity:loading?0.7:1 }}>
+        <button onClick={() => handleSubmit(false)} disabled={loading} style={{ width:"100%", padding:"13px", border:`1px solid ${C.goldDim}`, borderRadius:8, fontSize:14, fontWeight:500, background:loading?"rgba(201,169,110,0.07)":"transparent", color:"#FFFFFF", cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24, fontFamily:"var(--m-font)", opacity:loading?0.7:1 }}>
           {loading ? <><Spinner/> Submitting…</> : "Submit request →"}
         </button>
       </div>

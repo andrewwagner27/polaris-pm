@@ -11,7 +11,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -36,7 +36,7 @@ function useWindowWidth() {
 }
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{children}</label>;
+  return <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type="text" }) {
@@ -44,20 +44,20 @@ function Input({ value, onChange, placeholder, type="text" }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
       onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s" }}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s" }}
     />
   );
 }
 
 function Select({ value, onChange, children, disabled }) {
   return (
-    <select value={value} onChange={onChange} disabled={disabled} style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1 }}>{children}</select>
+    <select value={value} onChange={onChange} disabled={disabled} style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1 }}>{children}</select>
   );
 }
 
 
 function GhostBtn({ children, onClick, small }) {
-  return <button type="button" onClick={onClick} className={`m-btn m-btn-ghost${small?" m-btn-small":""}`} style={{ borderColor:C.border,color:C.textSub,fontWeight:500,fontFamily:"'DM Sans',sans-serif" }}>{children}</button>;
+  return <button type="button" onClick={onClick} className={`m-btn m-btn-ghost${small?" m-btn-small":""}`} style={{ borderColor:C.border,color:C.textSub,fontWeight:500,fontFamily:"var(--m-font)" }}>{children}</button>;
 }
 
 // ─── Lease countdown badge ─────────────────────────────────────────────────
@@ -149,7 +149,7 @@ function AddTenantModal({ properties, units, onClose, onSaved }) {
         {step==="success"?(
           <div style={{ padding:"32px 24px",textAlign:"center" }}>
             <div style={{ width:60,height:60,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px",fontSize:24,color:C.green }}>✓</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:C.text,marginBottom:8 }}>{form.name} added</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C.text,marginBottom:8 }}>{form.name} added</div>
             <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>{selectedProperty?.name} · Unit {selectedUnit?.unit_number}</div>
             {inviteStatus==="sent"    &&<div style={{ fontSize:13,color:C.green,  marginBottom:20 }}>✓ Invite email sent to {form.email}</div>}
             {inviteStatus==="failed"  &&<div style={{ fontSize:13,color:C.amber,  marginBottom:20 }}>⚠ Tenant added but invite failed — you can resend from their profile.</div>}
@@ -226,7 +226,7 @@ async function loadTenants(propertyId) {
 }
 
 function H({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", margin: "20px 0 6px" }}>{children}</div>;
+  return <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, margin: "20px 0 6px" }}>{children}</div>;
 }
 
 // Tenant detail drawer: who, where, lease, how to reach them, their maintenance, and their ledger standing (only when
@@ -444,10 +444,10 @@ export default function LandlordTenants() {
         @media (max-width:1024px){ .t-sort{min-height:44px;} }
       `}</style>
 
-      <div className="m-page" style={{ color:C.text,fontFamily:"'DM Sans',sans-serif" }}>
+      <div className="m-page" style={{ color:C.text,fontFamily:"var(--m-font)" }}>
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12 }}>
           <div>
-            <h1 style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Tenants</h1>
+            <h1 style={{ fontFamily:"var(--m-font)",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Tenants</h1>
             <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${activeEnriched.length} active lease${activeEnriched.length===1?"":"s"} · ${selectedName}`}</div>
           </div>
           <PrimaryBtn onClick={()=>setShowAdd(true)}>+ Add tenant</PrimaryBtn>
@@ -463,7 +463,7 @@ export default function LandlordTenants() {
         <label style={{ display:"flex",alignItems:"center",gap:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"0 12px",minHeight:44,maxWidth:420,marginBottom:14 }}>
           <span aria-hidden="true" style={{ color:C.textMuted }}>⌕</span>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, unit, email or phone" aria-label="Search tenants"
-            style={{ flex:1,minWidth:0,border:"none",outline:"none",fontSize:14,fontFamily:"'DM Sans',sans-serif",background:"transparent",color:C.text }}/>
+            style={{ flex:1,minWidth:0,border:"none",outline:"none",fontSize:14,fontFamily:"var(--m-font)",background:"transparent",color:C.text }}/>
         </label>
 
         <div className="t-tabs" role="tablist" aria-label="Lease filters">
@@ -472,7 +472,7 @@ export default function LandlordTenants() {
             const accentCol = tab.accent||C.gold;
             return (
               <button key={tab.key} type="button" role="tab" aria-selected={active} onClick={()=>setActiveTab(tab.key)}
-                style={{ minHeight:44,padding:"0 16px",fontSize:13,fontWeight:active?600:500,color:active?accentCol:C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${accentCol}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
+                style={{ minHeight:44,padding:"0 16px",fontSize:13,fontWeight:active?600:500,color:active?accentCol:C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${accentCol}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 {tab.label}
                 {tab.count>0&&<span style={{ fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:10,background:C.raised,color:active?accentCol:C.textSub }}>{tab.count}</span>}
               </button>
@@ -523,7 +523,7 @@ export default function LandlordTenants() {
                       { col:null,       label:"" },
                     ].map(h=>(
                       <th key={h.label||"actions"} scope="col" aria-sort={h.col&&sortCol===h.col?(sortDir==="asc"?"ascending":"descending"):undefined}
-                        style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"12px 16px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>
+                        style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"12px 16px",textAlign:h.right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>
                         {h.col ? <button type="button" className="t-sort" onClick={()=>handleSort(h.col)}>{h.label}<SortIcon col={h.col}/></button> : h.label}
                       </th>
                     ))}
@@ -536,7 +536,7 @@ export default function LandlordTenants() {
                       <tr key={t.id} className="m-row" onClick={()=>openTenant(t.id)}>
                         <td style={{ padding:"12px 16px",borderBottom:`1px solid ${C.border}` }}>
                           <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                            <div aria-hidden="true" style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}55`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0 }}>{t.initials}</div>
+                            <div aria-hidden="true" style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}55`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,flexShrink:0 }}>{t.initials}</div>
                             <div style={{ minWidth:0 }}>
                               <button type="button" onClick={(e)=>{ e.stopPropagation(); openTenant(t.id); }} style={{ background:"none",border:"none",padding:0,font:"inherit",fontSize:14,fontWeight:600,color:C.text,cursor:"pointer",textAlign:"left" }}>{t.name}</button>
                               <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:4 }}>

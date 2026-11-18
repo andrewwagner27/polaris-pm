@@ -7,9 +7,9 @@ const C = {
   surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4",
   textMuted:"#9298A3", gold:"#C9A968", goldDim:"#6B4F24", green:"#72B02A", red:"#F07070", amber:"#F0A430", blue:"#6AAEF0",
 };
-const field = { padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark",minWidth:0 };
-const btn = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"4px 9px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap" });
-const th = (right) => ({ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
+const field = { padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",colorScheme:"dark",minWidth:0 };
+const btn = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"4px 9px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap" });
+const th = (right) => ({ fontSize:12,fontWeight:600,color:C.textSub,padding:"9px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" });
 const td = (right, color) => ({ fontSize:13,color:color||C.textSub,padding:"9px 12px",borderBottom:`1px solid ${C.border}`,textAlign:right?"right":"left",fontVariantNumeric:"tabular-nums" });
 const fmtDay = (d) => d ? new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString("en-US",{ month:"short",day:"numeric",year:"numeric" }) : "—";
 const STATUS_COLOR = { paid:C.green, received:C.green, open:C.amber, "partly paid":C.amber, void:C.textMuted, refunded:C.blue, credit:C.blue, "not yet due":C.textSub, returned:C.red };
@@ -141,7 +141,7 @@ export default function TenantLedger({ tenantId }) {
             <div style={{ fontSize:12,color:C.textSub,marginTop:2 }}>Since {fmtDay(status.cutover_date)}. Payments apply to charges of the same category, oldest first.{A3_ENABLED?" Applications are stored permanently; corrections leave a record.":""}</div>
           </div>
           <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.08em" }}>{balance<0?"Credit on account":"Balance"}</div>
+            <div style={{ fontSize:12,color:C.textMuted,}}>{balance<0?"Credit on account":"Balance"}</div>
             <div style={{ fontSize:20,fontWeight:600,color:balance>0?C.red:C.green,fontVariantNumeric:"tabular-nums" }}>{fmtCents(Math.abs(balance))}</div>
             {Number(credits?.rental_credit_cents)>0&&<div style={{ fontSize:11,color:C.textSub,marginTop:3 }}>After {fmtCents(credits.rental_credit_cents)} rental credit for future rent. {fmtCents(open.reduce((a,c)=>a+Number(c.open_cents||0),0))} is open now.</div>}
           </div>
@@ -187,7 +187,7 @@ export default function TenantLedger({ tenantId }) {
                       ))}
                       {history.some(h=>h.payment_id===r.ref_id)&&(
                         <div style={{ marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:8 }}>
-                          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6 }}>Application record</div>
+                          <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>Application record</div>
                           {history.filter(h=>h.payment_id===r.ref_id).map(h=>(
                             <div key={h.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,fontSize:12,color:C.textSub,padding:"3px 0" }}>
                               <span>

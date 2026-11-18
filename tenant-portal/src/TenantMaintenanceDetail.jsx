@@ -11,7 +11,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -125,13 +125,13 @@ export default function TenantMaintenanceDetail() {
 
   if (loading) return (
     <TenantLayout tenantName={tenant?.name}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", background: C.bg, color: C.textSub, fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>Loading…</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", background: C.bg, color: C.textSub, fontSize: 14, fontFamily: "var(--m-font)" }}>Loading…</div>
     </TenantLayout>
   );
 
   if (!ticket) return (
     <TenantLayout tenantName={tenant?.name}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", background: C.bg, color: C.textSub, fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>Ticket not found.</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", background: C.bg, color: C.textSub, fontSize: 14, fontFamily: "var(--m-font)" }}>Ticket not found.</div>
     </TenantLayout>
   );
 
@@ -144,16 +144,16 @@ export default function TenantMaintenanceDetail() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: ${C.bg}; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", padding: isDesktop ? "28px 32px" : "20px" }}>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)", padding: isDesktop ? "28px 32px" : "20px" }}>
 
         {/* Back */}
-        <button onClick={() => navigate("/maintenance")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: 0, marginBottom: 20, transition: "color 0.15s" }}
+        <button onClick={() => navigate("/maintenance")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "var(--m-font)", padding: 0, marginBottom: 20, transition: "color 0.15s" }}
           onMouseOver={e => e.currentTarget.style.color = C.gold}
           onMouseOut={e => e.currentTarget.style.color = C.goldDim}
         >← Back to requests</button>
@@ -181,7 +181,7 @@ export default function TenantMaintenanceDetail() {
               <div style={{ padding: "16px 20px" }}>
                 {ticket.description && (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Description</div>
+                    <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Description</div>
                     <p style={{ fontSize: 13, color: C.textSub, lineHeight: 1.6, margin: 0 }}>{ticket.description}</p>
                   </div>
                 )}
@@ -195,7 +195,7 @@ export default function TenantMaintenanceDetail() {
                     ["Scheduled",    ticket.scheduled_date || "Not scheduled yet"],
                   ].map(([k, v]) => (
                     <div key={k} style={{ background: C.raised, borderRadius: 7, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{k}</div>
+                      <div style={{ fontSize:12, color: C.textMuted, marginBottom: 4, }}>{k}</div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{v}</div>
                     </div>
                   ))}
@@ -206,7 +206,7 @@ export default function TenantMaintenanceDetail() {
             {/* Photos */}
             {ticket.photos?.length > 0 && (
               <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 20px" }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Photos ({ticket.photos.length})</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 12 }}>Photos ({ticket.photos.length})</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {ticket.photos.map((_, i) => photoUrls[i] ? (
                     <img key={i} src={photoUrls[i]} alt={`photo-${i}`}
@@ -223,7 +223,7 @@ export default function TenantMaintenanceDetail() {
 
             {/* Timeline */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 20px" }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Timeline</div>
+              <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 16 }}>Timeline</div>
               {[
                 { color: C.amber, text: "Request submitted",                              time: submittedDate },
                 ticket.vendor_name    && { color: C.blue,  text: `Assigned to ${ticket.vendor_name}`, time: updatedDate },
@@ -247,7 +247,7 @@ export default function TenantMaintenanceDetail() {
             {/* PM notes */}
             {ticket.notes && (
               <div style={{ background: `rgba(74,154,232,0.08)`, border: `1px solid rgba(74,154,232,0.2)`, borderRadius: 12, padding: "16px 20px" }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Note from property manager</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.blue, marginBottom: 8 }}>Note from property manager</div>
                 <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, margin: 0 }}>{ticket.notes}</p>
               </div>
             )}
@@ -271,7 +271,7 @@ export default function TenantMaintenanceDetail() {
                   return (
                     <div key={c.id} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexDirection: isMe ? "row-reverse" : "row" }}>
-                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.goldDim : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: isMe ? C.goldDim : C.raised, border: `1px solid ${isMe ? C.goldDim : C.border}`, color: isMe ? C.gold : C.textSub, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight:600, flexShrink: 0 }}>{initials}</div>
                         <span style={{ fontSize: 11, fontWeight: 600, color: C.textSub }}>{displayName}</span>
                         <span style={{ fontSize: 10, color: C.textMuted }}>{date}</span>
                       </div>
@@ -287,7 +287,7 @@ export default function TenantMaintenanceDetail() {
                 <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postComment(); } }}
                   placeholder="Add a comment or question…" rows={3}
-                  style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "none", fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box", color: C.text, background: C.raised, lineHeight: 1.5 }}
+                  style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, resize: "none", fontFamily: "var(--m-font)", outline: "none", boxSizing: "border-box", color: C.text, background: C.raised, lineHeight: 1.5 }}
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
                   <button onClick={postComment} disabled={posting || !newComment.trim()} style={{
@@ -297,7 +297,7 @@ export default function TenantMaintenanceDetail() {
                     border: `1px solid ${newComment.trim() ? C.goldDim : C.border}`,
                     borderRadius: 7, fontSize: 12, fontWeight: 500,
                     cursor: newComment.trim() ? "pointer" : "default",
-                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                    fontFamily: "var(--m-font)", transition: "all 0.15s",
                   }}>{posting ? "Posting…" : "Post comment"}</button>
                 </div>
               </div>
@@ -308,7 +308,7 @@ export default function TenantMaintenanceDetail() {
               width: "100%", padding: "12px", background: "transparent",
               border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13,
               fontWeight: 500, color: C.textSub, cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+              fontFamily: "var(--m-font)", transition: "all 0.15s",
             }}
               onMouseOver={e => { e.currentTarget.style.borderColor = "#353A44"; e.currentTarget.style.color = C.text; }}
               onMouseOut={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSub; }}

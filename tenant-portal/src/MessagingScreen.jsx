@@ -3,12 +3,13 @@ import { useState, useRef, useEffect } from "react";
 import { supabase, authHeaders } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
+import { useMessageScroll } from "./lib/messageScroll";
 
 const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -54,23 +55,15 @@ export default function MessagingScreen() {
   const tenantIdRef   = useRef(null);   // mirrors tenantId for use inside closures
   const landlordIdRef = useRef(null);
   const pollRef       = useRef(null);
-  const bottomRef     = useRef(null);
 
   useEffect(() => {
     init();
     return () => clearInterval(pollRef.current);
   }, []);
 
-  // Only scroll to bottom when a NEW message is added (count goes up),
-  // not on every poll refresh. Uses a ref to track previous length.
-  const prevMsgCountRef = useRef(0);
-  useEffect(() => {
-    const newCount = messages.length;
-    if (newCount > prevMsgCountRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    prevMsgCountRef.current = newCount;
-  }, [messages]);
+  // Only the history container scrolls (never the page). The count also steps when the typing indicator appears,
+  // so a reader at the bottom keeps following the assistant's reply; a reader looking at older messages keeps their place.
+  const { containerRef: historyRef, onScroll: onHistoryScroll, hasNew: hasNewMessage, markOwnSend, jumpToLatest } = useMessageScroll(tenantId || "none", messages.length * 2 + (awaitingReply ? 1 : 0));
 
   async function fetchMessages() {
     const tId = tenantIdRef.current;
@@ -122,6 +115,7 @@ export default function MessagingScreen() {
     if (!text.trim() || sending || !myUserIdRef.current || !tenantIdRef.current) return;
     setSending(true);
     setInput("");
+    markOwnSend();
 
     const { data, error } = await supabase.from("messages").insert({
       sender_id: myUserIdRef.current,
@@ -168,20 +162,16 @@ export default function MessagingScreen() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};}
+        
         .t-quick:hover{border-color:${C.goldDim}!important;color:${C.gold}!important;}
         @media(max-width:480px){.msg-bubble{max-width:88%!important;} .msg-input-row{padding:10px 12px!important;}}
-        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
-        ::-webkit-scrollbar:horizontal{height:0;}
       `}</style>
 
-      <div className="full-height" style={{ display:"flex", flexDirection:"column", background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
+      <div className="m-chat" style={{ background:C.bg }}>
 
         {/* Chat header */}
         <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 20px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
-          <div aria-hidden="true" style={{ width:34, height:34, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>AI</div>
+          <div aria-hidden="true" style={{ width:34, height:34, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:600, flexShrink:0 }}>AI</div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:14, fontWeight:600, color:C.text }}>Modus Property Management</div>
             <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
@@ -192,7 +182,7 @@ export default function MessagingScreen() {
             </div>
           </div>
           <button onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)} disabled={sending}
-            style={{ minHeight:44, padding:"0 14px", background:C.gold, border:"none", borderRadius:22, fontSize:13, fontWeight:600, color:"#FFFFFF", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+            style={{ minHeight:44, padding:"0 14px", background:C.gold, border:"none", borderRadius:22, fontSize:13, fontWeight:600, color:"#FFFFFF", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"var(--m-font)", flexShrink:0 }}>
             Talk to a person
           </button>
         </div>
@@ -203,7 +193,8 @@ export default function MessagingScreen() {
         </div>
 
         {/* Messages */}
-        <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px", display:"flex", flexDirection:"column", gap:4 }}>
+        <div className="m-chat-body">
+        <div ref={historyRef} onScroll={onHistoryScroll} className="m-chat-history" role="log" aria-label="Conversation" tabIndex={0} style={{ padding:"16px 16px 8px", gap:4 }}>
           {loading && (
             <div style={{ textAlign:"center", color:C.textSub, fontSize:13, marginTop:40 }}>Loading messages…</div>
           )}
@@ -239,7 +230,7 @@ export default function MessagingScreen() {
                 )}
                 <div style={{ display:"flex", justifyContent:fromProperty?"flex-start":"flex-end", marginBottom:2, alignItems:"flex-end", gap:8 }}>
                   {fromProperty && (
-                    <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{isAiMessage(item) ? "AI" : "M"}</div>
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:600, flexShrink:0 }}>{isAiMessage(item) ? "AI" : "M"}</div>
                   )}
                   <div style={{ maxWidth:"75%", padding:"10px 14px", borderRadius:fromProperty?"4px 14px 14px 14px":"14px 4px 14px 14px", background:fromProperty?C.surface:C.goldDim, border:fromProperty?`1px solid ${C.border}`:"none", fontSize:14, color:C.text, lineHeight:1.5, overflowWrap:"anywhere" }}>
                     {item.body}
@@ -265,7 +256,7 @@ export default function MessagingScreen() {
                 {AI_LABEL} · AI
               </div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>AI</div>
+                <div style={{ width:26, height:26, borderRadius:"50%", background:`${C.gold}22`, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:600, flexShrink:0 }}>AI</div>
                 <div style={{ padding:"10px 16px", borderRadius:"4px 14px 14px 14px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:4 }}>
                   <style>{`
                     @keyframes modus-bounce {
@@ -284,18 +275,19 @@ export default function MessagingScreen() {
             </div>
           )}
 
-          <div ref={bottomRef} />
+        </div>
+          {hasNewMessage && <button type="button" className="m-new-pill" onClick={jumpToLatest}>New message ↓</button>}
         </div>
 
         {/* Quick replies */}
         <div role="group" aria-label="Suggested messages" style={{ padding:"8px 12px 6px", display:"flex", gap:8, overflowX:"auto", flexShrink:0, background:C.surface, borderTop:`1px solid ${C.border}`, scrollbarWidth:"none" }}>
           <button className="t-quick" onClick={() => sendMessage(TALK_TO_PERSON_MESSAGE)}
-            style={{ minHeight:44, padding:"0 14px", background:C.goldBg, border:`1px solid ${C.gold}`, borderRadius:22, fontSize:13, color:C.gold, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:600, flexShrink:0 }}>
+            style={{ minHeight:44, padding:"0 14px", background:C.goldBg, border:`1px solid ${C.gold}`, borderRadius:22, fontSize:13, color:C.gold, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"var(--m-font)", fontWeight:600, flexShrink:0 }}>
             Talk to a person
           </button>
           {QUICK_REPLIES.map((q, i) => (
             <button key={i} className="t-quick" onClick={() => sendMessage(q)}
-              style={{ minHeight:44, padding:"0 14px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:22, fontSize:13, color:C.text, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'DM Sans',sans-serif", fontWeight:500, flexShrink:0 }}>
+              style={{ minHeight:44, padding:"0 14px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:22, fontSize:13, color:C.text, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"var(--m-font)", fontWeight:500, flexShrink:0 }}>
               {q}
             </button>
           ))}
@@ -310,10 +302,8 @@ export default function MessagingScreen() {
             placeholder="Write a message…"
             aria-label="Message to Modus Property Management"
             enterKeyHint="send"
-            // On phones the keyboard can cover the composer: keep it in view once the keyboard has opened.
-            onFocus={e => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView?.({ block: "end", behavior: "smooth" }), 300); }}
             rows={1}
-            style={{ flex:1, minHeight:44, padding:"11px 16px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:22, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.4, maxHeight:120 }}
+            style={{ flex:1, minHeight:44, padding:"11px 16px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:22, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.4, maxHeight:120 }}
           />
           <button
             onClick={() => sendMessage(input)}

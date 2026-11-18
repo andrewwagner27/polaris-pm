@@ -3,7 +3,7 @@ export const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -15,9 +15,9 @@ export const C = {
   amber:    "#F0A430",
 };
 
-export const font = "'DM Sans', sans-serif";
+export const font = "var(--m-font)";
 
-export const label = { fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 };
+export const label = { fontSize:12, color: C.textMuted, marginBottom: 4 };
 
 export const btn = (tone = "plain") => ({
   padding: "6px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: font, minHeight: 32,

@@ -8,7 +8,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -81,7 +81,7 @@ function StatusBadge({ status }) {
 function SectionHeader({ title, sub }) {
   return (
     <div style={{ marginBottom:20 }}>
-      <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text }}>{title}</h2>
+      <h2 style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text }}>{title}</h2>
       {sub && <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>{sub}</p>}
     </div>
   );
@@ -156,7 +156,7 @@ function PhotoUploader({ photos, setPhotos, rooms, label = "Add Photos" }) {
                 </div>
                 {p.file && (
                   <button onClick={()=>setPhotos(prev=>prev.filter((_,j)=>j!==i))}
-                    style={{ position:"absolute", top:-5, right:-5, width:16, height:16, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>
+                    style={{ position:"absolute", top:-5, right:-5, width:16, height:16, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
                     ×
                   </button>
                 )}
@@ -184,7 +184,7 @@ function RoomChecklist({ rooms, onChange, readOnly = false, compareRooms = null 
           <div key={ri} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:10, overflow:"hidden" }}>
             <div style={{ background:C.raised, padding:"9px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{room.room}</span>
-              {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:700 }}>{issues} issue{issues!==1?"s":""}</span>}
+              {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:600 }}>{issues} issue{issues!==1?"s":""}</span>}
             </div>
             <div style={{ padding:"10px 18px 14px" }}>
               {(room.items||[]).map((item, ii) => {
@@ -433,7 +433,7 @@ export default function LandlordInspection() {
             <tr style="background:#181C21"><td style="padding:8px;color:#9298A3;font-size:11px;font-weight:600">ITEM</td><td style="padding:8px;color:#9298A3;font-size:11px;font-weight:600;text-align:right">AMOUNT</td></tr>
             <tr><td style="padding:5px 8px;color:#B7BBC4;font-size:13px">Deposit held</td><td style="padding:5px 8px;color:#F5F2EB;font-size:13px;text-align:right">$${dep.toFixed(2)}</td></tr>
             ${deductRows}
-            <tr style="background:#181C21"><td style="padding:8px;color:#F5F2EB;font-size:14px;font-weight:700">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#F07070"};font-size:14px;font-weight:700;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
+            <tr style="background:#181C21"><td style="padding:8px;color:#F5F2EB;font-size:14px;font-weight:600">Refund to you</td><td style="padding:8px;color:${refundAmt>0?"#72B02A":"#F07070"};font-size:14px;font-weight:600;text-align:right">$${refundAmt.toFixed(2)}</td></tr>
           </table>
           ${moNotes ? `<p style="color:#9298A3;font-size:12px;line-height:1.5">${textToHtml(moNotes)}</p>` : ""}
           <p style="color:#9298A3;font-size:12px;margin-top:12px">Please contact us with any questions about this summary.</p>
@@ -457,18 +457,18 @@ export default function LandlordInspection() {
   if (view === "list") return (
     <LandlordLayout>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .insp-row:hover{background:${C.raised}!important;cursor:pointer;}
-        select,textarea,input{font-family:'DM Sans',sans-serif;}
+        select,textarea,input{font-family:var(--m-font);}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
-      <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"var(--m-font)" }}>
 
         <div style={{ marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
           <div>
-            <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:600, color:C.text }}>Move-In / Move-Out Inspections</h1>
+            <h1 style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text }}>Move-In / Move-Out Inspections</h1>
             <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>End-to-end inspection workflow — document condition, get tenant sign-off, compare at move-out, issue deposit decisions</p>
           </div>
           <button onClick={()=>{ setFTenant(""); setFDate(new Date().toISOString().slice(0,10)); setFRooms(DEFAULT_ROOMS.map(r=>({room:r.room,room_notes:"",items:r.items.map(name=>({name,status:"Good",notes:""}))})));setFNotes("");setFPhotos([]); setView("create"); }}
@@ -514,8 +514,8 @@ export default function LandlordInspection() {
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
-                        {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:700 }}>{issues} move-in issue{issues!==1?"s":""}</span>}
-                        {ins.status==="closed"&&ins.total_deducted>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.amber}18`, color:C.amber, fontWeight:700 }}>-${ins.total_deducted} deducted</span>}
+                        {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:600 }}>{issues} move-in issue{issues!==1?"s":""}</span>}
+                        {ins.status==="closed"&&ins.total_deducted>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.amber}18`, color:C.amber, fontWeight:600 }}>-${ins.total_deducted} deducted</span>}
                         <StatusBadge status={ins.status}/>
                         <span style={{ fontSize:12, color:C.textMuted }}>›</span>
                       </div>
@@ -531,8 +531,8 @@ export default function LandlordInspection() {
   // ─── CREATE (Pre-move-in) ─────────────────────────────
   if (view === "create") return (
     <LandlordLayout>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}select,textarea,input{font-family:'DM Sans',sans-serif;}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
-      <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"'DM Sans',sans-serif" }}>
+      <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}select,textarea,input{font-family:var(--m-font);}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
+      <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"var(--m-font)" }}>
         <BackBtn onClick={()=>setView("list")}/>
         <SectionHeader title="Pre-Move-In Inspection" sub="Step 1 of 3 — Document unit condition before tenant moves in. Attach photos of any existing damage." />
 
@@ -588,13 +588,13 @@ export default function LandlordInspection() {
 
     return (
       <LandlordLayout>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
-        <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"'DM Sans',sans-serif" }}>
+        <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
+        <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"var(--m-font)" }}>
           <BackBtn onClick={()=>setView("list")}/>
 
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:24 }}>
             <div>
-              <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text }}>{t?.name||"Tenant"}</h1>
+              <h1 style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text }}>{t?.name||"Tenant"}</h1>
               <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>
                 {t?.units?.unit_number?`Unit ${t.units.unit_number} · `:""}
                 {t?.units?.properties?.name||""} · Inspection dated {new Date(selected.inspection_date||selected.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
@@ -620,7 +620,7 @@ export default function LandlordInspection() {
             ].map((ph,i)=>(
               <div key={i} style={{ flex:1, padding:"10px 14px", borderRight:i<2?`1px solid ${C.border}`:"none",
                 background:ph.done?`${C.green}0A`:"transparent", textAlign:"center" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:ph.done?C.green:C.textMuted, marginBottom:2 }}>{ph.done?"✓":String(i+1)}</div>
+                <div style={{ fontSize:10, fontWeight:600, color:ph.done?C.green:C.textMuted, marginBottom:2 }}>{ph.done?"✓":String(i+1)}</div>
                 <div style={{ fontSize:11, color:ph.done?C.text:C.textMuted }}>{ph.label}</div>
               </div>
             ))}
@@ -673,7 +673,7 @@ export default function LandlordInspection() {
                       <div key={ri} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8, overflow:"hidden" }}>
                         <div style={{ background:C.raised, padding:"8px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                           <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{room.room}</span>
-                          {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:700 }}>{issues} issue{issues!==1?"s":""}</span>}
+                          {issues>0&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:`${C.red}18`, color:C.red, fontWeight:600 }}>{issues} issue{issues!==1?"s":""}</span>}
                         </div>
                         <div style={{ padding:"10px 16px 12px" }}>
                           {(room.items||[]).map((item,ii) => {
@@ -691,7 +691,7 @@ export default function LandlordInspection() {
                                 <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                                   {degraded&&<span style={{ fontSize:10, color:C.amber }}>landlord: {landlordItem.status}</span>}
                                   {item.notes&&<span style={{ fontSize:11, color:C.textMuted, fontStyle:"italic" }}>{item.notes}</span>}
-                                  <span style={{ fontSize:11, fontWeight:700, color:sColor }}>{tenantStatus}</span>
+                                  <span style={{ fontSize:11, fontWeight:600, color:sColor }}>{tenantStatus}</span>
                                 </div>
                               </div>
                             );
@@ -756,12 +756,12 @@ export default function LandlordInspection() {
                       <span style={{ color:C.red, fontWeight:600 }}>-${Number(d.amount).toFixed(2)}</span>
                     </div>
                   ))}
-                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:700 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:600 }}>
                     <span style={{ color:C.text }}>Total Deducted</span>
                     <span style={{ color:C.red }}>-${Number(selected.total_deducted||0).toFixed(2)}</span>
                   </div>
                   {selected.deposit_held&&(
-                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:4, fontSize:14, fontWeight:700 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:4, fontSize:14, fontWeight:600 }}>
                       <span style={{ color:C.text }}>Deposit Refund</span>
                       <span style={{ color:C.green }}>${Math.max(0, Number(selected.deposit_held||0)-Number(selected.total_deducted||0)).toFixed(2)}</span>
                     </div>
@@ -785,8 +785,8 @@ export default function LandlordInspection() {
 
     return (
       <LandlordLayout>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}select,textarea,input{font-family:'DM Sans',sans-serif;}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
-        <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"'DM Sans',sans-serif" }}>
+        <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}body{background:${C.bg};}select,textarea,input{font-family:var(--m-font);}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}`}</style>
+        <div style={{ padding:"24px 28px", background:C.bg, minHeight:"100vh", fontFamily:"var(--m-font)" }}>
           <BackBtn onClick={()=>setView("detail")}/>
           <SectionHeader title={`Move-Out Inspection — ${t?.name||"Tenant"}`}
             sub="Step 3 of 3 — Document move-out condition, compare to move-in, and calculate deposit deductions." />
@@ -842,7 +842,7 @@ export default function LandlordInspection() {
                 <span style={{ color:C.textSub }}>Total deductions</span>
                 <span style={{ color:totalDeducted>0?C.red:C.textMuted }}>-${totalDeducted.toFixed(2)}</span>
               </div>
-              <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:700, marginTop:4, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontWeight:600, marginTop:4, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
                 <span style={{ color:C.text }}>Refund to tenant</span>
                 <span style={{ color:refund>0?C.green:C.textMuted }}>${refund.toFixed(2)}</span>
               </div>

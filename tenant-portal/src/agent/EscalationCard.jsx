@@ -58,7 +58,7 @@ export default function EscalationCard({ log, conversation, reason, state, tenan
               : <span style={{ color: C.textMuted }}>(no AI reply found for this message)</span>}
           </Block>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
-            <span style={{ fontWeight: 700, color: reason.color, padding: "2px 8px", borderRadius: 4, background: `${reason.color}18` }}>{reason.label}</span>
+            <span style={{ fontWeight:600, color: reason.color, padding: "2px 8px", borderRadius: 4, background: `${reason.color}18` }}>{reason.label}</span>
             <span style={{ color: C.textSub }}>{reason.detail}</span>
             {reason.secondary && (
               <span style={{ color: C.gold }}>· Also: {reason.secondary.label.toLowerCase()} ({reason.secondary.detail})</span>

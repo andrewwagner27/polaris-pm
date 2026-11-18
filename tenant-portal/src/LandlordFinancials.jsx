@@ -18,7 +18,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -34,8 +34,8 @@ const C = {
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick}
-      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s",whiteSpace:"nowrap" }}
+    <button className="m-touch-min" onClick={onClick}
+      style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"5px 10px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.15s",whiteSpace:"nowrap" }}
       onMouseOver={e=>{ e.currentTarget.style.color=C.text; e.currentTarget.style.borderColor="#353A44"; }}
       onMouseOut={e=>{ e.currentTarget.style.color=C.textSub; e.currentTarget.style.borderColor=C.border; }}
     >{children}</button>
@@ -43,7 +43,7 @@ function GhostBtn({ children, onClick, small }) {
 }
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{children}</label>;
+  return <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type="text", style: extraStyle }) {
@@ -51,7 +51,7 @@ function Input({ value, onChange, placeholder, type="text", style: extraStyle })
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
       onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s",...extraStyle }}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",boxShadow:focused?"0 0 0 3px rgba(201,169,110,0.08)":"none",transition:"border-color 0.15s",...extraStyle }}
     />
   );
 }
@@ -59,14 +59,14 @@ function Input({ value, onChange, placeholder, type="text", style: extraStyle })
 function Select({ value, onChange, children, disabled }) {
   return (
     <select value={value} onChange={onChange} disabled={disabled}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1 }}>
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:value?C.text:C.textSub,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1 }}>
       {children}
     </select>
   );
 }
 
 function TH({ children, right }) {
-  return <th style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",padding:"11px 16px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>;
+  return <th style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"11px 16px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap" }}>{children}</th>;
 }
 
 function TD({ children, right, bold, muted, label = "" }) {
@@ -301,7 +301,7 @@ function RecurringChargesTab({ charges, tenantMap, onRefresh }) {
                     </TD>
                     <TD label="">
                       <button onClick={()=>deleteCharge(c.id)}
-                        style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                        style={{ background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                         Delete
                       </button>
                     </TD>
@@ -344,7 +344,7 @@ function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
         <div className="m-scroll-x" style={{ display:"flex",gap:8,maxWidth:"100%" }}>
           {["all","paid","pending","failed","returned","void"].map(f=>(
             <button key={f} type="button" className="f-pill" aria-pressed={filter===f} onClick={()=>setFilter(f)}
-              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
+              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
           ))}
@@ -355,12 +355,12 @@ function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
       {/* Summary strip */}
       <div className="m-grid" style={{ marginBottom:18 }}>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Paid, net of refunds (all time)</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.green }}>{fmtCents(totalPaid)}</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>Paid, net of refunds (all time)</div>
+          <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.green }}>{fmtCents(totalPaid)}</div>
         </div>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Pending</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.amber }}>{fmtCents(totalPending)}</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>Pending</div>
+          <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.amber }}>{fmtCents(totalPending)}</div>
         </div>
       </div>
 
@@ -546,7 +546,7 @@ function ExpensesTab({ expenses, properties, units, onRefresh }) {
         <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
           {["all","paid","unpaid","void"].map(f=>(
             <button key={f} type="button" className="f-pill" aria-pressed={filter===f} onClick={()=>setFilter(f)}
-              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
+              style={{ padding:"5px 12px",fontSize:12,fontWeight:500,borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",border:`1px solid ${filter===f?C.goldDim:C.border}`,background:filter===f?"rgba(201,169,110,0.12)":"transparent",color:filter===f?C.gold:C.textSub,transition:"all 0.15s" }}>
               {f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
           ))}
@@ -556,12 +556,12 @@ function ExpensesTab({ expenses, properties, units, onRefresh }) {
 
       <div className="m-grid" style={{ marginBottom:18 }}>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Paid (all time)</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text }}>{fmtCents(paidCents)}</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>Paid (all time)</div>
+          <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.text }}>{fmtCents(paidCents)}</div>
         </div>
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px" }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6 }}>Unpaid — not yet on the income statement</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.amber }}>{fmtCents(unpaidCents)}</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6 }}>Unpaid — not yet on the income statement</div>
+          <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.amber }}>{fmtCents(unpaidCents)}</div>
         </div>
       </div>
 
@@ -606,7 +606,7 @@ function ExpensesTab({ expenses, properties, units, onRefresh }) {
                       ))}
                       {status!=="void"&&(
                         <button onClick={()=>voidExpense(e)}
-                          style={{ marginLeft:6,background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                          style={{ marginLeft:6,background:"transparent",border:`1px solid rgba(224,85,85,0.25)`,color:C.red,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                           Void
                         </button>
                       )}
@@ -731,16 +731,16 @@ export default function LandlordFinancials() {
         }
       `}</style>
 
-      <div className="m-page" style={{ color:C.text,fontFamily:"'DM Sans',sans-serif" }}>
+      <div className="m-page" style={{ color:C.text,fontFamily:"var(--m-font)" }}>
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12 }}>
           <div>
-            <h1 style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Financials</h1>
+            <h1 style={{ fontFamily:"var(--m-font)",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Financials</h1>
             <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>
               {loading?"Loading…":`${tenants.length} active tenant${tenants.length===1?"":"s"} · ${selectedName}`}
             </div>
           </div>
           <select value={tenantFilter} onChange={e=>setTenantFilter(e.target.value)} aria-label="Filter by tenant"
-            style={{ minHeight:44,padding:"0 14px",border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,background:C.surface,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",maxWidth:"100%",colorScheme:"dark" }}>
+            style={{ minHeight:44,padding:"0 14px",border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,background:C.surface,color:C.text,outline:"none",fontFamily:"var(--m-font)",cursor:"pointer",maxWidth:"100%",colorScheme:"dark" }}>
             <option value="all">All tenants{isAll ? "" : " at this property"}</option>
             {tenants.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -771,18 +771,18 @@ export default function LandlordFinancials() {
         {!loading&&(
           <div className="m-grid" style={{ marginBottom:20 }}>
             <div className="f-tile">
-              <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em" }}>Collected · {now.toLocaleDateString("en-US",{ month:"long" })}</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:C.text,marginTop:4 }}>{fmt(collectedThisMonth)}</div>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,}}>Collected · {now.toLocaleDateString("en-US",{ month:"long" })}</div>
+              <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.text,marginTop:4 }}>{fmt(collectedThisMonth)}</div>
               <div style={{ fontSize:12,color:C.textSub }}>Recorded payments, net of refunds</div>
             </div>
             <div className="f-tile">
-              <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em" }}>Scheduled monthly charges</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:C.text,marginTop:4 }}>{fmt(monthlyRecurring)}</div>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,}}>Scheduled monthly charges</div>
+              <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:C.text,marginTop:4 }}>{fmt(monthlyRecurring)}</div>
               <div style={{ fontSize:12,color:C.textSub }}>Recurring charges on file, not a balance</div>
             </div>
             <div className="f-tile">
-              <div style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em" }}>Balances due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:ledger&&owing.length?C.red:C.text,marginTop:4 }}>{ledger ? owing.length : "Not tracked"}</div>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,}}>Balances due</div>
+              <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:ledger&&owing.length?C.red:C.text,marginTop:4 }}>{ledger ? owing.length : "Not tracked"}</div>
               <div style={{ fontSize:12,color:C.textSub }}>{ledger ? "Tenants with a receivables-ledger balance" : "Receivables aren't active: unknown, not $0"}</div>
             </div>
           </div>
@@ -793,7 +793,7 @@ export default function LandlordFinancials() {
             const active = activeTab===tab;
             return (
               <button key={tab} type="button" role="tab" aria-selected={active} onClick={()=>setActiveTab(tab)}
-                style={{ minHeight:44,padding:"0 18px",fontSize:14,fontWeight:active?600:500,color:active?C.gold:C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${C.gold}`:"2px solid transparent",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",marginBottom:-1,flexShrink:0 }}>
+                style={{ minHeight:44,padding:"0 18px",fontSize:14,fontWeight:active?600:500,color:active?C.gold:C.textSub,background:"transparent",border:"none",borderBottom:active?`2px solid ${C.gold}`:"2px solid transparent",cursor:"pointer",fontFamily:"var(--m-font)",whiteSpace:"nowrap",marginBottom:-1,flexShrink:0 }}>
                 {TAB_LABELS[tab]}
               </button>
             );
