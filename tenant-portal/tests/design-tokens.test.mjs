@@ -38,7 +38,7 @@ test("light: tenant portal text and interactive gold are AA; white on filled gol
 
 test("the base brand tokens are the specified values", () => {
   assert.deepEqual([DARK.bg, DARK.surface, DARK.gold, DARK.action, DARK.text, DARK.textSub, DARK.border],
-    ["#0B0D10", "#15191F", "#B89450", "#C9A968", "#F5F2EB", "#B7BBC4", "#303640"]);
+    ["#0B0D10", "#15191F", "#B89450", "#C9A968", "#F5F2EB", "#B7BBC4", "#262B33"]);
 });
 
 // Source audit: colours measured below AA must not be reintroduced.

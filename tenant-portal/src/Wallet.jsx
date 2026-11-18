@@ -12,7 +12,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -103,7 +103,7 @@ function LinkBankForm({ tenant, user, onLinked }) {
       ) : (
         <button
           onClick={linkBank}
-          style={{ width:"100%",padding:"12px",background:"rgba(139,105,20,0.10)",border:`1px solid ${C.gold}`,borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}
+          style={{ width:"100%",padding:"12px",background:"rgba(139,105,20,0.10)",border:`1px solid ${C.gold}`,borderRadius:8,fontSize:13,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"var(--m-font)",letterSpacing:"0.02em" }}
         >
           + Link new bank account
         </button>
@@ -204,7 +204,7 @@ function WalletContent({ tenant, user }) {
       {/* Active account */}
       {activeMethods.length > 0 && (
         <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Default account</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Default account</div>
           {activeMethods.map(method => (
             <div key={method.id} style={{ background:C.surface,border:`1px solid ${C.green}44`,borderRadius:10,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
               <div style={{ width:40,height:40,borderRadius:9,background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>🏦</div>
@@ -241,7 +241,7 @@ function WalletContent({ tenant, user }) {
       {/* Other saved accounts */}
       {inactiveMethods.length > 0 && (
         <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10 }}>Other accounts</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:10 }}>Other accounts</div>
           {inactiveMethods.map(method => (
             <div key={method.id} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
               <div style={{ width:40,height:40,borderRadius:9,background:`${C.blue}18`,border:`1px solid ${C.blue}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>🏦</div>
@@ -283,13 +283,13 @@ function WalletContent({ tenant, user }) {
       {/* Link new account (only when online payment is available) */}
       {!onlinePay ? null : showLink ? (
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:12 }}>
-          <div style={{ fontSize:12,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12 }}>Link bank account</div>
+          <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:12 }}>Link bank account</div>
           <Elements stripe={stripePromise}>
             <LinkBankForm tenant={tenant} user={user} onLinked={handleLinked}/>
           </Elements>
           <button
             onClick={() => setShowLink(false)}
-            style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:10 }}
+            style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)",marginTop:10 }}
           >
             Cancel
           </button>
@@ -297,7 +297,7 @@ function WalletContent({ tenant, user }) {
       ) : (
         <button
           onClick={() => setShowLink(true)}
-          style={{ width:"100%",padding:"12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}
+          style={{ width:"100%",padding:"12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}
         >
           + Link new bank account
         </button>
@@ -317,14 +317,14 @@ export default function Wallet() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:#F5F3EE;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"32px 20px 64px" }}>
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4 }}>Wallet</div>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"32px 20px 64px" }}>
+        <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:4 }}>Wallet</div>
         <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>Saved bank accounts &amp; autopay settings</div>
 
         {tenant?.id ? (

@@ -24,7 +24,7 @@ const s = {
   app: {
     width: "100%",
     maxWidth: "100%",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     fontSize: 14,
     color: "#1a1a1a",
     background: "#f4f5f7",
@@ -77,7 +77,7 @@ const s = {
     background: color, flexShrink: 0,
     boxShadow: `0 0 0 3px ${color}30`,
   }),
-  statusLabel: (color) => ({ fontSize: 16, fontWeight: 700, color }),
+  statusLabel: (color) => ({ fontSize: 16, fontWeight:600, color }),
   statusBadge: (color, bg) => ({
     fontSize: 11, fontWeight: 600,
     padding: "4px 10px", borderRadius: 20,
@@ -96,7 +96,7 @@ const s = {
     border: "1px solid #A32D2D",
   },
   penaltyTitle: {
-    fontSize: 13, fontWeight: 700, color: "#fff",
+    fontSize: 13, fontWeight:600, color: "#fff",
     display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
   },
   penaltyBody: { fontSize: 12, color: "#ccc", lineHeight: 1.6, marginBottom: 12 },
@@ -111,18 +111,18 @@ const s = {
     marginBottom: 10,
   },
   penaltyRateLabel: { fontSize: 11, color: "#ccc" },
-  penaltyRateVal: { fontSize: 16, fontWeight: 700, color: "#E24B4A" },
+  penaltyRateVal: { fontSize: 16, fontWeight:600, color: "#E24B4A" },
   penaltyBtn: {
     width: "100%", padding: "11px",
     background: "#E24B4A", border: "none",
     borderRadius: 8, fontSize: 13, fontWeight: 600,
     color: "#fff", cursor: "pointer",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
   },
   // ── Form ──
   sectionTitle: {
     fontSize: 11, fontWeight: 600, color: "#555",
-    letterSpacing: "0.07em", textTransform: "uppercase",
+    
     marginBottom: 12,
   },
   card: {
@@ -132,14 +132,14 @@ const s = {
   fieldWrap: { marginBottom: 14 },
   fieldLabel: {
     fontSize: 11, fontWeight: 600, color: "#555",
-    letterSpacing: "0.06em", textTransform: "uppercase",
+    
     display: "block", marginBottom: 5,
   },
   select: {
     width: "100%", padding: "10px 12px", fontSize: 14,
     border: "1px solid #d1d5db", borderRadius: 8,
     background: "#fff", color: "#1a1a1a", outline: "none",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     appearance: "none",
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: "no-repeat",
@@ -151,7 +151,7 @@ const s = {
     width: "100%", padding: "10px 12px", fontSize: 14,
     border: "1px solid #d1d5db", borderRadius: 8,
     background: "#fff", color: "#1a1a1a", outline: "none",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     boxSizing: "border-box",
   },
   halfGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
@@ -163,7 +163,7 @@ const s = {
     fontSize: 15, fontWeight: 600,
     cursor: loading ? "not-allowed" : "pointer",
     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     transition: "background 0.15s",
     marginTop: 4,
   }),

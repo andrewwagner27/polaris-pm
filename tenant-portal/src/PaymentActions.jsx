@@ -7,8 +7,8 @@ const C = {
   surface:"#15191F", raised:"#1C2129", border:"#303640", text:"#F5F2EB", textSub:"#B7BBC4",
   textMuted:"#9298A3", gold:"#C9A968", goldDim:"#6B4F24", red:"#F07070",
 };
-const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"'DM Sans',sans-serif",colorScheme:"dark" };
-const small = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginRight:6,whiteSpace:"nowrap" });
+const field = { width:"100%",padding:"9px 11px",fontSize:13,border:`1px solid ${C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",fontFamily:"var(--m-font)",colorScheme:"dark" };
+const small = (color, border) => ({ background:"transparent",border:`1px solid ${border}`,color,fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",fontFamily:"var(--m-font)",marginRight:6,whiteSpace:"nowrap" });
 
 // A2.5: void a manual receipt entered in error, or record a refund of one. The row is always kept and
 // the database posts the journal entries. Stripe receipts are refunded in Stripe; the webhook records them.

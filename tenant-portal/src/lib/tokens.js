@@ -7,7 +7,8 @@ export const DARK = {
   bg:        "#0B0D10",   // page
   surface:   "#15191F",   // elevated card
   raised:    "#1C2129",   // inputs, nested panels, hover
-  border:    "#303640",   // subtle borders (non-text)
+  border:    "#262B33",   // soft dividers between groups (non-text); inputs use borderStrong
+  borderStrong: "#3A414C", // form-field and control outlines
   text:      "#F5F2EB",   // primary text          17.4 / 15.8 / 14.5 : 1
   textSub:   "#B7BBC4",   // secondary text        10.1 /  9.2 /  8.4 : 1
   textMuted: "#9298A3",   // hints, captions        6.7 /  6.1 /  5.6 : 1
@@ -27,7 +28,8 @@ export const LIGHT = {
   bg:        "#F5F3EE",
   surface:   "#FFFFFF",
   raised:    "#F8F7F4",
-  border:    "#E4E1DA",
+  border:    "#EAE6DE",   // soft dividers (non-text); inputs use borderStrong
+  borderStrong: "#D6D0C4",
   text:      "#18181B",
   textSub:   "#52525B",   // 7.0:1 on the page colour
   textMuted: "#6B6B73",   // 4.8:1 on the page colour (was #A1A1AA, 2.3:1)
@@ -41,8 +43,29 @@ export const LIGHT = {
 };
 
 export const SPACE  = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
-export const RADIUS = { sm: 6, md: 10, lg: 14, pill: 999 };
-export const FONT   = { serif: "'Cormorant Garamond', serif", sans: "'DM Sans', sans-serif" };
+export const RADIUS = { sm: 6, md: 10, card: 12, lg: 14, pill: 999 };
+export const CARD_PAD = { mobile: 16, desktop: 20 };
+// One app font (Inter) everywhere; the serif is kept for the Modus wordmark and marketing only. Both are CSS variables
+// defined in index.css (loaded once from index.html), so a family change is one edit.
+export const FONT   = { sans: "var(--m-font)", brand: "var(--m-font-brand)", serif: "var(--m-font-brand)" };
+
+// Type scale (index.css defines the responsive values; phones get the smaller size). Weights: body 400, card titles
+// 500-600, page and section titles 600. Figures use tabular numerals.
+export const TYPE = {
+  title:   { fontSize: "var(--m-fs-title)",   fontWeight: 600, lineHeight: 1.25 },  // 26 / 23
+  section: { fontSize: "var(--m-fs-section)", fontWeight: 600, lineHeight: 1.3 },   // 19 / 17
+  card:    { fontSize: 15, fontWeight: 600, lineHeight: 1.35 },
+  body:    { fontSize: 14, fontWeight: 400, lineHeight: 1.55 },
+  support: { fontSize: 13, fontWeight: 400, lineHeight: 1.5 },
+  meta:    { fontSize: 12, fontWeight: 400, lineHeight: 1.4 },
+  stat:    { fontSize: "var(--m-fs-stat)",    fontWeight: 600, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }, // 24 / 21
+};
+
+// Surfaces: separate groups with elevation and space before borders. Shadows stay minimal on dark.
+export const ELEVATION = {
+  dark:  { card: "none", overlay: "0 12px 32px rgba(0,0,0,0.45)" },
+  light: { card: "0 1px 2px rgba(24,24,27,0.04), 0 1px 3px rgba(24,24,27,0.04)", overlay: "0 12px 32px rgba(24,24,27,0.12)" },
+};
 export const TOUCH  = 44;            // minimum touch target (px); 48 where space allows
 export const BREAK  = { mobile: 720, tablet: 1024 };
 

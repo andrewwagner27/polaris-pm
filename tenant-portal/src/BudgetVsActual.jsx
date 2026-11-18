@@ -14,7 +14,7 @@ import {
 // Budgets are entered here (property_budgets / property_budget_lines, saved atomically by a32_save_budget).
 // Actuals come only from the ledger (a32_monthly_actuals). Every definition lives in lib/budget.js.
 
-const serif = "'Cormorant Garamond', serif";
+const serif = "var(--m-font)";
 const ACTUAL = "#B5893F", BUDGET = "#5A8FD6";   // validated pair (dataviz validator, dark surface #15191F)
 const GOOD = "#7FA35A", BAD = "#D27C7C";
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 };
@@ -68,7 +68,7 @@ function SummaryCard({ label, t, explain, reason, fullLabel }) {
       {ok && (
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <Variance v={t} size={15} />
-          <span style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em" }}>{verdict(t)}</span>
+          <span style={{ fontSize:12, color: C.textMuted, }}>{verdict(t)}</span>
         </div>
       )}
       <div style={{ fontSize: 11, color: C.textMuted, marginTop: "auto", paddingTop: 6, lineHeight: 1.5 }}>{explain}</div>
@@ -167,7 +167,7 @@ function Categories({ categories, toDate }) {
         const rows = categories.filter((c) => c.type === type && (c.budgetCents != null || c.actualCents));
         return (
           <div key={type} style={{ marginTop: 12 }}>
-            <div className="ba-cat" style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", borderBottomColor: C.border }}>
+            <div className="ba-cat" style={{ fontSize:12, color: C.textMuted, borderBottomColor: C.border }}>
               <div>{title}</div><div className="ba-num" style={{ fontSize: 11 }}>{toDate ? "Budget to date" : "Budget"}</div><div className="ba-num" style={{ fontSize: 11 }}>Actual</div><div className="ba-num" style={{ fontSize: 11 }}>Variance</div>
             </div>
             {rows.length === 0 && <div style={{ fontSize: 12, color: C.textMuted, padding: "10px 0" }}>Nothing budgeted or recorded.</div>}
@@ -299,9 +299,9 @@ function BudgetEditor({ property, books, year, budget, lines, units, onCancel, o
             <th style={{ fontSize: 11, color: C.textMuted, fontWeight: 500, textAlign: "right", paddingLeft: 10 }}>Year</th><th />
           </tr></thead>
           <tbody>
-            <tr><td style={{ fontSize: 11, color: C.gold, textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 12, position: "sticky", left: 0, background: C.surface, zIndex: 1 }}>Income</td><td colSpan={14} /></tr>
+            <tr><td style={{ fontSize:12, color: C.gold, paddingTop: 12, position: "sticky", left: 0, background: C.surface, zIndex: 1 }}>Income</td><td colSpan={14} /></tr>
             {BUDGET_ACCOUNTS.filter((a) => a.type === "income").map(row)}
-            <tr><td style={{ fontSize: 11, color: C.gold, textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 16, position: "sticky", left: 0, background: C.surface, zIndex: 1 }}>Operating expenses</td><td colSpan={14} /></tr>
+            <tr><td style={{ fontSize:12, color: C.gold, paddingTop: 16, position: "sticky", left: 0, background: C.surface, zIndex: 1 }}>Operating expenses</td><td colSpan={14} /></tr>
             {BUDGET_ACCOUNTS.filter((a) => a.type === "expense").map(row)}
           </tbody>
         </table>

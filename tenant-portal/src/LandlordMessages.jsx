@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
 import { PrimaryBtn } from "./ui/Button";
+import { useMessageScroll } from "./lib/messageScroll";
 import { usePropertyScope, ALL } from "./lib/propertyScope";
 
 // ─── Modus tokens ──────────────────────────────────────────────────────────
@@ -10,7 +11,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -43,17 +44,17 @@ function useWindowWidth() {
 }
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{children}</label>;
+  return <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 5 }}>{children}</label>;
 }
 
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick} style={{
+    <button className="m-touch-min" onClick={onClick} style={{
       background: "transparent", border: `1px solid ${C.border}`,
       color: C.textSub, fontSize: small ? 11 : 13, fontWeight: 500,
       padding: small ? "5px 10px" : "8px 14px", borderRadius: 7,
-      cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+      cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.15s",
     }}
       onMouseOver={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = "#353A44"; }}
       onMouseOut={e => { e.currentTarget.style.color = C.textSub; e.currentTarget.style.borderColor = C.border; }}
@@ -95,7 +96,7 @@ function BroadcastModal({ tenants, properties, landlordId, onClose, onSent }) {
           {error && <div style={{ background: "rgba(224,85,85,0.1)", color: C.red, fontSize: 12, padding: "10px 12px", borderRadius: 7, marginBottom: 16, border: `1px solid rgba(224,85,85,0.2)` }}>{error}</div>}
           <div style={{ marginBottom: 14 }}>
             <FieldLabel>Send to</FieldLabel>
-            <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.textSub, outline: "none", fontFamily: "'DM Sans', sans-serif" }}>
+            <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.textSub, outline: "none", fontFamily: "var(--m-font)" }}>
               <option value="all">All tenants ({tenants.length})</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.name} ({tenants.filter(t => t.property_id === p.id).length} tenants)</option>)}
             </select>
@@ -103,7 +104,7 @@ function BroadcastModal({ tenants, properties, landlordId, onClose, onSent }) {
           <div style={{ marginBottom: 14 }}>
             <FieldLabel>Message</FieldLabel>
             <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Type your message to all selected tenants…"
-              style={{ width: "100%", minHeight: 100, padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", resize: "vertical" }} />
+              style={{ width: "100%", minHeight: 100, padding: "10px 12px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", resize: "vertical" }} />
           </div>
           <div style={{ fontSize: 12, color: C.textSub }}>
             Will be sent to {recipients.filter(t => t.user_id).length} tenant{recipients.filter(t => t.user_id).length !== 1 ? "s" : ""} who have accepted their invite.
@@ -123,7 +124,6 @@ function BroadcastModal({ tenants, properties, landlordId, onClose, onSent }) {
 export default function LandlordMessages() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const bottomRef = useRef(null);
   const width     = useWindowWidth();
   const isMobile  = width < 768;
 
@@ -157,7 +157,6 @@ export default function LandlordMessages() {
     if (location.state?.tenantId && tenants.length > 0) { setActiveId(location.state.tenantId); setMobileThreadOpen(true); }
   }, [location.state, tenants]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, activeId]);
 
   async function fetchAll() {
     setLoading(true);
@@ -235,6 +234,7 @@ export default function LandlordMessages() {
     const optimistic = { id: `temp-${Date.now()}`, sender_id: lId, recipient_id: at.user_id, tenant_id: activeId, body: text.trim(), created_at: new Date().toISOString(), read: false };
     setMessages(prev => [...prev, optimistic]);
     setInput("");
+    markOwnSend();
     const { data, error } = await supabase.from("messages").insert({ sender_id: lId, recipient_id: at.user_id, tenant_id: activeId, body: text.trim() }).select().single();
     setSending(false);
     if (error) {
@@ -247,6 +247,8 @@ export default function LandlordMessages() {
   const activeTenant = tenants.find(t => t.id === activeId);
   const totalUnread  = Object.values(unreadCounts).reduce((s, n) => s + n, 0);
   const activeMessages = messages.filter(m => m.tenant_id === activeId);
+  // Only this conversation's history scrolls; polls and other threads' messages never move it.
+  const { containerRef: historyRef, onScroll: onHistoryScroll, hasNew: hasNewMessage, markOwnSend, jumpToLatest } = useMessageScroll(activeId, activeMessages.length);
 
   // Last message in active thread — used for status indicators
   const lastActiveMsg = activeMessages[activeMessages.length - 1];
@@ -276,17 +278,15 @@ export default function LandlordMessages() {
   return (
     <LandlordLayout unreadMessages={totalUnread} openMaintenance={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${C.bg}; }
+        
         .m-thread:hover { background: ${C.raised} !important; }
         .m-quick:hover { border-color: ${C.goldDim} !important; color: ${C.gold} !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
-        ::-webkit-scrollbar:horizontal { height: 0; }
+        .m-quick { min-height: 32px; white-space: nowrap; flex-shrink: 0; }
+        @media (max-width: 1024px) { .m-quick { min-height: 44px; font-size: 13px !important; padding: 0 14px !important; } .m-touch { width: 44px !important; height: 44px !important; } }
       `}</style>
 
       {/* Two-pane layout inside LandlordLayout's content area */}
-      <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="m-chat m-chat-split">
 
         {/* ── Thread list ── */}
         <div style={{ width: isMobile ? "100%" : 280, flexShrink: 0, background: C.surface, borderRight: isMobile ? "none" : `1px solid ${C.border}`, display: showList ? "flex" : "none", flexDirection: "column", overflow: "hidden" }}>
@@ -302,7 +302,7 @@ export default function LandlordMessages() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 11px" }}>
               <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tenants…"
-                style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontFamily: "'DM Sans', sans-serif", background: "transparent", color: C.text }} />
+                style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontFamily: "var(--m-font)", background: "transparent", color: C.text }} />
             </div>
           </div>
 
@@ -310,12 +310,12 @@ export default function LandlordMessages() {
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", gap: 6 }}>
               {["all", "unread"].map(f => (
-                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} style={{
-                  minHeight: 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                <button key={f} type="button" className="m-touch-min" aria-pressed={filter === f} onClick={() => setFilter(f)} style={{
+                  minHeight: isMobile ? 44 : 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
                   background: filter === f ? "rgba(201,169,110,0.12)" : "transparent",
                   color: filter === f ? C.text : C.textSub,
                   border: `1px solid ${filter === f ? C.goldDim : C.border}`,
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s",
+                  cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.12s",
                 }}>
                   {f === "all" ? "All" : `Unread (${Object.values(unreadCounts).filter(n => n > 0).length})`}
                 </button>
@@ -339,8 +339,8 @@ export default function LandlordMessages() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                       <div style={{ position: "relative" }}>
-                        <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${t.accentColor}22`, border: `1px solid ${t.accentColor}44`, color: t.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{t.initials}</div>
-                        {unread > 0 && <div style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: C.red, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${C.surface}` }}>{unread}</div>}
+                        <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${t.accentColor}22`, border: `1px solid ${t.accentColor}44`, color: t.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight:600, flexShrink: 0 }}>{t.initials}</div>
+                        {unread > 0 && <div style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: C.red, color: "#fff", fontSize: 9, fontWeight:600, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${C.surface}` }}>{unread}</div>}
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: unread > 0 ? 700 : 500, color: C.text }}>{t.name}</div>
@@ -356,7 +356,7 @@ export default function LandlordMessages() {
                       {last ? (last.sender_id === null ? `🤖 ${last.body}` : last.body) : t.user_id ? "No messages yet" : "⏳ Invite pending"}
                     </div>
                     {last && last.recipient_id === landlordId && !last.read && last.sender_id !== null && last.sender_id !== landlordId && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: C.amber, background: "rgba(240,164,48,0.15)", border: `1px solid rgba(240,164,48,0.3)`, borderRadius: 3, padding: "1px 4px", flexShrink: 0, whiteSpace: "nowrap" }}>REPLY</span>
+                      <span style={{ fontSize: 9, fontWeight:600, color: C.amber, background: "rgba(240,164,48,0.15)", border: `1px solid rgba(240,164,48,0.3)`, borderRadius: 3, padding: "1px 4px", flexShrink: 0, whiteSpace: "nowrap" }}>REPLY</span>
                     )}
                   </div>
                   {active && <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 2, background: C.gold, borderRadius: 1 }} />}
@@ -368,16 +368,16 @@ export default function LandlordMessages() {
 
         {/* ── Chat area ── */}
         {!showChat ? null : activeTenant ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden", minWidth: 0 }}>
+          <div className="m-chat" style={{ flex: 1, background: C.bg }}>
 
             {/* Chat header */}
             <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? "10px 12px" : "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
                 {isMobile && (
-                  <button onClick={() => setMobileThreadOpen(false)} aria-label="Back to conversations"
+                  <button type="button" className="m-touch" onClick={() => setMobileThreadOpen(false)} aria-label="Back to conversations"
                     style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.textSub, width: 36, height: 36, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>←</button>
                 )}
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{activeTenant.initials}</div>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight:600 }}>{activeTenant.initials}</div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{activeTenant.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.textSub }}>· Unit {activeTenant.unit_number}</span></div>
                   <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
@@ -391,7 +391,8 @@ export default function LandlordMessages() {
             </div>
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="m-chat-body">
+            <div ref={historyRef} onScroll={onHistoryScroll} className="m-chat-history" role="log" aria-label={`Conversation with ${activeTenant.name}`} tabIndex={0} style={{ padding: isMobile ? "16px 12px" : "20px", gap: 4 }}>
               {!activeTenant.user_id && (
                 <div style={{ textAlign: "center", padding: "16px 20px", background: "rgba(240,164,48,0.08)", border: `1px solid rgba(240,164,48,0.2)`, borderRadius: 10, margin: "8px 0", fontSize: 13, color: C.amber }}>
                   ⏳ This tenant hasn't accepted their invite yet.
@@ -421,8 +422,8 @@ export default function LandlordMessages() {
                         isAI && item.agent_photo
                           ? <img src={item.agent_photo} alt={item.agent_name || "AI"} style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `1px solid ${C.border}` }} />
                           : isAI
-                            ? <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${C.blue}22`, border: `1px solid ${C.blue}44`, color: C.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>AI</div>
-                            : <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{activeTenant.initials}</div>
+                            ? <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${C.blue}22`, border: `1px solid ${C.blue}44`, color: C.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight:600, flexShrink: 0 }}>AI</div>
+                            : <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${activeTenant.accentColor}22`, border: `1px solid ${activeTenant.accentColor}44`, color: activeTenant.accentColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight:600, flexShrink: 0 }}>{activeTenant.initials}</div>
                       )}
                       <div style={{ maxWidth: "65%", padding: "10px 14px", borderRadius: fromMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: fromMe ? "rgba(201,169,110,0.18)" : isAI ? `${C.blue}14` : C.surface, border: fromMe ? `1px solid ${C.gold}44` : isAI ? `1px solid ${C.blue}33` : `1px solid ${C.border}`, fontSize: 13, color: C.text, lineHeight: 1.5 }}>
                         {item.body}
@@ -440,13 +441,14 @@ export default function LandlordMessages() {
                   </div>
                 );
               })}
-              <div ref={bottomRef} />
+            </div>
+              {hasNewMessage && <button type="button" className="m-new-pill" onClick={jumpToLatest}>New message ↓</button>}
             </div>
 
             {/* Quick replies */}
             <div style={{ padding: "8px 16px 4px", display: "flex", gap: 8, overflowX: "auto", flexShrink: 0, background: C.surface, borderTop: `1px solid ${C.border}` }}>
               {QUICK_REPLIES.map((q, i) => (
-                <button key={i} className="m-quick" onClick={() => sendMessage(q)} style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 14, fontSize: 11, color: C.textSub, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, transition: "all 0.12s" }}>{q}</button>
+                <button key={i} className="m-quick" onClick={() => sendMessage(q)} style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 14, fontSize: 11, color: C.textSub, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--m-font)", fontWeight: 500, transition: "all 0.12s" }}>{q}</button>
               ))}
             </div>
 
@@ -459,11 +461,12 @@ export default function LandlordMessages() {
                 placeholder={activeTenant.user_id ? `Message ${activeTenant.name}…` : "Tenant hasn't accepted invite yet…"}
                 rows={1}
                 disabled={!activeTenant.user_id}
-                style={{ flex: 1, padding: "10px 14px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 18, background: C.raised, color: C.text, outline: "none", resize: "none", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4, maxHeight: 100, opacity: activeTenant.user_id ? 1 : 0.5 }}
+                style={{ flex: 1, padding: "10px 14px", fontSize: 13, border: `1px solid ${C.border}`, borderRadius: 18, background: C.raised, color: C.text, outline: "none", resize: "none", fontFamily: "var(--m-font)", lineHeight: 1.4, maxHeight: 100, opacity: activeTenant.user_id ? 1 : 0.5 }}
               />
               <button
                 onClick={() => sendMessage(input)}
                 disabled={!input.trim() || !activeTenant.user_id || sending}
+                className="m-touch" aria-label="Send message"
                 style={{ width: 38, height: 38, borderRadius: "50%", background: input.trim() && activeTenant.user_id ? "rgba(201,169,110,0.12)" : C.raised, border: `1px solid ${input.trim() && activeTenant.user_id ? C.gold : C.border}`, cursor: input.trim() && activeTenant.user_id ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: input.trim() && activeTenant.user_id ? C.gold : C.textMuted, flexShrink: 0, transition: "all 0.15s" }}
               >➤</button>
             </div>

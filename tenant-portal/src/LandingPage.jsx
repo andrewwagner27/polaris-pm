@@ -1,156 +1,447 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DARK as C } from "./lib/tokens";
-import { FEATURES_LANDLORD, FEATURES_TENANT } from "./lib/landingFeatures";
 
-const HOW = [
-  { num: "01", title: "Add your properties", text: "Enter properties, units and rent on file, then add your tenants." },
-  { num: "02", title: "Invite your tenants", text: "Each tenant gets an email invitation to set up their portal account." },
-  { num: "03", title: "Run day-to-day operations", text: "Tenants report issues and send messages; you see what needs attention first and coordinate contractors." },
-];
+// Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
+// screenshots of real tenants, no invented customers or metrics). Online rent payment is not offered here: it is
+// not live (tests/landing-claims.test.mjs).
+const INK = "#0E1116", INK2 = "#161A21", INK3 = "#1E232C", LINE = "#262B33";
+const IVORY = "#F5F3EE", WHITE = "#FFFFFF", PAPER_LINE = "#E7E2D8";
+const GOLD = "#C7A86C", GOLD_DEEP = "#7A5C12";
+const TXT = "#F5F2EB", TXT2 = "#B7BBC4", TXT3 = "#9298A3";
+const DARK_TXT = "#18181B", DARK_TXT2 = "#52525B";
 
-const STATUS_STYLE = {
-  "Available":   { color: C.green, border: "rgba(93,187,99,0.4)" },
-  "Coming soon": { color: C.amber, border: "rgba(227,154,53,0.45)" },
-  "Planned":     { color: C.textSub, border: C.border },
-};
-
-function ModusMark({ size = 32 }) {
+function ModusMark({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <path d="M6 33V10L20 27L34 10V33" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6 10L20 27L34 10" stroke={C.goldDim} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 33V10L20 27L34 10V33" stroke={GOLD} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 10L20 27L34 10" stroke="rgba(199,168,108,0.45)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
-function FeatureList({ items, accent }) {
+function Wordmark({ dark = true }) {
   return (
-    <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px", display: "flex", flexDirection: "column", gap: 8 }}>
-      {items.map((f) => {
-        const st = STATUS_STYLE[f.status];
-        return (
-          <li key={f.title} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 12px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: f.status === "Available" ? accent : C.textMuted, flexShrink: 0, marginTop: 7 }} />
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 500, color: C.text }}>{f.title}</span>
-              <span style={{ display: "block", fontSize: 13, color: C.textSub, marginTop: 2, lineHeight: 1.45 }}>{f.sub}</span>
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: st.color, border: `1px solid ${st.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}>{f.status}</span>
-          </li>
-        );
-      })}
-    </ul>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <ModusMark/>
+      <span style={{ fontFamily: "var(--m-font-brand)", fontSize: 18, fontWeight: 600, letterSpacing: "0.12em", color: dark ? TXT : DARK_TXT }}>MODUS</span>
+    </span>
   );
 }
 
+const Icon = ({ d, size = 22, color = GOLD }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d}/></svg>
+);
+const ICONS = {
+  organize: "M4 5h16M4 12h16M4 19h10",
+  respond:  "M13 3L4 14h7l-1 7 9-11h-7l1-7z",
+  control:  "M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7l8-4zM9 12l2 2 4-4",
+  building: "M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h.01M16 11h.01",
+};
+
+// ── Product mockups (decorative; the real screens are behind sign-in) ─────────────────────────────────────
+function Tag({ kind }) {
+  const s = kind === "Urgent" ? { c: "#F2A3A3", b: "rgba(240,112,112,0.14)" }
+    : kind === "Decision" ? { c: GOLD, b: "rgba(199,168,108,0.14)" } : { c: "#9DC6F2", b: "rgba(106,174,240,0.14)" };
+  return <span className="lp-tag" style={{ color: s.c, background: s.b }}>{kind}</span>;
+}
+
+function DashboardMock() {
+  const rows = [
+    { kind: "Urgent",    title: "Water leak reported, bathroom ceiling", meta: "Clifton Manor · Unit 3", cta: "Arrange contractor", primary: true },
+    { kind: "Decision",  title: "Quote to approve: sticking bedroom door", meta: "$140 · Handyman · Unit 2", cta: "Review quote" },
+    { kind: "Decision",  title: "Work completed: garbage disposal", meta: "Review the work and invoice", cta: "Review & close" },
+    { kind: "Follow up", title: "Invitation not accepted", meta: "Sent 5 days ago · Unit 101", cta: "Open tenant" },
+  ];
+  return (
+    <div className="lp-window" aria-hidden="true">
+      <div className="lp-window-bar"><i/><i/><i/><span>Home</span><span className="lp-scope">All properties ▾</span></div>
+      <div className="lp-window-body">
+        <aside className="lp-side">
+          <Wordmark/>
+          {["Home", "Maintenance", "Messages", "Properties", "Tenants", "Financials"].map((n, i) => (
+            <div key={n} className={i === 0 ? "lp-side-item on" : "lp-side-item"}>{n}</div>
+          ))}
+        </aside>
+        <div className="lp-main">
+          <div className="lp-h1">Good morning</div>
+          <div className="lp-sub">4 items waiting on you</div>
+          <div className="lp-queue">
+            {rows.map((r) => (
+              <div key={r.title} className={`lp-row${r.kind === "Urgent" ? " urgent" : ""}`}>
+                <Tag kind={r.kind}/>
+                <div className="lp-row-text"><b>{r.title}</b><span>{r.meta}</span></div>
+                <span className={r.primary ? "lp-act primary" : "lp-act"}>{r.cta}</span>
+              </div>
+            ))}
+          </div>
+          <div className="lp-stats">
+            {[["Occupancy", "11 of 12"], ["Open requests", "5"], ["Leases ending", "2 in 60 days"]].map(([k, v]) => (
+              <div key={k} className="lp-stat"><span>{k}</span><b>{v}</b></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DecisionMock() {
+  return (
+    <div className="lp-window lp-window-tight" aria-hidden="true">
+      <div className="lp-window-bar"><i/><i/><i/><span>Maintenance</span><span className="lp-scope">Clifton Manor ▾</span></div>
+      <div className="lp-main" style={{ padding: 22 }}>
+        <div className="lp-chips"><span className="on">Needs you · 3</span><span>In progress · 1</span><span>Resolved</span></div>
+        <div className="lp-ticket">
+          <div className="lp-ticket-head"><Tag kind="Decision"/><span className="lp-muted">Unit 2 · Plumbing</span></div>
+          <div className="lp-ticket-title">Kitchen faucet drips constantly</div>
+          <div className="lp-quote">
+            <div><span className="lp-muted">Quote from</span><b>Handyman Contractor Services</b></div>
+            <div className="lp-amount">$185</div>
+          </div>
+          <div className="lp-steps">
+            {["Reported", "Contractor assigned", "Quote received", "Approved", "Completed"].map((s, i) => (
+              <span key={s} className={i < 3 ? "done" : i === 3 ? "next" : ""}>{s}</span>
+            ))}
+          </div>
+          <div className="lp-ticket-actions"><span className="lp-act primary">Approve quote</span><span className="lp-act">Ask a question</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhoneMock() {
+  return (
+    <div className="lp-phone" aria-hidden="true">
+      <div className="lp-phone-notch"/>
+      <div className="lp-phone-screen">
+        <div className="lp-home-card">
+          <span className="lp-home-badge">Your home</span>
+          <Icon d={ICONS.building} size={30} color={GOLD_DEEP}/>
+          <div className="lp-home-unit">Unit 2</div>
+          <div className="lp-home-prop">Clifton Manor</div>
+        </div>
+        <div className="lp-p-card">
+          <div className="lp-p-label">Maintenance</div>
+          <div className="lp-p-title">Kitchen faucet</div>
+          <div className="lp-p-status"><i/>Contractor scheduled for Thursday</div>
+        </div>
+        <div className="lp-p-card">
+          <div className="lp-p-label">Messages</div>
+          <div className="lp-bubble">Guest parking is in the visitor spaces near the north entrance.</div>
+        </div>
+        <div className="lp-p-card lp-p-row">
+          <div><div className="lp-p-label">Lease</div><div className="lp-p-title">Through Aug 2027</div></div>
+          <span className="lp-p-link">Documents</span>
+        </div>
+        <div className="lp-p-nav">{["Home", "Maint.", "Messages", "Account"].map((n, i) => <span key={n} className={i === 0 ? "on" : ""}>{n}</span>)}</div>
+      </div>
+    </div>
+  );
+}
+
+const BENEFITS = [
+  { icon: "organize", title: "Stay organized", text: "Your properties, tenants, and requests in one place." },
+  { icon: "respond",  title: "Respond faster", text: "See urgent issues and decisions before they become problems." },
+  { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
+];
+
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtn = useRef(null);
+  const menuRef = useRef(null);
+
+  // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    menuRef.current?.querySelector("a,button")?.focus();
+    const onKey = (e) => { if (e.key === "Escape") { setMenuOpen(false); menuBtn.current?.focus(); } };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  const go = (path) => (e) => { e.preventDefault(); setMenuOpen(false); navigate(path); };
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.text, background: C.bg, minHeight: "100vh" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
-        @keyframes fadeUp { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .lp-hero { animation: none !important; } }
-        .lp-nav { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 clamp(16px, 4vw, 48px); min-height:64px; border-bottom:1px solid ${C.border}; position:sticky; top:0; background:rgba(11,13,16,0.94); backdrop-filter:blur(12px); z-index:100; }
-        .lp-section { padding: clamp(40px, 7vw, 80px) clamp(16px, 4vw, 48px); }
-        .lp-two { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); max-width:1100px; margin:0 auto; }
-        .lp-steps { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); max-width:960px; margin:0 auto; }
-        .lp-h2 { font-family:'Cormorant Garamond', serif; font-size: clamp(28px, 5vw, 42px); font-weight:600; color:${C.text}; margin:0 0 10px; line-height:1.15; }
-        .lp-cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-        .lp-cta .m-btn { min-height:48px; padding:0 24px; font-size:15px; }
-        .lp-navbtns .m-btn { min-height:44px; }
-        @media (max-width: 520px) {
-          .lp-cta .m-btn { width:100%; }
-          .lp-tag { display:none; }
-          .lp-navbtns .m-btn { padding:0 12px; font-size:13px; }
-        }
-      `}</style>
+    <div className="lp">
+      <style>{CSS}</style>
 
-      <nav className="lp-nav" aria-label="Site">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <ModusMark size={28} />
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
-            <div className="lp-tag" style={{ fontSize: 9, color: C.textMuted, letterSpacing: "0.16em" }}>PROPERTY MANAGEMENT</div>
+      {/* ── Header ── */}
+      <header className="lp-header">
+        <div className="lp-wrap lp-header-row">
+          <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
+          <nav className="lp-nav-desktop" aria-label="Sign in">
+            <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
+          </nav>
+          <button ref={menuBtn} type="button" className="lp-burger" aria-label="Menu" aria-expanded={menuOpen} aria-controls="lp-menu"
+            onClick={() => setMenuOpen((v) => !v)}>
+            <span/><span/><span/>
+          </button>
+        </div>
+        {menuOpen && (
+          <div id="lp-menu" ref={menuRef} className="lp-menu">
+            <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
+            <a href="/login" onClick={go("/login")}>Tenant login</a>
           </div>
-        </div>
-        <div className="lp-navbtns" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/login")} style={{ color: C.textSub, borderColor: C.border }}>Tenant login</button>
-          <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/landlord/login")} style={{ color: C.action, borderColor: C.border }}>Landlord login</button>
-        </div>
-      </nav>
-
-      <header className="lp-section" style={{ textAlign: "center", position: "relative", overflow: "hidden", borderBottom: `1px solid ${C.border}` }}>
-        <div aria-hidden="true" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(600px, 100%)", height: 400, background: "radial-gradient(ellipse, rgba(201,169,104,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div className="lp-hero" style={{ position: "relative", animation: "fadeUp 0.5s ease" }}>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 8vw, 64px)", fontWeight: 600, color: C.text, lineHeight: 1.08, maxWidth: 760, margin: "0 auto 18px", letterSpacing: "-0.01em" }}>
-            Calm, organized<br /><span style={{ color: C.action }}>property management.</span>
-          </h1>
-          <p style={{ fontSize: "clamp(15px, 2.4vw, 18px)", color: C.textSub, lineHeight: 1.6, maxWidth: 560, margin: "0 auto 28px" }}>
-            One place for maintenance, tenant messages and leases, with what needs your attention first.
-            Online rent collection is coming soon.
-          </p>
-          <div className="lp-cta">
-            <button type="button" className="m-btn m-btn-primary" onClick={() => navigate("/landlord/login")} style={{ background: C.action, color: C.onGold }}>Landlord dashboard →</button>
-            <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/login")} style={{ color: C.text, borderColor: C.border }}>Tenant portal →</button>
-          </div>
-        </div>
+        )}
       </header>
 
-      <section className="lp-section" aria-labelledby="lp-portals">
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <h2 id="lp-portals" className="lp-h2">Two portals, one platform</h2>
-          <div style={{ fontSize: 15, color: C.textSub }}>Each feature shows whether it is available today.</div>
-        </div>
-        <div className="lp-two">
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: `2px solid ${C.gold}`, borderRadius: 14, padding: "clamp(20px, 4vw, 32px)" }}>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.action, margin: "0 0 6px" }}>Landlord portal</h3>
-            <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, margin: "0 0 18px" }}>Run your rentals from one dashboard, on your phone or your desk.</p>
-            <FeatureList items={FEATURES_LANDLORD} accent={C.gold} />
-            <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/landlord/login")} style={{ width: "100%", minHeight: 48, color: C.action, borderColor: C.border }}>Go to landlord dashboard →</button>
+      <main>
+        {/* ── 1. Hero (dark) ── */}
+        <section className="lp-hero">
+          <div className="lp-wrap">
+            <div className="lp-hero-copy">
+              <h1>Property management, without the busywork.</h1>
+              <p>Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <div className="lp-cta">
+                <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore the dashboard</a>
+                <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
+              </div>
+            </div>
+            <figure className="lp-hero-visual">
+              <DashboardMock/>
+              <figcaption>The Modus landlord dashboard, shown with sample data.</figcaption>
+            </figure>
           </div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: `2px solid ${C.blue}`, borderRadius: 14, padding: "clamp(20px, 4vw, 32px)" }}>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 600, color: C.blue, margin: "0 0 6px" }}>Tenant portal</h3>
-            <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, margin: "0 0 18px" }}>Report issues, ask questions and keep your lease handy, from your phone.</p>
-            <FeatureList items={FEATURES_TENANT} accent={C.blue} />
-            <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/login")} style={{ width: "100%", minHeight: 48, color: C.blue, borderColor: C.border }}>Go to tenant portal →</button>
+        </section>
+
+        {/* ── 2. Landlord experience (ivory) ── */}
+        <section className="lp-light lp-ivory">
+          <div className="lp-wrap lp-split">
+            <div className="lp-split-copy">
+              <span className="lp-eyebrow">For landlords</span>
+              <h2>Know what needs your attention. Instantly.</h2>
+              <p>Urgent repairs, quotes to approve and finished work come to the top, organized by property.</p>
+              <ul className="lp-points">
+                <li>Approve contractors and quotes in one step</li>
+                <li>Review completed work before closing a ticket</li>
+                <li>Switch between properties without losing your place</li>
+              </ul>
+            </div>
+            <figure className="lp-split-visual">
+              <DecisionMock/>
+              <figcaption>Sample maintenance decision.</figcaption>
+            </figure>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="lp-section" aria-labelledby="lp-how" style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <h2 id="lp-how" className="lp-h2">How it works</h2>
-        </div>
-        <ol className="lp-steps" style={{ listStyle: "none", padding: 0 }}>
-          {HOW.map((step) => (
-            <li key={step.num} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px 20px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: C.action, marginBottom: 10, lineHeight: 1 }}>{step.num}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 6 }}>{step.title}</div>
-              <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6 }}>{step.text}</div>
-            </li>
-          ))}
-        </ol>
-      </section>
+        {/* ── 3. Tenant experience (light) ── */}
+        <section className="lp-light lp-white">
+          <div className="lp-wrap lp-split lp-split-rev">
+            <figure className="lp-split-visual lp-phone-wrap">
+              <PhoneMock/>
+              <figcaption>Sample tenant home screen.</figcaption>
+            </figure>
+            <div className="lp-split-copy">
+              <span className="lp-eyebrow">For residents</span>
+              <h2>A better experience for the people who call your properties home.</h2>
+              <p>Residents report issues with photos, follow progress, message management, and keep their lease details close.</p>
+            </div>
+          </div>
+        </section>
 
-      <section className="lp-section" style={{ textAlign: "center" }}>
-        <h2 className="lp-h2">Already set up with Modus?</h2>
-        <div style={{ fontSize: 15, color: C.textSub, marginBottom: 24 }}>Sign in to your portal.</div>
-        <div className="lp-cta">
-          <button type="button" className="m-btn m-btn-primary" onClick={() => navigate("/landlord/login")} style={{ background: C.action, color: C.onGold }}>Landlord dashboard →</button>
-          <button type="button" className="m-btn m-btn-ghost" onClick={() => navigate("/login")} style={{ color: C.text, borderColor: C.border }}>Tenant portal →</button>
-        </div>
-      </section>
+        {/* ── 4. Benefits (ivory) ── */}
+        <section className="lp-light lp-ivory">
+          <div className="lp-wrap">
+            <div className="lp-benefits">
+              {BENEFITS.map((b) => (
+                <div key={b.title} className="lp-benefit">
+                  <span className="lp-benefit-icon"><Icon d={ICONS[b.icon]} color={GOLD_DEEP}/></span>
+                  <h3>{b.title}</h3>
+                  <p>{b.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: "20px clamp(16px, 4vw, 48px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ModusMark size={22} />
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: "0.08em" }}>MODUS</div>
-        </div>
-        <div style={{ fontSize: 12, color: C.textMuted }}>Built by Polaris Property Solutions LLC · Columbus, OH</div>
-        <div style={{ fontSize: 12, color: C.textMuted }}>© {new Date().getFullYear()} All rights reserved</div>
+        {/* ── 5. Final CTA (charcoal) ── */}
+        <section className="lp-final">
+          <div className="lp-wrap">
+            <h2>Less administration. More ownership.</h2>
+            <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore Modus</a>
+            <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
+          </div>
+        </section>
+      </main>
+
+      <footer className="lp-footer">
+        <div className="lp-wrap lp-footer-row"><Wordmark/><span>© {new Date().getFullYear()} Modus Property Management</span></div>
       </footer>
     </div>
   );
 }
+
+const CSS = `
+.lp { font-family: var(--m-font); color: ${TXT}; background: ${INK}; min-height: 100vh; min-height: 100dvh; }
+.lp a { color: inherit; }
+.lp-wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.lp h1, .lp h2, .lp h3 { font-family: var(--m-font); margin: 0; }
+
+/* Header */
+.lp-header { position: sticky; top: 0; z-index: 50; background: rgba(14,17,22,0.88); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.05); }
+.lp-header-row { display: flex; align-items: center; justify-content: space-between; min-height: 72px; }
+.lp-logo { text-decoration: none; display: inline-flex; min-height: 44px; align-items: center; }
+.lp-nav-desktop { display: flex; gap: 8px; align-items: center; }
+.lp-nav-desktop a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 500; color: ${TXT2}; text-decoration: none; }
+.lp-nav-desktop a:hover { color: ${TXT}; background: rgba(255,255,255,0.04); }
+.lp-nav-desktop a.lp-nav-strong { color: ${GOLD}; border: 1px solid rgba(199,168,108,0.35); }
+.lp-burger { display: none; width: 44px; height: 44px; border: 0; background: transparent; border-radius: 10px; cursor: pointer; padding: 13px 11px; flex-direction: column; justify-content: space-between; }
+.lp-burger span { display: block; height: 2px; border-radius: 2px; background: ${TXT}; }
+.lp-menu { border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 4px; background: ${INK}; }
+.lp-menu a { display: flex; align-items: center; min-height: 48px; padding: 0 12px; border-radius: 10px; font-size: 16px; font-weight: 500; text-decoration: none; color: ${TXT}; }
+.lp-menu a:first-child { color: ${GOLD}; }
+@media (max-width: 720px) { .lp-nav-desktop { display: none; } .lp-burger { display: flex; } }
+@media (min-width: 721px) { .lp-menu { display: none; } }
+
+/* Buttons */
+.lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; transition: filter .15s, background .15s; }
+.lp-btn-gold { background: ${GOLD}; color: ${INK} !important; }
+.lp-btn-gold:hover { filter: brightness(1.07); }
+.lp-btn-quiet { color: ${TXT} !important; border: 1px solid rgba(255,255,255,0.14); }
+.lp-btn-quiet:hover { background: rgba(255,255,255,0.05); }
+
+/* Hero */
+.lp-hero { padding: 88px 0 72px; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
+.lp-hero-copy { max-width: 760px; margin: 0 auto; text-align: center; }
+.lp-hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.07; font-weight: 600; letter-spacing: -0.02em; }
+.lp-hero p { margin: 22px auto 32px; max-width: 600px; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
+.lp-hero .lp-cta { justify-content: center; }
+.lp .lp-hero-visual { margin: 64px auto 0; max-width: 1080px; }
+.lp figure { margin: 0; }
+.lp figcaption { margin-top: 14px; font-size: 13px; color: ${TXT3}; text-align: center; }
+
+/* Product window mockups */
+.lp-window { background: ${INK2}; border: 1px solid ${LINE}; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.45); text-align: left; color: ${TXT}; }
+.lp-window-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid ${LINE}; font-size: 13px; color: ${TXT2}; }
+.lp-window-bar i { width: 10px; height: 10px; border-radius: 50%; background: #2C323C; }
+.lp-window-bar span:first-of-type { margin-left: 10px; font-weight: 600; color: ${TXT}; }
+.lp-scope { margin-left: auto; padding: 6px 12px; border: 1px solid ${LINE}; border-radius: 8px; font-size: 12px; }
+.lp-window-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+.lp-side { padding: 20px 14px; border-right: 1px solid ${LINE}; display: flex; flex-direction: column; gap: 4px; }
+.lp-side > span { margin: 0 6px 16px; }
+.lp-side-item { padding: 9px 12px; border-radius: 8px; font-size: 13px; color: ${TXT2}; }
+.lp-side-item.on { background: rgba(199,168,108,0.10); color: ${GOLD}; }
+.lp-main { padding: 28px; min-width: 0; }
+.lp-h1 { font-size: 24px; font-weight: 600; }
+.lp-sub { font-size: 13px; color: ${TXT3}; margin: 4px 0 18px; }
+.lp-queue { background: ${INK3}; border-radius: 12px; overflow: hidden; }
+.lp-row { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-top: 1px solid ${LINE}; }
+.lp-row:first-child { border-top: 0; }
+.lp-row.urgent { box-shadow: inset 3px 0 0 #F07070; }
+.lp-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lp-row-text b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-row-text span { font-size: 12px; color: ${TXT3}; }
+.lp-tag { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.lp-act { font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 8px; border: 1px solid ${LINE}; color: ${GOLD}; white-space: nowrap; }
+.lp-act.primary { background: ${GOLD}; color: ${INK}; border-color: ${GOLD}; }
+.lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.lp-stat { padding: 14px 16px; border-radius: 12px; background: ${INK3}; display: flex; flex-direction: column; gap: 4px; }
+.lp-stat span { font-size: 12px; color: ${TXT3}; }
+.lp-stat b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Light sections */
+.lp-light { color: ${DARK_TXT}; padding: 104px 0; }
+.lp-ivory { background: ${IVORY}; }
+.lp-white { background: #FBFAF7; }
+.lp-light figcaption { color: #6B6B73; }
+.lp-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 72px; align-items: center; }
+.lp-split-rev { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.lp-eyebrow { display: inline-block; font-size: 13px; font-weight: 600; color: ${GOLD_DEEP}; margin-bottom: 14px; }
+.lp-light h2 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; font-weight: 600; letter-spacing: -0.015em; }
+.lp-split-copy p { margin-top: 18px; font-size: 17px; line-height: 1.65; color: ${DARK_TXT2}; max-width: 460px; }
+.lp-points { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.lp-points li { position: relative; padding-left: 26px; font-size: 15px; color: ${DARK_TXT}; }
+.lp-points li::before { content: ""; position: absolute; left: 0; top: 7px; width: 12px; height: 7px; border-left: 2px solid ${GOLD_DEEP}; border-bottom: 2px solid ${GOLD_DEEP}; transform: rotate(-45deg); }
+.lp-window-tight { box-shadow: 0 24px 60px rgba(24,24,27,0.18); }
+.lp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.lp-chips span { font-size: 12px; padding: 6px 12px; border-radius: 999px; color: ${TXT2}; background: ${INK3}; }
+.lp-chips span.on { color: ${INK}; background: ${GOLD}; font-weight: 600; }
+.lp-ticket { background: ${INK3}; border-radius: 14px; padding: 20px; }
+.lp-ticket-head { display: flex; align-items: center; gap: 10px; }
+.lp-muted { font-size: 12px; color: ${TXT3}; }
+.lp-ticket-title { font-size: 18px; font-weight: 600; margin: 12px 0 16px; }
+.lp-quote { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 10px; background: ${INK2}; }
+.lp-quote div:first-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lp-quote b { font-size: 14px; font-weight: 500; }
+.lp-amount { font-size: 22px; font-weight: 600; color: ${GOLD}; font-variant-numeric: tabular-nums; }
+.lp-steps { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 16px 0; }
+.lp-steps span { font-size: 12px; color: ${TXT3}; display: inline-flex; align-items: center; gap: 6px; }
+.lp-steps span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3A414C; }
+.lp-steps span.done::before { background: #5DBB63; }
+.lp-steps span.next { color: ${TXT}; }
+.lp-steps span.next::before { background: ${GOLD}; }
+.lp-ticket-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Phone mockup */
+.lp-phone-wrap { display: flex; flex-direction: column; align-items: center; }
+.lp-phone { width: 300px; max-width: 100%; padding: 12px; border-radius: 44px; background: #1B1E24; box-shadow: 0 30px 70px rgba(24,24,27,0.22); position: relative; }
+.lp-phone-notch { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; border-radius: 12px; background: #1B1E24; z-index: 2; }
+.lp-phone-screen { background: ${IVORY}; border-radius: 34px; padding: 52px 14px 12px; display: flex; flex-direction: column; gap: 10px; color: ${DARK_TXT}; }
+.lp-home-card { position: relative; padding: 18px; border-radius: 18px; background: linear-gradient(160deg, #FBF7EE, #F1EADB); border: 1px solid #E6DCC6; }
+.lp-home-badge { position: absolute; top: 14px; right: 14px; font-size: 10px; font-weight: 600; color: ${GOLD_DEEP}; background: rgba(122,92,18,0.08); padding: 3px 8px; border-radius: 999px; }
+.lp-home-unit { margin-top: 10px; font-size: 20px; font-weight: 600; }
+.lp-home-prop { font-size: 12px; color: ${DARK_TXT2}; }
+.lp-p-card { background: ${WHITE}; border-radius: 14px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(24,24,27,0.05); }
+.lp-p-label { font-size: 11px; color: #6B6B73; margin-bottom: 3px; }
+.lp-p-title { font-size: 14px; font-weight: 600; }
+.lp-p-status { margin-top: 6px; font-size: 12px; color: ${DARK_TXT2}; display: flex; align-items: center; gap: 6px; }
+.lp-p-status i { width: 7px; height: 7px; border-radius: 50%; background: ${GOLD_DEEP}; }
+.lp-bubble { font-size: 12px; line-height: 1.45; background: ${IVORY}; border-radius: 4px 12px 12px 12px; padding: 8px 10px; color: ${DARK_TXT}; }
+.lp-p-row { display: flex; align-items: center; justify-content: space-between; }
+.lp-p-link { font-size: 12px; font-weight: 600; color: ${GOLD_DEEP}; }
+.lp-p-nav { display: flex; justify-content: space-around; padding: 10px 0 4px; border-top: 1px solid ${PAPER_LINE}; margin-top: 2px; }
+.lp-p-nav span { font-size: 11px; color: #6B6B73; }
+.lp-p-nav span.on { color: ${GOLD_DEEP}; font-weight: 600; }
+
+/* Benefits */
+.lp-benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 24px; }
+.lp-benefit { background: ${WHITE}; border-radius: 18px; padding: 32px 28px; box-shadow: 0 1px 2px rgba(24,24,27,0.04), 0 8px 24px rgba(24,24,27,0.04); }
+.lp-benefit-icon { display: inline-flex; width: 48px; height: 48px; border-radius: 14px; align-items: center; justify-content: center; background: rgba(122,92,18,0.07); margin-bottom: 20px; }
+.lp-benefit h3 { font-size: 19px; font-weight: 600; }
+.lp-benefit p { margin-top: 8px; font-size: 15px; line-height: 1.6; color: ${DARK_TXT2}; }
+
+/* Final CTA + footer */
+.lp-final { padding: 112px 0; text-align: center; background: radial-gradient(900px 400px at 50% 120%, rgba(199,168,108,0.10), transparent 70%), ${INK}; }
+.lp-final h2 { font-size: clamp(30px, 5vw, 48px); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 32px; }
+.lp-final-links { margin-top: 28px; font-size: 14px; color: ${TXT3}; }
+.lp-final-links a { color: ${TXT2}; display: inline-block; padding: 12px 4px; }
+.lp-footer { background: ${INK}; border-top: 1px solid rgba(255,255,255,0.06); }
+.lp-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; min-height: 88px; font-size: 13px; color: ${TXT3}; }
+
+/* Focus */
+.lp a:focus-visible, .lp button:focus-visible { outline: 2px solid ${GOLD}; outline-offset: 3px; }
+.lp-light a:focus-visible { outline-color: ${GOLD_DEEP}; }
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .lp-split, .lp-split-rev { grid-template-columns: minmax(0, 1fr); gap: 48px; }
+  .lp-split-rev .lp-phone-wrap { order: 2; }
+  .lp-light { padding: 80px 0; }
+}
+/* Phones */
+@media (max-width: 720px) {
+  .lp-wrap { padding: 0 20px; }
+  .lp-header-row { min-height: 60px; }
+  .lp-hero { padding: 40px 0 48px; }
+  .lp-hero-copy { text-align: left; }
+  .lp-hero p { margin: 16px 0 24px; }
+  .lp-hero .lp-cta { justify-content: flex-start; }
+  .lp-cta .lp-btn { flex: 1 1 100%; }
+  .lp .lp-hero-visual { margin-top: 36px; }
+  .lp-window-body { grid-template-columns: minmax(0, 1fr); }
+  .lp-side { display: none; }
+  .lp-main { padding: 18px; }
+  .lp-row { flex-wrap: wrap; gap: 8px 12px; padding: 14px; }
+  .lp-row-text { flex-basis: calc(100% - 90px); }
+  .lp-row .lp-act { display: none; }
+  .lp-row.urgent .lp-act { display: inline-flex; }
+  .lp-stats { grid-template-columns: minmax(0, 1fr); }
+  .lp-light { padding: 64px 0; }
+  .lp-final { padding: 80px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .lp * { transition: none !important; } }
+`;

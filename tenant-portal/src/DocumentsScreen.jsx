@@ -8,7 +8,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -58,7 +58,7 @@ export default function DocumentsScreen() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .t-doc:hover{border-color:#353A44!important;}
@@ -66,17 +66,17 @@ export default function DocumentsScreen() {
         ::-webkit-scrollbar:horizontal{height:0;}
       `}</style>
 
-      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans', sans-serif", paddingBottom: 48 }}>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "var(--m-font)", paddingBottom: 48 }}>
 
         {/* Header */}
         <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "20px 20px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: C.text }}>Documents</div>
+            <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text }}>Documents</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px" }}>
             <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…"
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, fontFamily: "'DM Sans', sans-serif" }} />
+              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, fontFamily: "var(--m-font)" }} />
             {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 13 }}>✕</button>}
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function DocumentsScreen() {
         {/* Filter pills */}
         <div style={{ display: "flex", gap: 8, padding: "14px 20px", overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${C.border}` }}>
           {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setFilter(cat.id)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: filter === cat.id ? C.goldDim : "transparent", color: filter === cat.id ? C.text : C.textSub, border: `1px solid ${filter === cat.id ? C.goldDim : C.border}`, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'DM Sans', sans-serif", flexShrink: 0, transition: "all 0.12s" }}>
+            <button key={cat.id} onClick={() => setFilter(cat.id)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: filter === cat.id ? C.goldDim : "transparent", color: filter === cat.id ? C.text : C.textSub, border: `1px solid ${filter === cat.id ? C.goldDim : C.border}`, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--m-font)", flexShrink: 0, transition: "all 0.12s" }}>
               {cat.label}
             </button>
           ))}
@@ -113,7 +113,7 @@ export default function DocumentsScreen() {
                   <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 2 }}>{doc.title}</div>
                   <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>{doc.subtitle}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 3, background: `${C.red}18`, color: C.red, letterSpacing: "0.04em" }}>PDF</span>
+                    <span style={{ fontSize: 9, fontWeight:600, padding: "2px 5px", borderRadius: 3, background: `${C.red}18`, color: C.red, letterSpacing: "0.04em" }}>PDF</span>
                     <span style={{ fontSize: 11, color: C.textMuted }}>{doc.date} · {doc.size}</span>
                   </div>
                 </div>

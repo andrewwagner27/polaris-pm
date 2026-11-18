@@ -88,19 +88,19 @@ const s = {
   wrap: { padding: "0 0 40px" },
   propSelector: { display: "flex", gap: 10, marginBottom: 24 },
   propTab: (active, color) => ({ flex: 1, padding: "12px 16px", background: active ? "#fff" : "#f8f9fa", border: active ? `2px solid ${color}` : "1px solid #e8eaed", borderRadius: 10, cursor: "pointer", transition: "all 0.15s", textAlign: "left" }),
-  propTabName: (active, color) => ({ fontSize: 13, fontWeight: 700, color: active ? color : "#1a1a1a" }),
+  propTabName: (active, color) => ({ fontSize: 13, fontWeight:600, color: active ? color : "#1a1a1a" }),
   propTabAddr: { fontSize: 11, color: "#888", marginTop: 2 },
   grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 },
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 },
   card: { background: "#fff", border: "1px solid #e8eaed", borderRadius: 12, overflow: "hidden" },
   cardHeader: { padding: "14px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 13, fontWeight: 700, color: "#1a1a1a" },
+  cardTitle: { fontSize: 13, fontWeight:600, color: "#1a1a1a" },
   cardSub: { fontSize: 11, color: "#888", marginTop: 2 },
   cardBody: { padding: "16px" },
-  sectionTitle: { fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12, marginTop: 4 },
+  sectionTitle: { fontSize:12, fontWeight: 600, color: "#888", marginBottom: 12, marginTop: 4 },
   field: { marginBottom: 14 },
-  fieldLabel: { fontSize: 11, fontWeight: 600, color: "#555", letterSpacing: "0.05em", textTransform: "uppercase", display: "block", marginBottom: 5 },
-  input: { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", color: "#1a1a1a", boxSizing: "border-box" },
+  fieldLabel: { fontSize:12, fontWeight: 600, color: "#555", display: "block", marginBottom: 5 },
+  input: { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff", fontFamily: "var(--m-font)", outline: "none", color: "#1a1a1a", boxSizing: "border-box" },
   inputPrefix: { position: "relative" },
   prefix: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#888", fontSize: 13, pointerEvents: "none" },
   inputWithPrefix: { paddingLeft: 20 },
@@ -111,21 +111,21 @@ const s = {
   infoVal: (color) => ({ fontSize: 13, fontWeight: 600, color: color || "#1a1a1a" }),
   // DSCR gauge
   dscrCard: (bg) => ({ background: bg, border: `1px solid ${bg}`, borderRadius: 12, padding: "20px", marginBottom: 20, textAlign: "center" }),
-  dscrVal: (color) => ({ fontSize: 48, fontWeight: 800, color, lineHeight: 1, marginBottom: 6 }),
-  dscrLabel: (color) => ({ fontSize: 16, fontWeight: 700, color, marginBottom: 8 }),
+  dscrVal: (color) => ({ fontSize: 48, fontWeight:600, color, lineHeight: 1, marginBottom: 6 }),
+  dscrLabel: (color) => ({ fontSize: 16, fontWeight:600, color, marginBottom: 8 }),
   dscrDesc: { fontSize: 13, color: "#444", lineHeight: 1.5 },
   dscrGauge: { height: 10, background: "#f0f0f0", borderRadius: 5, overflow: "hidden", margin: "14px 0 6px" },
   dscrFill: (pct, color) => ({ height: "100%", width: `${Math.min(100, pct)}%`, background: color, borderRadius: 5, transition: "width 0.5s" }),
   // Amortization table
   table: { width: "100%", borderCollapse: "collapse" },
-  th: { fontSize: 10, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
+  th: { fontSize:12, fontWeight: 600, color: "#888", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #f0f0f0", background: "#fafafa" },
   thRight: { textAlign: "right" },
   td: { fontSize: 12, color: "#1a1a1a", padding: "8px 12px", borderBottom: "1px solid #f8f9fa" },
   tdRight: { textAlign: "right", fontWeight: 500 },
   parcelRow: { display: "flex", gap: 8, alignItems: "center" },
-  parcelInput: { flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, fontFamily: "'Inter',sans-serif", outline: "none" },
-  parcelBtn: { padding: "9px 14px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" },
-  saveBtn: { width: "100%", padding: "11px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", marginTop: 4 },
+  parcelInput: { flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, fontFamily: "var(--m-font)", outline: "none" },
+  parcelBtn: { padding: "9px 14px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--m-font)", whiteSpace: "nowrap" },
+  saveBtn: { width: "100%", padding: "11px", background: "#0C447C", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "var(--m-font)", marginTop: 4 },
   summaryHighlight: (color, bg) => ({ background: bg, border: `1px solid ${color}30`, borderRadius: 10, padding: "12px 14px" }),
 };
 
@@ -173,7 +173,7 @@ export default function DebtDSCR() {
       {/* DSCR gauge — full width */}
       {dscrInfo && (
         <div style={s.dscrCard(dscrInfo.bg)}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: dscrInfo.color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Debt Service Coverage Ratio</div>
+          <div style={{ fontSize:12, fontWeight: 600, color: dscrInfo.color, marginBottom: 8 }}>Debt Service Coverage Ratio</div>
           <div style={s.dscrVal(dscrInfo.color)}>{dscr.toFixed(2)}x</div>
           <div style={s.dscrLabel(dscrInfo.color)}>{dscrInfo.label}</div>
           <div style={s.dscrDesc}>{dscrInfo.desc}</div>
@@ -192,18 +192,18 @@ export default function DebtDSCR() {
       {/* Summary cards */}
       <div style={s.grid3}>
         <div style={s.summaryHighlight("#3B6D11", "#EAF3DE")}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#3B6D11", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Effective Gross Income</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#3B6D11" }}>${Math.round(effectiveIncome).toLocaleString()}</div>
+          <div style={{ fontSize:12, fontWeight: 600, color: "#3B6D11", marginBottom: 6 }}>Effective Gross Income</div>
+          <div style={{ fontSize: 22, fontWeight:600, color: "#3B6D11" }}>${Math.round(effectiveIncome).toLocaleString()}</div>
           <div style={{ fontSize: 11, color: "#3B6D11", opacity: 0.8, marginTop: 2 }}>After {prop.vacancyPct}% vacancy</div>
         </div>
         <div style={s.summaryHighlight("#A32D2D", "#FDECEA")}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#A32D2D", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Total OpEx (T+I+Other)</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#A32D2D" }}>${annualOpEx.toLocaleString()}</div>
+          <div style={{ fontSize:12, fontWeight: 600, color: "#A32D2D", marginBottom: 6 }}>Total OpEx (T+I+Other)</div>
+          <div style={{ fontSize: 22, fontWeight:600, color: "#A32D2D" }}>${annualOpEx.toLocaleString()}</div>
           <div style={{ fontSize: 11, color: "#A32D2D", opacity: 0.8, marginTop: 2 }}>Taxes + Insurance + Other</div>
         </div>
         <div style={s.summaryHighlight("#0C447C", "#E6F1FB")}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#0C447C", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>NOI (covers P&I)</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0C447C" }}>${Math.round(noi).toLocaleString()}</div>
+          <div style={{ fontSize:12, fontWeight: 600, color: "#0C447C", marginBottom: 6 }}>NOI (covers P&I)</div>
+          <div style={{ fontSize: 22, fontWeight:600, color: "#0C447C" }}>${Math.round(noi).toLocaleString()}</div>
           <div style={{ fontSize: 11, color: "#0C447C", opacity: 0.8, marginTop: 2 }}>vs ${Math.round(annualPI).toLocaleString()} annual P&I</div>
         </div>
       </div>
@@ -255,11 +255,11 @@ export default function DebtDSCR() {
               <div style={{ background: "#f8f9fa", borderRadius: 8, padding: "10px 12px", display: "flex", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#888" }}>Monthly P&I</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0C447C" }}>${Math.round(monthlyPI).toLocaleString()}</div>
+                  <div style={{ fontSize: 18, fontWeight:600, color: "#0C447C" }}>${Math.round(monthlyPI).toLocaleString()}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 11, color: "#888" }}>Equity paid down</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#3B6D11" }}>{equityPct}%</div>
+                  <div style={{ fontSize: 18, fontWeight:600, color: "#3B6D11" }}>{equityPct}%</div>
                 </div>
               </div>
             </div>
@@ -368,8 +368,8 @@ export default function DebtDSCR() {
                 ["= Cash flow",      `$${Math.round(noi - annualPI).toLocaleString()}`, noi - annualPI >= 0 ? "#3B6D11" : "#A32D2D", true],
               ].map(([k, v, color, bold], i, arr) => (
                 <div key={i} style={{ ...s.infoRow(i === arr.length - 1), background: bold ? "#f8f9fa" : "transparent", borderRadius: bold ? 6 : 0, padding: bold ? "8px 8px" : "7px 0" }}>
-                  <span style={{ fontSize: 13, color: bold ? "#1a1a1a" : "#888", fontWeight: bold ? 700 : 400 }}>{k}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color }}>{v}</span>
+                  <span style={{ fontSize: 13, color: bold ? "#1a1a1a" : "#888", fontWeight: bold ? 600 : 400 }}>{k}</span>
+                  <span style={{ fontSize: 13, fontWeight:600, color }}>{v}</span>
                 </div>
               ))}
             </div>
@@ -381,10 +381,10 @@ export default function DebtDSCR() {
             <div style={s.cardBody}>
               <div style={{ textAlign: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>NOI ÷ Annual Debt Service</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a" }}>
+                <div style={{ fontSize: 20, fontWeight:600, color: "#1a1a1a" }}>
                   ${Math.round(noi).toLocaleString()} ÷ ${Math.round(annualPI).toLocaleString()}
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 800, color: dscrInfo?.color || "#1a1a1a", marginTop: 8 }}>
+                <div style={{ fontSize: 32, fontWeight:600, color: dscrInfo?.color || "#1a1a1a", marginTop: 8 }}>
                   = {dscr.toFixed(2)}x
                 </div>
               </div>
@@ -413,7 +413,7 @@ export default function DebtDSCR() {
             <div style={s.cardTitle}>Amortization Schedule — {prop.name}</div>
             <div style={s.cardSub}>${Math.round(monthlyPI).toLocaleString()}/mo · {prop.rate}% · {prop.termYears}yr · ${prop.loanBalance.toLocaleString()} balance</div>
           </div>
-          <button onClick={() => setShowFullAmort(v => !v)} style={{ padding: "6px 14px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+          <button onClick={() => setShowFullAmort(v => !v)} style={{ padding: "6px 14px", background: "#f4f5f7", border: "1px solid #e8eaed", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--m-font)" }}>
             {showFullAmort ? "Show less" : `Show all ${amortRows.length} payments`}
           </button>
         </div>

@@ -14,7 +14,7 @@ import { C, font } from "./lib/financialTheme";
 // Presentation only. Data and definitions are unchanged: actuals from the ledger (a31_property_ledger, and
 // a1_scoped_lines for the monthly chart), owner-entered inputs, and lib/snapshot.js for every calculation.
 
-const serif = "'Cormorant Garamond', serif";
+const serif = "var(--m-font)";
 const KIND_COLOR = { actual: "#7FA35A", scheduled: "#6F8FB8", entered: "#B5893F", estimate: "#A88A5C" };
 const INCOME = "#B5893F", EXPENSE = "#5A8FD6";   // validated pair: dataviz validator, dark mode, surface #15191F
 const selectStyle = { padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, background: "transparent", color: C.textSub, outline: "none", fontFamily: font, cursor: "pointer" };
@@ -52,7 +52,7 @@ const CSS = `
 function Prov({ kind }) {
   if (!kind) return null;
   return (
-    <span title={KIND_HELP[kind]} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, color: C.textMuted, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+    <span title={KIND_HELP[kind]} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize:12, color: C.textMuted, whiteSpace: "nowrap" }}>
       <span style={{ width: 6, height: 6, borderRadius: 3, background: KIND_COLOR[kind] }} />{KIND_LABEL[kind]}
     </span>
   );

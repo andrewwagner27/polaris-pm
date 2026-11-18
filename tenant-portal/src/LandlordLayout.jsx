@@ -91,14 +91,14 @@ function SidebarContents({ isActive, onNavigate, openMaintenance, unreadMessages
       <div style={{ padding: "22px 18px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <ModusMark size={28}/>
         <div>
-          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
+          <div style={{ fontFamily: "var(--m-font-brand)", fontSize: 16, fontWeight: 600, color: C.text, letterSpacing: "0.1em" }}>MODUS</div>
           <div style={{ fontSize: 9, color: C.textMuted, letterSpacing: "0.16em", marginTop: 1 }}>PROPERTY MGMT</div>
         </div>
       </div>
       <nav aria-label="Main navigation" style={{ padding: "8px 10px", flex: 1 }}>
         {NAV.map((section) => (
           <div key={section.section} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", padding: "6px 10px 4px" }}>{section.section}</div>
+            <div style={{ fontSize: 10, fontWeight:600, color: C.textMuted, letterSpacing: "0.14em", padding: "6px 10px 4px" }}>{section.section}</div>
             {section.items.map((item) => {
               const active = isActive(item.path);
               const badge = item.label === "Maintenance" && openMaintenance > 0 ? openMaintenance
@@ -108,7 +108,7 @@ function SidebarContents({ isActive, onNavigate, openMaintenance, unreadMessages
                   onClick={(e) => { e.preventDefault(); onNavigate(item.path); }}
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 36, padding: "8px 10px", borderRadius: 6, fontSize: 13, fontWeight: active ? 600 : 400, color: active ? C.action : C.textSub, background: active ? "rgba(201,169,104,0.10)" : "transparent", borderLeft: `2px solid ${active ? C.action : "transparent"}`, textDecoration: "none", marginBottom: 1 }}>
                   <span>{item.label}</span>
-                  {badge > 0 && <span aria-label={`${badge} open`} style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 8, background: item.label === "Messages" ? C.blue : C.amber, color: C.onGold, minWidth: 20, textAlign: "center" }}>{badge}</span>}
+                  {badge > 0 && <span aria-label={`${badge} open`} style={{ fontSize: 11, fontWeight:600, padding: "1px 7px", borderRadius: 8, background: item.label === "Messages" ? C.blue : C.amber, color: C.onGold, minWidth: 20, textAlign: "center" }}>{badge}</span>}
                 </a>
               );
             })}
@@ -187,15 +187,19 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
   const signOut = async () => { clearScopedCache(); await supabase.auth.signOut(); navigate("/landlord/login"); };
 
   const initials = landlordName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  // Messages fits the viewport: the shell never scrolls, only the conversation list and the message history do.
+  const fit = location.pathname.startsWith("/landlord/messages");
   const current = ALL_ITEMS.filter((i) => isActive(i.path)).sort((a, b) => b.path.length - a.path.length)[0];
   const secondaryActive = SECONDARY.some((p) => isActive(p));
   const contents = { isActive, openMaintenance, unreadMessages, landlordName, initials, showPopover, setShowPopover, signOut };
 
   return (
-    <div className="l-shell" style={{ display: "flex", fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: C.text, background: C.bg, minHeight: "100vh" }}>
+    <div className={`l-shell${fit ? " m-fit" : ""}`} style={{ display: "flex", fontFamily: "var(--m-font)", fontSize: 14, color: C.text, background: C.bg }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+        
         body{background:${C.bg};}
+        .l-shell{min-height:100vh;min-height:100dvh;}
+        .m-fit .l-side{height:100%!important;min-height:0!important;}
         .l-nav:hover{background:rgba(255,255,255,0.04)!important;color:${C.text}!important;}
         .l-pop-item{display:block;width:100%;min-height:44px;padding:0 14px;text-align:left;background:transparent;border:none;border-bottom:1px solid ${C.border};color:${C.text};font:inherit;font-size:13px;cursor:pointer;}
         .l-pop-item:hover{background:${C.raised};}
@@ -216,11 +220,13 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
           .l-header{padding:6px 12px 6px 14px;padding-top:max(6px, env(safe-area-inset-top));}
           .l-scope{min-height:44px;} .l-scope select{min-height:42px;}
           .l-main{padding-bottom:calc(76px + env(safe-area-inset-bottom));}
+          .m-fit .l-main{padding-bottom:0;}
+          .m-fit .l-bottom{position:relative;flex-shrink:0;}
           .l-bottom{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:300;background:${C.bg};border-top:1px solid ${C.border};padding:4px 4px calc(4px + env(safe-area-inset-bottom));}
           .l-tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;border:none;background:transparent;color:${C.textSub};font:inherit;font-size:11px;font-weight:500;text-decoration:none;border-radius:10px;cursor:pointer;}
-          .l-tab[aria-current="page"],.l-tab.l-tab-on{color:${C.action};font-weight:700;}
+          .l-tab[aria-current="page"],.l-tab.l-tab-on{color:${C.action};font-weight:600;}
           .l-tab[aria-current="page"]::before,.l-tab.l-tab-on::before{content:"";position:absolute;top:0;left:28%;right:28%;height:3px;border-radius:0 0 3px 3px;background:${C.action};}
-          .l-tab-badge{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:${C.amber};color:${C.onGold};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+          .l-tab-badge{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:${C.amber};color:${C.onGold};font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;}
         }
         @keyframes l-sheet-in{from{transform:translateY(100%);}to{transform:none;}}
         @keyframes l-fade-in{from{opacity:0;}to{opacity:1;}}
@@ -232,14 +238,14 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
         <SidebarContents {...contents} onNavigate={navigate}/>
       </div>
 
-      <div className="l-content">
+      <div className="l-content m-fit-col">
         {/* Header: page context + global property scope, on every size */}
         <header className="l-header">
           <span className="m-only-mobile" style={{ lineHeight: 0 }}><ModusMark size={22}/></span>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{current?.label || ""}</div>
           <div style={{ marginLeft: "auto", minWidth: 0, display: "flex" }}><PropertyScopeSelect/></div>
         </header>
-        <main className="l-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
+        <main className="l-main m-fit-col" style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
 
       {/* Bottom navigation (phones) */}
@@ -282,7 +288,7 @@ export default function LandlordLayout({ children, openMaintenance = 0, unreadMe
                   <a key={p} href={p} aria-current={active ? "page" : undefined} onClick={(e) => { e.preventDefault(); go(p); }}
                     style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 48, padding: "0 14px", borderRadius: 10, border: `1px solid ${active ? C.action : C.border}`, background: C.raised, color: active ? C.action : C.text, fontSize: 14, fontWeight: active ? 600 : 500, textDecoration: "none" }}>
                     {item.label}
-                    {badge > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 8, background: C.blue, color: C.onGold }}>{badge}</span>}
+                    {badge > 0 && <span style={{ fontSize: 11, fontWeight:600, padding: "1px 7px", borderRadius: 8, background: C.blue, color: C.onGold }}>{badge}</span>}
                   </a>
                 );
               })}

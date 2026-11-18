@@ -14,7 +14,7 @@ const C = {
   bg:       "#F5F3EE",
   surface:  "#FFFFFF",
   raised:   "#F8F7F4",
-  border:   "#E4E1DA",
+  border:   "#EAE6DE",
   text:     "#18181B",
   textSub:  "#52525B",
   textMuted:"#6B6B73",
@@ -40,13 +40,13 @@ const monthOf = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { m
 // Nothing collects rent automatically yet, so this is a notice and not a setting.
 function AutopayUnavailable() {
   return (
-    <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:16 }}>
+    <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"16px 20px",marginBottom:16 }}>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
         <div>
-          <div style={{ fontSize:13,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-          <div style={{ fontSize:11,color:C.textSub }}>Automatic rent payments aren't available yet. Rent is only paid when you submit a payment here.</div>
+          <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
+          <div style={{ fontSize:13,color:C.textSub }}>Automatic payments aren't available yet. Rent is only paid when you submit it here.</div>
         </div>
-        <span style={{ fontSize:10,fontWeight:600,padding:"4px 10px",background:C.raised,color:C.textSub,border:`1px solid ${C.border}`,borderRadius:20,flexShrink:0 }}>Not available yet</span>
+        <span style={{ fontSize:12,fontWeight:500,padding:"4px 10px",background:C.raised,color:C.textSub,borderRadius:999,flexShrink:0 }}>Not available yet</span>
       </div>
     </div>
   );
@@ -166,10 +166,10 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
   if (step === "success") return (
     <div style={{ textAlign:"center",padding:"32px 0" }}>
       <div style={{ width:64,height:64,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px",fontSize:26,color:C.green }}>✓</div>
-      <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
+      <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
       <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>{money(payableCents)} via ACH bank transfer</div>
       <div style={{ fontSize:12,color:C.textMuted,marginBottom:28 }}>ACH transfers take 2–3 business days to settle.</div>
-      <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+      <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}>
         ← Back to home
       </button>
     </div>
@@ -193,11 +193,11 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
             </div>
             <span style={{ fontSize:10,fontWeight:600,padding:"3px 8px",background:`${C.green}15`,color:C.green,borderRadius:5 }}>Linked</span>
           </div>
-          <button onClick={payNow} disabled={!(payableCents > 0)} style={{ opacity:payableCents > 0 ? 1 : 0.5,width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em",marginBottom:10 }}>
+          <button onClick={payNow} disabled={!(payableCents > 0)} style={{ opacity:payableCents > 0 ? 1 : 0.5,width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"var(--m-font)",letterSpacing:"0.02em",marginBottom:10 }}>
             Pay {money(payableCents)} →
           </button>
           {savedMethod && (
-            <button onClick={()=>{ setSavedMethod(null); setStep("idle"); }} style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+            <button onClick={()=>{ setSavedMethod(null); setStep("idle"); }} style={{ width:"100%",padding:"10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}>
               Use a different bank account
             </button>
           )}
@@ -211,7 +211,7 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
           <div style={{ fontSize:13,color:C.textSub,lineHeight:1.6,marginBottom:24 }}>
             Connect your bank via ACH for free transfers.<br/>No fees — funds arrive in 2–3 business days.
           </div>
-          <button onClick={linkBank} style={{ width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.02em" }}>
+          <button onClick={linkBank} style={{ width:"100%",padding:"13px",background:C.gold,border:"none",borderRadius:8,fontSize:14,fontWeight:500,color:C.text,cursor:"pointer",fontFamily:"var(--m-font)",letterSpacing:"0.02em" }}>
             Link bank account →
           </button>
         </div>
@@ -262,39 +262,38 @@ export default function RentPaymentScreen() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         @keyframes spin { to { transform: rotate(360deg); } }
         @media(max-width:767px){.pay-wrap{padding:16px 14px 24px!important;}}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
       `}</style>
 
-      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"28px 20px 60px" }}>
+      <div className="pay-wrap" style={{ background:C.bg,minHeight:"100%",color:C.text,fontFamily:"var(--m-font)",padding:"32px 24px 64px",maxWidth:720,margin:"0 auto" }}>
 
-        <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
-        <div style={{ fontSize:13,color:C.textSub,marginBottom:24 }}>
+        <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:4 }}>Pay rent</div>
+        <div style={{ fontSize:14,color:C.textSub,marginBottom:24 }}>
           {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}
         </div>
 
         {/* Receivables not active: one short explanation instead of an empty amount and a repeated notice below it */}
         {due && !due.ledger_active && (
-          <div role="status" style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 18px",marginBottom:14 }}>
-            <div style={{ fontSize:15,fontWeight:600,color:C.text,marginBottom:4 }}>Online payment isn't available yet</div>
-            <div style={{ fontSize:13,color:C.textSub,lineHeight:1.55 }}>
-              Modus doesn't track your balance online yet, so there's no amount to pay here and nothing has been charged.
-              Pay rent the way your lease describes, or message management with any billing question.
+          <div role="status" style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
+            <div style={{ fontSize:16,fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't available yet</div>
+            <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6 }}>
+              There's no amount to pay here and nothing has been charged. Pay rent the way your lease describes, or message management with billing questions.
             </div>
-            <div style={{ fontSize:12,color:C.textSub,marginTop:10 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
+            <div style={{ fontSize:13,color:C.textMuted,marginTop:12 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
           </div>
         )}
 
         {/* Amount summary */}
         {(!due || due.ledger_active) && (
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",marginBottom:14 }}>
+        <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
           <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
-              <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Amount due</div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:600,color:C.gold,lineHeight:1 }}>
+              <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:8 }}>Amount due</div>
+              <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums",fontWeight:600,color:C.gold,lineHeight:1 }}>
                 {due?.ledger_active ? money(payableCents) : "—"}
               </div>
               {due?.ledger_active && payableCents===0 && <div style={{ fontSize:12,color:C.green,marginTop:6 }}>{pendingCents>0 ? `Your ${money(pendingCents)} payment is processing. Nothing more to pay right now.` : "Nothing to pay right now."}</div>}
@@ -331,11 +330,12 @@ export default function RentPaymentScreen() {
         </div>
         )}
 
-        <AutopayUnavailable/>
+        {/* Autopay notice only where online payment exists at all (otherwise the card above already says so) */}
+        {(!due || due.ledger_active) && <AutopayUnavailable/>}
 
         {/* Payment form (only where a payment can actually be made or its absence explained) */}
         {(!due || due.ledger_active) && (
-        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px" }}>
+        <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px" }}>
           {!due ? (
             <div style={{ textAlign:"center",padding:"20px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
           ) : due.online_available === false ? (

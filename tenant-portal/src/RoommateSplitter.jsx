@@ -30,10 +30,10 @@ const s = {
     justifyContent: "space-between",
   },
   headerLeft: { display: "flex", alignItems: "center", gap: 8 },
-  headerTitle: { fontSize: 13, fontWeight: 700, color: "#1a1a1a" },
+  headerTitle: { fontSize: 13, fontWeight:600, color: "#1a1a1a" },
   headerSub: { fontSize: 11, color: "#888", marginTop: 1 },
   totalBadge: {
-    fontSize: 13, fontWeight: 700, color: "#0C447C",
+    fontSize: 13, fontWeight:600, color: "#0C447C",
     background: "#E6F1FB", padding: "4px 10px",
     borderRadius: 8,
   },
@@ -56,7 +56,7 @@ const s = {
     width: 36, height: 36, borderRadius: "50%",
     background: bg, color,
     display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 12, fontWeight: 700, flexShrink: 0,
+    fontSize: 12, fontWeight:600, flexShrink: 0,
   }),
   roommateName: { fontSize: 13, fontWeight: 600, color: "#1a1a1a" },
   youBadge: {
@@ -64,7 +64,7 @@ const s = {
     background: "#E6F1FB", padding: "1px 6px",
     borderRadius: 8, marginLeft: 4,
   },
-  roommateAmount: { fontSize: 15, fontWeight: 700, color: "#1a1a1a" },
+  roommateAmount: { fontSize: 15, fontWeight:600, color: "#1a1a1a" },
   statusBadge: (status) => ({
     fontSize: 10, fontWeight: 600,
     padding: "3px 8px", borderRadius: 10,
@@ -79,7 +79,7 @@ const s = {
     marginBottom: 6,
   },
   sliderLabel: { fontSize: 11, color: "#888" },
-  sliderPct: { fontSize: 13, fontWeight: 700, color: "#0C447C" },
+  sliderPct: { fontSize: 13, fontWeight:600, color: "#0C447C" },
   slider: {
     width: "100%",
     height: 4,
@@ -124,7 +124,7 @@ const s = {
     cursor: "pointer",
     display: "flex", alignItems: "center",
     justifyContent: "center", gap: 6,
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "var(--m-font)",
     transition: "background 0.15s",
   },
   paidNotice: {

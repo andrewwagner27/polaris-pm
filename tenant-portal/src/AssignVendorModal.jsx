@@ -6,7 +6,7 @@ const C = {
   bg:        "#0B0D10",
   surface:   "#111316",
   raised:    "#181C21",
-  border:    "#252930",
+  border:    "#262B33",
   text:      "#F5F2EB",
   textSub:   "#B7BBC4",
   textMuted: "#9298A3",
@@ -24,7 +24,7 @@ const CATEGORY_ICONS = {
 };
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize: 11, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{children}</label>;
+  return <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 6 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type = "text" }) {
@@ -32,7 +32,7 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
+      style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: `1px solid ${focused ? C.gold : C.border}`, borderRadius: 7, background: C.raised, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "var(--m-font)", boxShadow: focused ? "0 0 0 3px rgba(201,169,110,0.08)" : "none", transition: "border-color 0.15s" }}
     />
   );
 }
@@ -203,11 +203,11 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                       </div>
                     ))}
                     <button onClick={() => { setUseCustom(true); setSelectedVendor(null); setVendorName(""); setVendorPhone(""); }}
-                      style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 8, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s" }}>
+                      style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 8, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.12s" }}>
                       + Use a different vendor
                     </button>
                     <button onClick={() => { setShowPlaces(true); searchPlaces(); }}
-                      style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.blue}44`, borderRadius: 8, fontSize: 12, color: C.blue, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.12s" }}>
+                      style={{ padding: "10px", background: "transparent", border: `1px dashed ${C.blue}44`, borderRadius: 8, fontSize: 12, color: C.blue, cursor: "pointer", fontFamily: "var(--m-font)", transition: "all 0.12s" }}>
                       🔍 Find local vendors on Google
                     </button>
                   </div>
@@ -219,7 +219,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                 <div style={{ marginBottom: 20 }}>
                   {vendors.length > 0 && (
                     <button onClick={() => { setUseCustom(false); setVendorName(""); setVendorPhone(""); }}
-                      style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 12, padding: 0 }}>← Back to saved vendors</button>
+                      style={{ fontSize: 12, color: "#C9A968", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--m-font)", marginBottom: 12, padding: 0 }}>← Back to saved vendors</button>
                   )}
                   {vendors.length === 0 && (
                     <div style={{ fontSize: 12, color: C.textSub, marginBottom: 12 }}>No saved vendors for this property. <a href="/landlord/settings" style={{ color: C.gold }}>Add vendors in Settings →</a></div>
@@ -239,7 +239,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
               {showPlaces && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                    <label style={{ fontSize:12, fontWeight:600, color:C.textSub, }}>
                       Local vendors — {requestCategory}
                     </label>
                     <button onClick={() => setShowPlaces(false)} style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer" }}>✕ Close</button>
@@ -277,7 +277,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
               {/* Tenant availability */}
               {availability && (availability.days?.length > 0 || availability.times?.length > 0) && (
                 <div style={{ marginBottom: 14, padding: "12px 14px", background: `${C.blue}08`, border: `1px solid ${C.blue}22`, borderRadius: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.blue, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Tenant availability</div>
+                  <div style={{ fontSize:12, fontWeight: 600, color: C.blue, marginBottom: 8 }}>Tenant availability</div>
                   {availability.days?.length > 0 && (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                       {availability.days.map(d => <span key={d} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: `${C.blue}18`, color: C.blue, fontWeight: 600 }}>{d}</span>)}
@@ -295,14 +295,14 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
 
               {/* Scheduled date/time */}
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Scheduled date *</label>
+                <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Scheduled date *</label>
                 <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
-                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }}/>
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"var(--m-font)" }}/>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Scheduled time</label>
+                <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Scheduled time</label>
                 <select value={scheduledTime} onChange={e => setScheduledTime(e.target.value)}
-                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"'DM Sans',sans-serif", cursor:"pointer" }}>
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", fontFamily:"var(--m-font)", cursor:"pointer" }}>
                   <option value="">Select time window…</option>
                   <option value="Morning (8am–12pm)">Morning (8am–12pm)</option>
                   <option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option>
@@ -310,16 +310,16 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                 </select>
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize:11, fontWeight:600, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Entry instructions</label>
+                <label style={{ fontSize:12, fontWeight:600, color:C.textSub, display:"block", marginBottom:6 }}>Entry instructions</label>
                 <textarea value={entryInstructions} onChange={e => setEntryInstructions(e.target.value)}
                   placeholder="e.g. Lockbox code 1234 on front door. Park in lot B." rows={3}
-                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5, boxSizing:"border-box" }}/>
+                  style={{ width:"100%", padding:"10px 12px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:7, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.5, boxSizing:"border-box" }}/>
                 <div style={{ fontSize:11, color:C.textMuted, marginTop:4 }}>Pre-filled from unit record. Edit as needed.</div>
               </div>
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button onClick={onClose} style={{ padding: "9px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-                <button onClick={assign} disabled={saving || (!vendorName.trim() && !selectedVendor)} style={{ padding: "9px 18px", background: "transparent", border: `1px solid ${C.goldDim}`, borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.7 : 1 }}>
+                <button onClick={onClose} style={{ padding: "9px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 13, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>Cancel</button>
+                <button onClick={assign} disabled={saving || (!vendorName.trim() && !selectedVendor)} style={{ padding: "9px 18px", background: "transparent", border: `1px solid ${C.goldDim}`, borderRadius: 7, fontSize: 13, fontWeight: 500, color: C.gold, cursor: saving ? "not-allowed" : "pointer", fontFamily: "var(--m-font)", opacity: saving ? 0.7 : 1 }}>
                   {saving ? "Generating…" : "Generate access link"}
                 </button>
               </div>
@@ -329,7 +329,7 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
               {/* Success */}
               <div style={{ textAlign: "center", marginBottom: 24 }}>
                 <div style={{ width: 52, height: 52, borderRadius: "50%", background: `${C.green}18`, border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 22, color: C.green }}>✓</div>
-                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: C.text, marginBottom: 4 }}>Access link generated</div>
+                <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, color: C.text, marginBottom: 4 }}>Access link generated</div>
                 <div style={{ fontSize: 13, color: C.textSub, marginBottom: 4 }}>Share with {result.vendorName}</div>
                 {result.scheduledDate && <div style={{ fontSize: 12, color: C.gold }}>📅 Scheduled: {result.scheduledDate}{result.scheduledTime ? ` · ${result.scheduledTime}` : ""}</div>}
               </div>
@@ -338,22 +338,22 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
                 <FieldLabel>Access link</FieldLabel>
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ flex: 1, padding: "10px 12px", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.link}</div>
-                  <button onClick={copyLink} style={{ padding: "10px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>Copy</button>
+                  <button onClick={copyLink} style={{ padding: "10px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)", whiteSpace: "nowrap" }}>Copy</button>
                 </div>
               </div>
 
               <div style={{ marginBottom: 24 }}>
                 <FieldLabel>PIN code</FieldLabel>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <div style={{ padding: "12px 20px", background: C.raised, border: `1px solid ${C.goldDim}`, borderRadius: 7, fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 600, color: C.gold, letterSpacing: "0.3em" }}>{result.pin}</div>
-                  <button onClick={copyPin} style={{ padding: "10px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Copy</button>
+                  <div style={{ padding: "12px 20px", background: C.raised, border: `1px solid ${C.goldDim}`, borderRadius: 7, fontFamily: "var(--m-font)", fontSize:"var(--m-fs-stat)", fontVariantNumeric:"tabular-nums", fontWeight: 600, color: C.gold, }}>{result.pin}</div>
+                  <button onClick={copyPin} style={{ padding: "10px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 12, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>Copy</button>
                   <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5 }}>Vendor needs this to access the ticket</div>
                 </div>
               </div>
 
               {/* SMS template */}
               <div style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.textSub, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Text message template</div>
+                <div style={{ fontSize:12, fontWeight: 600, color: C.textSub, marginBottom: 8 }}>Text message template</div>
                 <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7 }}>
                   Hi {result.vendorName}, here's your access link for the maintenance ticket:<br/>
                   {result.link}<br/>
@@ -362,8 +362,8 @@ export default function AssignVendorModal({ requestId, requestTitle, requestCate
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={copyAll} style={{ flex: 1, padding: "11px", background: C.goldDim, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, color: C.text, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Copy message to clipboard</button>
-                <button onClick={onClose} style={{ padding: "11px 18px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.textSub, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Done</button>
+                <button onClick={copyAll} style={{ flex: 1, padding: "11px", background: C.goldDim, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, color: C.text, cursor: "pointer", fontFamily: "var(--m-font)" }}>Copy message to clipboard</button>
+                <button onClick={onClose} style={{ padding: "11px 18px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.textSub, cursor: "pointer", fontFamily: "var(--m-font)" }}>Done</button>
               </div>
             </>
           )}

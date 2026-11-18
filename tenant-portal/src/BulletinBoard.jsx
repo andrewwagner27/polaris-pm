@@ -30,7 +30,7 @@ function fmtDate(d) {
 const inputStyle = (extra={}) => ({
   width:"100%", padding:"10px 14px", background:C.raised,
   border:`1px solid ${C.border}`, borderRadius:8, color:C.text,
-  fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:"none", ...extra,
+  fontSize:13, fontFamily:"var(--m-font)", outline:"none", ...extra,
 });
 
 const BLANK = { title:"", body:"", category:"general" };
@@ -94,7 +94,7 @@ function CommentThread({ post, tenant }) {
                   <span style={{ fontSize:11, color:C.textMuted }}>{fmtDate(c.created_at)}</span>
                   {c.tenant_id === tenant?.id && editId !== c.id && (
                     <button onClick={()=>{ setEditId(c.id); setEditText(c.body); }}
-                      style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"'DM Sans',sans-serif" }}>Edit</button>
+                      style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"var(--m-font)" }}>Edit</button>
                   )}
                 </div>
                 {editId === c.id ? (
@@ -102,9 +102,9 @@ function CommentThread({ post, tenant }) {
                     <input value={editText} onChange={e=>setEditText(e.target.value)}
                       style={inputStyle({ padding:"6px 10px", fontSize:12, flex:1 })}/>
                     <button onClick={()=>saveEdit(c.id)}
-                      style={{ padding:"6px 12px", background:C.gold, color:C.bg, border:"none", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Save</button>
+                      style={{ padding:"6px 12px", background:C.gold, color:C.bg, border:"none", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"var(--m-font)" }}>Save</button>
                     <button onClick={()=>setEditId(null)}
-                      style={{ padding:"6px 10px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+                      style={{ padding:"6px 10px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"var(--m-font)" }}>Cancel</button>
                   </div>
                 ) : (
                   <div style={{ fontSize:13, color:C.textSub, lineHeight:1.5 }}>{c.body}</div>
@@ -121,7 +121,7 @@ function CommentThread({ post, tenant }) {
           placeholder="Write a comment…"
           style={inputStyle({ flex:1, padding:"8px 12px", fontSize:12 })}/>
         <button onClick={submit} disabled={submitting || !text.trim()}
-          style={{ padding:"8px 14px", background:C.gold, color:C.bg, border:"none", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:(!text.trim()||submitting)?0.5:1 }}>
+          style={{ padding:"8px 14px", background:C.gold, color:C.bg, border:"none", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"var(--m-font)", opacity:(!text.trim()||submitting)?0.5:1 }}>
           {submitting ? "…" : "Post"}
         </button>
       </div>
@@ -237,12 +237,12 @@ export default function BulletinBoard() {
   const categories = ["all", ...Array.from(new Set(posts.map(p=>p.category).filter(Boolean)))];
   const filtered   = filter === "all" ? posts : posts.filter(p => p.category === filter);
 
-  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
+  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"var(--m-font)",fontSize:14 }}>Loading…</div>;
 
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;}
         .b-card{transition:border-color 0.15s;}
         .b-card:hover{border-color:${C.goldDim}!important;}
@@ -252,16 +252,16 @@ export default function BulletinBoard() {
         @media(max-width:767px){.bpad{padding:16px 14px!important;}}
       `}</style>
 
-      <div className="bpad" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"'DM Sans',sans-serif", padding:"36px 40px 80px", maxWidth:800, margin:"0 auto" }}>
+      <div className="bpad" style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:"var(--m-font)", padding:"36px 40px 80px", maxWidth:800, margin:"0 auto" }}>
 
         {/* Header */}
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24, gap:12 }}>
           <div>
-            <div style={{ fontSize:12, color:C.textMuted, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Community</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:34, fontWeight:600, color:C.text, lineHeight:1 }}>Bulletin Board</div>
+            <div style={{ fontSize:12, color:C.textMuted, marginBottom:6 }}>Community</div>
+            <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text, lineHeight:1 }}>Bulletin Board</div>
           </div>
           <button onClick={()=>{ setShowCompose(v=>!v); setPostErr(""); }}
-            style={{ marginTop:8, padding:"9px 18px", borderRadius:8, border:`1px solid ${C.gold}`, background:showCompose?`rgba(201,169,110,0.15)`:"transparent", color:C.gold, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+            style={{ marginTop:8, padding:"9px 18px", borderRadius:8, border:`1px solid ${C.gold}`, background:showCompose?`rgba(201,169,110,0.15)`:"transparent", color:C.gold, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"var(--m-font)", flexShrink:0 }}>
             {showCompose ? "Cancel" : "+ New Post"}
           </button>
         </div>
@@ -289,7 +289,7 @@ export default function BulletinBoard() {
               </div>
               {postErr && <div style={{ fontSize:12, color:C.red, background:"rgba(224,85,85,0.1)", border:`1px solid ${C.red}`, borderRadius:6, padding:"8px 12px" }}>{postErr}</div>}
               <button onClick={submitPost} disabled={posting}
-                style={{ alignSelf:"flex-end", padding:"9px 22px", borderRadius:8, border:"none", background:C.gold, color:C.bg, fontSize:13, fontWeight:600, cursor:posting?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:posting?0.7:1 }}>
+                style={{ alignSelf:"flex-end", padding:"9px 22px", borderRadius:8, border:"none", background:C.gold, color:C.bg, fontSize:13, fontWeight:600, cursor:posting?"not-allowed":"pointer", fontFamily:"var(--m-font)", opacity:posting?0.7:1 }}>
                 {posting ? "Posting…" : "Post"}
               </button>
             </div>
@@ -301,7 +301,7 @@ export default function BulletinBoard() {
           <div style={{ display:"flex", gap:8, marginBottom:22, flexWrap:"wrap" }}>
             {categories.map(cat => (
               <button key={cat} onClick={()=>setFilter(cat)}
-                style={{ padding:"6px 14px", borderRadius:20, border:`1px solid ${filter===cat?C.gold:C.border}`, background:filter===cat?`rgba(201,169,110,0.1)`:"transparent", color:filter===cat?C.gold:C.textSub, fontSize:12, fontWeight:filter===cat?600:400, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textTransform:"capitalize" }}>
+                style={{ padding:"6px 14px", borderRadius:20, border:`1px solid ${filter===cat?C.gold:C.border}`, background:filter===cat?`rgba(201,169,110,0.1)`:"transparent", color:filter===cat?C.gold:C.textSub, fontSize:12, fontWeight:filter===cat?600:400, cursor:"pointer", fontFamily:"var(--m-font)", textTransform:"capitalize" }}>
                 {cat === "all" ? "All" : cat}
               </button>
             ))}
@@ -335,17 +335,17 @@ export default function BulletinBoard() {
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, marginBottom:12 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                       {post.category && (
-                        <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, background:cs.bg, color:cs.c, letterSpacing:"0.06em", textTransform:"uppercase" }}>{post.category}</span>
+                        <span style={{ fontSize:12, fontWeight:600, padding:"3px 10px", borderRadius:20, background:cs.bg, color:cs.c, }}>{post.category}</span>
                       )}
                       {post.pinned && (
-                        <span style={{ fontSize:10, fontWeight:600, padding:"3px 10px", borderRadius:20, background:`${C.gold}15`, color:C.gold, letterSpacing:"0.06em", textTransform:"uppercase" }}>📌 Pinned</span>
+                        <span style={{ fontSize:12, fontWeight:600, padding:"3px 10px", borderRadius:20, background:`${C.gold}15`, color:C.gold, }}>📌 Pinned</span>
                       )}
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
                       <span style={{ fontSize:11, color:C.textMuted }}>{fmtDate(post.created_at)}</span>
                       {isOwner && !isEditing && (
                         <button onClick={()=>{ setEditPost(post); setEditForm({ title:post.title, body:post.body||"", category:post.category||"general" }); }}
-                          style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"'DM Sans',sans-serif" }}>Edit</button>
+                          style={{ fontSize:11, color:C.textMuted, background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"var(--m-font)" }}>Edit</button>
                       )}
                     </div>
                   </div>
@@ -362,14 +362,14 @@ export default function BulletinBoard() {
                       <textarea value={editForm.body} onChange={e=>setEditForm(f=>({...f,body:e.target.value}))} rows={4} style={inputStyle({resize:"vertical",lineHeight:1.6})}/>
                       <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
                         <button onClick={()=>setEditPost(null)}
-                          style={{ padding:"7px 14px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+                          style={{ padding:"7px 14px", background:"transparent", color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, cursor:"pointer", fontFamily:"var(--m-font)" }}>Cancel</button>
                         <button onClick={saveEdit} disabled={saving}
-                          style={{ padding:"7px 16px", background:C.gold, color:C.bg, border:"none", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity:saving?0.7:1 }}>{saving?"Saving…":"Save"}</button>
+                          style={{ padding:"7px 16px", background:C.gold, color:C.bg, border:"none", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"var(--m-font)", opacity:saving?0.7:1 }}>{saving?"Saving…":"Save"}</button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:600, color:C.text, marginBottom:8, lineHeight:1.3 }}>{post.title}</div>
+                      <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text, marginBottom:8, lineHeight:1.3 }}>{post.title}</div>
                       <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10 }}>{post.body || post.content}</div>
                       {post.author && <div style={{ fontSize:11, color:C.textMuted }}>— {post.author}</div>}
                     </>
@@ -379,11 +379,11 @@ export default function BulletinBoard() {
                   {!isEditing && (
                     <div style={{ display:"flex", gap:18, marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
                       <button className="like-btn" onClick={()=>toggleLike(post.id)}
-                        style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:13, color:liked?C.red:C.textMuted, fontWeight:liked?600:400, padding:0 }}>
+                        style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", fontFamily:"var(--m-font)", fontSize:13, color:liked?C.red:C.textMuted, fontWeight:liked?600:400, padding:0 }}>
                         {liked ? "❤️" : "🤍"} {likeCount > 0 && likeCount}
                       </button>
                       <button className="comment-btn" onClick={()=>setExpanded(e=>({...e,[post.id]:!e[post.id]}))}
-                        style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:13, color:open?C.gold:C.textMuted, padding:0 }}>
+                        style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", fontFamily:"var(--m-font)", fontSize:13, color:open?C.gold:C.textMuted, padding:0 }}>
                         💬 {open ? "Hide comments" : "Comment"}
                       </button>
                     </div>

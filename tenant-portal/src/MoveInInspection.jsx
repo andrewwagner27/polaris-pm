@@ -140,20 +140,20 @@ export default function MoveInInspection() {
   return (
     <TenantLayout tenantName={tenant?.name}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .mov-status:hover{opacity:0.85;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
-      <div style={{ padding:"24px 20px", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ padding:"24px 20px", fontFamily:"var(--m-font)" }}>
 
         {/* Done state */}
         {done && (
           <div style={{ textAlign:"center", padding:"60px 20px" }}>
             <div style={{ fontSize:40, marginBottom:16 }}>✅</div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text, marginBottom:8 }}>Inspection Submitted</div>
+            <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text, marginBottom:8 }}>Inspection Submitted</div>
             <p style={{ color:C.textMuted, fontSize:14, lineHeight:1.6, marginBottom:24 }}>
               Your move-in inspection has been recorded. You'll receive a copy for your records.
               This protects you if there are any questions about unit condition when you move out.
@@ -184,7 +184,7 @@ export default function MoveInInspection() {
           <div>
             {/* Header */}
             <div style={{ marginBottom:20 }}>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:4 }}>
+              <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text, marginBottom:4 }}>
                 Your Move-In Inspection
               </div>
               <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
@@ -213,7 +213,7 @@ export default function MoveInInspection() {
                         <span style={{ color:C.textSub }}>{item.name}</span>
                         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
                           {item.notes && <span style={{ fontSize:11, color:C.textMuted, fontStyle:"italic" }}>{item.notes}</span>}
-                          <span style={{ fontSize:11, fontWeight:700, color:STATUS_COLOR[item.status]||C.textMuted }}>{item.status}</span>
+                          <span style={{ fontSize:11, fontWeight:600, color:STATUS_COLOR[item.status]||C.textMuted }}>{item.status}</span>
                         </div>
                       </div>
                     );
@@ -257,7 +257,7 @@ export default function MoveInInspection() {
                     <span style={{ color:"#B91C1C", fontWeight:600 }}>-${Number(d.amount).toFixed(2)}</span>
                   </div>
                 ))}
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:700 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:14, fontWeight:600 }}>
                   <span style={{ color:C.text }}>Your refund</span>
                   <span style={{ color:"#166534" }}>${Math.max(0, (inspection.deposit_held||0) - (inspection.total_deducted||0)).toFixed(2)}</span>
                 </div>
@@ -289,7 +289,7 @@ export default function MoveInInspection() {
             {/* ── INTRO step ── */}
             {step === 0 && (
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.text, marginBottom:8 }}>
+                <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text, marginBottom:8 }}>
                   Move-In Inspection
                 </div>
                 <p style={{ color:C.textSub, fontSize:13, lineHeight:1.7, marginBottom:16 }}>
@@ -323,7 +323,7 @@ export default function MoveInInspection() {
                   const room = rooms[ri];
                   return (
                     <>
-                      <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text, marginBottom:4 }}>
+                      <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text, marginBottom:4 }}>
                         {room.room}
                       </div>
                       <p style={{ color:C.textMuted, fontSize:12, marginBottom:20 }}>Review each item and update status if needed</p>
@@ -385,7 +385,7 @@ export default function MoveInInspection() {
             {/* ── PHOTOS step ── */}
             {step === rooms.length + 1 && (
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text, marginBottom:4 }}>Add Photos</div>
+                <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text, marginBottom:4 }}>Add Photos</div>
                 <p style={{ color:C.textMuted, fontSize:12, marginBottom:20 }}>Document any damage or pre-existing issues with photos. Optional but recommended.</p>
 
                 <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"16px 20px", marginBottom:16 }}>
@@ -419,7 +419,7 @@ export default function MoveInInspection() {
                           {p.room || "No room"}
                         </div>
                         <button onClick={() => setPhotos(prev => prev.filter((_,j)=>j!==i))}
-                          style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>
+                          style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
                           ×
                         </button>
                       </div>
@@ -450,7 +450,7 @@ export default function MoveInInspection() {
             {/* ── SIGN step ── */}
             {step === rooms.length + 2 && (
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:600, color:C.text, marginBottom:4 }}>Sign & Submit</div>
+                <div style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight:600, color:C.text, marginBottom:4 }}>Sign & Submit</div>
                 <p style={{ color:C.textMuted, fontSize:12, marginBottom:20 }}>Review your inspection and sign to confirm accuracy.</p>
 
                 {/* Summary */}

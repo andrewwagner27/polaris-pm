@@ -10,7 +10,7 @@ const C = {
   bg:       "#0B0D10",
   surface:  "#15191F",
   raised:   "#1C2129",
-  border:   "#303640",
+  border:   "#262B33",
   text:     "#F5F2EB",
   textSub:  "#B7BBC4",
   textMuted:"#9298A3",
@@ -56,7 +56,7 @@ function Badge({ status }) {
 
 function GhostBtn({ children, onClick, small }) {
   return (
-    <button onClick={onClick} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"6px 12px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s" }}
+    <button className="m-touch-min" onClick={onClick} style={{ background:"transparent",border:`1px solid ${C.border}`,color:C.textSub,fontSize:small?11:13,fontWeight:500,padding:small?"6px 12px":"9px 18px",borderRadius:7,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.15s" }}
       onMouseOver={e=>{ e.currentTarget.style.borderColor="#353A44"; e.currentTarget.style.color=C.text; }}
       onMouseOut={e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.color=C.textSub; }}
     >{children}</button>
@@ -64,7 +64,7 @@ function GhostBtn({ children, onClick, small }) {
 }
 
 function FieldLabel({ children }) {
-  return <label style={{ fontSize:11,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5 }}>{children}</label>;
+  return <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:5 }}>{children}</label>;
 }
 
 function Input({ value, onChange, placeholder, type="text", maxLength }) {
@@ -72,7 +72,7 @@ function Input({ value, onChange, placeholder, type="text", maxLength }) {
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder} maxLength={maxLength}
       onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",boxShadow:focused?`0 0 0 3px rgba(201,169,110,0.08)`:"none",transition:"border-color 0.15s" }}
+      style={{ width:"100%",padding:"10px 12px",fontSize:13,border:`1px solid ${focused?C.gold:C.border}`,borderRadius:7,background:C.raised,color:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",boxShadow:focused?`0 0 0 3px rgba(201,169,110,0.08)`:"none",transition:"border-color 0.15s" }}
     />
   );
 }
@@ -272,7 +272,7 @@ export default function LandlordProperties() {
   return (
     <LandlordLayout openMaintenance={maintenance.length} unreadMessages={0}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:${C.bg};}
         .m-prop-card:hover{border-color:#353A44!important;}
@@ -280,12 +280,12 @@ export default function LandlordProperties() {
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:isMobile?"20px 16px":"28px 32px 48px" }}>
 
         {/* Top bar */}
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24 }}>
           <div>
-            <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?20:24,fontWeight:600,color:C.text }}>Properties</div>
+            <div style={{ fontFamily:"var(--m-font)",fontSize:isMobile?20:24,fontWeight:600,color:C.text }}>Properties</div>
             <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${properties.length} properties · ${totalUnits} total units`}</div>
           </div>
           <PrimaryBtn onClick={()=>setShowAddProp(true)}>+ Add property</PrimaryBtn>
@@ -297,9 +297,9 @@ export default function LandlordProperties() {
             <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px" }}>
               <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
                 <div style={{ width:6,height:6,borderRadius:"50%",background:s.accent }}/>
-                <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em" }}>{s.label}</div>
+                <div style={{ fontSize:12,fontWeight:600,color:C.textSub,}}>{s.label}</div>
               </div>
-              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:s.accent,lineHeight:1,marginBottom:4 }}>{s.value}</div>
+              <div style={{ fontFamily:"var(--m-font)", fontVariantNumeric:"tabular-nums",fontSize:"var(--m-fs-stat)",fontWeight:600,color:s.accent,lineHeight:1,marginBottom:4 }}>{s.value}</div>
               <div style={{ fontSize:11,color:C.textSub }}>{s.sub}</div>
             </div>
           ))}
@@ -338,8 +338,8 @@ export default function LandlordProperties() {
                         <div style={{ fontSize:11,color:C.textSub }}>{prop.city}, {prop.state} {prop.zip}</div>
                         {prop.property_code&&(
                           <div style={{ display:"inline-flex",alignItems:"center",gap:4,marginTop:4,padding:"2px 8px",background:`${C.gold}12`,border:`1px solid ${C.goldDim}`,borderRadius:4 }}>
-                            <span style={{ fontSize:9,fontWeight:700,color:C.textMuted,letterSpacing:"0.08em" }}>CODE</span>
-                            <span style={{ fontSize:11,fontWeight:700,color:C.gold,letterSpacing:"0.1em" }}>{prop.property_code}</span>
+                            <span style={{ fontSize:9,fontWeight:600,color:C.textMuted,letterSpacing:"0.08em" }}>CODE</span>
+                            <span style={{ fontSize:11,fontWeight:600,color:C.gold,letterSpacing:"0.1em" }}>{prop.property_code}</span>
                           </div>
                         )}
                       </div>
@@ -368,8 +368,8 @@ export default function LandlordProperties() {
                     </div>
 
                     <div style={{ display:"flex",gap:8,paddingTop:12,borderTop:`1px solid ${C.border}` }}>
-                      <button onClick={e=>{ e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background 0.15s" }}>View units</button>
-                      <button onClick={e=>{ e.stopPropagation(); navigate("/landlord/maintenance"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.textSub,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s" }}>Maintenance</button>
+                      <button onClick={e=>{ e.stopPropagation(); setSelected(prop.id); setDetailTab("Units"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.goldDim}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.gold,cursor:"pointer",fontFamily:"var(--m-font)",transition:"background 0.15s" }}>View units</button>
+                      <button onClick={e=>{ e.stopPropagation(); navigate("/landlord/maintenance"); }} type="button" style={{ flex:1,minHeight:44,padding:"0",background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontWeight:500,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.15s" }}>Maintenance</button>
                     </div>
                   </div>
                 </div>
@@ -390,7 +390,7 @@ export default function LandlordProperties() {
                   <div style={{ width:8,height:8,borderRadius:"50%",background:propColor }}/>
                   <div style={{ fontSize:17,fontWeight:600,color:C.text }}>{prop.name}</div>
                   {prop.property_code&&(
-                    <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",background:`${C.gold}12`,border:`1px solid ${C.goldDim}`,borderRadius:4,color:C.gold,letterSpacing:"0.08em" }}>{prop.property_code}</span>
+                    <span style={{ fontSize:10,fontWeight:600,padding:"2px 8px",background:`${C.gold}12`,border:`1px solid ${C.goldDim}`,borderRadius:4,color:C.gold,letterSpacing:"0.08em" }}>{prop.property_code}</span>
                   )}
                 </div>
                 <div style={{ fontSize:12,color:C.textSub }}>{prop.address}, {prop.city} {prop.state} {prop.zip}</div>
@@ -400,14 +400,14 @@ export default function LandlordProperties() {
 
             <div style={{ display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 24px" }}>
               {["Overview","Units"].map(tab=>(
-                <button key={tab} onClick={()=>setDetailTab(tab)} style={{ padding:"11px 16px",fontSize:13,fontWeight:detailTab===tab?600:400,color:detailTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:detailTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"color 0.15s" }}>{tab}</button>
+                <button key={tab} onClick={()=>setDetailTab(tab)} style={{ padding:"11px 16px",fontSize:13,fontWeight:detailTab===tab?600:400,color:detailTab===tab?C.gold:C.textSub,background:"none",border:"none",borderBottom:detailTab===tab?`2px solid ${C.gold}`:"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"var(--m-font)",transition:"color 0.15s" }}>{tab}</button>
               ))}
             </div>
 
             <div style={{ padding:"20px 24px" }}>
               {detailTab==="Overview"&&(
                 <>
-                  <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12 }}>Property Summary</div>
+                  <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:12 }}>Property Summary</div>
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20 }}>
                     {[
                       ["Total units",   propUnitsFor(prop.id).length],
@@ -433,7 +433,7 @@ export default function LandlordProperties() {
               {detailTab==="Units"&&(
                 <>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                    <div style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.1em" }}>
+                    <div style={{ fontSize:12,fontWeight:600,color:C.textSub,}}>
                       Unit roster — {propUnitsFor(prop.id).length} units
                     </div>
                     <PrimaryBtn onClick={()=>setShowAddUnit(true)} small>+ Add unit</PrimaryBtn>
@@ -447,7 +447,7 @@ export default function LandlordProperties() {
                       <thead>
                         <tr>
                           {["Unit","Tenant","Rent","Status"].map(h=>(
-                            <th key={h} style={{ fontSize:10,fontWeight:600,color:C.textSub,textTransform:"uppercase",letterSpacing:"0.08em",padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
+                            <th key={h} style={{ fontSize:12,fontWeight:600,color:C.textSub,padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised }}>{h}</th>
                           ))}
                         </tr>
                       </thead>

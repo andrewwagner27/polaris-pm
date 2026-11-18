@@ -4,4 +4,4 @@ export const C = {
   text: "#F5F2EB", textSub: "#B7BBC4", textMuted: "#9298A3",
   gold: "#C9A968", goldDim: "#6B4F24", blue: "#6AAEF0", green: "#72B02A", red: "#F07070", amber: "#F0A430",
 };
-export const font = "'DM Sans', sans-serif";
+export const font = "var(--m-font)";

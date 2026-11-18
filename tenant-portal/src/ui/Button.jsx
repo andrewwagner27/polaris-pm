@@ -20,7 +20,7 @@ export function GhostBtn({ children, onClick, disabled, small, danger, type = "b
   return (
     <button type={type} onClick={onClick} disabled={disabled} aria-label={ariaLabel}
       className={`m-btn m-btn-ghost${small ? " m-btn-small" : ""}`}
-      style={{ color: danger ? DARK.red : DARK.action, borderColor: danger ? "rgba(240,112,112,0.4)" : DARK.border, fontFamily: FONT.sans, ...style }}>
+      style={{ color: danger ? DARK.red : DARK.action, borderColor: danger ? "rgba(240,112,112,0.4)" : DARK.borderStrong, fontFamily: FONT.sans, ...style }}>
       {children}
     </button>
   );

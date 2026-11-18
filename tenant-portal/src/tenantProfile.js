@@ -15,6 +15,8 @@ export function buildTenantProfile({ authUser, tenantData, unitData, role, payme
     phone:            tenantData?.phone    || authUser.user_metadata?.phone || "—",
     unit:             unitData?.unit_number || authUser.user_metadata?.unit_number || "—",
     property:         propertyData?.name   || "—",
+    // Optional property photo (only an https URL is used); the Home header is designed to look complete without one.
+    propertyPhoto:    [propertyData?.photo_url, propertyData?.image_url].find((u) => typeof u === "string" && /^https:\/\//.test(u)) || null,
     address:          propertyData
       ? `${propertyData.address}, ${propertyData.city} ${propertyData.state}`
       : "—",

@@ -19,10 +19,10 @@ function InputField({ label, value, onChange, type="text", placeholder, readOnly
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom:16 }}>
-      <label style={{ fontSize:11,fontWeight:600,color:C.textSub,letterSpacing:"0.08em",textTransform:"uppercase",display:"block",marginBottom:6 }}>{label}</label>
+      <label style={{ fontSize:12,fontWeight:600,color:C.textSub,display:"block",marginBottom:6 }}>{label}</label>
       <input type={type} value={value} onChange={e=>onChange&&onChange(e.target.value)} placeholder={placeholder} readOnly={readOnly}
         onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-        style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${readOnly?C.border:focused?C.gold:C.border}`,borderRadius:8,background:readOnly?C.bg:C.raised,color:readOnly?C.textMuted:C.text,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",transition:"border-color 0.15s",cursor:readOnly?"default":"text" }}/>
+        style={{ width:"100%",padding:"11px 14px",fontSize:14,border:`1px solid ${readOnly?C.border:focused?C.gold:C.border}`,borderRadius:8,background:readOnly?C.bg:C.raised,color:readOnly?C.textMuted:C.text,outline:"none",boxSizing:"border-box",fontFamily:"var(--m-font)",transition:"border-color 0.15s",cursor:readOnly?"default":"text" }}/>
     </div>
   );
 }
@@ -78,21 +78,21 @@ export default function AccountScreen() {
 
   const initials = (tenant?.name||"T").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
-  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"'DM Sans',sans-serif",fontSize:14 }}>Loading…</div>;
+  if (loading) return <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:C.bg,color:C.textMuted,fontFamily:"var(--m-font)",fontSize:14 }}>Loading…</div>;
 
   return (
     <TenantLayout tenantName={tenant?.name||"Tenant"}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600&display=swap');
+        
         *,*::before,*::after{box-sizing:border-box;}
       `}</style>
 
-      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"'DM Sans',sans-serif",padding:"24px 16px 80px" }}>
+      <div style={{ background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"var(--m-font)",padding:"24px 16px 80px" }}>
 
         {/* Header */}
         <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:11,color:C.textMuted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5 }}>Account</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:30,fontWeight:600,color:C.text,lineHeight:1 }}>{tenant?.name||"Tenant"}</div>
+          <div style={{ fontSize:12,color:C.textMuted,marginBottom:5 }}>Account</div>
+          <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,lineHeight:1 }}>{tenant?.name||"Tenant"}</div>
           <div style={{ fontSize:13,color:C.textSub,marginTop:4 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
         </div>
 
@@ -100,7 +100,7 @@ export default function AccountScreen() {
         <div style={{ display:"flex",gap:4,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px",marginBottom:20,overflowX:"auto" }}>
           {VIEWS.map(v => (
             <button key={v} onClick={()=>setView(v)}
-              style={{ flex:1,padding:"10px 12px",textAlign:"center",background:view===v?`rgba(139,105,20,0.08)`:"transparent",border:`1px solid ${view===v?C.goldDim:"transparent"}`,borderRadius:7,color:view===v?C.gold:C.textSub,fontSize:13,fontWeight:view===v?500:400,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.12s",whiteSpace:"nowrap",minWidth:0 }}>
+              style={{ flex:1,padding:"10px 12px",textAlign:"center",background:view===v?`rgba(139,105,20,0.08)`:"transparent",border:`1px solid ${view===v?C.goldDim:"transparent"}`,borderRadius:7,color:view===v?C.gold:C.textSub,fontSize:13,fontWeight:view===v?500:400,cursor:"pointer",fontFamily:"var(--m-font)",transition:"all 0.12s",whiteSpace:"nowrap",minWidth:0 }}>
               {v}
             </button>
           ))}
@@ -116,7 +116,7 @@ export default function AccountScreen() {
                 {/* Avatar + name */}
                 <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"24px" }}>
                   <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:24 }}>
-                    <div style={{ width:56,height:56,borderRadius:"50%",background:`${C.gold}22`,border:`1px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700 }}>{initials}</div>
+                    <div style={{ width:56,height:56,borderRadius:"50%",background:`${C.gold}22`,border:`1px solid ${C.goldDim}`,color:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600 }}>{initials}</div>
                     <div>
                       <div style={{ fontSize:16,fontWeight:600,color:C.text }}>{tenant?.name||"Tenant"}</div>
                       <div style={{ fontSize:12,color:C.textMuted,marginTop:2 }}>{tenant?.email}</div>
@@ -126,7 +126,7 @@ export default function AccountScreen() {
                   <InputField label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="(555) 000-0000" />
                   <InputField label="Email" value={email} readOnly placeholder="—" />
                   <button onClick={saveProfile} disabled={saving}
-                    style={{ padding:"10px 20px",background:C.gold,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1 }}>
+                    style={{ padding:"10px 20px",background:C.gold,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"var(--m-font)",opacity:saving?0.7:1 }}>
                     {saving?"Saving…":saved?"Saved ✓":"Save Changes"}
                   </button>
                 </div>
@@ -138,7 +138,7 @@ export default function AccountScreen() {
                   <InputField label="Confirm Password" value={confirmPw} onChange={setConfirmPw} type="password" placeholder="Confirm new password" />
                   {pwMsg && <div style={{ fontSize:12,color:pwMsg.includes("Error")?C.red:C.green,marginBottom:10 }}>{pwMsg}</div>}
                   <button onClick={changePassword} disabled={pwSaving}
-                    style={{ padding:"10px 20px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",opacity:pwSaving?0.7:1 }}>
+                    style={{ padding:"10px 20px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"var(--m-font)",opacity:pwSaving?0.7:1 }}>
                     {pwSaving?"Updating…":"Update Password"}
                   </button>
                 </div>
@@ -158,7 +158,7 @@ export default function AccountScreen() {
 
                 {/* Sign out */}
                 <button onClick={async()=>{ await supabase.auth.signOut(); navigate("/login"); }}
-                  style={{ padding:"11px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.red,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%" }}>
+                  style={{ padding:"11px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.red,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"var(--m-font)",width:"100%" }}>
                   Sign Out
                 </button>
               </div>
@@ -194,7 +194,7 @@ export default function AccountScreen() {
                 <div style={{ fontSize:13,fontWeight:600,color:C.text,marginBottom:12 }}>Move-In Inspection</div>
                 <div style={{ fontSize:13,color:C.textSub,marginBottom:20 }}>View or complete your move-in inspection report.</div>
                 <button onClick={()=>navigate("/inspection")}
-                  style={{ padding:"11px 24px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                  style={{ padding:"11px 24px",background:"transparent",border:`1px solid ${C.gold}`,borderRadius:8,color:C.gold,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"var(--m-font)" }}>
                   Open Inspection →
                 </button>
               </div>

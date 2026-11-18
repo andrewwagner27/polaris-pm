@@ -63,7 +63,7 @@ export default function TeachAgentModal({ log, conversation, reason, tenant, onC
     <div role="dialog" aria-modal="true" aria-label="Teach Agent" onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "22px 22px", width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", fontFamily: font, color: C.text }}>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 21, fontWeight: 600, marginBottom: 4 }}>Teach Agent</div>
+        <div style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-section)", fontWeight: 600, marginBottom: 4 }}>Teach Agent</div>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16, lineHeight: 1.5 }}>
           Approve an answer the AI may give tenants in future. Only what you approve here is used, and the tenant's own words are never treated as fact.
         </div>
