@@ -35,20 +35,21 @@ export default function ProtectedLandlordRoute({ children }) {
     checkAuth();
   }, [navigate]);
 
+  // Same dark surface as the management app, so navigating between landlord pages doesn't flash a light screen.
   if (checking) return (
-    <div style={{
+    <div role="status" aria-live="polite" style={{
       display: "flex", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh", fontFamily: "'Inter',sans-serif",
-      flexDirection: "column", gap: 12, color: "#555",
-      background: "#f4f5f7",
+      minHeight: "100vh", fontFamily: "'DM Sans',sans-serif",
+      flexDirection: "column", gap: 12, color: "#B7BBC4",
+      background: "#0B0D10",
     }}>
-      <div style={{
-        width: 36, height: 36, border: "3px solid #E6F1FB",
-        borderTopColor: "#0C447C", borderRadius: "50%",
+      <div aria-hidden="true" style={{
+        width: 32, height: 32, border: "3px solid #303640",
+        borderTopColor: "#C9A968", borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
       }} />
       <div style={{ fontSize: 14 }}>Verifying access…</div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }`}</style>
     </div>
   );
 
