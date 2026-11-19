@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import aboutRowhouses from "./assets/about-rowhouses.webp";
-import demoResidentRepair from "./assets/demo-resident-repair.webp";
+import demoResidentHome from "./assets/demo-resident-home.webp";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
 // screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
@@ -398,17 +398,17 @@ export default function LandingPage({ page = "home" }) {
         <section className="lp-hero">
           <div className="lp-wrap lp-hero-grid">
             <div className="lp-hero-copy">
-              <h1>See every repair through.</h1>
-              <p>Track rental repairs from the first report to the contractor’s visit.</p>
+              <h1>Property management for both sides of the lease.</h1>
+              <p>Keep rent, maintenance, and resident messages in one place.</p>
               <div className="lp-cta">
                 <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
-                <a href="/walkthrough" className="lp-btn lp-btn-quiet">Try a sample repair</a>
+                <a href="/walkthrough" className="lp-btn lp-btn-quiet">See a sample workflow</a>
               </div>
               <a className="lp-resident-entry" href="/login" onClick={go("/login")}>Resident sign-in</a>
             </div>
             <figure className="lp-hero-visual">
               <div className="lp-hero-exhibit">
-                <img src={demoResidentRepair} width={596} height={239} alt="Resident home activity shows a contractor confirmation message and the kitchen faucet repair marked In progress"/>
+                <img src={demoResidentHome} width={600} height={346} alt="Modus resident home showing payment status and shortcuts to report an issue or message management"/>
               </div>
               <figcaption>Modus resident home, shown with sample data.</figcaption>
             </figure>

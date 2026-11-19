@@ -32,15 +32,15 @@ test("product visuals are decorative mockups labelled as sample data", () => {
   }
   assert.equal((src.match(/<figcaption>[^<]*sample[^<]*<\/figcaption>/gi) || []).length, 1);
   const home = src.slice(src.indexOf('{page === "home" && ('), src.indexOf("</main>"));
-  assert.match(home, /<img src=\{demoResidentRepair\}[^>]+alt=/, "homepage screenshot has descriptive alt text");
+  assert.match(home, /<img src=\{demoResidentHome\}[^>]+alt=/, "homepage screenshot has descriptive alt text");
   assert.match(src, /<img src=\{aboutRowhouses\}[^>]+alt=/, "About photograph has descriptive alt text");
 });
 
 test("the required headlines and calls to action are present and routed", () => {
-  assert.match(src, /See every repair through/);
-  assert.match(src, /Track rental repairs from the first report/);
+  assert.match(src, /Property management for both sides of the lease/);
+  assert.match(src, /Keep rent, maintenance, and resident messages in one place/);
   assert.equal((src.match(/href="\/contact\?intent=demo" className="lp-btn lp-btn-gold">Request a demo/g) || []).length, 2);
-  assert.match(src, /href="\/walkthrough" className="lp-btn lp-btn-quiet">Try a sample repair/);
+  assert.match(src, /href="\/walkthrough" className="lp-btn lp-btn-quiet">See a sample workflow/);
   assert.match(src, /className="lp-resident-entry" href="\/login"/);
   assert.match(src, /id="maintenance-tour"[^>]+aria-labelledby="maintenance-tour-title"/);
 });
