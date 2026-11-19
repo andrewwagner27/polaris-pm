@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import aboutRowhouses from "./assets/about-rowhouses.webp";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
 // screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
@@ -209,19 +210,45 @@ function PublicLinks({ page }) {
 
 function AboutModus() {
   return (
-      <section className="lp-light lp-ivory">
-        <div className="lp-wrap lp-about-copy">
-          <h1>About Us</h1>
-          <p className="lp-about-intro"><strong>We’ve been on both sides of the lease.</strong></p>
-          <p>Modus started with a simple frustration. As a renter, our founder would report a problem and then hear nothing back: no update, no timeline, no one to follow up with. As an investor, he had the same problem from the other side. He couldn’t easily tell what was happening at his properties, what it was costing, or which decisions were waiting on him.</p>
-          <p>The issue wasn’t that anyone was being careless. The tools were built around paperwork, not around the people using them.</p>
-          <p>So he built Modus to fix both sides at once.</p>
-          <p><strong>For residents:</strong> One place to report an issue, message management, see exactly where a request stands, and pay rent where online payments are enabled.</p>
-          <p><strong>For owners and managers:</strong> The full picture behind every request (what was reported, what it’ll cost, and what needs your call) so you can decide quickly and move on.</p>
-          <p>Better communication leads to better decisions, and that makes for a better place to live and a better place to own. That’s what we’re building.</p>
+    <div className="lp-about">
+      <section className="lp-about-hero" aria-labelledby="about-title">
+        <div className="lp-wrap lp-about-hero-grid">
+          <div className="lp-about-headline">
+            <p className="lp-about-label">About Us</p>
+            <h1 id="about-title">We’ve been on both sides of the lease.</h1>
+            <p>Modus started with a frustration our founder knew as both a renter and a property investor. It was hard to find out what was happening and who needed to act.</p>
+          </div>
+          <figure className="lp-about-photo">
+            <img src={aboutRowhouses} width={1400} height={928} fetchPriority="high" alt="Brick rowhouses with front steps and flower pots along a tree-lined sidewalk"/>
+            <figcaption>Photo by <a href="https://unsplash.com/photos/a-row-of-brick-buildings-with-flowers-on-the-steps-Ii4Yedkl3z4">Krishna Dubagunta</a></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section className="lp-about-story" aria-label="Why we built Modus">
+        <div className="lp-wrap">
+          <div className="lp-about-perspectives">
+            <div>
+              <h2>As a renter</h2>
+              <p>Our founder would report a problem and then hear nothing back. There was no update, no timeline, and no one to follow up with.</p>
+            </div>
+            <div>
+              <h2>As an investor</h2>
+              <p>He ran into the same problem from the other side. He couldn’t easily tell what was happening at his properties, what it was costing, or which decisions were waiting on him.</p>
+            </div>
+          </div>
+          <p className="lp-about-bridge">The tools were built around paperwork. He built Modus so residents could see where a request stands and managers could see what it would cost and what needed their call.</p>
+        </div>
+      </section>
+
+      <section className="lp-about-example" aria-labelledby="about-example-title">
+        <div className="lp-wrap lp-about-example-inner">
+          <h2 id="about-example-title">What happens when a faucet leaks?</h2>
+          <p>A resident reports the leak in their portal. The manager sees the request, reviews the contractor’s quote, and approves the repair. When management adds the appointment, the resident can see when the contractor is coming.</p>
           <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
         </div>
       </section>
+    </div>
   );
 }
 
@@ -495,8 +522,34 @@ const CSS = `
 .lp-about-copy { max-width: 800px; }
 .lp-about-copy h1 { font-size: clamp(38px, 7vw, 68px); letter-spacing: -0.05em; line-height: 1.05; }
 .lp-about-copy p { color: #52525B; font-size: 17px; line-height: 1.65; }
-.lp-about-copy .lp-about-intro { color: #18181B; font-size: clamp(21px, 4vw, 28px); line-height: 1.4; }
 .lp-about-copy .lp-btn { margin-top: 10px; }
+.lp-about { color: #24211C; background: #FFFFFF; }
+.lp-about-hero { padding: 72px 0 56px; background: #F5F3EE; }
+.lp-about-hero-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.15fr); gap: clamp(28px, 5.5vw, 88px); align-items: center; }
+.lp-about-label { margin: 0 0 18px; color: #7A5C12; font-size: 14px; font-weight: 600; }
+.lp .lp-about-headline h1, .lp .lp-about h2 { font-family: var(--m-font-brand); font-weight: 600; letter-spacing: -.035em; }
+.lp .lp-about-headline h1 { max-width: 11ch; font-size: clamp(47px, 6.1vw, 88px); line-height: .97; }
+.lp-about-headline > p:last-child { max-width: 40ch; margin: 24px 0 0; font-size: 17px; line-height: 1.62; color: #514A40; }
+.lp-about-photo { margin: 0; }
+.lp-about-photo img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 46% center; }
+.lp .lp-about-photo figcaption { margin-top: 8px; color: #5E584D; font-size: 12px; text-align: right; }
+.lp-about-story { padding: 66px 0; }
+.lp-about-story .lp-wrap, .lp-about-example-inner { max-width: 960px; }
+.lp-about-perspectives { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 7vw, 96px); }
+.lp-about-perspectives > div { border-top: 1px solid #B5A886; padding-top: 20px; }
+.lp .lp-about h2 { font-size: clamp(33px, 4vw, 51px); line-height: 1.05; }
+.lp-about-perspectives p, .lp-about-example p { margin: 12px 0 0; color: #514A40; font-size: 17px; line-height: 1.65; }
+.lp-about-bridge { max-width: 62ch; margin: 34px 0 0; font-size: 17px; line-height: 1.65; }
+.lp-about-example { padding: 55px 0 66px; background: #F5F3EE; }
+.lp-about-example p { max-width: 62ch; margin-bottom: 22px; }
+@media (max-width: 720px) {
+  .lp-about-hero { padding: 38px 0 26px; }
+  .lp-about-hero-grid, .lp-about-perspectives { grid-template-columns: 1fr; }
+  .lp .lp-about-headline h1 { font-size: clamp(46px, 10vw, 64px); }
+  .lp-about-headline > p:last-child { margin-top: 18px; }
+  .lp-about-photo img { aspect-ratio: 3 / 2; }
+  .lp-about-story, .lp-about-example { padding: 44px 0; }
+}
 .lp-faq { scroll-margin-top: 75px; }
 .lp-faq h1 { margin-bottom: 18px; }
 .lp-faq details { border-bottom: 1px solid #E7E2D8; }

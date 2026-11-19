@@ -16,7 +16,6 @@ test("unreleased capabilities are not advertised and rent payment availability i
   const descriptivePages = copy.slice(copy.indexOf("function AboutModus"), copy.indexOf("function ContactModus"));
   const homepage = copy.replace(descriptivePages, "");
   assert.doesNotMatch(homepage, /pay rent online|online rent|\bACH\b|\bStripe\b/i);
-  assert.match(descriptivePages, /pay rent where online payments are enabled/);
   assert.match(descriptivePages, /Where online payments are enabled, residents can pay rent through the portal by ACH bank transfer, processed by Stripe/);
 });
 
@@ -32,7 +31,9 @@ test("product visuals are decorative mockups labelled as sample data", () => {
     assert.match(body, /aria-hidden="true"/, `${name} is hidden from assistive tech`);
   }
   assert.equal((src.match(/<figcaption>[^<]*sample[^<]*<\/figcaption>/gi) || []).length, 3);
-  assert.doesNotMatch(src, /<img /, "no stock imagery");
+  const home = src.slice(src.indexOf('{page === "home" && <>'), src.indexOf("</main>"));
+  assert.doesNotMatch(home, /<img /, "homepage uses product mockups");
+  assert.match(src, /<img src=\{aboutRowhouses\}[^>]+alt=/, "About photograph has descriptive alt text");
 });
 
 test("the required headlines and calls to action are present and routed", () => {
