@@ -113,8 +113,8 @@ function MaintenanceTour() {
     <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
       <div className="lp-wrap">
         <div className="lp-tour-heading">
-          <h2 id="maintenance-tour-title">Try the maintenance walkthrough</h2>
-          <p>Follow one repair through the resident and manager views. This demo uses sample data.</p>
+          <h1 id="maintenance-tour-title">Try a sample repair</h1>
+          <p>Report a leak, approve a quote, and see the repair date using sample data.</p>
         </div>
         <div className="lp-tour-shell">
           <ol className="lp-tour-steps" aria-label="Walkthrough steps">
@@ -200,7 +200,7 @@ function AboutModus() {
         <div className="lp-wrap lp-about-example-inner">
           <h2 id="about-example-title">What happens when a faucet leaks?</h2>
           <p>A resident reports the leak in their portal. The manager sees the request, reviews the contractor’s quote, and approves the repair. When management adds the appointment, the resident can see when the contractor is coming.</p>
-          <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
+          <a className="lp-btn lp-btn-gold" href="/walkthrough">Try the maintenance walkthrough</a>
         </div>
       </section>
     </div>
@@ -254,7 +254,7 @@ function ModusFaq() {
           </details>
           <details>
             <summary>How do I get started?</summary>
-            <p><a href="/contact?intent=demo">Request a demo</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
+            <p><a href="/contact?intent=demo">Request a demo</a> or <a href="/walkthrough">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
           </details>
         </div>
       </section>
@@ -338,8 +338,9 @@ export default function LandingPage({ page = "home" }) {
     const title = document.title;
     const publicPage = PUBLIC_PAGES.find(item => item.key === page);
     if (publicPage) document.title = publicPage.label + " | Modus";
+    if (page === "walkthrough") document.title = "Repair Walkthrough | Modus";
     if (page === "home" && window.location.hash === "#maintenance-tour") {
-      document.getElementById("maintenance-tour")?.scrollIntoView();
+      window.location.replace("/walkthrough");
     }
     if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
     return () => { document.title = title; };
@@ -387,86 +388,28 @@ export default function LandingPage({ page = "home" }) {
         {page === "about" && <AboutModus/>}
         {page === "faq" && <ModusFaq/>}
         {page === "contact" && <ContactModus/>}
-        {page === "home" && <>
-        {/* ── 1. Hero (dark) ── */}
+        {page === "walkthrough" && <MaintenanceTour/>}
+        {page === "home" && (
         <section className="lp-hero">
           <div className="lp-wrap lp-hero-grid">
             <div className="lp-hero-copy">
-              <p className="lp-hero-audience">For independent landlords and small property managers</p>
               <h1>See every repair through.</h1>
-              <p>Residents report issues, you review quotes, and everyone can see what happens next.</p>
+              <p>Track rental repairs from the first report to the contractor’s visit.</p>
               <div className="lp-cta">
                 <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
-                <a href="#maintenance-tour" className="lp-btn lp-btn-quiet">Try a sample repair</a>
+                <a href="/walkthrough" className="lp-btn lp-btn-quiet">Try a sample repair</a>
               </div>
               <a className="lp-resident-entry" href="/login" onClick={go("/login")}>Resident sign-in</a>
             </div>
             <figure className="lp-hero-visual">
               <div className="lp-hero-exhibit">
-                <div><span>Resident reports a leak</span><span>Manager reviews the quote</span></div>
                 <img src={demoResidentRepair} width={596} height={239} alt="Resident home activity shows a contractor confirmation message and the kitchen faucet repair marked In progress"/>
               </div>
               <figcaption>Modus resident home, shown with sample data.</figcaption>
             </figure>
           </div>
         </section>
-
-        <MaintenanceTour/>
-
-        {/* ── 2. Landlord experience (ivory) ── */}
-        <section className="lp-light lp-ivory">
-          <div className="lp-wrap lp-split">
-            <div className="lp-split-copy">
-              <span className="lp-eyebrow">For landlords</span>
-              <h2>Know what needs your attention. Instantly.</h2>
-              <p>Urgent repairs, quotes to approve and finished work come to the top, organized by property.</p>
-              <ul className="lp-points">
-                <li>Approve contractors and quotes in one step</li>
-                <li>Review completed work before closing a ticket</li>
-                <li>Switch between properties without losing your place</li>
-              </ul>
-            </div>
-            <figure className="lp-split-visual">
-              <DecisionMock/>
-              <figcaption>Sample maintenance decision.</figcaption>
-            </figure>
-          </div>
-        </section>
-
-        {/* ── 3. Tenant experience (light) ── */}
-        <section className="lp-light lp-white">
-          <div className="lp-wrap lp-split lp-split-rev">
-            <figure className="lp-split-visual lp-phone-wrap">
-              <PhoneMock/>
-              <figcaption>Sample tenant home screen.</figcaption>
-            </figure>
-            <div className="lp-split-copy">
-              <span className="lp-eyebrow">For residents</span>
-              <h2>A better experience for the people who call your properties home.</h2>
-              <p>Residents report issues with photos, follow progress, message management, and keep their lease details close.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 4. Setup and pricing (ivory) ── */}
-        <section className="lp-light lp-ivory">
-          <div className="lp-wrap">
-            <div className="lp-setup">
-              <div><h2>Getting started</h2><p>Start with a property and units, then invite residents to use their portal. Your team reviews requests, assigns contractors and approves quotes in Modus.</p></div>
-              <div><h2>Pricing and fit</h2><p>Tell us what you manage. We’ll explain what’s included and answer questions about setup and pricing.</p><a href="/contact?intent=pricing">Ask about pricing</a></div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 5. Final CTA (charcoal) ── */}
-        <section className="lp-final">
-          <div className="lp-wrap">
-            <h2>See how Modus fits your rentals.</h2>
-            <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
-            <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Resident sign-in</a></p>
-          </div>
-        </section>
-        </>}
+        )}
       </main>
 
       <footer className="lp-footer">
@@ -551,6 +494,7 @@ const CSS = `
 /* Buttons */
 .lp-tour { scroll-margin-top: 90px; }
 .lp-tour-heading { max-width: 650px; margin: 0 auto 28px; text-align: center; }
+.lp-tour-heading h1 { font-size:clamp(32px,5vw,48px); line-height:1.1; }
 .lp-tour-heading p { color: #52525B; line-height: 1.6; }
 .lp-tour-shell { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr); gap: 16px; background: #0E1116; padding: clamp(12px, 3vw, 28px); border-radius: 22px; color: #F5F2EB; }
 .lp-tour-steps { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -575,7 +519,7 @@ const CSS = `
 .lp-btn-quiet:hover { background: rgba(255,255,255,0.05); }
 
 /* Hero */
-.lp-hero { padding: 88px 0 72px; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
+.lp-hero { padding: 74px 0; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
 
 .lp-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:clamp(28px,5vw,72px); }
 .lp-hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.07; font-weight: 600; letter-spacing: -0.02em; }
@@ -601,14 +545,7 @@ const CSS = `
 .lp-ivory { background: ${IVORY}; }
 .lp-white { background: #FBFAF7; }
 .lp-light figcaption { color: #6B6B73; }
-.lp-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 72px; align-items: center; }
-.lp-split-rev { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.lp-eyebrow { display: inline-block; font-size: 13px; font-weight: 600; color: ${GOLD_DEEP}; margin-bottom: 14px; }
 .lp-light h2 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; font-weight: 600; letter-spacing: -0.015em; }
-.lp-split-copy p { margin-top: 18px; font-size: 17px; line-height: 1.65; color: ${DARK_TXT2}; max-width: 460px; }
-.lp-points { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 12px; }
-.lp-points li { position: relative; padding-left: 26px; font-size: 15px; color: ${DARK_TXT}; }
-.lp-points li::before { content: ""; position: absolute; left: 0; top: 7px; width: 12px; height: 7px; border-left: 2px solid ${GOLD_DEEP}; border-bottom: 2px solid ${GOLD_DEEP}; transform: rotate(-45deg); }
 .lp-window-tight { box-shadow: 0 24px 60px rgba(24,24,27,0.18); }
 .lp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .lp-chips span { font-size: 12px; padding: 6px 12px; border-radius: 999px; color: ${TXT2}; background: ${INK3}; }
@@ -630,7 +567,6 @@ const CSS = `
 .lp-ticket-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* Phone mockup */
-.lp-phone-wrap { display: flex; flex-direction: column; align-items: center; }
 .lp-phone { width: 300px; max-width: 100%; padding: 12px; border-radius: 44px; background: #1B1E24; box-shadow: 0 30px 70px rgba(24,24,27,0.22); position: relative; }
 .lp-phone-notch { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; border-radius: 12px; background: #1B1E24; z-index: 2; }
 .lp-phone-screen { background: ${IVORY}; border-radius: 34px; padding: 52px 14px 12px; display: flex; flex-direction: column; gap: 10px; color: ${DARK_TXT}; }
@@ -652,23 +588,13 @@ const CSS = `
 
 /* Benefits */
 
-.lp-hero .lp-hero-audience { color: #C7A86C; font-size: 14px; font-weight: 600; margin: 0 0 14px; }
 .lp-resident-entry { display:inline-flex; align-items:center; min-height:44px; margin-top:10px; text-underline-offset:4px; }
 .lp .lp-hero-visual { margin:0; min-width:0; }
 .lp-hero-exhibit { background:#1E232C; border:1px solid #363C45; border-radius:16px; padding:clamp(10px,2vw,20px); }
-.lp-hero-exhibit > div { display:flex; flex-wrap:wrap; gap:6px 16px; justify-content:space-between; margin-bottom:12px; color:#F5F2EB; font-size:13px; }
 .lp-hero-exhibit img { display:block; width:100%; height:auto; border-radius:8px; }
-.lp-setup { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:32px; }
-.lp-setup > div { border-top:1px solid #B5A886; padding-top:16px; }
-.lp-setup p { line-height:1.65; color:#52525B; }
-.lp-setup a { display:inline-flex; align-items:center; min-height:44px; }
-@media (max-width: 820px) { .lp-hero-grid, .lp-setup { grid-template-columns:1fr; } }
+@media (max-width: 820px) { .lp-hero-grid { grid-template-columns:1fr; } }
 
 /* Final CTA + footer */
-.lp-final { padding: 112px 0; text-align: center; background: radial-gradient(900px 400px at 50% 120%, rgba(199,168,108,0.10), transparent 70%), ${INK}; }
-.lp-final h2 { font-size: clamp(30px, 5vw, 48px); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 32px; }
-.lp-final-links { margin-top: 28px; font-size: 14px; color: ${TXT3}; }
-.lp-final-links a { color: ${TXT2}; display: inline-block; padding: 12px 4px; }
 .lp-footer { background: ${INK}; border-top: 1px solid rgba(255,255,255,0.06); }
 .lp-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; min-height: 88px; font-size: 13px; color: ${TXT3}; }
 
@@ -678,15 +604,13 @@ const CSS = `
 
 /* Tablet */
 @media (max-width: 1024px) {
-  .lp-split, .lp-split-rev { grid-template-columns: minmax(0, 1fr); gap: 48px; }
-  .lp-split-rev .lp-phone-wrap { order: 2; }
   .lp-light { padding: 80px 0; }
 }
 /* Phones */
 @media (max-width: 720px) {
   .lp-wrap { padding: 0 20px; }
   .lp-header-row { min-height: 60px; }
-  .lp-hero { padding: 40px 0 48px; }
+  .lp-hero { padding: 36px 0 32px; }
   .lp-hero-copy { text-align: left; }
   .lp-hero p { margin: 16px 0 24px; }
   .lp-hero .lp-cta { justify-content: flex-start; }
@@ -694,7 +618,6 @@ const CSS = `
   .lp .lp-hero-visual { margin-top: 0; }
   .lp-main { padding: 18px; }
   .lp-light { padding: 64px 0; }
-  .lp-final { padding: 80px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .lp * { transition: none !important; } }
 `;

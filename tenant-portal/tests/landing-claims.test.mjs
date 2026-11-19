@@ -30,17 +30,17 @@ test("product visuals are decorative mockups labelled as sample data", () => {
     const body = src.slice(src.indexOf(`function ${name}(`), src.indexOf("\n}\n", src.indexOf(`function ${name}(`)));
     assert.match(body, /aria-hidden="true"/, `${name} is hidden from assistive tech`);
   }
-  assert.equal((src.match(/<figcaption>[^<]*sample[^<]*<\/figcaption>/gi) || []).length, 3);
-  const home = src.slice(src.indexOf('{page === "home" && <>'), src.indexOf("</main>"));
+  assert.equal((src.match(/<figcaption>[^<]*sample[^<]*<\/figcaption>/gi) || []).length, 1);
+  const home = src.slice(src.indexOf('{page === "home" && ('), src.indexOf("</main>"));
   assert.match(home, /<img src=\{demoResidentRepair\}[^>]+alt=/, "homepage screenshot has descriptive alt text");
   assert.match(src, /<img src=\{aboutRowhouses\}[^>]+alt=/, "About photograph has descriptive alt text");
 });
 
 test("the required headlines and calls to action are present and routed", () => {
   assert.match(src, /See every repair through/);
-  assert.match(src, /For independent landlords and small property managers/);
-  assert.equal((src.match(/href="\/contact\?intent=demo" className="lp-btn lp-btn-gold">Request a demo/g) || []).length, 3);
-  assert.match(src, /href="#maintenance-tour" className="lp-btn lp-btn-quiet">Try a sample repair/);
+  assert.match(src, /Track rental repairs from the first report/);
+  assert.equal((src.match(/href="\/contact\?intent=demo" className="lp-btn lp-btn-gold">Request a demo/g) || []).length, 2);
+  assert.match(src, /href="\/walkthrough" className="lp-btn lp-btn-quiet">Try a sample repair/);
   assert.match(src, /className="lp-resident-entry" href="\/login"/);
   assert.match(src, /id="maintenance-tour"[^>]+aria-labelledby="maintenance-tour-title"/);
 });
@@ -56,6 +56,6 @@ test("mobile header: accessible menu button holds both logins; desktop links hid
 test("layout collapses on phones and respects reduced motion", () => {
   assert.match(src, /\.lp-hero h1 \{ font-size: clamp\(34px, 6vw, 60px\);/);
   assert.match(src, /\.lp-cta \.lp-btn \{ flex: 1 1 100%; \}/);
-  assert.match(src, /\.lp-split, \.lp-split-rev \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(src, /\.lp-hero-grid \{ grid-template-columns:1fr/);
   assert.match(src, /@media \(prefers-reduced-motion: reduce\)/);
 });
