@@ -398,7 +398,7 @@ export default function LandingPage({ page = "home" }) {
         <section className="lp-hero">
           <div className="lp-wrap lp-hero-grid">
             <div className="lp-hero-copy">
-              <h1>Property management for both sides of the lease.</h1>
+              <h1>Property management <span>for both sides of the lease.</span></h1>
               <p>Keep rent, maintenance, and resident messages in one place.</p>
               <div className="lp-cta">
                 <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
@@ -408,6 +408,7 @@ export default function LandingPage({ page = "home" }) {
             </div>
             <figure className="lp-hero-visual">
               <div className="lp-hero-exhibit">
+                <div className="lp-hero-exhibit-heading">Resident home</div>
                 <img src={demoResidentHome} width={600} height={346} alt="Modus resident home showing payment status and shortcuts to report an issue or message management"/>
               </div>
               <figcaption>Modus resident home, shown with sample data.</figcaption>
@@ -527,7 +528,8 @@ const CSS = `
 .lp-hero { padding: 74px 0; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
 
 .lp-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:clamp(28px,5vw,72px); }
-.lp-hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.07; font-weight: 600; letter-spacing: -0.02em; }
+.lp-hero h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1.05; font-weight: 600; letter-spacing: -0.045em; }
+.lp-hero h1 span { display:block; margin-top:8px; color:#DFC48B; font-family:var(--m-font-brand); font-size:1.13em; line-height:.98; letter-spacing:-.035em; text-wrap:balance; }
 .lp-hero p { margin: 18px 0 26px; max-width: 42ch; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
 
 
@@ -595,7 +597,8 @@ const CSS = `
 
 .lp-resident-entry { display:inline-flex; align-items:center; min-height:44px; margin-top:10px; text-underline-offset:4px; }
 .lp .lp-hero-visual { margin:0; min-width:0; }
-.lp-hero-exhibit { background:#1E232C; border:1px solid #363C45; border-radius:16px; padding:clamp(10px,2vw,20px); }
+.lp-hero-exhibit { background:linear-gradient(145deg,#282726,#161A21 60%); border:1px solid #66563B; border-radius:16px; padding:clamp(10px,2vw,20px); box-shadow:0 18px 68px rgba(0,0,0,.3), 0 0 60px rgba(199,168,108,.1); }
+.lp-hero-exhibit-heading { color:#F5F2EB; font-size:13px; font-weight:600; margin:0 0 12px; }
 .lp-hero-exhibit img { display:block; width:100%; height:auto; border-radius:8px; }
 @media (max-width: 820px) { .lp-hero-grid { grid-template-columns:1fr; } }
 

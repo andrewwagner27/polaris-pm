@@ -37,7 +37,7 @@ test("product visuals are decorative mockups labelled as sample data", () => {
 });
 
 test("the required headlines and calls to action are present and routed", () => {
-  assert.match(src, /Property management for both sides of the lease/);
+  assert.match(src, /Property management <span>for both sides of the lease/);
   assert.match(src, /Keep rent, maintenance, and resident messages in one place/);
   assert.equal((src.match(/href="\/contact\?intent=demo" className="lp-btn lp-btn-gold">Request a demo/g) || []).length, 2);
   assert.match(src, /href="\/walkthrough" className="lp-btn lp-btn-quiet">See a sample workflow/);
@@ -54,7 +54,7 @@ test("mobile header: accessible menu button holds both logins; desktop links hid
 });
 
 test("layout collapses on phones and respects reduced motion", () => {
-  assert.match(src, /\.lp-hero h1 \{ font-size: clamp\(34px, 6vw, 60px\);/);
+  assert.match(src, /\.lp-hero h1 \{ font-size: clamp\(34px, 5vw, 58px\);/);
   assert.match(src, /\.lp-cta \.lp-btn \{ flex: 1 1 100%; \}/);
   assert.match(src, /\.lp-hero-grid \{ grid-template-columns:1fr/);
   assert.match(src, /@media \(prefers-reduced-motion: reduce\)/);
