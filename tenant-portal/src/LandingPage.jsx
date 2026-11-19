@@ -146,6 +146,55 @@ const BENEFITS = [
   { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
 ];
 
+const TOUR_STEPS = [
+  { role: "Resident portal", title: "Report a dripping faucet", status: "Draft", detail: "Unit 2 · Kitchen · Photo attached", action: "Submit sample request" },
+  { role: "Manager dashboard", title: "Review the contractor quote", status: "Quote ready", detail: "Faucet repair · Contractor quote $185", action: "Approve sample quote" },
+  { role: "Resident portal", title: "See when the repair is scheduled", status: "Scheduled", detail: "Kitchen faucet · Thursday, 10 am–12 pm", action: "Restart walkthrough" },
+];
+
+function MaintenanceTour() {
+  const [step, setStep] = useState(0);
+  const current = TOUR_STEPS[step];
+
+  return (
+    <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
+      <div className="lp-wrap">
+        <div className="lp-tour-heading">
+          <h2 id="maintenance-tour-title">Try the maintenance walkthrough</h2>
+          <p>Follow one repair through the resident and manager views. This demo uses sample data.</p>
+        </div>
+        <div className="lp-tour-shell">
+          <ol className="lp-tour-steps" aria-label="Walkthrough steps">
+            {["Report an issue", "Approve a quote", "See the schedule"].map((label, index) => (
+              <li key={label}>
+                <button type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
+                  <span>{index + 1}</span>{label}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="lp-tour-panel">
+            <div className="lp-tour-context" aria-live="polite" aria-atomic="true">
+              <div className="lp-tour-meta"><span>{current.role}</span><span>{current.status}</span></div>
+              <h3>{current.title}</h3>
+              <p>{current.detail}</p>
+              {step === 0 && <blockquote>“The kitchen faucet keeps dripping even when it’s fully closed.”</blockquote>}
+              {step === 1 && <blockquote>Replace the worn faucet cartridge and test for leaks.</blockquote>}
+              {step === 2 && <blockquote>Management added a repair window to the request.</blockquote>}
+            </div>
+            <button type="button" className="lp-btn lp-btn-gold" onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            {step > 0 && (
+              <div className="lp-tour-preview">
+                {step === 1 ? <DecisionMock/> : <PhoneMock/>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -207,17 +256,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
-          <div className="lp-wrap">
-            <h2 id="maintenance-tour-title">From a reported leak to a scheduled repair</h2>
-            <p>Follow a sample maintenance request through Modus.</p>
-            <ol className="lp-tour-steps">
-              <li><h3>Resident reports the leak</h3><p>The resident describes a dripping kitchen faucet and attaches a photo.</p></li>
-              <li><h3>Manager reviews the quote</h3><p>The manager assigns a contractor, then reviews and approves the $185 quote from the request.</p></li>
-              <li><h3>Resident sees the schedule</h3><p>When a repair date is recorded, the resident can see it on the request and message management with questions.</p></li>
-            </ol>
-          </div>
-        </section>
+        <MaintenanceTour/>
 
         {/* ── 2. Landlord experience (ivory) ── */}
         <section className="lp-light lp-ivory">
@@ -310,13 +349,23 @@ const CSS = `
 
 /* Buttons */
 .lp-tour { scroll-margin-top: 90px; }
-.lp-tour h2 { margin: 0; font-size: clamp(27px, 4vw, 40px); letter-spacing: -0.03em; }
-.lp-tour p { color: #52525B; line-height: 1.6; }
-.lp-tour-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: 16px; margin: 28px 0 0; padding: 0; list-style-position: inside; }
-.lp-tour-steps li { border: 1px solid #E7E2D8; border-radius: 16px; padding: 20px; background: #F5F3EE; }
-.lp-tour-steps li::marker { color: #7A5C12; font-weight: 600; }
-.lp-tour-steps h3 { display: inline; margin: 0; font-size: 17px; }
-.lp-tour-steps p { margin: 10px 0 0; font-size: 15px; }
+.lp-tour-heading { max-width: 650px; margin: 0 auto 28px; text-align: center; }
+.lp-tour-heading p { color: #52525B; line-height: 1.6; }
+.lp-tour-shell { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr); gap: 16px; background: #0E1116; padding: clamp(12px, 3vw, 28px); border-radius: 22px; color: #F5F2EB; }
+.lp-tour-steps { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lp-tour-steps button { display: flex; align-items: center; gap: 10px; min-height: 48px; width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lp-tour-steps button[aria-current="step"] { background: #262B33; border-color: #62646A; }
+.lp-tour-steps button span { color: #C7A86C; font-variant-numeric: tabular-nums; }
+.lp-tour-panel { background: #161A21; border-radius: 14px; border: 1px solid #363C45; padding: clamp(16px, 4vw, 32px); }
+.lp-tour-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; font-size: 13px; color: #C7A86C; }
+.lp-tour-panel h3 { margin: 22px 0 8px; font-size: clamp(20px, 3vw, 28px); }
+.lp-tour-panel p { margin: 0; color: #B7BBC4; }
+.lp-tour-panel blockquote { margin: 18px 0; padding: 12px; border-left: 2px solid #C7A86C; background: #1E232C; }
+.lp-tour-panel .lp-btn { border: 0; cursor: pointer; font-family: inherit; }
+.lp-tour-preview { display: grid; justify-items: center; margin-top: 24px; }
+.lp-tour-preview .lp-window { width: 100%; max-width: 560px; }
+.lp-tour button:focus-visible { outline: 2px solid #C7A86C; outline-offset: 3px; }
+@media (max-width: 720px) { .lp-tour-shell { grid-template-columns: 1fr; } }
 .lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; transition: filter .15s, background .15s; }
 .lp-btn-gold { background: ${GOLD}; color: ${INK} !important; }
