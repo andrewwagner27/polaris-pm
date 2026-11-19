@@ -137,7 +137,7 @@ export default function HomeDashboard() {
   const payableCents = Number(due?.payable_cents) || 0;
   const pendingCents = due?.ledger_active ? Number(due.pending_cents) || 0 : 0;
   const bal             = balancePresentation(balance);
-  const balanceColor    = bal.tone === "due" ? C.red : bal.tone === "clear" ? C.green : C.textSub;
+  const balanceColor    = bal.tone === "due" && pendingCents <= 0 ? C.red : bal.tone === "clear" ? C.green : C.textSub;
 
   async function openLease() {
     if (tenant?.lease_document_url) {
@@ -204,9 +204,11 @@ export default function HomeDashboard() {
               <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Rent</h2>
               <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
                 <div style={{ flex:"1 1 200px", minWidth:0 }}>
-                  <Label>Balance Due</Label>
+                  <Label>{pendingCents > 0 ? "Posted balance" : "Balance Due"}</Label>
                   <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 15, fontWeight: bal.available ? 600 : 500, color:balanceColor, fontVariantNumeric:"tabular-nums", lineHeight:1.25 }}>{bal.amountText}</div>
-                  <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>{bal.detail}</div>
+                  <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>
+                    {bal.available && pendingCents > 0 ? "Processing payments are shown separately below." : bal.detail}
+                  </div>
                 </div>
                 {/* Due date + Pay CTA */}
                 <div style={{ minWidth:160 }}>
@@ -218,6 +220,9 @@ export default function HomeDashboard() {
               {pendingCents > 0 && (
                 <p role="status" style={{ margin:"12px 0 0", fontSize:14, color:C.blue }}>
                   {formatCents(pendingCents)} payment processing
+                  {onlinePay && due.payable_cents != null && payableCents === 0 && (
+                    <span style={{ display:"block", marginTop:4, color:C.textSub }}>No additional online payment is due right now.</span>
+                  )}
                 </p>
               )}
               <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:16 }}>

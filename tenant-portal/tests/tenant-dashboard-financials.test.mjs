@@ -159,7 +159,7 @@ describe("tenant Home dashboard wiring", () => {
     assert.doesNotMatch(dashboard, /"Monthly Rent"/, "the old fallback label is gone");
     assert.doesNotMatch(dashboard, /balanceDisplay|balanceInfo|rentDue|isRentDue/);
     // The Balance Due card renders only the balance presentation.
-    const card = dashboard.slice(dashboard.indexOf("<Label>Balance Due</Label>"), dashboard.indexOf("{/* Due date + Pay CTA */}"));
+    const card = dashboard.slice(dashboard.indexOf("<div data-balance-state="), dashboard.indexOf("{/* Due date + Pay CTA */}"));
     assert.ok(card.length > 0);
     assert.match(card, /bal\.amountText/);
     assert.doesNotMatch(card, /baseRent|monthly\.|tenant\?\.rent|recurringCharges|formatCents/);
