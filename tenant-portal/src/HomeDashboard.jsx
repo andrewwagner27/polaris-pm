@@ -60,6 +60,7 @@ export default function HomeDashboard() {
   const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
   const [messages, setMessages]     = useState([]);
+  const [unreadTotal, setUnreadTotal] = useState(null);
   const [msgsLoading, setMsgsLoading] = useState(true);
   // { state: "loading" | "available" | "unavailable", cents?, reason? } — see lib/tenantFinancials.js
   const [balance, setBalance] = useState({ state: "loading" });
@@ -80,8 +81,12 @@ export default function HomeDashboard() {
 
   async function fetchMessages() {
     setMsgsLoading(true);
-    const { data } = await supabase.from("messages").select("*").eq("tenant_id", tenant.id).order("created_at",{ascending:false}).limit(10);
+    const [{ data }, { count }] = await Promise.all([
+      supabase.from("messages").select("*").eq("tenant_id", tenant.id).order("created_at",{ascending:false}).limit(10),
+      supabase.from("messages").select("id", { count:"exact", head:true }).eq("tenant_id", tenant.id).eq("recipient_id", user.id).eq("read", false),
+    ]);
     setMessages(data || []);
+    setUnreadTotal(count ?? null);
     setMsgsLoading(false);
   }
 
@@ -99,7 +104,7 @@ export default function HomeDashboard() {
   );
 
   const firstName       = (tenant?.name || "Tenant").split(" ")[0];
-  const unreadCount     = messages.filter(m => !m.read && m.recipient_id === user?.id).length;
+  const unreadCount     = unreadTotal ?? messages.filter(m => !m.read && m.recipient_id === user?.id).length;
   const hour            = new Date().getHours();
   const timeOfDay       = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
   const maintenance     = tenant?.maintenance || [];
@@ -142,8 +147,8 @@ export default function HomeDashboard() {
   async function openLease() {
     if (tenant?.lease_document_url) {
       const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
-      if (signed) { window.open(signed, "_blank", "noopener,noreferrer"); } else { navigate("/documents"); }
-    } else { navigate("/documents"); }
+      if (signed) { window.open(signed, "_blank", "noopener,noreferrer"); } else { navigate("/documents?view=lease"); }
+    } else { navigate("/documents?view=lease"); }
   }
 
   return (

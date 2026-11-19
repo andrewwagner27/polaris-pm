@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import { TICKET_COLUMNS } from "./lib/maintenanceColumns";
 import TenantLayout from "./TenantLayout";
@@ -46,25 +46,28 @@ export default function TenantMaintenanceList() {
   const { tenant } = useTenant();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState("active");
+  const [params, setParams] = useSearchParams();
+  const filter = ["all", "resolved"].includes(params.get("filter")) ? params.get("filter") : "active";
+  const [error, setError] = useState(false);
 
   useEffect(() => { if (tenant?.id) fetchTickets(); }, [tenant?.id]);
 
   async function fetchTickets() {
-    setLoading(true);
-    const { data } = await supabase
+    setLoading(true); setError(false);
+    const { data, error } = await supabase
       .from("maintenance_requests")
       .select(TICKET_COLUMNS)
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false });
     setTickets(data || []);
+    setError(Boolean(error));
     setLoading(false);
   }
 
   const activeCount   = tickets.filter(t => t.status !== "resolved").length;
   const resolvedCount = tickets.length - activeCount;
   const filtered = filter === "all" ? tickets : filter === "active" ? tickets.filter(t => t.status !== "resolved") : tickets.filter(t => t.status === "resolved");
-  const FILTERS = [["active", `Active (${activeCount})`], ["resolved", `Resolved (${resolvedCount})`], ["all", `All (${tickets.length})`]];
+  const FILTERS = [["active", "Active", activeCount], ["resolved", "Resolved", resolvedCount], ["all", "All", tickets.length]];
 
   return (
     <TenantLayout tenantName={tenant?.name}>
@@ -85,23 +88,24 @@ export default function TenantMaintenanceList() {
           <div>
             <h1 style={{ fontFamily: "var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight: 600, color: C.text, margin: 0 }}>Maintenance</h1>
             <div style={{ fontSize: 13, color: C.textSub, marginTop: 2 }}>
-              {loading ? "Loading…" : `${activeCount} active request${activeCount !== 1 ? "s" : ""}`}
+              {loading ? "Loading…" : error ? "Counts unavailable" : `${activeCount} active request${activeCount !== 1 ? "s" : ""}`}
             </div>
           </div>
           <button type="button" className="t-new" onClick={() => navigate("/maintenance/new")}>+ New request</button>
         </div>
 
         <div role="group" aria-label="Show requests" className="t-seg">
-          {FILTERS.map(([f, label]) => (
-            <button key={f} type="button" className="t-filter" aria-pressed={filter === f} onClick={() => setFilter(f)}>
-              {label}
+          {FILTERS.map(([f, label, count]) => (
+            <button key={f} type="button" className="t-filter" aria-pressed={filter === f} onClick={() => setParams({filter:f})}>
+              {label} ({loading || error ? "…" : count})
             </button>
           ))}
         </div>
 
         {loading && <div style={{ textAlign: "center", padding: 24, color: C.textSub, fontSize: 13 }}>Loading requests…</div>}
 
-        {!loading && filtered.length === 0 && (
+        {error && <p role="alert">Couldn’t load requests. <button onClick={fetchTickets}>Try again</button></p>}
+        {!loading && !error && filtered.length === 0 && (
           <div style={{ padding: "20px", background: C.surface, borderRadius: 16, fontSize: 14, color: C.textSub }}>
             {filter === "resolved" ? "No resolved requests yet." : tickets.length === 0 ? "No requests yet. Tap “New request” if something needs fixing." : "Nothing active right now."}
           </div>
