@@ -339,11 +339,16 @@ export default function LandingPage({ page = "home" }) {
     const publicPage = PUBLIC_PAGES.find(item => item.key === page);
     if (publicPage) document.title = publicPage.label + " | Modus";
     if (page === "walkthrough") document.title = "Repair Walkthrough | Modus";
-    if (page === "home" && window.location.hash === "#maintenance-tour") {
-      window.location.replace("/walkthrough");
+    function redirectLegacyLink() {
+      if (page === "home" && window.location.hash === "#maintenance-tour") window.location.replace("/walkthrough");
+      if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
     }
-    if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
-    return () => { document.title = title; };
+    redirectLegacyLink();
+    window.addEventListener("hashchange", redirectLegacyLink);
+    return () => {
+      document.title = title;
+      window.removeEventListener("hashchange", redirectLegacyLink);
+    };
   }, [page]);
 
   // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
