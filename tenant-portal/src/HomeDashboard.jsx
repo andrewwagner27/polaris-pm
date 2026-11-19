@@ -43,7 +43,8 @@ function StatusBadge({ status }) {
     in_progress: { label:"In progress", c:"#1E40AF", bg:"#EFF6FF" },
     resolved:    { label:"Resolved",    c:"#166534", bg:"#F0FDF4" },
   };
-  const s = map[status] || map.open;
+  const s = map[status] || (["quote_submitted", "pending_review", "scheduled", "assigned"].includes(status)
+    ? map.in_progress : map.open);
   return <span style={{ fontSize:12,fontWeight:500,padding:"4px 10px",borderRadius:999,background:s.bg,color:s.c,whiteSpace:"nowrap" }}>{s.label}</span>;
 }
 
@@ -59,24 +60,33 @@ export default function HomeDashboard() {
   const navigate = useNavigate();
   const { tenant, user, loading } = useTenant();
   const [messages, setMessages]     = useState([]);
+  const [unreadTotal, setUnreadTotal] = useState(null);
   const [msgsLoading, setMsgsLoading] = useState(true);
   // { state: "loading" | "available" | "unavailable", cents?, reason? } — see lib/tenantFinancials.js
   const [balance, setBalance] = useState({ state: "loading" });
   // Online rent payment is offered only when it really works for this tenant (same rule as Wallet and Pay):
   // an active receivables ledger and a property set up with the payment processor. Unknown → not offered.
-  const [onlinePay, setOnlinePay] = useState(false);
+  const [rentPaymentRead, setRentPaymentRead] = useState(null);
 
   useEffect(() => {
     if (!(user && tenant?.id)) return;
     fetchMessages(); fetchBalance();
+    let active = true;
     supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id })
-      .then(({ data, error }) => setOnlinePay(!error && !!data?.ledger_active && data?.online_available !== false));
+      .then(({ data, error }) => {
+        if (active) setRentPaymentRead(error ? null : { tenantId: tenant.id, data });
+      });
+    return () => { active = false; };
   }, [user, tenant?.id]);
 
   async function fetchMessages() {
     setMsgsLoading(true);
-    const { data } = await supabase.from("messages").select("*").eq("tenant_id", tenant.id).order("created_at",{ascending:false}).limit(10);
+    const [{ data }, { count }] = await Promise.all([
+      supabase.from("messages").select("*").eq("tenant_id", tenant.id).order("created_at",{ascending:false}).limit(10),
+      supabase.from("messages").select("id", { count:"exact", head:true }).eq("tenant_id", tenant.id).eq("recipient_id", user.id).eq("read", false),
+    ]);
     setMessages(data || []);
+    setUnreadTotal(count ?? null);
     setMsgsLoading(false);
   }
 
@@ -94,11 +104,29 @@ export default function HomeDashboard() {
   );
 
   const firstName       = (tenant?.name || "Tenant").split(" ")[0];
-  const unreadCount     = messages.filter(m => !m.read && m.recipient_id === user?.id).length;
+  const unreadCount     = unreadTotal ?? messages.filter(m => !m.read && m.recipient_id === user?.id).length;
   const hour            = new Date().getHours();
   const timeOfDay       = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
   const maintenance     = tenant?.maintenance || [];
   const openMaintenance = maintenance.filter(m => m.status !== "resolved");
+  const recentActivity = [
+    ...maintenance.map(ticket => ({
+      id: "repair-" + ticket.id,
+      title: ticket.title,
+      kind: "Maintenance",
+      date: ticket.updated_at || ticket.created_at,
+      status: ticket.status,
+      path: "/maintenance/" + ticket.id,
+    })),
+    ...messages.slice(0, 3).map(message => ({
+      id: "message-" + message.id,
+      title: message.body || "View message",
+      kind: "Message",
+      date: message.created_at,
+      unread: !message.read && message.recipient_id === user?.id,
+      path: "/messages",
+    })),
+  ].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0)).slice(0, 5);
   const leaseDaysLeft   = tenant?.leaseEnd ? Math.ceil((new Date(tenant.leaseEnd+"T00:00:00") - new Date()) / (1000*60*60*24)) : null;
   const showLeaseAlert  = leaseDaysLeft !== null && leaseDaysLeft < 60 && leaseDaysLeft >= 0;
   const baseRent        = tenant?.rent ? Number(tenant.rent) : null;   // units.rent_amount, shown only as rent
@@ -109,14 +137,18 @@ export default function HomeDashboard() {
   const nextDueStr   = nextDue.toLocaleDateString("en-US",{ weekday:"short", month:"long", day:"numeric" });
   const daysUntilDue = Math.round((nextDue - new Date(new Date().toDateString())) / (1000*60*60*24));
 
+  const due = rentPaymentRead?.tenantId === tenant?.id ? rentPaymentRead?.data : null;
+  const onlinePay = !!due?.ledger_active && due.online_available !== false;
+  const payableCents = Number(due?.payable_cents) || 0;
+  const pendingCents = due?.ledger_active ? Number(due.pending_cents) || 0 : 0;
   const bal             = balancePresentation(balance);
-  const balanceColor    = bal.tone === "due" ? C.red : bal.tone === "clear" ? C.green : C.textSub;
+  const balanceColor    = bal.tone === "due" && pendingCents <= 0 ? C.red : bal.tone === "clear" ? C.green : C.textSub;
 
   async function openLease() {
     if (tenant?.lease_document_url) {
       const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
-      if (signed) { window.open(signed, "_blank"); } else { navigate("/account"); }
-    } else { navigate("/account"); }
+      if (signed) { window.open(signed, "_blank", "noopener,noreferrer"); } else { navigate("/documents?view=lease"); }
+    } else { navigate("/documents?view=lease"); }
   }
 
   return (
@@ -138,7 +170,17 @@ export default function HomeDashboard() {
         .home-hero.has-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,0.55) 100%);}
         .home-hero.has-photo > *{position:relative;z-index:1;color:#FFFFFF;}
         .home-badge{position:absolute;top:20px;left:28px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:${C.gold};background:rgba(255,255,255,0.75);border:1px solid #E8DFCB;padding:4px 10px;border-radius:999px;z-index:1;}
-        .home-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start;}
+        .home-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 20px;}
+        .home-grid{display:grid;gap:20px;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);align-items:start;}
+        .home-column{display:grid;gap:16px;min-width:0;}
+        .home-activity-links{display:flex;flex-wrap:wrap;gap:4px 14px;padding:0 16px 4px;}
+        .home-activity-text{min-width:0;flex:1;}
+        .home-activity-meta{display:block;margin-bottom:4px;font-size:13px;color:#6B6B73;}
+        .home-activity-title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:500;}
+        .home-unread{font-size:12px;font-weight:600;color:#1D4ED8;}
+        .home-empty{margin:0;padding:8px 20px 18px;font-size:14px;color:#52525B;}
+        @media(max-width:850px){.home-grid{grid-template-columns:1fr;}}
+        @media(max-width:480px){.home-actions .t-btn{flex:1 1 auto;padding:0 12px;}}
         @media(max-width:767px){ .home-pad{padding:16px 16px 28px!important;} .home-hero{padding:22px;min-height:160px;} .home-badge{left:22px;top:16px;} }
       `}</style>
 
@@ -155,50 +197,80 @@ export default function HomeDashboard() {
           </div>
         )}
 
-        <div className="home-grid" style={{ marginTop:20 }}>
-          {/* 1. Maintenance */}
-          <Card style={{ overflow:"hidden", padding:0 }}>
-            <div className="t-head">
-              <h2>Maintenance {openMaintenance.length > 0 && <span style={{ fontSize:13, fontWeight:500, color:C.textSub }}>· {openMaintenance.length} open</span>}</h2>
-              <button type="button" className="t-link" onClick={() => navigate("/maintenance")}>See all</button>
-            </div>
-            {maintenance.length === 0 ? (
-              <div style={{ padding:"4px 20px 8px", color:C.textSub, fontSize:14 }}>Nothing needs fixing right now.</div>
-            ) : maintenance.slice(0,3).map((m) => (
-              <button type="button" key={m.id} className="t-row" onClick={() => navigate(`/maintenance/${m.id}`)}>
-                <span style={{ minWidth:0 }}>
-                  <span style={{ display:"block", fontSize:15, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.title}</span>
-                  <span style={{ display:"block", fontSize:13, color:C.textMuted, marginTop:2 }}>{new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
-                </span>
-                <StatusBadge status={m.status} />
-              </button>
-            ))}
-            <div style={{ padding:"12px 20px 18px" }}>
-              <button type="button" className="t-btn" onClick={() => navigate("/maintenance/new")}>Report an issue</button>
-            </div>
-          </Card>
+        <nav className="home-actions" aria-label="Quick actions">
+          <button type="button" className="t-btn" onClick={() => navigate("/maintenance/new")}>Report an issue</button>
+          <button type="button" className="t-btn t-btn-quiet" onClick={() => navigate("/messages")}>Message management</button>
+          <button type="button" className="t-btn t-btn-quiet" onClick={() => navigate("/activity")}>Payment history</button>
+        </nav>
 
-          {/* 2. Messages */}
-          <Card style={{ overflow:"hidden", padding:0 }}>
-            <div className="t-head">
-              <h2>Messages {unreadCount > 0 && <span style={{ fontSize:13, fontWeight:500, color:C.blue }}>· {unreadCount} unread</span>}</h2>
-              <button type="button" className="t-link" onClick={() => navigate("/messages")}>Open</button>
-            </div>
-            {msgsLoading ? (
-              <div style={{ padding:"4px 20px 18px", color:C.textSub, fontSize:14 }}>Loading…</div>
-            ) : messages.length === 0 ? (
-              <div style={{ padding:"4px 20px 18px", color:C.textSub, fontSize:14 }}>Questions about your home? Message management any time.</div>
-            ) : (
-              <button type="button" className="t-row" style={{ paddingBottom:18 }} onClick={() => navigate("/messages")}>
-                <span style={{ minWidth:0, flex:1 }}>
-                  <span style={{ display:"block", fontSize:14, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{messages[0]?.body}</span>
-                  <span style={{ display:"block", fontSize:13, color:C.textMuted, marginTop:2 }}>Modus Property Management · {new Date(messages[0]?.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
-                </span>
-              </button>
-            )}
-          </Card>
+        <div className="home-grid">
+          <div className="home-column">
+            <Card style={{ padding:"18px 20px", border:"1px solid #E8DFCB" }}>
+              <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Rent</h2>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
+                <div style={{ flex:"1 1 200px", minWidth:0 }}>
+                  <Label>{pendingCents > 0 ? "Posted balance" : "Balance Due"}</Label>
+                  <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 15, fontWeight: bal.available ? 600 : 500, color:balanceColor, fontVariantNumeric:"tabular-nums", lineHeight:1.25 }}>{bal.amountText}</div>
+                  <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>
+                    {bal.available && pendingCents > 0 ? "Processing payments are shown separately below." : bal.detail}
+                  </div>
+                </div>
+                {/* Due date + Pay CTA */}
+                <div style={{ minWidth:160 }}>
+                  <Label>Next Due Date</Label>
+                  <div style={{ fontSize:15, fontWeight:500, color:C.text }}>{hasRentSchedule ? nextDueStr : "No rent schedule on file"}</div>
+                  {hasRentSchedule && <div style={{ fontSize:13, color: daysUntilDue <= 3 ? C.amber : C.textMuted, marginTop:2 }}>{daysUntilDue <= 0 ? "Today" : `In ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}</div>}
+                </div>
+              </div>
+              {pendingCents > 0 && (
+                <p role="status" style={{ margin:"12px 0 0", fontSize:14, color:C.blue }}>
+                  {formatCents(pendingCents)} payment processing
+                  {onlinePay && due.payable_cents != null && payableCents === 0 && (
+                    <span style={{ display:"block", marginTop:4, color:C.textSub }}>No additional online payment is due right now.</span>
+                  )}
+                </p>
+              )}
+              <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:16 }}>
+                {onlinePay && payableCents > 0 ? (
+                  <button type="button" className="t-btn" onClick={() => navigate("/pay")}>Pay rent</button>
+                ) : (
+                  <>
+                    {!onlinePay && <span style={{ fontSize:13, color:C.textSub }}>Online payment isn't available yet.</span>}
+                    <button type="button" className="t-link" onClick={() => navigate("/pay")}>Payment details</button>
+                  </>
+                )}
+              </div>
+            </Card>
 
-          {/* 3. Lease and documents */}
+            <Card style={{ overflow:"hidden" }}>
+              <div className="t-head"><h2>Recent activity</h2></div>
+              <div className="home-activity-links">
+                <button type="button" className="t-link" onClick={() => navigate("/maintenance")}>
+                  Repairs{openMaintenance.length > 0 ? " · " + openMaintenance.length + " open" : ""}
+                </button>
+                <button type="button" className="t-link" onClick={() => navigate("/messages")}>
+                  Messages{unreadCount > 0 ? " · " + unreadCount + " unread" : ""}
+                </button>
+              </div>
+              {recentActivity.map(item => (
+                <button type="button" className="t-row" key={item.id} onClick={() => navigate(item.path)}>
+                  <span className="home-activity-text">
+                    <span className="home-activity-meta">
+                      {item.kind}{item.date && " · " + new Date(item.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                    </span>
+                    <span className="home-activity-title">{item.title}</span>
+                  </span>
+                  {item.status && <StatusBadge status={item.status}/>}
+                  {item.unread && <span className="home-unread">Unread</span>}
+                </button>
+              ))}
+              {recentActivity.length === 0 && (
+                <p className="home-empty">{msgsLoading ? "Loading recent activity…" : "New messages and maintenance updates will appear here."}</p>
+              )}
+            </Card>
+          </div>
+
+          <div className="home-column">
           <Card style={{ padding:"0 0 18px" }}>
             <div className="t-head"><h2>Lease &amp; documents</h2></div>
             <div style={{ padding:"0 20px" }}>
@@ -218,36 +290,9 @@ export default function HomeDashboard() {
             </div>
           </Card>
 
-          {/* 4. Rent: balance status (ledger only), next date, and the one action that actually works */}
           <Card style={{ padding:"18px 20px" }}>
-            <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Rent</h2>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
-              <div style={{ flex:"1 1 200px", minWidth:0 }}>
-                <Label>Balance Due</Label>
-                <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 15, fontWeight: bal.available ? 600 : 500, color:balanceColor, fontVariantNumeric:"tabular-nums", lineHeight:1.25 }}>{bal.amountText}</div>
-                <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>{bal.detail}</div>
-              </div>
-              {/* Due date + Pay CTA */}
-              <div style={{ minWidth:160 }}>
-                <Label>Next Due Date</Label>
-                <div style={{ fontSize:15, fontWeight:500, color:C.text }}>{hasRentSchedule ? nextDueStr : "No rent schedule on file"}</div>
-                {hasRentSchedule && <div style={{ fontSize:13, color: daysUntilDue <= 3 ? C.amber : C.textMuted, marginTop:2 }}>{daysUntilDue <= 0 ? "Today" : `In ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}</div>}
-              </div>
-            </div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:16 }}>
-              {onlinePay ? (
-                <button type="button" className="t-btn" onClick={() => navigate("/pay")}>Pay rent</button>
-              ) : (
-                <>
-                  <span style={{ fontSize:13, color:C.textSub, flex:"1 1 220px" }}>Online payment isn't available yet.</span>
-                  <button type="button" className="t-link" onClick={() => navigate("/pay")}>Payment details</button>
-                </>
-              )}
-            </div>
-
-            {/* Scheduled monthly charges: what is billed each month, never the balance */}
-            <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
-              <Label>Monthly Recurring Charges</Label>
+            <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Monthly Recurring Charges</h2>
+            <div>
               <div style={{ fontSize:13, color:C.textMuted, marginBottom:4 }}>Scheduled each month. This is not your balance due.</div>
               {monthly.hasCharges ? (
                 <>
@@ -276,6 +321,7 @@ export default function HomeDashboard() {
               )}
             </div>
           </Card>
+          </div>
         </div>
       </div>
     </TenantLayout>

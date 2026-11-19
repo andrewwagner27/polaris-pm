@@ -146,11 +146,169 @@ const BENEFITS = [
   { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
 ];
 
-export default function LandingPage() {
+const TOUR_STEPS = [
+  { role: "Resident portal", title: "Report a dripping faucet", status: "Draft", detail: "Unit 2 · Kitchen · Photo attached", action: "Submit sample request" },
+  { role: "Manager dashboard", title: "Review the contractor quote", status: "Quote ready", detail: "Faucet repair · Contractor quote $185", action: "Approve sample quote" },
+  { role: "Resident portal", title: "See when the repair is scheduled", status: "Scheduled", detail: "Kitchen faucet · Thursday, 10 am–12 pm", action: "Restart walkthrough" },
+];
+
+function MaintenanceTour() {
+  const [step, setStep] = useState(0);
+  const current = TOUR_STEPS[step];
+
+  return (
+    <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
+      <div className="lp-wrap">
+        <div className="lp-tour-heading">
+          <h2 id="maintenance-tour-title">Try the maintenance walkthrough</h2>
+          <p>Follow one repair through the resident and manager views. This demo uses sample data.</p>
+        </div>
+        <div className="lp-tour-shell">
+          <ol className="lp-tour-steps" aria-label="Walkthrough steps">
+            {["Report an issue", "Approve a quote", "See the schedule"].map((label, index) => (
+              <li key={label}>
+                <button type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
+                  <span>{index + 1}</span>{label}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="lp-tour-panel">
+            <div className="lp-tour-context" aria-live="polite" aria-atomic="true">
+              <div className="lp-tour-meta"><span>{current.role}</span><span>{current.status}</span></div>
+              <h3>{current.title}</h3>
+              <p>{current.detail}</p>
+              {step === 0 && <blockquote>“The kitchen faucet keeps dripping even when it’s fully closed.”</blockquote>}
+              {step === 1 && <blockquote>Replace the worn faucet cartridge and test for leaks.</blockquote>}
+              {step === 2 && <blockquote>Management added a repair window to the request.</blockquote>}
+            </div>
+            <button type="button" className="lp-btn lp-btn-gold" onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            {step > 0 && (
+              <div className="lp-tour-preview">
+                {step === 1 ? <DecisionMock/> : <PhoneMock/>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const PUBLIC_PAGES = [
+  { key: "about", label: "About Us" },
+  { key: "faq", label: "FAQ" },
+  { key: "contact", label: "Contact Us" },
+];
+
+function PublicLinks({ page }) {
+  return PUBLIC_PAGES.map(({ key, label }) => (
+    <a key={key} href={"/" + key} aria-current={page === key ? "page" : undefined}>{label}</a>
+  ));
+}
+
+function AboutModus() {
+  return (
+      <section className="lp-light lp-ivory">
+        <div className="lp-wrap lp-about-copy">
+          <h1>About Us</h1>
+          <p className="lp-about-intro">Built by someone who’s been both a renter and a property investor.</p>
+          <p>Before building Modus, our founder spent years dealing with the frustrations of property management from both sides. As a renter, he wanted clear answers and a way to follow up. As an investor, he wanted to know what was happening at his properties and where a decision was needed.</p>
+          <p>He set out to build a best-in-class experience for both. That means giving residents a clear way to report a problem and see what happens next, and giving owners and managers the context they need to act.</p>
+          <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
+        </div>
+      </section>
+  );
+}
+
+function ModusFaq() {
+  return (
+      <section className="lp-light lp-white lp-faq" aria-labelledby="faq-title">
+        <div className="lp-wrap lp-about-copy">
+          <h1 id="faq-title">Frequently asked questions</h1>
+          <details><summary>Who is Modus for?</summary><p>Modus is built for owners and property managers of rental homes, and for the residents who live in those homes.</p></details>
+          <details><summary>How do I access the resident portal?</summary><p>Open the invitation from your property manager to set up your account. If you already have an account, <a href="/login">sign in to the resident portal</a>. If you need a new invitation, contact your property manager.</p></details>
+          <details><summary>Can I track a maintenance request?</summary><p>Yes. Open Maintenance in the resident portal to report an issue, attach photos, and follow the status of a request. When a repair date has been recorded, it appears on the request.</p></details>
+          <details><summary>What can owners and managers do in Modus?</summary><p>Managers can see what needs attention across properties, assign contractors, review quotes, manage resident records, and respond to messages.</p></details>
+          <details><summary>Can I see how Modus works before signing in?</summary><p>Yes. The <a href="/#maintenance-tour">interactive maintenance walkthrough</a> lets you try a sample request from both the resident and manager views.</p></details>
+          <p>Still have a question? <a href="/contact">Contact us</a>.</p>
+        </div>
+      </section>
+  );
+}
+
+function ContactModus() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const inFlight = useRef(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (inFlight.current) return;
+    const form = event.currentTarget;
+    const fields = Object.fromEntries(new FormData(form));
+    inFlight.current = true;
+    setSending(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok || !["sent", "preview"].includes(data.status)) {
+        setResult({ error: data.error || "We couldn’t confirm delivery. Please try again." });
+        return;
+      }
+      setResult({ message: data.status === "preview" ? "Preview submission complete. No email was sent." : "Thanks for contacting Modus. We received your message." });
+      form.reset();
+    } catch {
+      setResult({ error: "We couldn’t confirm delivery. Please try again." });
+    } finally {
+      inFlight.current = false;
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="lp-light lp-ivory">
+      <div className="lp-wrap lp-about-copy lp-contact">
+        <h1>Contact Us</h1>
+        <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>
+        <form onSubmit={submit}>
+          <label htmlFor="contact-name">Name</label>
+          <input id="contact-name" name="name" autoComplete="name" maxLength={100} required/>
+          <label htmlFor="contact-email">Email address</label>
+          <input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} required/>
+          <label htmlFor="contact-message">Message</label>
+          <textarea id="contact-message" name="message" rows={6} maxLength={3000} required/>
+          <div hidden><label htmlFor="contact-website">Leave this field empty</label><input id="contact-website" name="website" tabIndex={-1} autoComplete="off"/></div>
+          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : "Send message"}</button>
+          <div role="status">{result?.message}</div>
+          {result?.error && <p role="alert" className="lp-contact-error">{result.error}</p>}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+export default function LandingPage({ page = "home" }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtn = useRef(null);
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    const title = document.title;
+    const publicPage = PUBLIC_PAGES.find(item => item.key === page);
+    if (publicPage) document.title = publicPage.label + " | Modus";
+    if (page === "home" && window.location.hash === "#maintenance-tour") {
+      document.getElementById("maintenance-tour")?.scrollIntoView();
+    }
+    if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
+    return () => { document.title = title; };
+  }, [page]);
 
   // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
   useEffect(() => {
@@ -171,7 +329,8 @@ export default function LandingPage() {
       <header className="lp-header">
         <div className="lp-wrap lp-header-row">
           <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
-          <nav className="lp-nav-desktop" aria-label="Sign in">
+          <nav className="lp-nav-desktop" aria-label="Main navigation">
+            <PublicLinks page={page}/>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
             <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
           </nav>
@@ -184,19 +343,24 @@ export default function LandingPage() {
           <div id="lp-menu" ref={menuRef} className="lp-menu">
             <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <PublicLinks page={page}/>
           </div>
         )}
       </header>
 
       <main>
+        {page === "about" && <AboutModus/>}
+        {page === "faq" && <ModusFaq/>}
+        {page === "contact" && <ContactModus/>}
+        {page === "home" && <>
         {/* ── 1. Hero (dark) ── */}
         <section className="lp-hero">
           <div className="lp-wrap">
             <div className="lp-hero-copy">
               <h1>Property management, without the busywork.</h1>
-              <p>Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <p>Track repairs from the first resident report to the final invoice, alongside tenant messages and property records.</p>
               <div className="lp-cta">
-                <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore the dashboard</a>
+                <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
                 <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
               </div>
             </div>
@@ -206,6 +370,8 @@ export default function LandingPage() {
             </figure>
           </div>
         </section>
+
+        <MaintenanceTour/>
 
         {/* ── 2. Landlord experience (ivory) ── */}
         <section className="lp-light lp-ivory">
@@ -261,14 +427,19 @@ export default function LandingPage() {
         <section className="lp-final">
           <div className="lp-wrap">
             <h2>Less administration. More ownership.</h2>
-            <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore Modus</a>
+            <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
             <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
           </div>
         </section>
+        </>}
       </main>
 
       <footer className="lp-footer">
-        <div className="lp-wrap lp-footer-row"><Wordmark/><span>© {new Date().getFullYear()} Modus Property Management</span></div>
+        <div className="lp-wrap lp-footer-row">
+          <Wordmark/>
+          <nav aria-label="Footer"><PublicLinks page={page}/></nav>
+          <span>© {new Date().getFullYear()} Modus Property Management</span>
+        </div>
       </footer>
     </div>
   );
@@ -279,6 +450,26 @@ const CSS = `
 .lp a { color: inherit; }
 .lp-wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .lp h1, .lp h2, .lp h3 { font-family: var(--m-font); margin: 0; }
+.lp-about-copy { max-width: 800px; }
+.lp-about-copy h1 { font-size: clamp(38px, 7vw, 68px); letter-spacing: -0.05em; line-height: 1.05; }
+.lp-about-copy p { color: #52525B; font-size: 17px; line-height: 1.65; }
+.lp-about-copy .lp-about-intro { color: #18181B; font-size: clamp(21px, 4vw, 28px); line-height: 1.4; }
+.lp-about-copy .lp-btn { margin-top: 10px; }
+.lp-faq { scroll-margin-top: 75px; }
+.lp-faq h1 { margin-bottom: 18px; }
+.lp-faq details { border-bottom: 1px solid #E7E2D8; }
+.lp-faq summary { padding: 16px 2px; min-height: 48px; font-size: 17px; font-weight: 600; cursor: pointer; }
+.lp-faq details p { margin: 0 0 18px; }
+.lp-contact form { display: grid; gap: 10px; max-width: 620px; padding: clamp(16px, 4vw, 30px); background: white; border: 1px solid #E7E2D8; border-radius: 16px; }
+.lp-contact label { font-weight: 600; }
+.lp-contact input, .lp-contact textarea { width: 100%; min-height: 44px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid #8C857A; border-radius: 8px; font: inherit; }
+.lp-contact textarea { resize: vertical; }
+.lp-contact input:focus-visible, .lp-contact textarea:focus-visible { outline: 2px solid #7A5C12; outline-offset: 2px; }
+.lp-contact button { justify-self: start; border: 0; font-family: inherit; cursor: pointer; }
+.lp-contact button:disabled { opacity: .7; cursor: wait; }
+.lp-contact .lp-contact-error { margin: 0; color: #9F2424; }
+.lp-footer-row nav { display: flex; gap: 18px; }
+.lp-footer-row nav a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* Header */
 .lp-header { position: sticky; top: 0; z-index: 50; background: rgba(14,17,22,0.88); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -297,6 +488,24 @@ const CSS = `
 @media (min-width: 721px) { .lp-menu { display: none; } }
 
 /* Buttons */
+.lp-tour { scroll-margin-top: 90px; }
+.lp-tour-heading { max-width: 650px; margin: 0 auto 28px; text-align: center; }
+.lp-tour-heading p { color: #52525B; line-height: 1.6; }
+.lp-tour-shell { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr); gap: 16px; background: #0E1116; padding: clamp(12px, 3vw, 28px); border-radius: 22px; color: #F5F2EB; }
+.lp-tour-steps { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lp-tour-steps button { display: flex; align-items: center; gap: 10px; min-height: 48px; width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lp-tour-steps button[aria-current="step"] { background: #262B33; border-color: #62646A; }
+.lp-tour-steps button span { color: #C7A86C; font-variant-numeric: tabular-nums; }
+.lp-tour-panel { background: #161A21; border-radius: 14px; border: 1px solid #363C45; padding: clamp(16px, 4vw, 32px); }
+.lp-tour-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; font-size: 13px; color: #C7A86C; }
+.lp-tour-panel h3 { margin: 22px 0 8px; font-size: clamp(20px, 3vw, 28px); }
+.lp-tour-panel p { margin: 0; color: #B7BBC4; }
+.lp-tour-panel blockquote { margin: 18px 0; padding: 12px; border-left: 2px solid #C7A86C; background: #1E232C; }
+.lp-tour-panel .lp-btn { border: 0; cursor: pointer; font-family: inherit; }
+.lp-tour-preview { display: grid; justify-items: center; margin-top: 24px; }
+.lp-tour-preview .lp-window { width: 100%; max-width: 560px; }
+.lp-tour button:focus-visible { outline: 2px solid #C7A86C; outline-offset: 3px; }
+@media (max-width: 720px) { .lp-tour-shell { grid-template-columns: 1fr; } }
 .lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; transition: filter .15s, background .15s; }
 .lp-btn-gold { background: ${GOLD}; color: ${INK} !important; }

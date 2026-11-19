@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { clearTenantCache } from "./useTenant";
 import { runSafetySweep } from "./notifications";
+import { supabase } from "./supabase";
 
 // ── Tenant light palette ──────────────────────────────────────
 const C = {
@@ -70,7 +71,7 @@ async function doSignOut(navigate) {
   navigate("/login");
 }
 
-export default function TenantLayout({ children, tenantName = "Tenant", unreadMessages = 0 }) {
+export default function TenantLayout({ children, tenantName = "Tenant", unreadMessages }) {
   const navigate  = useNavigate();
   const location  = useLocation();
   const width     = useWindowWidth();
@@ -79,6 +80,24 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
   // Messages fits the viewport: the shell never scrolls, only the message history does.
   const fit       = pathname.startsWith("/messages");
   const [showPopover, setShowPopover] = useState(false);
+  const [unreadTotal, setUnreadTotal] = useState(0);
+  const badgeCount = unreadMessages ?? unreadTotal;
+
+  useEffect(() => {
+    if (unreadMessages !== undefined) return;
+    let active = true;
+    async function readCount() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) return;
+      const { data: tenant } = await supabase.from("tenants").select("id").eq("user_id", user.id).maybeSingle();
+      if (!active || !tenant) return;
+      const { count } = await supabase.from("messages").select("id", { count:"exact", head:true })
+        .eq("tenant_id", tenant.id).eq("recipient_id", user.id).eq("read", false);
+      if (active && count != null) setUnreadTotal(count);
+    }
+    readCount().catch(() => {});
+    return () => { active = false; };
+  }, [pathname, unreadMessages]);
 
   // Safety net (server decides scope: this tenant's own tickets and messages): a missed new-ticket alert or a message
   // the assistant never finished is passed to management. Throttled per tab; never blocks the page.
@@ -127,9 +146,9 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
             <div style={{ fontFamily:"var(--m-font-brand)", fontSize:16, fontWeight:600, color:C.text, letterSpacing:"0.08em" }}>MODUS</div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={() => navigate("/bulletin")}
+            <button type="button" aria-current={isActive("/bulletin") ? "page" : undefined} onClick={() => navigate("/bulletin")}
               style={{ minHeight:44, background:"none", border:`1px solid ${C.border}`, borderRadius:10, cursor:"pointer", padding:"0 14px", fontSize:13, color:C.textSub, fontFamily:"var(--m-font)" }}>
-              Board
+              Bulletin
             </button>
             <button type="button" onClick={() => navigate("/account")} aria-label="Account"
               style={{ width:44, height:44, borderRadius:"50%", background:C.goldBg, border:`1px solid ${C.goldDim}`, color:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:600, cursor:"pointer", padding:0 }}>
@@ -145,7 +164,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
         <nav aria-label="Main navigation" style={{ position: fit ? "relative" : "fixed", flexShrink:0, bottom:0, left:0, right:0, background:C.surface, borderTop:`1px solid ${C.border}`, display:"flex", zIndex:50, paddingBottom:"env(safe-area-inset-bottom)", boxShadow:"0 -1px 8px rgba(0,0,0,0.06)" }}>
           {mobileNav.map(item => {
             const active = isActive(item.route);
-            const badge  = item.label === "Messages" && unreadMessages > 0 ? unreadMessages : 0;
+            const badge  = item.label === "Messages" ? badgeCount : 0;
             const shortLabel = item.label === "Make Payment" ? "Pay" : item.label === "Maintenance" ? "Maint." : item.label;
             return (
               <button key={item.route} type="button" aria-current={active ? "page" : undefined} onClick={() => navigate(item.route)}
@@ -185,7 +204,7 @@ export default function TenantLayout({ children, tenantName = "Tenant", unreadMe
         <nav style={{ padding:"4px 10px", display:"flex", flexDirection:"column", gap:1 }}>
           {NAV_ITEMS.map(item => {
             const active = isActive(item.route);
-            const badge  = item.label === "Messages" && unreadMessages > 0 ? unreadMessages : 0;
+            const badge  = item.label === "Messages" ? badgeCount : 0;
             return (
               <button key={item.route} type="button" className="t-nav-item" aria-current={active ? "page" : undefined}
                 onClick={() => navigate(item.route)}

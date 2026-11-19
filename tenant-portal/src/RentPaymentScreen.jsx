@@ -44,7 +44,7 @@ function AutopayUnavailable() {
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
         <div>
           <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-          <div style={{ fontSize:13,color:C.textSub }}>Automatic payments aren't available yet. Rent is only paid when you submit it here.</div>
+          <div style={{ fontSize:13,color:C.textSub }}>Automatic payments aren't available yet. Submit online payments manually.</div>
         </div>
         <span style={{ fontSize:12,fontWeight:500,padding:"4px 10px",background:C.raised,color:C.textSub,borderRadius:999,flexShrink:0 }}>Not available yet</span>
       </div>
@@ -244,7 +244,7 @@ export default function RentPaymentScreen() {
     const { data, error } = A3_ENABLED
       ? await supabase.rpc("a3_pay_rent_due", { p_tenant: tenant.id })
       : await supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id });
-    setDue(error || !data ? { ledger_active: false } : data);   // no ledger figure, no online payment
+    setDue(error || !data ? { ledger_active: false, unavailable: true } : data);
   }
 
   useEffect(() => {
@@ -277,18 +277,22 @@ export default function RentPaymentScreen() {
         </div>
 
         {/* Receivables not active: one short explanation instead of an empty amount and a repeated notice below it */}
-        {due && !due.ledger_active && (
+        {due && (!due.ledger_active || due.online_available === false) && (
           <div role="status" style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
-            <div style={{ fontSize:16,fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't available yet</div>
+            <div style={{ fontSize:16,fontWeight:600,color:C.text,marginBottom:6 }}>
+              {due.unavailable ? "Payment availability couldn’t be verified" : "Online payment isn't available yet"}
+            </div>
             <div style={{ fontSize:14,color:C.textSub,lineHeight:1.6 }}>
-              There's no amount to pay here and nothing has been charged. Pay rent the way your lease describes, or message management with billing questions.
+              {due.unavailable
+                ? "Refresh this page or confirm payment instructions with management before sending a payment."
+                : "Pay rent as described in your lease. If you need payment instructions, message management."}
             </div>
             <div style={{ fontSize:13,color:C.textMuted,marginTop:12 }}>Unit {tenant?.unit||"—"} · {tenant?.property||"—"}</div>
           </div>
         )}
 
         {/* Amount summary */}
-        {(!due || due.ledger_active) && (
+        {due?.ledger_active && due.online_available !== false && (
         <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px",marginBottom:14 }}>
           <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between" }}>
             <div>
@@ -331,18 +335,13 @@ export default function RentPaymentScreen() {
         )}
 
         {/* Autopay notice only where online payment exists at all (otherwise the card above already says so) */}
-        {(!due || due.ledger_active) && <AutopayUnavailable/>}
+        {due?.ledger_active && due.online_available !== false && <AutopayUnavailable/>}
 
         {/* Payment form (only where a payment can actually be made or its absence explained) */}
-        {(!due || due.ledger_active) && (
+        {(!due || (due.ledger_active && due.online_available !== false)) && (
         <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"20px 22px" }}>
           {!due ? (
             <div style={{ textAlign:"center",padding:"20px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
-          ) : due.online_available === false ? (
-            <div role="status" style={{ textAlign:"center",padding:"24px 8px",fontSize:13,lineHeight:1.6 }}>
-              <div style={{ fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't set up for your property yet</div>
-              <div style={{ color:C.textSub }}>Your property manager is still finishing setup with our payment processor. Until then, please pay your rent to your property manager directly. Nothing has been charged.</div>
-            </div>
           ) : (
             <Elements stripe={stripePromise}>
               <ACHForm tenant={tenant} user={user} payableCents={payableCents} onAmountChanged={loadDue}/>

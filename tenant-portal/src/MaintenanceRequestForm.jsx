@@ -1,3 +1,4 @@
+import { useSessionDraft } from "./lib/useSessionDraft";
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from "react";
 import { supabase } from "./supabase";
@@ -54,11 +55,12 @@ function Spinner() {
   return <span style={{ width:16, height:16, border:"2px solid rgba(201,169,110,0.3)", borderTopColor:C.gold, borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }}/>;
 }
 
-function SectionLabel({ children, optional }) {
+function SectionLabel({ children, optional, htmlFor, id }) {
+  const Element = htmlFor ? "label" : "div";
   return (
-    <div style={{ fontSize:12, fontWeight:600, color:C.textSub, marginBottom:10, marginTop:24 }}>
+    <Element id={id} htmlFor={htmlFor} style={{ display:"block", fontSize:12, fontWeight:600, color:C.textSub, marginBottom:10, marginTop:24 }}>
       {children}{optional && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:C.textMuted, fontSize:11, marginLeft:6 }}>(optional)</span>}
-    </div>
+    </Element>
   );
 }
 
@@ -76,17 +78,25 @@ function Checkbox({ checked, onChange, label, sub }) {
   );
 }
 
+const EMPTY_REQUEST = {
+  category: "", title: "", description: "", priority: "normal",
+  availDays: [], availTimes: [], entryAllowed: false, hasPets: false, petDetails: "", accessNotes: "",
+};
+
 export default function MaintenanceRequestForm() {
   const navigate = useNavigate();
-  const { tenant, user } = useTenant();
-  const [category, setCategory]   = useState("");
-  const [title, setTitle]         = useState("");
-  const [description, setDesc]    = useState("");
-  const [priority, setPriority]   = useState("normal");
+  const { tenant, user, loading: tenantLoading } = useTenant();
+  const key = user?.id && tenant?.id ? user.id + ":" + tenant.id + ":maintenance" : null;
+  const [draft, setDraft] = useSessionDraft(key, EMPTY_REQUEST);
+  const { category, title, description, priority, availDays, availTimes, entryAllowed, hasPets, petDetails, accessNotes } = draft;
+  const update = (field, value) => setDraft(previous => ({
+    ...previous,
+    [field]: typeof value === "function" ? value(previous[field]) : value,
+  }));
   const [photos, setPhotos]       = useState([]);
   const [errors, setErrors]       = useState({});
   const [loading, setLoading]     = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(null);
   const [ticket, setTicket]       = useState("");
   const [notice, setNotice]       = useState(null);   // /api/notify result for the new ticket
   const [submitError, setSubmitError] = useState("");
@@ -99,19 +109,11 @@ export default function MaintenanceRequestForm() {
   const [dragging, setDragging]   = useState(false);
   const fileRef = useRef();
 
-  // Availability
-  const [availDays, setAvailDays]   = useState([]);
-  const [availTimes, setAvailTimes] = useState([]);
-  const [entryAllowed, setEntryAllowed] = useState(false);
-  const [hasPets, setHasPets]       = useState(false);
-  const [petDetails, setPetDetails] = useState("");
-  const [accessNotes, setAccessNotes] = useState("");
-
   function toggleDay(day) {
-    setAvailDays(d => d.includes(day) ? d.filter(x => x !== day) : [...d, day]);
+    update("availDays", d => d.includes(day) ? d.filter(x => x !== day) : [...d, day]);
   }
   function toggleTime(time) {
-    setAvailTimes(t => t.includes(time) ? t.filter(x => x !== time) : [...t, time]);
+    update("availTimes", t => t.includes(time) ? t.filter(x => x !== time) : [...t, time]);
   }
 
   function validate() {
@@ -205,7 +207,8 @@ export default function MaintenanceRequestForm() {
     }
 
     setTicket("MR-" + data.id.slice(0, 5).toUpperCase());
-    setSubmitted(true);
+    setSubmitted(draft);
+    setDraft(EMPTY_REQUEST);
 
     setNotice(await notifying);
     } catch {
@@ -241,7 +244,7 @@ export default function MaintenanceRequestForm() {
             </div>
           )}
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px", marginBottom:24, textAlign:"left" }}>
-            {[["Ticket #", ticket], ["Category", CATEGORIES.find(c=>c.id===category)?.label], ["Issue", title], ["Priority", PRIORITIES.find(p=>p.id===priority)?.label]].map(([k,v],i,arr)=>(
+            {[["Ticket #", ticket], ["Category", CATEGORIES.find(c=>c.id===submitted.category)?.label], ["Issue", submitted.title], ["Priority", PRIORITIES.find(p=>p.id===submitted.priority)?.label]].map(([k,v],i,arr)=>(
               <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
                 <span style={{ fontSize:13, color:C.textSub }}>{k}</span>
                 <span style={{ fontSize:13, fontWeight:500, color:C.text }}>{v}</span>
@@ -253,6 +256,10 @@ export default function MaintenanceRequestForm() {
       </div>
     </TenantLayout>
   );
+
+  if (!key) return <TenantLayout tenantName={tenant?.name}><p role="status" style={{ padding:24 }}>
+    {tenantLoading ? "Loading your rental information…" : "Your rental information is unavailable. Refresh or contact management to report an issue."}
+  </p></TenantLayout>;
 
   return (
     <TenantLayout tenantName={tenant?.name}>
@@ -272,7 +279,7 @@ export default function MaintenanceRequestForm() {
         <SectionLabel>What's the issue?</SectionLabel>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:4 }}>
           {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => { setCategory(cat.id); setErrors(e=>({...e,category:""})); }}
+            <button key={cat.id} onClick={() => { update("category", cat.id); setErrors(e=>({...e,category:""})); }}
               style={{ padding:"14px 8px", border:`1px solid ${category===cat.id?C.goldDim:C.border}`, borderRadius:10, background:category===cat.id?`${C.gold}0F`:C.surface, cursor:"pointer", textAlign:"center", transition:"all 0.15s", fontFamily:"var(--m-font)" }}>
               <div style={{ fontSize:22, marginBottom:6 }}>{cat.icon}</div>
               <div style={{ fontSize:12, fontWeight:category===cat.id?600:400, color:category===cat.id?C.gold:C.textSub }}>{cat.label}</div>
@@ -282,31 +289,32 @@ export default function MaintenanceRequestForm() {
         {errors.category && <p style={{ fontSize:11, color:C.red, marginTop:6, marginBottom:0 }}>{errors.category}</p>}
 
         {/* Title */}
-        <SectionLabel>Brief description</SectionLabel>
-        <input value={title} onChange={e=>{setTitle(e.target.value);setErrors(p=>({...p,title:""}));}}
+        <SectionLabel htmlFor="repair-title">Brief description</SectionLabel>
+        <input id="repair-title" aria-invalid={Boolean(errors.title)} aria-describedby={errors.title ? "repair-title-error" : undefined} value={title} onChange={e=>{update("title", e.target.value);setErrors(p=>({...p,title:""}));}}
           placeholder="e.g. Kitchen faucet is dripping constantly" maxLength={80}
           style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${errors.title?C.red:C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"var(--m-font)" }}/>
-        {errors.title && <p style={{ fontSize:11, color:C.red, marginTop:4, marginBottom:0 }}>{errors.title}</p>}
+        {errors.title && <p id="repair-title-error" role="alert" style={{ fontSize:11, color:C.red, marginTop:4, marginBottom:0 }}>{errors.title}</p>}
 
         {/* Description */}
-        <SectionLabel optional>More details</SectionLabel>
+        <SectionLabel htmlFor="repair-description" optional>More details</SectionLabel>
         <div style={{ position:"relative" }}>
-          <textarea value={description} onChange={e=>setDesc(e.target.value)} maxLength={500}
+          <textarea id="repair-description" value={description} onChange={e=>update("description", e.target.value)} maxLength={500}
             placeholder="When did it start? How often does it happen? Anything else we should know?" rows={4}
             style={{ width:"100%", padding:"11px 14px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", minHeight:90, fontFamily:"var(--m-font)", lineHeight:1.5 }}/>
           <span style={{ position:"absolute", bottom:10, right:12, fontSize:10, color:C.textMuted }}>{description.length}/500</span>
         </div>
 
         {/* Priority */}
-        <SectionLabel>Priority</SectionLabel>
+        <SectionLabel id="repair-priority">Priority</SectionLabel>
         <div role="note" data-emergency-banner style={{ background:`${C.red}0F`, border:`1px solid ${C.red}33`, borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12, color:C.text, lineHeight:1.5 }}>
           <strong style={{ color:C.red }}>Fire, smoke, gas smell, sparking electrical, or anyone in danger? Call 911 first.</strong> For gas, leave the building and call from outside. Then submit this request. {URGENT_PHONE_SENTENCE}
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        <div role="group" aria-labelledby="repair-priority" style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {PRIORITIES.map(p => (
-            <button key={p.id} onClick={() => setPriority(p.id)}
+            <label key={p.id}
               style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", border:`1px solid ${priority===p.id?p.color+"66":C.border}`, borderRadius:10, background:priority===p.id?`${p.color}0F`:C.surface, cursor:"pointer", fontFamily:"var(--m-font)", transition:"all 0.15s" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <input type="radio" name="repair-priority" value={p.id} checked={priority === p.id} onChange={() => update("priority", p.id)} style={{ accentColor:p.color, marginRight:10 }}/>
+              <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
                 <div style={{ width:8, height:8, borderRadius:"50%", background:p.color }}/>
                 <div style={{ textAlign:"left" }}>
                   <div style={{ fontSize:13, fontWeight:priority===p.id?600:400, color:priority===p.id?p.color:C.text }}>{p.label}</div>
@@ -316,7 +324,7 @@ export default function MaintenanceRequestForm() {
               <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${priority===p.id?p.color:C.border}`, background:priority===p.id?p.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>
                 {priority===p.id && "✓"}
               </div>
-            </button>
+            </label>
           ))}
         </div>
 
@@ -354,13 +362,13 @@ export default function MaintenanceRequestForm() {
         <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
           <Checkbox
             checked={entryAllowed}
-            onChange={() => setEntryAllowed(v => !v)}
+            onChange={() => update("entryAllowed", v => !v)}
             label="Vendor may enter when I am not home"
             sub="We will use the unit entry instructions on file"
           />
           <Checkbox
             checked={hasPets}
-            onChange={() => setHasPets(v => !v)}
+            onChange={() => update("hasPets", v => !v)}
             label="I have pets"
             sub="Please provide details so the vendor is prepared"
           />
@@ -368,7 +376,7 @@ export default function MaintenanceRequestForm() {
 
         {hasPets && (
           <div style={{ marginBottom:16 }}>
-            <input value={petDetails} onChange={e => setPetDetails(e.target.value)}
+            <input value={petDetails} onChange={e => update("petDetails", e.target.value)}
               placeholder="e.g. Large dog, friendly but will bark. Please keep door closed."
               style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"var(--m-font)" }}/>
           </div>
@@ -376,13 +384,14 @@ export default function MaintenanceRequestForm() {
 
         <div style={{ marginBottom:24 }}>
           <div style={{ fontSize:11, color:C.textSub, marginBottom:6, fontWeight:500 }}>Any other access notes?</div>
-          <textarea value={accessNotes} onChange={e => setAccessNotes(e.target.value)}
+          <textarea value={accessNotes} onChange={e => update("accessNotes", e.target.value)}
             placeholder="e.g. Ring the doorbell first, park in the lot behind the building…" rows={2}
             style={{ width:"100%", padding:"11px 14px", fontSize:13, border:`1px solid ${C.border}`, borderRadius:8, background:C.raised, color:C.text, outline:"none", boxSizing:"border-box", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.5 }}/>
         </div>
 
         {/* Photos */}
         <SectionLabel optional>Photos (up to 6)</SectionLabel>
+        <p style={{ fontSize:12, color:C.textSub, marginBottom:8 }}>Your written draft is saved in this tab. Reattach photos if you leave before submitting.</p>
         {photos.length > 0 && (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
             {photos.map((p,i) => (

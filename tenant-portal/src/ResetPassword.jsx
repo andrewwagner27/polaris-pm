@@ -1,3 +1,4 @@
+import { passwordIssue } from "./lib/tenantSetup";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
@@ -30,18 +31,6 @@ function ModusMark({ size = 32 }) {
 function Spinner() {
   return <span style={{ width: 16, height: 16, border: "2px solid rgba(201,169,110,0.3)", borderTopColor: C.gold, borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />;
 }
-
-function getStrength(pw) {
-  if (!pw) return 0;
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) score++;
-  if (pw.length >= 12) score++;
-  return score;
-}
-
-const STRENGTH_COLORS = ["", C.red, C.amber, C.green];
-const STRENGTH_LABELS = ["", "Weak", "Fair", "Strong"];
 
 // Defined outside the page: a component declared inside it was re-created on every keystroke, so the input remounted
 // and lost focus after each character typed.
@@ -94,13 +83,15 @@ export default function ResetPassword() {
 
   async function handleReset() {
     if (!password) { setError("Please enter a new password."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    const issue = passwordIssue(password);
+    if (issue) { setError(issue); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
     setLoading(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) {
-      setError(/session|jwt|expired|not authenticated/i.test(error.message || "")
+      setError(error.code === "weak_password" ? "Your account security policy rejected that password. Try a longer, unique passphrase."
+        : /session|jwt|expired|not authenticated/i.test(error.message || "")
         ? "Your reset session has expired. Request a new reset link and try again."
         : /different from the old|same password/i.test(error.message || "")
           ? "Choose a password different from your current one."
@@ -111,7 +102,6 @@ export default function ResetPassword() {
     setTimeout(() => navigate("/login"), 2500);
   }
 
-  const strength = getStrength(password);
 
   if (checking) {
     return (
@@ -170,12 +160,9 @@ export default function ResetPassword() {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize:12, fontWeight: 600, color: C.textSub, display: "block", marginBottom: 6 }}>New password</label>
               <InputField label="New password" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} placeholder="Min. 8 characters" showPw={showPw} onToggleShow={() => setShowPw(v => !v)} onEnter={handleReset} />
-              {password && (
-                <>
-                  <div style={{ height: 3, borderRadius: 2, marginTop: 8, background: STRENGTH_COLORS[strength] || C.border, width: strength === 0 ? "0%" : strength === 1 ? "33%" : strength === 2 ? "66%" : "100%", transition: "all 0.3s" }} />
-                  <div style={{ fontSize: 11, color: STRENGTH_COLORS[strength], marginTop: 3 }}>{STRENGTH_LABELS[strength]}</div>
-                </>
-              )}
+              {password && <p aria-live="polite" style={{ fontSize:12, color:C.textSub, marginTop:8 }}>
+                {passwordIssue(password) || "Ready to check against your account’s security policy."}
+              </p>}
             </div>
 
             <div style={{ marginBottom: 22 }}>

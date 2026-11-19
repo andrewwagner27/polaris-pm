@@ -58,7 +58,10 @@ export default function LoginScreen({ onSuccess }) {
     setLoading(false);
     if (authError) { setError(authError.message); return; }
     if (onSuccess) onSuccess(data.user);
-    else navigate("/home");
+    else if (data.user?.user_metadata?.tenant_setup && !data.user.user_metadata.onboarding_complete) {
+      const id = data.user.user_metadata.tenant_setup.tenantId;
+      navigate(id ? "/onboarding?tenant_id=" + encodeURIComponent(id) : "/onboarding");
+    } else navigate("/home");
   }
 
   return (

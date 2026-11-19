@@ -191,7 +191,9 @@ describe("wiring", () => {
   });
   test("the tenant is told clearly when online rent isn't set up, and the landlord sees which properties and why", () => {
     const r = src("src/RentPaymentScreen.jsx"), m = src("supabase/migrations/20261104000000_a2_receivables.sql");
-    assert.match(r, /due\.online_available === false/); assert.match(r, /Nothing has been charged/); assert.match(r, /pay your rent to your property manager directly/);
+    assert.match(r, /!due\.ledger_active \|\| due\.online_available === false/);
+    assert.match(r, /Pay rent as described in your lease/);
+    assert.match(r, /due\?\.ledger_active && due\.online_available !== false && <AutopayUnavailable\/>/);
     assert.match(m, /'online_available', v_route/); assert.match(m, /FUNCTION public\.a2_payment_route_gaps\(\)/);
     assert.ok(src("src/LandlordFinancials.jsx").includes("<PaymentRouteWarning/>"));
     assert.match(src("src/PaymentRouteWarning.jsx"), /a2_payment_route_gaps/);

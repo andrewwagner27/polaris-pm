@@ -34,9 +34,9 @@ test("the required headlines and calls to action are present and routed", () => 
   for (const s of ["Property management, without the busywork.", "Know what needs your attention. Instantly.",
     "A better experience for the people who call your properties home.", "Less administration. More ownership.",
     "Stay organized", "Respond faster", "Stay in control"]) assert.ok(src.includes(s), s);
-  assert.match(src, /href="\/landlord" onClick=\{go\("\/landlord"\)\} className="lp-btn lp-btn-gold">Explore the dashboard</);
+  assert.equal((src.match(/href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works/g) || []).length, 2);
   assert.match(src, /href="\/login" onClick=\{go\("\/login"\)\} className="lp-btn lp-btn-quiet">Tenant portal</);
-  assert.match(src, />Explore Modus</);
+  assert.match(src, /id="maintenance-tour"[^>]+aria-labelledby="maintenance-tour-title"/);
 });
 
 test("mobile header: accessible menu button holds both logins; desktop links hide on phones", () => {
