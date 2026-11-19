@@ -70,7 +70,9 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/"                element={<LandingPage/>}/>
-        <Route path="/about"           element={<LandingPage about/>}/>
+        <Route path="/about"           element={<LandingPage page="about"/>}/>
+        <Route path="/faq"             element={<LandingPage page="faq"/>}/>
+        <Route path="/contact"         element={<LandingPage page="contact"/>}/>
         <Route path="/login"           element={<LoginScreen/>}/>
         <Route path="/forgot-password" element={<ForgotPassword/>}/>
         <Route path="/reset-password"  element={<ResetPassword/>}/>

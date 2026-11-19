@@ -195,50 +195,120 @@ function MaintenanceTour() {
   );
 }
 
-function AboutModus() {
-  useEffect(() => {
-    const title = document.title;
-    document.title = "About Modus";
-    if (window.location.hash === "#faq") document.getElementById("faq")?.scrollIntoView();
-    return () => { document.title = title; };
-  }, []);
+const PUBLIC_PAGES = [
+  { key: "about", label: "About Us" },
+  { key: "faq", label: "FAQ" },
+  { key: "contact", label: "Contact Us" },
+];
 
+function PublicLinks({ page }) {
+  return PUBLIC_PAGES.map(({ key, label }) => (
+    <a key={key} href={"/" + key} aria-current={page === key ? "page" : undefined}>{label}</a>
+  ));
+}
+
+function AboutModus() {
   return (
-    <>
       <section className="lp-light lp-ivory">
         <div className="lp-wrap lp-about-copy">
-          <h1>About Modus</h1>
+          <h1>About Us</h1>
           <p className="lp-about-intro">Built by someone who’s been both a renter and a property investor.</p>
           <p>Before building Modus, our founder spent years dealing with the frustrations of property management from both sides. As a renter, he wanted clear answers and a way to follow up. As an investor, he wanted to know what was happening at his properties and where a decision was needed.</p>
           <p>He set out to build a best-in-class experience for both. That means giving residents a clear way to report a problem and see what happens next, and giving owners and managers the context they need to act.</p>
           <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
         </div>
       </section>
-      <section id="faq" className="lp-light lp-white lp-faq" aria-labelledby="faq-title">
+  );
+}
+
+function ModusFaq() {
+  return (
+      <section className="lp-light lp-white lp-faq" aria-labelledby="faq-title">
         <div className="lp-wrap lp-about-copy">
-          <h2 id="faq-title">Frequently asked questions</h2>
+          <h1 id="faq-title">Frequently asked questions</h1>
           <details><summary>Who is Modus for?</summary><p>Modus is built for owners and property managers of rental homes, and for the residents who live in those homes.</p></details>
           <details><summary>How do I access the resident portal?</summary><p>Open the invitation from your property manager to set up your account. If you already have an account, <a href="/login">sign in to the resident portal</a>. If you need a new invitation, contact your property manager.</p></details>
           <details><summary>Can I track a maintenance request?</summary><p>Yes. Open Maintenance in the resident portal to report an issue, attach photos, and follow the status of a request. When a repair date has been recorded, it appears on the request.</p></details>
           <details><summary>What can owners and managers do in Modus?</summary><p>Managers can see what needs attention across properties, assign contractors, review quotes, manage resident records, and respond to messages.</p></details>
           <details><summary>Can I see how Modus works before signing in?</summary><p>Yes. The <a href="/#maintenance-tour">interactive maintenance walkthrough</a> lets you try a sample request from both the resident and manager views.</p></details>
+          <p>Still have a question? <a href="/contact">Contact us</a>.</p>
         </div>
       </section>
-    </>
   );
 }
 
-export default function LandingPage({ about = false }) {
+function ContactModus() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const inFlight = useRef(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (inFlight.current) return;
+    const form = event.currentTarget;
+    const fields = Object.fromEntries(new FormData(form));
+    inFlight.current = true;
+    setSending(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok || !["sent", "preview"].includes(data.status)) {
+        setResult({ error: data.error || "We couldn’t confirm delivery. Please try again." });
+        return;
+      }
+      setResult({ message: data.status === "preview" ? "Preview submission complete. No email was sent." : "Thanks for contacting Modus. We received your message." });
+      form.reset();
+    } catch {
+      setResult({ error: "We couldn’t confirm delivery. Please try again." });
+    } finally {
+      inFlight.current = false;
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="lp-light lp-ivory">
+      <div className="lp-wrap lp-about-copy lp-contact">
+        <h1>Contact Us</h1>
+        <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>
+        <form onSubmit={submit}>
+          <label htmlFor="contact-name">Name</label>
+          <input id="contact-name" name="name" autoComplete="name" maxLength={100} required/>
+          <label htmlFor="contact-email">Email address</label>
+          <input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} required/>
+          <label htmlFor="contact-message">Message</label>
+          <textarea id="contact-message" name="message" rows={6} maxLength={3000} required/>
+          <div hidden><label htmlFor="contact-website">Leave this field empty</label><input id="contact-website" name="website" tabIndex={-1} autoComplete="off"/></div>
+          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : "Send message"}</button>
+          <div role="status">{result?.message}</div>
+          {result?.error && <p role="alert" className="lp-contact-error">{result.error}</p>}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+export default function LandingPage({ page = "home" }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtn = useRef(null);
   const menuRef = useRef(null);
 
   useEffect(() => {
-    if (!about && window.location.hash === "#maintenance-tour") {
+    const title = document.title;
+    const publicPage = PUBLIC_PAGES.find(item => item.key === page);
+    if (publicPage) document.title = publicPage.label + " | Modus";
+    if (page === "home" && window.location.hash === "#maintenance-tour") {
       document.getElementById("maintenance-tour")?.scrollIntoView();
     }
-  }, [about]);
+    if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
+    return () => { document.title = title; };
+  }, [page]);
 
   // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
   useEffect(() => {
@@ -260,7 +330,7 @@ export default function LandingPage({ about = false }) {
         <div className="lp-wrap lp-header-row">
           <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
           <nav className="lp-nav-desktop" aria-label="Main navigation">
-            <a href="/about" aria-current={about ? "page" : undefined}>About</a>
+            <PublicLinks page={page}/>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
             <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
           </nav>
@@ -273,13 +343,16 @@ export default function LandingPage({ about = false }) {
           <div id="lp-menu" ref={menuRef} className="lp-menu">
             <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
-            <a href="/about" aria-current={about ? "page" : undefined}>About</a>
+            <PublicLinks page={page}/>
           </div>
         )}
       </header>
 
       <main>
-        {about ? <AboutModus/> : <>
+        {page === "about" && <AboutModus/>}
+        {page === "faq" && <ModusFaq/>}
+        {page === "contact" && <ContactModus/>}
+        {page === "home" && <>
         {/* ── 1. Hero (dark) ── */}
         <section className="lp-hero">
           <div className="lp-wrap">
@@ -364,7 +437,7 @@ export default function LandingPage({ about = false }) {
       <footer className="lp-footer">
         <div className="lp-wrap lp-footer-row">
           <Wordmark/>
-          <nav aria-label="Footer"><a href="/about">About</a><a href="/about#faq">FAQ</a></nav>
+          <nav aria-label="Footer"><PublicLinks page={page}/></nav>
           <span>© {new Date().getFullYear()} Modus Property Management</span>
         </div>
       </footer>
@@ -383,10 +456,18 @@ const CSS = `
 .lp-about-copy .lp-about-intro { color: #18181B; font-size: clamp(21px, 4vw, 28px); line-height: 1.4; }
 .lp-about-copy .lp-btn { margin-top: 10px; }
 .lp-faq { scroll-margin-top: 75px; }
-.lp-faq h2 { margin-bottom: 18px; }
+.lp-faq h1 { margin-bottom: 18px; }
 .lp-faq details { border-bottom: 1px solid #E7E2D8; }
 .lp-faq summary { padding: 16px 2px; min-height: 48px; font-size: 17px; font-weight: 600; cursor: pointer; }
 .lp-faq details p { margin: 0 0 18px; }
+.lp-contact form { display: grid; gap: 10px; max-width: 620px; padding: clamp(16px, 4vw, 30px); background: white; border: 1px solid #E7E2D8; border-radius: 16px; }
+.lp-contact label { font-weight: 600; }
+.lp-contact input, .lp-contact textarea { width: 100%; min-height: 44px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid #8C857A; border-radius: 8px; font: inherit; }
+.lp-contact textarea { resize: vertical; }
+.lp-contact input:focus-visible, .lp-contact textarea:focus-visible { outline: 2px solid #7A5C12; outline-offset: 2px; }
+.lp-contact button { justify-self: start; border: 0; font-family: inherit; cursor: pointer; }
+.lp-contact button:disabled { opacity: .7; cursor: wait; }
+.lp-contact .lp-contact-error { margin: 0; color: #9F2424; }
 .lp-footer-row nav { display: flex; gap: 18px; }
 .lp-footer-row nav a { display: inline-flex; align-items: center; min-height: 44px; }
 
