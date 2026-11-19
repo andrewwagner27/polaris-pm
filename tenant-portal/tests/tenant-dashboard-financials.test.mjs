@@ -166,7 +166,7 @@ describe("tenant Home dashboard wiring", () => {
   });
 
   test("monthly charges are shown as scheduled charges with a total, not as an amount owed", () => {
-    assert.match(dashboard, /<Label>Monthly Recurring Charges<\/Label>/);
+    assert.match(dashboard, /<h2[^>]*>Monthly Recurring Charges<\/h2>/);
     assert.match(dashboard, /This is not your balance due\./);
     assert.match(dashboard, /Total monthly charges/);
     assert.match(dashboard, /No recurring charges are set up on your account\./);

@@ -64,13 +64,17 @@ export default function HomeDashboard() {
   const [balance, setBalance] = useState({ state: "loading" });
   // Online rent payment is offered only when it really works for this tenant (same rule as Wallet and Pay):
   // an active receivables ledger and a property set up with the payment processor. Unknown → not offered.
-  const [onlinePay, setOnlinePay] = useState(false);
+  const [rentPaymentRead, setRentPaymentRead] = useState(null);
 
   useEffect(() => {
     if (!(user && tenant?.id)) return;
     fetchMessages(); fetchBalance();
+    let active = true;
     supabase.rpc("a2_pay_rent_due", { p_tenant: tenant.id })
-      .then(({ data, error }) => setOnlinePay(!error && !!data?.ledger_active && data?.online_available !== false));
+      .then(({ data, error }) => {
+        if (active) setRentPaymentRead(error ? null : { tenantId: tenant.id, data });
+      });
+    return () => { active = false; };
   }, [user, tenant?.id]);
 
   async function fetchMessages() {
@@ -109,6 +113,10 @@ export default function HomeDashboard() {
   const nextDueStr   = nextDue.toLocaleDateString("en-US",{ weekday:"short", month:"long", day:"numeric" });
   const daysUntilDue = Math.round((nextDue - new Date(new Date().toDateString())) / (1000*60*60*24));
 
+  const due = rentPaymentRead?.tenantId === tenant?.id ? rentPaymentRead?.data : null;
+  const onlinePay = !!due?.ledger_active && due.online_available !== false;
+  const payableCents = Number(due?.payable_cents) || 0;
+  const pendingCents = due?.ledger_active ? Number(due.pending_cents) || 0 : 0;
   const bal             = balancePresentation(balance);
   const balanceColor    = bal.tone === "due" ? C.red : bal.tone === "clear" ? C.green : C.textSub;
 
@@ -154,6 +162,38 @@ export default function HomeDashboard() {
             Lease expires in {leaseDaysLeft} days. Message management about renewal.
           </div>
         )}
+
+        <Card style={{ padding:"18px 20px", marginTop:16 }}>
+          <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Rent</h2>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
+            <div style={{ flex:"1 1 200px", minWidth:0 }}>
+              <Label>Balance Due</Label>
+              <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 15, fontWeight: bal.available ? 600 : 500, color:balanceColor, fontVariantNumeric:"tabular-nums", lineHeight:1.25 }}>{bal.amountText}</div>
+              <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>{bal.detail}</div>
+            </div>
+            {/* Due date + Pay CTA */}
+            <div style={{ minWidth:160 }}>
+              <Label>Next Due Date</Label>
+              <div style={{ fontSize:15, fontWeight:500, color:C.text }}>{hasRentSchedule ? nextDueStr : "No rent schedule on file"}</div>
+              {hasRentSchedule && <div style={{ fontSize:13, color: daysUntilDue <= 3 ? C.amber : C.textMuted, marginTop:2 }}>{daysUntilDue <= 0 ? "Today" : `In ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}</div>}
+            </div>
+          </div>
+          {pendingCents > 0 && (
+            <p role="status" style={{ margin:"12px 0 0", fontSize:14, color:C.blue }}>
+              {formatCents(pendingCents)} payment processing
+            </p>
+          )}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:16 }}>
+            {onlinePay && payableCents > 0 ? (
+              <button type="button" className="t-btn" onClick={() => navigate("/pay")}>Pay rent</button>
+            ) : (
+              <>
+                {!onlinePay && <span style={{ fontSize:13, color:C.textSub }}>Online payment isn't available yet.</span>}
+                <button type="button" className="t-link" onClick={() => navigate("/pay")}>Payment details</button>
+              </>
+            )}
+          </div>
+        </Card>
 
         <div className="home-grid" style={{ marginTop:20 }}>
           {/* 1. Maintenance */}
@@ -218,36 +258,9 @@ export default function HomeDashboard() {
             </div>
           </Card>
 
-          {/* 4. Rent: balance status (ledger only), next date, and the one action that actually works */}
           <Card style={{ padding:"18px 20px" }}>
-            <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Rent</h2>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:"14px 28px", alignItems:"flex-start" }}>
-              <div style={{ flex:"1 1 200px", minWidth:0 }}>
-                <Label>Balance Due</Label>
-                <div data-balance-state={balance.state} style={{ fontSize: bal.available ? 26 : 15, fontWeight: bal.available ? 600 : 500, color:balanceColor, fontVariantNumeric:"tabular-nums", lineHeight:1.25 }}>{bal.amountText}</div>
-                <div role={balance.state === "unavailable" ? "status" : undefined} style={{ fontSize:13, color:C.textMuted, marginTop:4, lineHeight:1.5, maxWidth:420 }}>{bal.detail}</div>
-              </div>
-              {/* Due date + Pay CTA */}
-              <div style={{ minWidth:160 }}>
-                <Label>Next Due Date</Label>
-                <div style={{ fontSize:15, fontWeight:500, color:C.text }}>{hasRentSchedule ? nextDueStr : "No rent schedule on file"}</div>
-                {hasRentSchedule && <div style={{ fontSize:13, color: daysUntilDue <= 3 ? C.amber : C.textMuted, marginTop:2 }}>{daysUntilDue <= 0 ? "Today" : `In ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}</div>}
-              </div>
-            </div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginTop:16 }}>
-              {onlinePay ? (
-                <button type="button" className="t-btn" onClick={() => navigate("/pay")}>Pay rent</button>
-              ) : (
-                <>
-                  <span style={{ fontSize:13, color:C.textSub, flex:"1 1 220px" }}>Online payment isn't available yet.</span>
-                  <button type="button" className="t-link" onClick={() => navigate("/pay")}>Payment details</button>
-                </>
-              )}
-            </div>
-
-            {/* Scheduled monthly charges: what is billed each month, never the balance */}
-            <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
-              <Label>Monthly Recurring Charges</Label>
+            <h2 style={{ fontSize:16, fontWeight:600, margin:"0 0 14px" }}>Monthly Recurring Charges</h2>
+            <div>
               <div style={{ fontSize:13, color:C.textMuted, marginBottom:4 }}>Scheduled each month. This is not your balance due.</div>
               {monthly.hasCharges ? (
                 <>

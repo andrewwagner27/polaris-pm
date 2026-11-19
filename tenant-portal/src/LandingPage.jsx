@@ -194,9 +194,9 @@ export default function LandingPage() {
           <div className="lp-wrap">
             <div className="lp-hero-copy">
               <h1>Property management, without the busywork.</h1>
-              <p>Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <p>Track repairs from the first resident report to the final invoice, alongside tenant messages and property records.</p>
               <div className="lp-cta">
-                <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore the dashboard</a>
+                <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
                 <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
               </div>
             </div>
@@ -204,6 +204,18 @@ export default function LandingPage() {
               <DashboardMock/>
               <figcaption>The Modus landlord dashboard, shown with sample data.</figcaption>
             </figure>
+          </div>
+        </section>
+
+        <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
+          <div className="lp-wrap">
+            <h2 id="maintenance-tour-title">From a reported leak to a scheduled repair</h2>
+            <p>Follow a sample maintenance request through Modus.</p>
+            <ol className="lp-tour-steps">
+              <li><h3>Resident reports the leak</h3><p>The resident describes a dripping kitchen faucet and attaches a photo.</p></li>
+              <li><h3>Manager reviews the quote</h3><p>The manager assigns a contractor, then reviews and approves the $185 quote from the request.</p></li>
+              <li><h3>Resident sees the schedule</h3><p>When a repair date is recorded, the resident can see it on the request and message management with questions.</p></li>
+            </ol>
           </div>
         </section>
 
@@ -261,7 +273,7 @@ export default function LandingPage() {
         <section className="lp-final">
           <div className="lp-wrap">
             <h2>Less administration. More ownership.</h2>
-            <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore Modus</a>
+            <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
             <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
           </div>
         </section>
@@ -297,6 +309,14 @@ const CSS = `
 @media (min-width: 721px) { .lp-menu { display: none; } }
 
 /* Buttons */
+.lp-tour { scroll-margin-top: 90px; }
+.lp-tour h2 { margin: 0; font-size: clamp(27px, 4vw, 40px); letter-spacing: -0.03em; }
+.lp-tour p { color: #52525B; line-height: 1.6; }
+.lp-tour-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: 16px; margin: 28px 0 0; padding: 0; list-style-position: inside; }
+.lp-tour-steps li { border: 1px solid #E7E2D8; border-radius: 16px; padding: 20px; background: #F5F3EE; }
+.lp-tour-steps li::marker { color: #7A5C12; font-weight: 600; }
+.lp-tour-steps h3 { display: inline; margin: 0; font-size: 17px; }
+.lp-tour-steps p { margin: 10px 0 0; font-size: 15px; }
 .lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; transition: filter .15s, background .15s; }
 .lp-btn-gold { background: ${GOLD}; color: ${INK} !important; }
