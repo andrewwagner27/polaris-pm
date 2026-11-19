@@ -35,6 +35,10 @@ test("Preview validates submissions and never calls the mail provider", async (t
   assert.equal((await request({ ...submission, email: "invalid" })).code, 400);
   assert.equal((await request({ ...submission, website: "bot" })).code, 400);
   assert.deepEqual((await request()).body, { status: "preview" });
+  assert.deepEqual((await request({ ...submission, message: "", intent: "demo", units: "12" })).body, { status: "preview" });
+  assert.equal((await request({ ...submission, intent: "pricing", message: "" })).code, 400);
+  assert.equal((await request({ ...submission, intent: "demo", units: "1.5" })).code, 400);
+  assert.equal((await request({ ...submission, intent: "invalid" })).code, 400);
   assert.equal(send.mock.callCount(), 0);
 });
 
@@ -55,4 +59,11 @@ test("production uses the configured recipient, escapes the message, and limits 
   assert.deepEqual(mail.reply_to, [submission.email]);
   assert.match(mail.html, /&lt;p&gt;Test message&lt;\/p&gt;/);
   assert.equal(options.headers["Idempotency-Key"], send.mock.calls[1].arguments[1].headers["Idempotency-Key"]);
+  const demo = await request({ ...submission, message:"", intent:"demo", units:"12" }, {
+    headers: { "content-type":"application/json", "x-vercel-forwarded-for":"192.0.2.11" },
+  });
+  assert.deepEqual(demo.body, { status:"sent" });
+  const demoMail = JSON.parse(send.mock.calls[4].arguments[1].body);
+  assert.equal(demoMail.subject, "Modus demo request");
+  assert.match(demoMail.text, /Rental units: 12/);
 });

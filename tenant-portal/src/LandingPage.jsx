@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import aboutRowhouses from "./assets/about-rowhouses.webp";
+import demoResidentHome from "./assets/demo-resident-home.webp";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
 // screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
@@ -33,9 +34,6 @@ const Icon = ({ d, size = 22, color = GOLD }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d}/></svg>
 );
 const ICONS = {
-  organize: "M4 5h16M4 12h16M4 19h10",
-  respond:  "M13 3L4 14h7l-1 7 9-11h-7l1-7z",
-  control:  "M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7l8-4zM9 12l2 2 4-4",
   building: "M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h.01M16 11h.01",
 };
 
@@ -44,46 +42,6 @@ function Tag({ kind }) {
   const s = kind === "Urgent" ? { c: "#F2A3A3", b: "rgba(240,112,112,0.14)" }
     : kind === "Decision" ? { c: GOLD, b: "rgba(199,168,108,0.14)" } : { c: "#9DC6F2", b: "rgba(106,174,240,0.14)" };
   return <span className="lp-tag" style={{ color: s.c, background: s.b }}>{kind}</span>;
-}
-
-function DashboardMock() {
-  const rows = [
-    { kind: "Urgent",    title: "Water leak reported, bathroom ceiling", meta: "Clifton Manor · Unit 3", cta: "Arrange contractor", primary: true },
-    { kind: "Decision",  title: "Quote to approve: sticking bedroom door", meta: "$140 · Handyman · Unit 2", cta: "Review quote" },
-    { kind: "Decision",  title: "Work completed: garbage disposal", meta: "Review the work and invoice", cta: "Review & close" },
-    { kind: "Follow up", title: "Invitation not accepted", meta: "Sent 5 days ago · Unit 101", cta: "Open tenant" },
-  ];
-  return (
-    <div className="lp-window" aria-hidden="true">
-      <div className="lp-window-bar"><i/><i/><i/><span>Home</span><span className="lp-scope">All properties ▾</span></div>
-      <div className="lp-window-body">
-        <aside className="lp-side">
-          <Wordmark/>
-          {["Home", "Maintenance", "Messages", "Properties", "Tenants", "Financials"].map((n, i) => (
-            <div key={n} className={i === 0 ? "lp-side-item on" : "lp-side-item"}>{n}</div>
-          ))}
-        </aside>
-        <div className="lp-main">
-          <div className="lp-h1">Good morning</div>
-          <div className="lp-sub">4 items waiting on you</div>
-          <div className="lp-queue">
-            {rows.map((r) => (
-              <div key={r.title} className={`lp-row${r.kind === "Urgent" ? " urgent" : ""}`}>
-                <Tag kind={r.kind}/>
-                <div className="lp-row-text"><b>{r.title}</b><span>{r.meta}</span></div>
-                <span className={r.primary ? "lp-act primary" : "lp-act"}>{r.cta}</span>
-              </div>
-            ))}
-          </div>
-          <div className="lp-stats">
-            {[["Occupancy", "11 of 12"], ["Open requests", "5"], ["Leases ending", "2 in 60 days"]].map(([k, v]) => (
-              <div key={k} className="lp-stat"><span>{k}</span><b>{v}</b></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function DecisionMock() {
@@ -141,12 +99,6 @@ function PhoneMock() {
   );
 }
 
-const BENEFITS = [
-  { icon: "organize", title: "Stay organized", text: "Your properties, tenants, and requests in one place." },
-  { icon: "respond",  title: "Respond faster", text: "See urgent issues and decisions before they become problems." },
-  { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
-];
-
 const TOUR_STEPS = [
   { role: "Resident portal", title: "Report a dripping faucet", status: "Draft", detail: "Unit 2 · Kitchen · Photo attached", action: "Submit sample request" },
   { role: "Manager dashboard", title: "Review the contractor quote", status: "Quote ready", detail: "Faucet repair · Contractor quote $185", action: "Approve sample quote" },
@@ -161,8 +113,8 @@ function MaintenanceTour() {
     <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
       <div className="lp-wrap">
         <div className="lp-tour-heading">
-          <h2 id="maintenance-tour-title">Try the maintenance walkthrough</h2>
-          <p>Follow one repair through the resident and manager views. This demo uses sample data.</p>
+          <h1 id="maintenance-tour-title">Try a sample repair</h1>
+          <p>Report a leak, approve a quote, and see the repair date using sample data.</p>
         </div>
         <div className="lp-tour-shell">
           <ol className="lp-tour-steps" aria-label="Walkthrough steps">
@@ -183,7 +135,10 @@ function MaintenanceTour() {
               {step === 1 && <blockquote>Replace the worn faucet cartridge and test for leaks.</blockquote>}
               {step === 2 && <blockquote>Management added a repair window to the request.</blockquote>}
             </div>
-            <button type="button" className="lp-btn lp-btn-gold" onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            <div className="lp-cta">
+              {step === TOUR_STEPS.length - 1 && <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>}
+              <button type="button" className={"lp-btn " + (step === TOUR_STEPS.length - 1 ? "lp-btn-quiet" : "lp-btn-gold")} onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            </div>
             {step > 0 && (
               <div className="lp-tour-preview">
                 {step === 1 ? <DecisionMock/> : <PhoneMock/>}
@@ -245,7 +200,7 @@ function AboutModus() {
         <div className="lp-wrap lp-about-example-inner">
           <h2 id="about-example-title">What happens when a faucet leaks?</h2>
           <p>A resident reports the leak in their portal. The manager sees the request, reviews the contractor’s quote, and approves the repair. When management adds the appointment, the resident can see when the contractor is coming.</p>
-          <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
+          <a className="lp-btn lp-btn-gold" href="/walkthrough">Try the maintenance walkthrough</a>
         </div>
       </section>
     </div>
@@ -295,11 +250,11 @@ function ModusFaq() {
           </details>
           <details>
             <summary>How much does Modus cost?</summary>
-            <p><a href="/contact">Contact us for pricing</a> and tell us what you manage.</p>
+            <p><a href="/contact?intent=pricing">Contact us for pricing</a> and tell us what you manage.</p>
           </details>
           <details>
             <summary>How do I get started?</summary>
-            <p><a href="/contact">Request a demo through Contact Us</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
+            <p><a href="/contact?intent=demo">Request a demo</a> or <a href="/walkthrough">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
           </details>
         </div>
       </section>
@@ -307,6 +262,10 @@ function ModusFaq() {
 }
 
 function ContactModus() {
+  const [params] = useSearchParams();
+  const intent = params.get("intent");
+  const isDemo = intent === "demo";
+  const isPricing = intent === "pricing";
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const inFlight = useRef(false);
@@ -343,17 +302,24 @@ function ContactModus() {
   return (
     <section className="lp-light lp-ivory">
       <div className="lp-wrap lp-about-copy lp-contact">
-        <h1>Contact Us</h1>
-        <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>
+        <h1>{isDemo ? "Request a demo" : isPricing ? "Ask about pricing" : "Contact Us"}</h1>
+        {isDemo ? <p>Tell us how to reach you. We’ll follow up by email to arrange a walkthrough and discuss your rentals.</p>
+          : isPricing ? <p>Tell us what you manage and what you’d like to know about pricing. We’ll follow up by email.</p>
+          : <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>}
         <form onSubmit={submit}>
+          {(isDemo || isPricing) && <input type="hidden" name="intent" value={intent}/>}
           <label htmlFor="contact-name">Name</label>
           <input id="contact-name" name="name" autoComplete="name" maxLength={100} required/>
           <label htmlFor="contact-email">Email address</label>
           <input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} required/>
-          <label htmlFor="contact-message">Message</label>
-          <textarea id="contact-message" name="message" rows={6} maxLength={3000} required/>
+          {(isDemo || isPricing) && <>
+            <label htmlFor="contact-units">Rental units (optional)</label>
+            <input id="contact-units" name="units" type="number" min={1} max={100000} step={1}/>
+          </>}
+          <label htmlFor="contact-message">{isDemo ? "What would you like to see? (optional)" : "Message"}</label>
+          <textarea id="contact-message" name="message" rows={isDemo ? 4 : 6} maxLength={3000} required={!isDemo}/>
           <div hidden><label htmlFor="contact-website">Leave this field empty</label><input id="contact-website" name="website" tabIndex={-1} autoComplete="off"/></div>
-          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : "Send message"}</button>
+          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : isDemo ? "Send demo request" : "Send message"}</button>
           <div role="status">{result?.message}</div>
           {result?.error && <p role="alert" className="lp-contact-error">{result.error}</p>}
         </form>
@@ -372,11 +338,17 @@ export default function LandingPage({ page = "home" }) {
     const title = document.title;
     const publicPage = PUBLIC_PAGES.find(item => item.key === page);
     if (publicPage) document.title = publicPage.label + " | Modus";
-    if (page === "home" && window.location.hash === "#maintenance-tour") {
-      document.getElementById("maintenance-tour")?.scrollIntoView();
+    if (page === "walkthrough") document.title = "Repair Walkthrough | Modus";
+    function redirectLegacyLink() {
+      if (page === "home" && window.location.hash === "#maintenance-tour") window.location.replace("/walkthrough");
+      if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
     }
-    if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
-    return () => { document.title = title; };
+    redirectLegacyLink();
+    window.addEventListener("hashchange", redirectLegacyLink);
+    return () => {
+      document.title = title;
+      window.removeEventListener("hashchange", redirectLegacyLink);
+    };
   }, [page]);
 
   // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
@@ -400,7 +372,7 @@ export default function LandingPage({ page = "home" }) {
           <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
           <nav className="lp-nav-desktop" aria-label="Main navigation">
             <PublicLinks page={page}/>
-            <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <a href="/login" onClick={go("/login")}>Resident sign-in</a>
             <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
           </nav>
           <button ref={menuBtn} type="button" className="lp-burger" aria-label="Menu" aria-expanded={menuOpen} aria-controls="lp-menu"
@@ -411,7 +383,7 @@ export default function LandingPage({ page = "home" }) {
         {menuOpen && (
           <div id="lp-menu" ref={menuRef} className="lp-menu">
             <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
-            <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <a href="/login" onClick={go("/login")}>Resident sign-in</a>
             <PublicLinks page={page}/>
           </div>
         )}
@@ -421,86 +393,29 @@ export default function LandingPage({ page = "home" }) {
         {page === "about" && <AboutModus/>}
         {page === "faq" && <ModusFaq/>}
         {page === "contact" && <ContactModus/>}
-        {page === "home" && <>
-        {/* ── 1. Hero (dark) ── */}
+        {page === "walkthrough" && <MaintenanceTour/>}
+        {page === "home" && (
         <section className="lp-hero">
-          <div className="lp-wrap">
+          <div className="lp-wrap lp-hero-grid">
             <div className="lp-hero-copy">
-              <h1>Property management, without the busywork.</h1>
-              <p>Track repairs from the first resident report to the final invoice, alongside tenant messages and property records.</p>
+              <h1>Property management <span>for both sides of the lease.</span></h1>
+              <p>Keep rent, maintenance, and resident messages in one place.</p>
               <div className="lp-cta">
-                <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
-                <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
+                <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
+                <a href="/walkthrough" className="lp-btn lp-btn-quiet">See a sample workflow</a>
               </div>
+              <a className="lp-resident-entry" href="/login" onClick={go("/login")}>Resident sign-in</a>
             </div>
             <figure className="lp-hero-visual">
-              <DashboardMock/>
-              <figcaption>The Modus landlord dashboard, shown with sample data.</figcaption>
+              <div className="lp-hero-exhibit">
+                <div className="lp-hero-exhibit-heading">Resident home</div>
+                <img src={demoResidentHome} width={600} height={346} alt="Modus resident home showing payment status and shortcuts to report an issue or message management"/>
+              </div>
+              <figcaption>Modus resident home, shown with sample data.</figcaption>
             </figure>
           </div>
         </section>
-
-        <MaintenanceTour/>
-
-        {/* ── 2. Landlord experience (ivory) ── */}
-        <section className="lp-light lp-ivory">
-          <div className="lp-wrap lp-split">
-            <div className="lp-split-copy">
-              <span className="lp-eyebrow">For landlords</span>
-              <h2>Know what needs your attention. Instantly.</h2>
-              <p>Urgent repairs, quotes to approve and finished work come to the top, organized by property.</p>
-              <ul className="lp-points">
-                <li>Approve contractors and quotes in one step</li>
-                <li>Review completed work before closing a ticket</li>
-                <li>Switch between properties without losing your place</li>
-              </ul>
-            </div>
-            <figure className="lp-split-visual">
-              <DecisionMock/>
-              <figcaption>Sample maintenance decision.</figcaption>
-            </figure>
-          </div>
-        </section>
-
-        {/* ── 3. Tenant experience (light) ── */}
-        <section className="lp-light lp-white">
-          <div className="lp-wrap lp-split lp-split-rev">
-            <figure className="lp-split-visual lp-phone-wrap">
-              <PhoneMock/>
-              <figcaption>Sample tenant home screen.</figcaption>
-            </figure>
-            <div className="lp-split-copy">
-              <span className="lp-eyebrow">For residents</span>
-              <h2>A better experience for the people who call your properties home.</h2>
-              <p>Residents report issues with photos, follow progress, message management, and keep their lease details close.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 4. Benefits (ivory) ── */}
-        <section className="lp-light lp-ivory">
-          <div className="lp-wrap">
-            <div className="lp-benefits">
-              {BENEFITS.map((b) => (
-                <div key={b.title} className="lp-benefit">
-                  <span className="lp-benefit-icon"><Icon d={ICONS[b.icon]} color={GOLD_DEEP}/></span>
-                  <h3>{b.title}</h3>
-                  <p>{b.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── 5. Final CTA (charcoal) ── */}
-        <section className="lp-final">
-          <div className="lp-wrap">
-            <h2>Less administration. More ownership.</h2>
-            <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
-            <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
-          </div>
-        </section>
-        </>}
+        )}
       </main>
 
       <footer className="lp-footer">
@@ -585,6 +500,7 @@ const CSS = `
 /* Buttons */
 .lp-tour { scroll-margin-top: 90px; }
 .lp-tour-heading { max-width: 650px; margin: 0 auto 28px; text-align: center; }
+.lp-tour-heading h1 { font-size:clamp(32px,5vw,48px); line-height:1.1; }
 .lp-tour-heading p { color: #52525B; line-height: 1.6; }
 .lp-tour-shell { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr); gap: 16px; background: #0E1116; padding: clamp(12px, 3vw, 28px); border-radius: 22px; color: #F5F2EB; }
 .lp-tour-steps { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -609,12 +525,14 @@ const CSS = `
 .lp-btn-quiet:hover { background: rgba(255,255,255,0.05); }
 
 /* Hero */
-.lp-hero { padding: 88px 0 72px; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
-.lp-hero-copy { max-width: 760px; margin: 0 auto; text-align: center; }
-.lp-hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.07; font-weight: 600; letter-spacing: -0.02em; }
-.lp-hero p { margin: 22px auto 32px; max-width: 600px; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
-.lp-hero .lp-cta { justify-content: center; }
-.lp .lp-hero-visual { margin: 64px auto 0; max-width: 1080px; }
+.lp-hero { padding: 74px 0; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
+
+.lp-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:clamp(28px,5vw,72px); }
+.lp-hero h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1.05; font-weight: 600; letter-spacing: -0.045em; }
+.lp-hero h1 span { display:block; margin-top:8px; color:#DFC48B; font-family:var(--m-font-brand); font-size:1.13em; line-height:.98; letter-spacing:-.035em; text-wrap:balance; }
+.lp-hero p { margin: 18px 0 26px; max-width: 42ch; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
+
+
 .lp figure { margin: 0; }
 .lp figcaption { margin-top: 14px; font-size: 13px; color: ${TXT3}; text-align: center; }
 
@@ -624,42 +542,17 @@ const CSS = `
 .lp-window-bar i { width: 10px; height: 10px; border-radius: 50%; background: #2C323C; }
 .lp-window-bar span:first-of-type { margin-left: 10px; font-weight: 600; color: ${TXT}; }
 .lp-scope { margin-left: auto; padding: 6px 12px; border: 1px solid ${LINE}; border-radius: 8px; font-size: 12px; }
-.lp-window-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
-.lp-side { padding: 20px 14px; border-right: 1px solid ${LINE}; display: flex; flex-direction: column; gap: 4px; }
-.lp-side > span { margin: 0 6px 16px; }
-.lp-side-item { padding: 9px 12px; border-radius: 8px; font-size: 13px; color: ${TXT2}; }
-.lp-side-item.on { background: rgba(199,168,108,0.10); color: ${GOLD}; }
 .lp-main { padding: 28px; min-width: 0; }
-.lp-h1 { font-size: 24px; font-weight: 600; }
-.lp-sub { font-size: 13px; color: ${TXT3}; margin: 4px 0 18px; }
-.lp-queue { background: ${INK3}; border-radius: 12px; overflow: hidden; }
-.lp-row { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-top: 1px solid ${LINE}; }
-.lp-row:first-child { border-top: 0; }
-.lp-row.urgent { box-shadow: inset 3px 0 0 #F07070; }
-.lp-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.lp-row-text b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lp-row-text span { font-size: 12px; color: ${TXT3}; }
 .lp-tag { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .lp-act { font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 8px; border: 1px solid ${LINE}; color: ${GOLD}; white-space: nowrap; }
 .lp-act.primary { background: ${GOLD}; color: ${INK}; border-color: ${GOLD}; }
-.lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.lp-stat { padding: 14px 16px; border-radius: 12px; background: ${INK3}; display: flex; flex-direction: column; gap: 4px; }
-.lp-stat span { font-size: 12px; color: ${TXT3}; }
-.lp-stat b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Light sections */
 .lp-light { color: ${DARK_TXT}; padding: 104px 0; }
 .lp-ivory { background: ${IVORY}; }
 .lp-white { background: #FBFAF7; }
 .lp-light figcaption { color: #6B6B73; }
-.lp-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 72px; align-items: center; }
-.lp-split-rev { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.lp-eyebrow { display: inline-block; font-size: 13px; font-weight: 600; color: ${GOLD_DEEP}; margin-bottom: 14px; }
 .lp-light h2 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; font-weight: 600; letter-spacing: -0.015em; }
-.lp-split-copy p { margin-top: 18px; font-size: 17px; line-height: 1.65; color: ${DARK_TXT2}; max-width: 460px; }
-.lp-points { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 12px; }
-.lp-points li { position: relative; padding-left: 26px; font-size: 15px; color: ${DARK_TXT}; }
-.lp-points li::before { content: ""; position: absolute; left: 0; top: 7px; width: 12px; height: 7px; border-left: 2px solid ${GOLD_DEEP}; border-bottom: 2px solid ${GOLD_DEEP}; transform: rotate(-45deg); }
 .lp-window-tight { box-shadow: 0 24px 60px rgba(24,24,27,0.18); }
 .lp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .lp-chips span { font-size: 12px; padding: 6px 12px; border-radius: 999px; color: ${TXT2}; background: ${INK3}; }
@@ -681,7 +574,6 @@ const CSS = `
 .lp-ticket-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* Phone mockup */
-.lp-phone-wrap { display: flex; flex-direction: column; align-items: center; }
 .lp-phone { width: 300px; max-width: 100%; padding: 12px; border-radius: 44px; background: #1B1E24; box-shadow: 0 30px 70px rgba(24,24,27,0.22); position: relative; }
 .lp-phone-notch { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; border-radius: 12px; background: #1B1E24; z-index: 2; }
 .lp-phone-screen { background: ${IVORY}; border-radius: 34px; padding: 52px 14px 12px; display: flex; flex-direction: column; gap: 10px; color: ${DARK_TXT}; }
@@ -702,17 +594,15 @@ const CSS = `
 .lp-p-nav span.on { color: ${GOLD_DEEP}; font-weight: 600; }
 
 /* Benefits */
-.lp-benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 24px; }
-.lp-benefit { background: ${WHITE}; border-radius: 18px; padding: 32px 28px; box-shadow: 0 1px 2px rgba(24,24,27,0.04), 0 8px 24px rgba(24,24,27,0.04); }
-.lp-benefit-icon { display: inline-flex; width: 48px; height: 48px; border-radius: 14px; align-items: center; justify-content: center; background: rgba(122,92,18,0.07); margin-bottom: 20px; }
-.lp-benefit h3 { font-size: 19px; font-weight: 600; }
-.lp-benefit p { margin-top: 8px; font-size: 15px; line-height: 1.6; color: ${DARK_TXT2}; }
+
+.lp-resident-entry { display:inline-flex; align-items:center; min-height:44px; margin-top:10px; text-underline-offset:4px; }
+.lp .lp-hero-visual { margin:0; min-width:0; }
+.lp-hero-exhibit { background:linear-gradient(145deg,#282726,#161A21 60%); border:1px solid #66563B; border-radius:16px; padding:clamp(10px,2vw,20px); box-shadow:0 18px 68px rgba(0,0,0,.3), 0 0 60px rgba(199,168,108,.1); }
+.lp-hero-exhibit-heading { color:#F5F2EB; font-size:13px; font-weight:600; margin:0 0 12px; }
+.lp-hero-exhibit img { display:block; width:100%; height:auto; border-radius:8px; }
+@media (max-width: 820px) { .lp-hero-grid { grid-template-columns:1fr; } }
 
 /* Final CTA + footer */
-.lp-final { padding: 112px 0; text-align: center; background: radial-gradient(900px 400px at 50% 120%, rgba(199,168,108,0.10), transparent 70%), ${INK}; }
-.lp-final h2 { font-size: clamp(30px, 5vw, 48px); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 32px; }
-.lp-final-links { margin-top: 28px; font-size: 14px; color: ${TXT3}; }
-.lp-final-links a { color: ${TXT2}; display: inline-block; padding: 12px 4px; }
 .lp-footer { background: ${INK}; border-top: 1px solid rgba(255,255,255,0.06); }
 .lp-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; min-height: 88px; font-size: 13px; color: ${TXT3}; }
 
@@ -722,30 +612,20 @@ const CSS = `
 
 /* Tablet */
 @media (max-width: 1024px) {
-  .lp-split, .lp-split-rev { grid-template-columns: minmax(0, 1fr); gap: 48px; }
-  .lp-split-rev .lp-phone-wrap { order: 2; }
   .lp-light { padding: 80px 0; }
 }
 /* Phones */
 @media (max-width: 720px) {
   .lp-wrap { padding: 0 20px; }
   .lp-header-row { min-height: 60px; }
-  .lp-hero { padding: 40px 0 48px; }
+  .lp-hero { padding: 36px 0 32px; }
   .lp-hero-copy { text-align: left; }
   .lp-hero p { margin: 16px 0 24px; }
   .lp-hero .lp-cta { justify-content: flex-start; }
   .lp-cta .lp-btn { flex: 1 1 100%; }
-  .lp .lp-hero-visual { margin-top: 36px; }
-  .lp-window-body { grid-template-columns: minmax(0, 1fr); }
-  .lp-side { display: none; }
+  .lp .lp-hero-visual { margin-top: 0; }
   .lp-main { padding: 18px; }
-  .lp-row { flex-wrap: wrap; gap: 8px 12px; padding: 14px; }
-  .lp-row-text { flex-basis: calc(100% - 90px); }
-  .lp-row .lp-act { display: none; }
-  .lp-row.urgent .lp-act { display: inline-flex; }
-  .lp-stats { grid-template-columns: minmax(0, 1fr); }
   .lp-light { padding: 64px 0; }
-  .lp-final { padding: 80px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .lp * { transition: none !important; } }
 `;

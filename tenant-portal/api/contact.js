@@ -34,12 +34,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Submit the message from the contact page." });
   }
 
-  const { name, email, message, website } = req.body ?? {};
+  const { name, email, message = "", website, intent = "", units = "" } = req.body ?? {};
   if (website) return res.status(400).json({ error: "This submission could not be accepted." });
+  if (!["", "demo", "pricing"].includes(intent) ||
+      (units !== "" && (!intent || typeof units !== "string" || !/^[1-9]\d{0,5}$/.test(units) || Number(units) > 100000))) {
+    return res.status(400).json({ error: "Check the inquiry type and rental unit count." });
+  }
   if (typeof name !== "string" || !name.trim() || name.length > 100 ||
       typeof email !== "string" || !isValidEmail(email.trim()) ||
-      typeof message !== "string" || !message.trim() || message.length > 3000) {
-    return res.status(400).json({ error: "Enter your name, a valid email address, and a message." });
+      typeof message !== "string" || (intent !== "demo" && !message.trim()) || message.length > 3000) {
+    return res.status(400).json({ error: intent === "demo" ? "Enter your name and a valid email address." : "Enter your name, a valid email address, and a message." });
   }
 
   const environment = deploymentEnv();
@@ -55,8 +59,9 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: "Too many submissions. Please try again in a few minutes." });
   }
 
-  const text = ["Name: " + name.trim(), "Email: " + email.trim(), "", message.trim()].join("\n");
-  const mail = { to: valid, subject: "Modus website inquiry", replyTo: email.trim(), text, html: textToHtml(text) };
+  const subject = { demo: "Modus demo request", pricing: "Modus pricing inquiry" }[intent] || "Modus website inquiry";
+  const text = ["Name: " + name.trim(), "Email: " + email.trim(), ...(units ? ["Rental units: " + units] : []), "", message.trim()].join("\n");
+  const mail = { to: valid, subject, replyTo: email.trim(), text, html: textToHtml(text) };
   const outcome = await sendEmail({ ...mail, idempotencyKey: payloadKey("website-contact", mail) });
   if (!outcome.ok) return res.status(502).json({ error: "We couldn’t confirm delivery. Please try again." });
   return res.status(200).json({ status: "sent" });
