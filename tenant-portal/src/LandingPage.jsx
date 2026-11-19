@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import aboutRowhouses from "./assets/about-rowhouses.webp";
+import demoResidentRepair from "./assets/demo-resident-repair.webp";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
 // screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
@@ -33,9 +34,6 @@ const Icon = ({ d, size = 22, color = GOLD }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d}/></svg>
 );
 const ICONS = {
-  organize: "M4 5h16M4 12h16M4 19h10",
-  respond:  "M13 3L4 14h7l-1 7 9-11h-7l1-7z",
-  control:  "M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7l8-4zM9 12l2 2 4-4",
   building: "M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h.01M16 11h.01",
 };
 
@@ -44,46 +42,6 @@ function Tag({ kind }) {
   const s = kind === "Urgent" ? { c: "#F2A3A3", b: "rgba(240,112,112,0.14)" }
     : kind === "Decision" ? { c: GOLD, b: "rgba(199,168,108,0.14)" } : { c: "#9DC6F2", b: "rgba(106,174,240,0.14)" };
   return <span className="lp-tag" style={{ color: s.c, background: s.b }}>{kind}</span>;
-}
-
-function DashboardMock() {
-  const rows = [
-    { kind: "Urgent",    title: "Water leak reported, bathroom ceiling", meta: "Clifton Manor · Unit 3", cta: "Arrange contractor", primary: true },
-    { kind: "Decision",  title: "Quote to approve: sticking bedroom door", meta: "$140 · Handyman · Unit 2", cta: "Review quote" },
-    { kind: "Decision",  title: "Work completed: garbage disposal", meta: "Review the work and invoice", cta: "Review & close" },
-    { kind: "Follow up", title: "Invitation not accepted", meta: "Sent 5 days ago · Unit 101", cta: "Open tenant" },
-  ];
-  return (
-    <div className="lp-window" aria-hidden="true">
-      <div className="lp-window-bar"><i/><i/><i/><span>Home</span><span className="lp-scope">All properties ▾</span></div>
-      <div className="lp-window-body">
-        <aside className="lp-side">
-          <Wordmark/>
-          {["Home", "Maintenance", "Messages", "Properties", "Tenants", "Financials"].map((n, i) => (
-            <div key={n} className={i === 0 ? "lp-side-item on" : "lp-side-item"}>{n}</div>
-          ))}
-        </aside>
-        <div className="lp-main">
-          <div className="lp-h1">Good morning</div>
-          <div className="lp-sub">4 items waiting on you</div>
-          <div className="lp-queue">
-            {rows.map((r) => (
-              <div key={r.title} className={`lp-row${r.kind === "Urgent" ? " urgent" : ""}`}>
-                <Tag kind={r.kind}/>
-                <div className="lp-row-text"><b>{r.title}</b><span>{r.meta}</span></div>
-                <span className={r.primary ? "lp-act primary" : "lp-act"}>{r.cta}</span>
-              </div>
-            ))}
-          </div>
-          <div className="lp-stats">
-            {[["Occupancy", "11 of 12"], ["Open requests", "5"], ["Leases ending", "2 in 60 days"]].map(([k, v]) => (
-              <div key={k} className="lp-stat"><span>{k}</span><b>{v}</b></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function DecisionMock() {
@@ -141,12 +99,6 @@ function PhoneMock() {
   );
 }
 
-const BENEFITS = [
-  { icon: "organize", title: "Stay organized", text: "Your properties, tenants, and requests in one place." },
-  { icon: "respond",  title: "Respond faster", text: "See urgent issues and decisions before they become problems." },
-  { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
-];
-
 const TOUR_STEPS = [
   { role: "Resident portal", title: "Report a dripping faucet", status: "Draft", detail: "Unit 2 · Kitchen · Photo attached", action: "Submit sample request" },
   { role: "Manager dashboard", title: "Review the contractor quote", status: "Quote ready", detail: "Faucet repair · Contractor quote $185", action: "Approve sample quote" },
@@ -183,7 +135,10 @@ function MaintenanceTour() {
               {step === 1 && <blockquote>Replace the worn faucet cartridge and test for leaks.</blockquote>}
               {step === 2 && <blockquote>Management added a repair window to the request.</blockquote>}
             </div>
-            <button type="button" className="lp-btn lp-btn-gold" onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            <div className="lp-cta">
+              {step === TOUR_STEPS.length - 1 && <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>}
+              <button type="button" className={"lp-btn " + (step === TOUR_STEPS.length - 1 ? "lp-btn-quiet" : "lp-btn-gold")} onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            </div>
             {step > 0 && (
               <div className="lp-tour-preview">
                 {step === 1 ? <DecisionMock/> : <PhoneMock/>}
@@ -295,11 +250,11 @@ function ModusFaq() {
           </details>
           <details>
             <summary>How much does Modus cost?</summary>
-            <p><a href="/contact">Contact us for pricing</a> and tell us what you manage.</p>
+            <p><a href="/contact?intent=pricing">Contact us for pricing</a> and tell us what you manage.</p>
           </details>
           <details>
             <summary>How do I get started?</summary>
-            <p><a href="/contact">Request a demo through Contact Us</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
+            <p><a href="/contact?intent=demo">Request a demo</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
           </details>
         </div>
       </section>
@@ -307,6 +262,10 @@ function ModusFaq() {
 }
 
 function ContactModus() {
+  const [params] = useSearchParams();
+  const intent = params.get("intent");
+  const isDemo = intent === "demo";
+  const isPricing = intent === "pricing";
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const inFlight = useRef(false);
@@ -343,17 +302,24 @@ function ContactModus() {
   return (
     <section className="lp-light lp-ivory">
       <div className="lp-wrap lp-about-copy lp-contact">
-        <h1>Contact Us</h1>
-        <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>
+        <h1>{isDemo ? "Request a demo" : isPricing ? "Ask about pricing" : "Contact Us"}</h1>
+        {isDemo ? <p>Tell us how to reach you. We’ll follow up by email to arrange a walkthrough and discuss your rentals.</p>
+          : isPricing ? <p>Tell us what you manage and what you’d like to know about pricing. We’ll follow up by email.</p>
+          : <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>}
         <form onSubmit={submit}>
+          {(isDemo || isPricing) && <input type="hidden" name="intent" value={intent}/>}
           <label htmlFor="contact-name">Name</label>
           <input id="contact-name" name="name" autoComplete="name" maxLength={100} required/>
           <label htmlFor="contact-email">Email address</label>
           <input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} required/>
-          <label htmlFor="contact-message">Message</label>
-          <textarea id="contact-message" name="message" rows={6} maxLength={3000} required/>
+          {(isDemo || isPricing) && <>
+            <label htmlFor="contact-units">Rental units (optional)</label>
+            <input id="contact-units" name="units" type="number" min={1} max={100000} step={1}/>
+          </>}
+          <label htmlFor="contact-message">{isDemo ? "What would you like to see? (optional)" : "Message"}</label>
+          <textarea id="contact-message" name="message" rows={isDemo ? 4 : 6} maxLength={3000} required={!isDemo}/>
           <div hidden><label htmlFor="contact-website">Leave this field empty</label><input id="contact-website" name="website" tabIndex={-1} autoComplete="off"/></div>
-          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : "Send message"}</button>
+          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : isDemo ? "Send demo request" : "Send message"}</button>
           <div role="status">{result?.message}</div>
           {result?.error && <p role="alert" className="lp-contact-error">{result.error}</p>}
         </form>
@@ -400,7 +366,7 @@ export default function LandingPage({ page = "home" }) {
           <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
           <nav className="lp-nav-desktop" aria-label="Main navigation">
             <PublicLinks page={page}/>
-            <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <a href="/login" onClick={go("/login")}>Resident sign-in</a>
             <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
           </nav>
           <button ref={menuBtn} type="button" className="lp-burger" aria-label="Menu" aria-expanded={menuOpen} aria-controls="lp-menu"
@@ -411,7 +377,7 @@ export default function LandingPage({ page = "home" }) {
         {menuOpen && (
           <div id="lp-menu" ref={menuRef} className="lp-menu">
             <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
-            <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <a href="/login" onClick={go("/login")}>Resident sign-in</a>
             <PublicLinks page={page}/>
           </div>
         )}
@@ -424,18 +390,23 @@ export default function LandingPage({ page = "home" }) {
         {page === "home" && <>
         {/* ── 1. Hero (dark) ── */}
         <section className="lp-hero">
-          <div className="lp-wrap">
+          <div className="lp-wrap lp-hero-grid">
             <div className="lp-hero-copy">
-              <h1>Property management, without the busywork.</h1>
-              <p>Track repairs from the first resident report to the final invoice, alongside tenant messages and property records.</p>
+              <p className="lp-hero-audience">For independent landlords and small property managers</p>
+              <h1>See every repair through.</h1>
+              <p>Residents report issues, you review quotes, and everyone can see what happens next.</p>
               <div className="lp-cta">
-                <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
-                <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
+                <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
+                <a href="#maintenance-tour" className="lp-btn lp-btn-quiet">Try a sample repair</a>
               </div>
+              <a className="lp-resident-entry" href="/login" onClick={go("/login")}>Resident sign-in</a>
             </div>
             <figure className="lp-hero-visual">
-              <DashboardMock/>
-              <figcaption>The Modus landlord dashboard, shown with sample data.</figcaption>
+              <div className="lp-hero-exhibit">
+                <div><span>Resident reports a leak</span><span>Manager reviews the quote</span></div>
+                <img src={demoResidentRepair} width={596} height={239} alt="Resident home activity shows a contractor confirmation message and the kitchen faucet repair marked In progress"/>
+              </div>
+              <figcaption>Modus resident home, shown with sample data.</figcaption>
             </figure>
           </div>
         </section>
@@ -477,17 +448,12 @@ export default function LandingPage({ page = "home" }) {
           </div>
         </section>
 
-        {/* ── 4. Benefits (ivory) ── */}
+        {/* ── 4. Setup and pricing (ivory) ── */}
         <section className="lp-light lp-ivory">
           <div className="lp-wrap">
-            <div className="lp-benefits">
-              {BENEFITS.map((b) => (
-                <div key={b.title} className="lp-benefit">
-                  <span className="lp-benefit-icon"><Icon d={ICONS[b.icon]} color={GOLD_DEEP}/></span>
-                  <h3>{b.title}</h3>
-                  <p>{b.text}</p>
-                </div>
-              ))}
+            <div className="lp-setup">
+              <div><h2>Getting started</h2><p>Start with a property and units, then invite residents to use their portal. Your team reviews requests, assigns contractors and approves quotes in Modus.</p></div>
+              <div><h2>Pricing and fit</h2><p>Tell us what you manage. We’ll explain what’s included and answer questions about setup and pricing.</p><a href="/contact?intent=pricing">Ask about pricing</a></div>
             </div>
           </div>
         </section>
@@ -495,9 +461,9 @@ export default function LandingPage({ page = "home" }) {
         {/* ── 5. Final CTA (charcoal) ── */}
         <section className="lp-final">
           <div className="lp-wrap">
-            <h2>Less administration. More ownership.</h2>
-            <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
-            <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
+            <h2>See how Modus fits your rentals.</h2>
+            <a href="/contact?intent=demo" className="lp-btn lp-btn-gold">Request a demo</a>
+            <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Resident sign-in</a></p>
           </div>
         </section>
         </>}
@@ -610,11 +576,12 @@ const CSS = `
 
 /* Hero */
 .lp-hero { padding: 88px 0 72px; background: radial-gradient(1200px 500px at 50% -10%, rgba(199,168,108,0.08), transparent 70%), ${INK}; }
-.lp-hero-copy { max-width: 760px; margin: 0 auto; text-align: center; }
+
+.lp-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:clamp(28px,5vw,72px); }
 .lp-hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.07; font-weight: 600; letter-spacing: -0.02em; }
-.lp-hero p { margin: 22px auto 32px; max-width: 600px; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
-.lp-hero .lp-cta { justify-content: center; }
-.lp .lp-hero-visual { margin: 64px auto 0; max-width: 1080px; }
+.lp-hero p { margin: 18px 0 26px; max-width: 42ch; font-size: clamp(16px, 2vw, 19px); line-height: 1.6; color: ${TXT2}; }
+
+
 .lp figure { margin: 0; }
 .lp figcaption { margin-top: 14px; font-size: 13px; color: ${TXT3}; text-align: center; }
 
@@ -624,28 +591,10 @@ const CSS = `
 .lp-window-bar i { width: 10px; height: 10px; border-radius: 50%; background: #2C323C; }
 .lp-window-bar span:first-of-type { margin-left: 10px; font-weight: 600; color: ${TXT}; }
 .lp-scope { margin-left: auto; padding: 6px 12px; border: 1px solid ${LINE}; border-radius: 8px; font-size: 12px; }
-.lp-window-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
-.lp-side { padding: 20px 14px; border-right: 1px solid ${LINE}; display: flex; flex-direction: column; gap: 4px; }
-.lp-side > span { margin: 0 6px 16px; }
-.lp-side-item { padding: 9px 12px; border-radius: 8px; font-size: 13px; color: ${TXT2}; }
-.lp-side-item.on { background: rgba(199,168,108,0.10); color: ${GOLD}; }
 .lp-main { padding: 28px; min-width: 0; }
-.lp-h1 { font-size: 24px; font-weight: 600; }
-.lp-sub { font-size: 13px; color: ${TXT3}; margin: 4px 0 18px; }
-.lp-queue { background: ${INK3}; border-radius: 12px; overflow: hidden; }
-.lp-row { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-top: 1px solid ${LINE}; }
-.lp-row:first-child { border-top: 0; }
-.lp-row.urgent { box-shadow: inset 3px 0 0 #F07070; }
-.lp-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.lp-row-text b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lp-row-text span { font-size: 12px; color: ${TXT3}; }
 .lp-tag { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .lp-act { font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 8px; border: 1px solid ${LINE}; color: ${GOLD}; white-space: nowrap; }
 .lp-act.primary { background: ${GOLD}; color: ${INK}; border-color: ${GOLD}; }
-.lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.lp-stat { padding: 14px 16px; border-radius: 12px; background: ${INK3}; display: flex; flex-direction: column; gap: 4px; }
-.lp-stat span { font-size: 12px; color: ${TXT3}; }
-.lp-stat b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Light sections */
 .lp-light { color: ${DARK_TXT}; padding: 104px 0; }
@@ -702,11 +651,18 @@ const CSS = `
 .lp-p-nav span.on { color: ${GOLD_DEEP}; font-weight: 600; }
 
 /* Benefits */
-.lp-benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 24px; }
-.lp-benefit { background: ${WHITE}; border-radius: 18px; padding: 32px 28px; box-shadow: 0 1px 2px rgba(24,24,27,0.04), 0 8px 24px rgba(24,24,27,0.04); }
-.lp-benefit-icon { display: inline-flex; width: 48px; height: 48px; border-radius: 14px; align-items: center; justify-content: center; background: rgba(122,92,18,0.07); margin-bottom: 20px; }
-.lp-benefit h3 { font-size: 19px; font-weight: 600; }
-.lp-benefit p { margin-top: 8px; font-size: 15px; line-height: 1.6; color: ${DARK_TXT2}; }
+
+.lp-hero .lp-hero-audience { color: #C7A86C; font-size: 14px; font-weight: 600; margin: 0 0 14px; }
+.lp-resident-entry { display:inline-flex; align-items:center; min-height:44px; margin-top:10px; text-underline-offset:4px; }
+.lp .lp-hero-visual { margin:0; min-width:0; }
+.lp-hero-exhibit { background:#1E232C; border:1px solid #363C45; border-radius:16px; padding:clamp(10px,2vw,20px); }
+.lp-hero-exhibit > div { display:flex; flex-wrap:wrap; gap:6px 16px; justify-content:space-between; margin-bottom:12px; color:#F5F2EB; font-size:13px; }
+.lp-hero-exhibit img { display:block; width:100%; height:auto; border-radius:8px; }
+.lp-setup { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:32px; }
+.lp-setup > div { border-top:1px solid #B5A886; padding-top:16px; }
+.lp-setup p { line-height:1.65; color:#52525B; }
+.lp-setup a { display:inline-flex; align-items:center; min-height:44px; }
+@media (max-width: 820px) { .lp-hero-grid, .lp-setup { grid-template-columns:1fr; } }
 
 /* Final CTA + footer */
 .lp-final { padding: 112px 0; text-align: center; background: radial-gradient(900px 400px at 50% 120%, rgba(199,168,108,0.10), transparent 70%), ${INK}; }
@@ -735,15 +691,8 @@ const CSS = `
   .lp-hero p { margin: 16px 0 24px; }
   .lp-hero .lp-cta { justify-content: flex-start; }
   .lp-cta .lp-btn { flex: 1 1 100%; }
-  .lp .lp-hero-visual { margin-top: 36px; }
-  .lp-window-body { grid-template-columns: minmax(0, 1fr); }
-  .lp-side { display: none; }
+  .lp .lp-hero-visual { margin-top: 0; }
   .lp-main { padding: 18px; }
-  .lp-row { flex-wrap: wrap; gap: 8px 12px; padding: 14px; }
-  .lp-row-text { flex-basis: calc(100% - 90px); }
-  .lp-row .lp-act { display: none; }
-  .lp-row.urgent .lp-act { display: inline-flex; }
-  .lp-stats { grid-template-columns: minmax(0, 1fr); }
   .lp-light { padding: 64px 0; }
   .lp-final { padding: 80px 0; }
 }
