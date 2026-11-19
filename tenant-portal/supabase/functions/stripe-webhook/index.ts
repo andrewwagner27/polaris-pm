@@ -53,21 +53,22 @@ serve(async (req) => {
     }
   }
 
-  // ── Stripe Connect: landlord completed onboarding ───────────────────────
+  // Stripe Connect readiness is not equivalent to form submission.
+  // Never enable rent collection until Stripe confirms both capabilities.
   if (event.type === "account.updated") {
     const account = obj;
-    // details_submitted = landlord finished filling out Stripe's form
-    if (account?.details_submitted) {
-      const landlordId = account?.metadata?.landlord_id;
-      if (landlordId) {
-        await supabase.from("landlords")
-          .update({ stripe_onboarded: true })
-          .eq("id", landlordId);
-      } else {
-        // Fallback: match by stripe_account_id if metadata wasn't set
-        await supabase.from("landlords")
-          .update({ stripe_onboarded: true })
-          .eq("stripe_account_id", account.id);
+    if (account?.id && account.object === "account") {
+      const ready = account.details_submitted === true
+        && account.charges_enabled === true
+        && account.payouts_enabled === true;
+      // Match by the Stripe account ID we stored during onboarding, never
+      // by untrusted event metadata (which could identify another landlord).
+      const { error } = await supabase.from("landlords")
+        .update({ stripe_onboarded: ready })
+        .eq("stripe_account_id", account.id);
+      if (error) {
+        console.error("[stripe-webhook] account readiness update failed", error.message);
+        return new Response("Processing failed", { status: 500 });
       }
     }
   }

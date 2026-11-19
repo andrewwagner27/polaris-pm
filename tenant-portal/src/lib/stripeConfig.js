@@ -1,0 +1,7 @@
+// Publishable keys only. A preview build must never load a live Stripe account.
+export function stripePublishableKey(key, deployment = "development") {
+  const value = String(key || "").trim();
+  if (!/^pk_(test|live)_[A-Za-z0-9]+$/.test(value)) return null;
+  if (deployment !== "production" && value.startsWith("pk_live_")) return null;
+  return value;
+}

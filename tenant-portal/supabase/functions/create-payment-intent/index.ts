@@ -5,6 +5,7 @@ const MAX_AMOUNT_CENTS = 10_000_000; // $100,000 sanity cap
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   try {
     const body = await req.json();
@@ -77,6 +78,18 @@ serve(async (req) => {
     }
     if (!ownsCustomer) return json(req, { error: "Payment method does not belong to this tenant" }, 403);
 
+    // Verify the bank account is actually attached to the authenticated tenant's
+    // Stripe customer. A client-supplied payment_method_id must never select
+    // an unrelated account, even if the customer ID itself is legitimate.
+    const methodRes = await fetch(
+      `https://api.stripe.com/v1/payment_methods/${encodeURIComponent(payment_method_id)}`,
+      { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+    );
+    const method = await methodRes.json();
+    if (!methodRes.ok || method.error || method.type !== "us_bank_account" || method.customer !== customer_id) {
+      return json(req, { error: "Choose a verified bank account linked to your tenant profile." }, 403);
+    }
+
     const unit_id = tenant.unit_id || null;
 
     // The owner's Stripe account: tenant → unit → property → properties.owner_email → landlords.email.
@@ -96,6 +109,17 @@ serve(async (req) => {
       return json(req, { error: "Online rent payment isn't set up for your property yet, so nothing was charged. Please pay your property manager directly for now." }, 409);
     }
 
+    // A saved onboarding flag can be stale or belong to another Stripe mode/account.
+    // Check the destination with the same key that will create the charge.
+    const ownerRes = await fetch(`https://api.stripe.com/v1/accounts/${encodeURIComponent(ownerStripeAccountId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    const owner = await ownerRes.json();
+    if (!ownerRes.ok || owner.id !== ownerStripeAccountId || owner.details_submitted !== true
+        || owner.charges_enabled !== true || owner.payouts_enabled !== true || owner.capabilities?.transfers !== "active") {
+      return json(req, { error: "Your property manager's payment account isn't ready. Nothing was charged. Please contact them." }, 409);
+    }
+
     // 5% platform fee
     const platformFee = Math.round(amount_cents * 0.05);
 
@@ -107,9 +131,8 @@ serve(async (req) => {
       payment_method: payment_method_id,
       "payment_method_types[]": "us_bank_account",
       confirm: "true",
-      "mandate_data[customer_acceptance][type]": "online",
-      "mandate_data[customer_acceptance][online][ip_address]": "127.0.0.1",
-      "mandate_data[customer_acceptance][online][user_agent]": "Modus PM",
+      // The tenant accepted the ACH mandate during the bank-linking SetupIntent.
+      // Reuse that mandate; never invent a customer IP address or user agent.
       "metadata[tenant_id]": tenant_id,
       "metadata[unit_id]": unit_id || "",
       ...(isPayRent ? { "metadata[purpose]": "rent" } : {}),
@@ -139,10 +162,13 @@ serve(async (req) => {
     });
 
     const paymentIntent = await paymentRes.json();
-    if (paymentIntent.error) throw new Error(paymentIntent.error.message);
+    if (!paymentRes.ok || paymentIntent.error) throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
+    if (!paymentIntent.id || !["processing", "succeeded"].includes(paymentIntent.status)) {
+      return json(req, { error: "Payment wasn't submitted. Your bank may need verification. Please check your saved bank account." }, 409);
+    }
 
     // Record pending payment, once: Stripe replays the same payment intent for a repeated request, and the index enforces one row.
-    await supabase.from("payments").upsert([{
+    const { error: recordError } = await supabase.from("payments").upsert([{
       tenant_id,
       unit_id,
       amount_cents,
@@ -153,6 +179,11 @@ serve(async (req) => {
       source: "ach",
       ...(isPayRent ? { category: "Rent", origin: "tenant_pay_rent" } : {}),
     }], { onConflict: "stripe_payment_intent_id", ignoreDuplicates: true });
+
+    if (recordError) {
+      console.error("[create-payment-intent] payment recording failed", paymentIntent.id);
+      return json(req, { error: "Your payment was submitted, but its record could not be saved. Do not pay again. Contact your property manager.", payment_intent_id: paymentIntent.id }, 503);
+    }
 
     return json(req, {
       payment_intent_id: paymentIntent.id,
