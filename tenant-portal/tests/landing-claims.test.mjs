@@ -9,10 +9,15 @@ const src = readFileSync(new URL("../src/LandingPage.jsx", import.meta.url), "ut
 // Visible copy only (drop the CSS block and comments).
 const copy = src.slice(0, src.indexOf("const CSS = `")).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
 
-test("online rent payment, autopay and other unreleased capabilities are not advertised", () => {
-  for (const re of [/pay rent online/i, /online rent/i, /autopay/i, /rent collection/i, /collect rent/i, /ACH/, /Stripe/, /report export/i, /DSCR/, /Insurance tracking/i]) {
+test("unreleased capabilities are not advertised and rent payment availability is qualified", () => {
+  for (const re of [/autopay/i, /rent collection/i, /collect rent/i, /report export/i, /DSCR/, /Insurance tracking/i]) {
     assert.doesNotMatch(copy, re, String(re));
   }
+  const descriptivePages = copy.slice(copy.indexOf("function AboutModus"), copy.indexOf("function ContactModus"));
+  const homepage = copy.replace(descriptivePages, "");
+  assert.doesNotMatch(homepage, /pay rent online|online rent|\bACH\b|\bStripe\b/i);
+  assert.match(descriptivePages, /pay rent where online payments are enabled/);
+  assert.match(descriptivePages, /Where online payments are enabled, residents can pay rent through the portal by ACH bank transfer, processed by Stripe/);
 });
 
 test("no invented metrics, customer claims or testimonials", () => {

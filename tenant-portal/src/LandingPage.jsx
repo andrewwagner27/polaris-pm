@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
-// screenshots of real tenants, no invented customers or metrics). Online rent payment is not offered here: it is
-// not live (tests/landing-claims.test.mjs).
+// screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
+// where enabled. The homepage makes no availability claim (tests/landing-claims.test.mjs).
 const INK = "#0E1116", INK2 = "#161A21", INK3 = "#1E232C", LINE = "#262B33";
 const IVORY = "#F5F3EE", WHITE = "#FFFFFF", PAPER_LINE = "#E7E2D8";
 const GOLD = "#C7A86C", GOLD_DEEP = "#7A5C12";
@@ -212,9 +212,13 @@ function AboutModus() {
       <section className="lp-light lp-ivory">
         <div className="lp-wrap lp-about-copy">
           <h1>About Us</h1>
-          <p className="lp-about-intro">Built by someone who’s been both a renter and a property investor.</p>
-          <p>Before building Modus, our founder spent years dealing with the frustrations of property management from both sides. As a renter, he wanted clear answers and a way to follow up. As an investor, he wanted to know what was happening at his properties and where a decision was needed.</p>
-          <p>He set out to build a best-in-class experience for both. That means giving residents a clear way to report a problem and see what happens next, and giving owners and managers the context they need to act.</p>
+          <p className="lp-about-intro"><strong>We’ve been on both sides of the lease.</strong></p>
+          <p>Modus started with a simple frustration. As a renter, our founder would report a problem and then hear nothing back: no update, no timeline, no one to follow up with. As an investor, he had the same problem from the other side. He couldn’t easily tell what was happening at his properties, what it was costing, or which decisions were waiting on him.</p>
+          <p>The issue wasn’t that anyone was being careless. The tools were built around paperwork, not around the people using them.</p>
+          <p>So he built Modus to fix both sides at once.</p>
+          <p><strong>For residents:</strong> One place to report an issue, message management, see exactly where a request stands, and pay rent where online payments are enabled.</p>
+          <p><strong>For owners and managers:</strong> The full picture behind every request (what was reported, what it’ll cost, and what needs your call) so you can decide quickly and move on.</p>
+          <p>Better communication leads to better decisions, and that makes for a better place to live and a better place to own. That’s what we’re building.</p>
           <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
         </div>
       </section>
@@ -225,13 +229,51 @@ function ModusFaq() {
   return (
       <section className="lp-light lp-white lp-faq" aria-labelledby="faq-title">
         <div className="lp-wrap lp-about-copy">
-          <h1 id="faq-title">Frequently asked questions</h1>
-          <details><summary>Who is Modus for?</summary><p>Modus is built for owners and property managers of rental homes, and for the residents who live in those homes.</p></details>
-          <details><summary>How do I access the resident portal?</summary><p>Open the invitation from your property manager to set up your account. If you already have an account, <a href="/login">sign in to the resident portal</a>. If you need a new invitation, contact your property manager.</p></details>
-          <details><summary>Can I track a maintenance request?</summary><p>Yes. Open Maintenance in the resident portal to report an issue, attach photos, and follow the status of a request. When a repair date has been recorded, it appears on the request.</p></details>
-          <details><summary>What can owners and managers do in Modus?</summary><p>Managers can see what needs attention across properties, assign contractors, review quotes, manage resident records, and respond to messages.</p></details>
-          <details><summary>Can I see how Modus works before signing in?</summary><p>Yes. The <a href="/#maintenance-tour">interactive maintenance walkthrough</a> lets you try a sample request from both the resident and manager views.</p></details>
-          <p>Still have a question? <a href="/contact">Contact us</a>.</p>
+          <h1 id="faq-title">Frequently Asked Questions</h1>
+          <details>
+            <summary>What is Modus?</summary>
+            <p>Modus is property management software for residents, owners, and managers. Residents can report issues, message management, and pay rent where online payments are enabled. Owners and managers get the full picture behind each request so they can make decisions quickly.</p>
+          </details>
+          <details>
+            <summary>Who is Modus for?</summary>
+            <p>Independent landlords, small-portfolio investors, and property managers who want something simpler than enterprise software, and better than texts, spreadsheets, and email threads.</p>
+          </details>
+          <details>
+            <summary>How do residents submit a maintenance request?</summary>
+            <p>Through their resident portal. They describe the issue, attach photos if helpful, and can follow the recorded status from submission through scheduling and resolution.</p>
+          </details>
+          <details>
+            <summary>What happens when a resident sends a message?</summary>
+            <p>The Modus AI assistant can answer common questions and suggest basic troubleshooting, such as checking a thermostat setting. Residents can ask for a person or submit a maintenance request for management to review.</p>
+          </details>
+          <details>
+            <summary>How does Modus handle repairs and vendor costs?</summary>
+            <p>When a repair needs a quote, the owner or manager can review and approve the vendor’s estimate before work begins. Vendors can accept work orders electronically, which keeps a record of the job.</p>
+          </details>
+          <details>
+            <summary>How do residents pay rent?</summary>
+            <p>Where online payments are enabled, residents can pay rent through the portal by ACH bank transfer, processed by Stripe. Owners can see payment status in Modus. If online payments are unavailable, follow the payment instructions in your lease.</p>
+          </details>
+          <details>
+            <summary>Is there a mobile app?</summary>
+            <p>Modus works on phones through the browser. Residents can add it to their home screen on supported devices and open it like an app without downloading it from an app store.</p>
+          </details>
+          <details>
+            <summary>How do new residents get set up?</summary>
+            <p>The owner or manager sends an invitation. The resident opens it to create an account and complete setup for their unit. Already set up? <a href="/login">Sign in to the resident portal</a>.</p>
+          </details>
+          <details>
+            <summary>Is my information secure?</summary>
+            <p>Stripe processes bank transfers, and Modus does not store full bank account numbers. Access controls restrict residents to their own rental records and managers to the properties they’re authorized to manage.</p>
+          </details>
+          <details>
+            <summary>How much does Modus cost?</summary>
+            <p><a href="/contact">Contact us for pricing</a> and tell us what you manage.</p>
+          </details>
+          <details>
+            <summary>How do I get started?</summary>
+            <p><a href="/contact">Request a demo through Contact Us</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
+          </details>
         </div>
       </section>
   );
