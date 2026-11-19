@@ -5,6 +5,7 @@ const MAX_AMOUNT_CENTS = 10_000_000; // $100,000 sanity cap
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   try {
     const body = await req.json();
@@ -108,6 +109,17 @@ serve(async (req) => {
       return json(req, { error: "Online rent payment isn't set up for your property yet, so nothing was charged. Please pay your property manager directly for now." }, 409);
     }
 
+    // A saved onboarding flag can be stale or belong to another Stripe mode/account.
+    // Check the destination with the same key that will create the charge.
+    const ownerRes = await fetch(`https://api.stripe.com/v1/accounts/${encodeURIComponent(ownerStripeAccountId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    const owner = await ownerRes.json();
+    if (!ownerRes.ok || owner.id !== ownerStripeAccountId || owner.details_submitted !== true
+        || owner.charges_enabled !== true || owner.payouts_enabled !== true || owner.capabilities?.transfers !== "active") {
+      return json(req, { error: "Your property manager's payment account isn't ready. Nothing was charged. Please contact them." }, 409);
+    }
+
     // 5% platform fee
     const platformFee = Math.round(amount_cents * 0.05);
 
@@ -150,10 +162,13 @@ serve(async (req) => {
     });
 
     const paymentIntent = await paymentRes.json();
-    if (paymentIntent.error) throw new Error(paymentIntent.error.message);
+    if (!paymentRes.ok || paymentIntent.error) throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
+    if (!paymentIntent.id || !["processing", "succeeded"].includes(paymentIntent.status)) {
+      return json(req, { error: "Payment wasn't submitted. Your bank may need verification. Please check your saved bank account." }, 409);
+    }
 
     // Record pending payment, once: Stripe replays the same payment intent for a repeated request, and the index enforces one row.
-    await supabase.from("payments").upsert([{
+    const { error: recordError } = await supabase.from("payments").upsert([{
       tenant_id,
       unit_id,
       amount_cents,
@@ -164,6 +179,11 @@ serve(async (req) => {
       source: "ach",
       ...(isPayRent ? { category: "Rent", origin: "tenant_pay_rent" } : {}),
     }], { onConflict: "stripe_payment_intent_id", ignoreDuplicates: true });
+
+    if (recordError) {
+      console.error("[create-payment-intent] payment recording failed", paymentIntent.id);
+      return json(req, { error: "Your payment was submitted, but its record could not be saved. Do not pay again. Contact your property manager.", payment_intent_id: paymentIntent.id }, 503);
+    }
 
     return json(req, {
       payment_intent_id: paymentIntent.id,
