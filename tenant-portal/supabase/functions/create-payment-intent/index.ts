@@ -7,6 +7,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
+  let idempotencyKey: string | null = null;
+  const supabase = adminClient();
+
   try {
     const body = await req.json();
     const { tenant_id, payment_method_id, customer_id } = body;
@@ -17,8 +20,6 @@ serve(async (req) => {
 
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeSecretKey) throw new Error("STRIPE_SECRET_KEY not set");
-
-    const supabase = adminClient();
 
     // ── Authorization: caller must be the signed-in tenant who owns tenant_id ──
     const caller = await getCaller(req, supabase);
@@ -53,11 +54,6 @@ serve(async (req) => {
     if (amount_cents !== payableCents) {
       return json(req, { error: "The amount due has changed. Please review it and try again." }, 409);
     }
-    const { count: paymentCount, error: countError } = await supabase
-      .from("payments")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenant_id);
-    if (countError) return json(req, { error: "Could not check your balance. Please try again." }, 409);
 
     // The Stripe customer must belong to this tenant (created by create-setup-intent
     // with metadata.tenant_id, or recorded in tenant_payment_methods).
@@ -123,6 +119,25 @@ serve(async (req) => {
     // 5% platform fee
     const platformFee = Math.round(amount_cents * 0.05);
 
+    // ── DB-backed idempotency: one in-flight token per tenant ──
+    // The context fingerprint is stable across the 10-minute bucket boundary that made the
+    // old time-based key unsafe. If two concurrent requests share the same context they get
+    // the same token → Stripe deduplicates to one charge. If a previous token for this
+    // tenant is still pending with a DIFFERENT context (another payment method or ledger
+    // state), we reject before calling Stripe.
+    const tokenContext = [tenant_id, payment_method_id, amount_cents, due.open_rent_cents, due.pending_cents].join(":");
+    const { data: tokenRows, error: tokenErr } = await supabase.rpc("acquire_payment_token", {
+      p_tenant: tenant_id,
+      p_context: tokenContext,
+    });
+    if (tokenErr || !tokenRows?.length) {
+      return json(req, { error: "Could not secure a payment slot. Please try again." }, 409);
+    }
+    idempotencyKey = tokenRows[0].token;
+    if (!tokenRows[0].is_new && tokenRows[0].context !== tokenContext) {
+      return json(req, { error: "A payment is already being processed. Please wait and check your payment history before trying again." }, 409);
+    }
+
     // Build payment intent params
     const params: Record<string, string> = {
       amount: String(amount_cents),
@@ -146,11 +161,6 @@ serve(async (req) => {
       params["metadata[platform_fee_cents]"] = String(platformFee);
     }
 
-    // Two simultaneous requests read the same ledger state, so they share a key and Stripe makes one payment.
-    // The row count changes once a payment exists; the 10-minute bucket keeps a saved Stripe error from blocking a later retry.
-    const idempotencyKey = ["payrent", tenant_id, payment_method_id, amount_cents, due.open_rent_cents, due.pending_cents, paymentCount ?? 0,
-      Math.floor(Date.now() / 600_000)].join(":");
-
     const paymentRes = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
       headers: {
@@ -162,8 +172,12 @@ serve(async (req) => {
     });
 
     const paymentIntent = await paymentRes.json();
-    if (!paymentRes.ok || paymentIntent.error) throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
+    if (!paymentRes.ok || paymentIntent.error) {
+      await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
+      throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
+    }
     if (!paymentIntent.id || !["processing", "succeeded"].includes(paymentIntent.status)) {
+      await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
       return json(req, { error: "Payment wasn't submitted. Your bank may need verification. Please check your saved bank account." }, 409);
     }
 
@@ -181,9 +195,13 @@ serve(async (req) => {
     }], { onConflict: "stripe_payment_intent_id", ignoreDuplicates: true });
 
     if (recordError) {
+      // Token stays 'pending' — do NOT release it. The charge was submitted; retrying
+      // risks a second charge. The user is told not to pay again.
       console.error("[create-payment-intent] payment recording failed", paymentIntent.id);
       return json(req, { error: "Your payment was submitted, but its record could not be saved. Do not pay again. Contact your property manager.", payment_intent_id: paymentIntent.id }, 503);
     }
+
+    await supabase.from("payment_idempotency_tokens").update({ status: "committed" }).eq("id", idempotencyKey);
 
     return json(req, {
       payment_intent_id: paymentIntent.id,
@@ -191,6 +209,11 @@ serve(async (req) => {
     });
 
   } catch (err) {
+    if (idempotencyKey) {
+      try {
+        await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
+      } catch { /* best-effort release */ }
+    }
     return json(req, { error: err.message }, 400);
   }
 });
