@@ -368,12 +368,59 @@ Before going live, each landlord must complete Stripe Connect Express onboarding
 
 ### 8b. Production webhook endpoint requirements
 
-| Requirement | Detail |
+Stripe destination-charge integrations require **two separate webhook endpoints** registered in the Stripe Dashboard. A single endpoint cannot receive both scopes. Each endpoint has its own independent `whsec_` signing secret.
+
+#### Endpoint 1 — Platform ("Your account")
+
+| Item | Value |
 |---|---|
-| Register endpoint in Stripe Dashboard | URL: `https://<project>.supabase.co/functions/v1/stripe-webhook` |
-| Event subscriptions needed | `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.*`, `application_fee.*`, `transfer.reversed`, `refund.updated`, `account.updated` |
-| Webhook secret | Separate `STRIPE_WEBHOOK_SECRET` per registered endpoint; set via `supabase secrets set` |
+| **URL** | `https://<project>.supabase.co/functions/v1/stripe-webhook` |
+| **Scope** | Your account (NOT "Connect") |
+| **Events** | `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.refund.updated`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.funds_withdrawn`, `charge.dispute.closed`, `application_fee.refunded`, `application_fee.refund.updated`, `refund.created`, `refund.updated`, `refund.failed`, `transfer.reversed` |
+| **Env var** | `STRIPE_WEBHOOK_SECRET` |
+| **Identifies as** | Event has no top-level `account` field |
+
+#### Endpoint 2 — Connected accounts
+
+| Item | Value |
+|---|---|
+| **URL** | `https://<project>.supabase.co/functions/v1/stripe-webhook` (same URL, different scope) |
+| **Scope** | Connected accounts |
+| **Events** | `account.updated` |
+| **Env var** | `STRIPE_CONNECT_WEBHOOK_SECRET` |
+| **Identifies as** | Event has top-level `account: "acct_..."` field |
+
+#### Setting secrets in production
+
+```powershell
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_<platform_secret_from_dashboard>
+supabase secrets set STRIPE_CONNECT_WEBHOOK_SECRET=whsec_<connect_secret_from_dashboard>
+```
+
+#### Local development
+
+For local testing with `stripe listen`, start **two separate listener processes**:
+
+```powershell
+# Terminal 1 — platform events
+stripe listen --forward-to http://localhost:54321/functions/v1/stripe-webhook
+
+# Terminal 2 — connected account events
+stripe listen --forward-to http://localhost:54321/functions/v1/stripe-webhook --connect
+```
+
+Each process prints its own `whsec_` secret. Set both in `supabase/functions/.env`:
+```
+STRIPE_WEBHOOK_SECRET=whsec_<from terminal 1>
+STRIPE_CONNECT_WEBHOOK_SECRET=whsec_<from terminal 2>
+```
+
+#### Security architecture
+
+The handler enforces scope **after** signature verification. A connected-account event that arrives with a valid platform signature is rejected with `400 Wrong endpoint scope`. This prevents a misconfigured Stripe Dashboard (or crafted payload with an injected `account` field) from causing connected-account events to be processed as platform payment events or vice versa.
+
 | Idempotency | All handlers use upsert with `ignoreDuplicates:true` or `onConflict`; replay-safe |
+|---|---|
 | Tolerance | Default 300s timestamp tolerance; production should not need to change |
 
 ### 8c. Idempotency migration (must be applied to production)
