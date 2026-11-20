@@ -10,7 +10,7 @@ import { stripePublishableKey } from '../src/lib/stripeConfig.js';
 const source = readFileSync(new URL('../supabase/functions/create-payment-intent/index.ts', import.meta.url), 'utf8');
 const executable = stripTypeScriptTypes(source.replace(/^import .*;\r?\n/gm, ''));
 function harness(options = {}) {
-  const requests = [], records = [];
+  const requests = [], records = [], tokenUpdates = [];
   const tenant = { user_id: 'user-test', unit_id: 'unit-test' };
   const rows = {
     tenants: options.foreignTenant ? { ...tenant, user_id: 'other-user' } : tenant,
@@ -18,12 +18,30 @@ function harness(options = {}) {
     units: { property_id: 'property-test' }, properties: { owner_email: 'owner@example.invalid' },
     landlords: options.noOwner ? null : { stripe_account_id: 'acct_test_owner', stripe_onboarded: true },
   };
+  const FIXTURE_TOKEN = 'payrent:fixture-00000000-0000-0000-0000-000000000001';
   const db = {
-    rpc: async () => ({ data: { ledger_active: true, payable_cents: 150000, open_rent_cents: 150000, pending_cents: 0 }, error: options.ledgerError ? { message: 'unavailable' } : null }),
+    rpc: async (fn, params) => {
+      if (fn === 'a2_pay_rent_internal') {
+        return { data: { ledger_active: true, payable_cents: 150000, open_rent_cents: 150000, pending_cents: 0 }, error: options.ledgerError ? { message: 'unavailable' } : null };
+      }
+      if (fn === 'acquire_payment_token') {
+        if (options.tokenError) return { data: null, error: { message: 'DB error' } };
+        const context = params.p_context;
+        if (options.conflictingToken) {
+          return { data: [{ token: FIXTURE_TOKEN, context: 'different:context:value', is_new: false }], error: null };
+        }
+        return { data: [{ token: FIXTURE_TOKEN, context, is_new: true }], error: null };
+      }
+      return { data: null, error: { message: `Unexpected RPC: ${fn}` } };
+    },
     from(table) {
-      const q = { select() { return q; }, eq() { return q; }, limit() { return q; },
+      const q = {
+        select() { return q; }, eq() { return q; }, limit() { return q; },
         maybeSingle: async () => ({ data: rows[table], error: null }),
-        then(resolve) { resolve({ count: 0, error: options.countError ? { message: 'unavailable' } : null }); },
+        update(fields) {
+          if (table === 'payment_idempotency_tokens') tokenUpdates.push(fields);
+          return q;
+        },
         upsert: async (items) => { records.push(...items); return { error: options.recordError ? { message: 'unavailable' } : null }; },
       };
       return q;
@@ -55,7 +73,7 @@ function harness(options = {}) {
     const response = await handler(req);
     return { status: response.status, body: await response.json() };
   };
-  return { run, requests, records };
+  return { run, requests, records, tokenUpdates };
 }
 
 test('$1,500 ACH processing: actual endpoint requests $75 fee and connected destination; records pending, never paid', async () => {
@@ -72,6 +90,8 @@ test('$1,500 ACH processing: actual endpoint requests $75 fee and connected dest
   assert.equal(h.records.length, 1); assert.equal(h.records[0].status, 'pending');
   assert.equal(h.records[0].amount_cents, 150000); assert.equal(h.records[0].platform_fee_cents, 7500);
   assert.equal(h.records[0].origin, 'tenant_pay_rent');
+  // Token committed after DB record succeeds
+  assert.ok(h.tokenUpdates.some(u => u.status === 'committed'));
 });
 
 for (const [name, options, body, expected] of [
@@ -82,7 +102,7 @@ for (const [name, options, body, expected] of [
   ['card instead of ACH', { card: true }, {}, 403],
   ['stale ledger amount', {}, { amount_cents: 1 }, 409],
   ['ledger failure', { ledgerError: true }, {}, 409],
-  ['payment count failure', { countError: true }, {}, 409],
+  ['token acquisition failure', { tokenError: true }, {}, 409],
   ['owner not mapped', { noOwner: true }, {}, 409],
   ['owner no longer ready', { unreadyOwner: true }, {}, 409],
   ['owner from different Stripe account or mode', { missingOwner: true }, {}, 409],
@@ -92,22 +112,34 @@ for (const [name, options, body, expected] of [
   assert.equal(h.records.length, 0);
 });
 
+test('conflicting in-flight payment: existing pending token with different context returns 409 without calling Stripe', async () => {
+  const h = harness({ conflictingToken: true }); const r = await h.run();
+  assert.equal(r.status, 409);
+  assert.match(r.body.error, /already being processed/);
+  assert.equal(h.requests.some(x => x.method === 'POST'), false);
+  assert.equal(h.records.length, 0);
+});
+
 for (const options of [{ stripeError: true }, { networkError: true }, { status: 'requires_action' }, { status: 'requires_payment_method' }, { status: 'canceled' }]) {
   test(`Stripe ${JSON.stringify(options)} never produces submitted success or pending row`, async () => {
     const h = harness(options); const r = await h.run();
     assert.ok(r.status >= 400); assert.ok(r.body.error); assert.equal(h.records.length, 0);
+    // Token marked failed so the user can retry
+    assert.ok(h.tokenUpdates.some(u => u.status === 'failed'));
   });
 }
 test('submitted payment with database failure warns against paying again and includes reconciliation reference', async () => {
   const h = harness({ recordError: true }); const r = await h.run();
   assert.equal(r.status, 503); assert.match(r.body.error, /Do not pay again/);
   assert.equal(r.body.payment_intent_id, 'pi_sandbox_fixture');
+  // Token stays pending (not released) so the user cannot double-pay on retry
+  assert.equal(h.tokenUpdates.filter(u => u.status === 'committed' || u.status === 'failed').length, 0);
 });
-test('same observed ledger state sends same Stripe idempotency key', async () => {
+test('same observed ledger state sends same Stripe idempotency key across retries', async () => {
   const h = harness(); await h.run(); await h.run();
   const keys = h.requests.filter(x => x.method === 'POST').map(x => x.headers['Idempotency-Key']);
   assert.equal(keys.length, 2); assert.equal(keys[0], keys[1]);
-  // Does not prove protection across the 10-minute bucket or changed DB count; release blocker documented.
+  // Key comes from a durable DB token, not a time bucket — safe across any timing boundary.
 });
 test('GET is rejected before Stripe or database access', async () => {
   const h = harness(); assert.equal((await h.run({}, 'GET')).status, 405); assert.equal(h.requests.length, 0);
