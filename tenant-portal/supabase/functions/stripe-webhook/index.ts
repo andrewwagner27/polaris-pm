@@ -128,12 +128,20 @@ serve(async (req) => {
       const ready = account.details_submitted === true
         && account.charges_enabled === true
         && account.payouts_enabled === true;
-      const { error } = await supabase.from("landlords")
-        .update({ stripe_onboarded: ready })
-        .eq("stripe_account_id", connectedAccountId);
-      if (error) {
-        console.error("[stripe-webhook] account readiness update failed", error.message);
-        return new Response("Processing failed", { status: 500 });
+      // Only advance stripe_onboarded to true; never clear it here. Stripe can send
+      // account.updated with charges_enabled=false during transient reviews, which
+      // would block all tenant payments until the next event. The live check in
+      // create-payment-intent guards against a stale true value at charge time.
+      if (ready) {
+        const { error } = await supabase.from("landlords")
+          .update({ stripe_onboarded: true })
+          .eq("stripe_account_id", connectedAccountId);
+        if (error) {
+          console.error("[stripe-webhook] account readiness update failed", error.message);
+          return new Response("Processing failed", { status: 500 });
+        }
+      } else {
+        console.warn(`[stripe-webhook] account.updated for ${connectedAccountId} — not fully ready; stripe_onboarded unchanged`);
       }
     }
   }

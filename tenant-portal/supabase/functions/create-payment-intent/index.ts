@@ -57,10 +57,17 @@ serve(async (req) => {
 
     // The Stripe customer must belong to this tenant (created by create-setup-intent
     // with metadata.tenant_id, or recorded in tenant_payment_methods).
-    const customerRes = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customer_id)}`, {
-      headers: { Authorization: `Bearer ${stripeSecretKey}` },
-    });
-    const customer = await customerRes.json();
+    // Fetch customer and payment method in parallel to save one round-trip (~150-200ms).
+    const [customerRes, methodRes] = await Promise.all([
+      fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customer_id)}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      }),
+      fetch(`https://api.stripe.com/v1/payment_methods/${encodeURIComponent(payment_method_id)}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      }),
+    ]);
+    const [customer, method] = await Promise.all([customerRes.json(), methodRes.json()]);
+
     let ownsCustomer = !customer.error && customer?.metadata?.tenant_id === tenant_id;
     if (!ownsCustomer) {
       const { data: savedMethod } = await supabase
@@ -77,11 +84,6 @@ serve(async (req) => {
     // Verify the bank account is actually attached to the authenticated tenant's
     // Stripe customer. A client-supplied payment_method_id must never select
     // an unrelated account, even if the customer ID itself is legitimate.
-    const methodRes = await fetch(
-      `https://api.stripe.com/v1/payment_methods/${encodeURIComponent(payment_method_id)}`,
-      { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
-    );
-    const method = await methodRes.json();
     if (!methodRes.ok || method.error || method.type !== "us_bank_account" || method.customer !== customer_id) {
       return json(req, { error: "Choose a verified bank account linked to your tenant profile." }, 403);
     }
@@ -171,7 +173,16 @@ serve(async (req) => {
       body: new URLSearchParams(params),
     });
 
-    const paymentIntent = await paymentRes.json();
+    // Guard against non-JSON Stripe responses (HTML error page during outage,
+    // truncated body). We don't know if the charge was created, so keep the token
+    // 'pending' — the client's "do not pay again" message prevents a double charge.
+    let paymentIntent: Record<string, unknown>;
+    try {
+      paymentIntent = await paymentRes.json();
+    } catch {
+      console.error("[create-payment-intent] non-JSON Stripe response", paymentRes.status);
+      return json(req, { error: "Your payment was submitted, but the response was unreadable. Do not pay again. Contact your property manager." }, 503);
+    }
     if (!paymentRes.ok || paymentIntent.error) {
       await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
       throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
