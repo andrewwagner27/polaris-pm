@@ -87,7 +87,7 @@ function harness(options = {}) {
     applyStripePaymentEvent,
     stripeGetter: () => () => {},
     Response,
-    console: { error() {} },
+    console: { error() {}, warn() {} },
     Deno: {
       env: {
         get: (key) => {
@@ -238,14 +238,13 @@ test('account.updated signed with connect secret → 200, landlord updated', asy
   assert.equal(h.paymentEvents.length, 0);
 });
 
-test('account.updated with not-ready account sets stripe_onboarded=false', async () => {
+test('account.updated with not-ready account leaves stripe_onboarded unchanged (no DB write)', async () => {
   const h = harness();
   const event = connectAccountEvent('acct_1UVhe1HWTjHm1swg', false);
   const payload = JSON.stringify(event);
   const r = await h.send(payload, signPayload(payload, CONNECT_SECRET));
   assert.equal(r.status, 200);
-  assert.equal(h.landlordUpdates.length, 1);
-  assert.equal(h.landlordUpdates[0].stripe_onboarded, false);
+  assert.equal(h.landlordUpdates.length, 0);
 });
 
 test('connected-account event signed with platform secret → 400 (scope mismatch)', async () => {
