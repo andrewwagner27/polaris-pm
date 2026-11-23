@@ -434,7 +434,7 @@ export default function LandlordAgentCenter() {
   }, [enriched]);
   const unitMap = useMemo(() => {
     const m = new Map();
-    for (const x of enriched) if (x.tenant.unitId) m.set(x.tenant.unitId, { unit_number: x.tenant.unitNumber });
+    for (const x of enriched) if (x.tenant.unitId) m.set(x.tenant.unitId, { unit_number: x.tenant.unitNumber, property_id: x.tenant.propertyId });
     return m;
   }, [enriched]);
 
