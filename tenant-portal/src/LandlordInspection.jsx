@@ -35,6 +35,17 @@ const DEFAULT_ROOMS = [
 const STATUS_OPTS  = ["Good","Fair","Poor","N/A"];
 const STATUS_COLOR = { Good:C.green, Fair:C.amber, Poor:C.red, "N/A":C.textMuted };
 
+function localDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function parseDateStr(s) {
+  if (!s) return new Date(NaN);
+  // YYYY-MM-DD → parse as local midnight to avoid UTC off-by-one in US timezones
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s.replace(/-/g, "/"));
+  return new Date(s);
+}
+
 // ─── SignedPhoto — renders an inspection photo from a stored path or legacy URL ─
 function SignedPhoto({ urlOrPath, style, captionStyle, room, caption }) {
   const [src, setSrc] = useState(null);
@@ -271,7 +282,7 @@ export default function LandlordInspection() {
 
   // Create form
   const [fTenant, setFTenant] = useState("");
-  const [fDate,   setFDate]   = useState(new Date().toISOString().slice(0,10));
+  const [fDate,   setFDate]   = useState(localDateStr());
   const [fRooms,  setFRooms]  = useState(DEFAULT_ROOMS.map(r=>({
     room:r.room, room_notes:"", items:r.items.map(name=>({ name, status:"Good", notes:"" })),
   })));
@@ -471,7 +482,7 @@ export default function LandlordInspection() {
             <h1 style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text }}>Move-In / Move-Out Inspections</h1>
             <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>End-to-end inspection workflow — document condition, get tenant sign-off, compare at move-out, issue deposit decisions</p>
           </div>
-          <button onClick={()=>{ setFTenant(""); setFDate(new Date().toISOString().slice(0,10)); setFRooms(DEFAULT_ROOMS.map(r=>({room:r.room,room_notes:"",items:r.items.map(name=>({name,status:"Good",notes:""}))})));setFNotes("");setFPhotos([]); setView("create"); }}
+          <button onClick={()=>{ setFTenant(""); setFDate(localDateStr()); setFRooms(DEFAULT_ROOMS.map(r=>({room:r.room,room_notes:"",items:r.items.map(name=>({name,status:"Good",notes:""}))})));setFNotes("");setFPhotos([]); setView("create"); }}
             style={{ padding:"9px 18px", background:"rgba(201,169,110,0.10)", border:`1px solid ${C.gold}`, borderRadius:6, color:C.gold, fontSize:13, fontWeight:600, cursor:"pointer" }}>
             + New Inspection
           </button>
@@ -510,7 +521,7 @@ export default function LandlordInspection() {
                         <div style={{ fontSize:14, fontWeight:600, color:C.text }}>{t?.name||"Unknown"}</div>
                         <div style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>
                           {unitNum?`Unit ${unitNum}`:""}{propName?` · ${propName}`:""}{" · "}
-                          {new Date(ins.inspection_date||ins.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                          {parseDateStr(ins.inspection_date||ins.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
@@ -597,7 +608,7 @@ export default function LandlordInspection() {
               <h1 style={{ fontFamily:"var(--m-font)", fontSize:"var(--m-fs-title)", fontWeight:600, color:C.text }}>{t?.name||"Tenant"}</h1>
               <p style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>
                 {t?.units?.unit_number?`Unit ${t.units.unit_number} · `:""}
-                {t?.units?.properties?.name||""} · Inspection dated {new Date(selected.inspection_date||selected.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+                {t?.units?.properties?.name||""} · Inspection dated {parseDateStr(selected.inspection_date||selected.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
               </p>
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -731,7 +742,7 @@ export default function LandlordInspection() {
               <div style={{ borderTop:`1px solid ${C.border}`, margin:"20px 0" }}/>
               <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:10 }}>
                 Move-Out Inspection
-                {selected.move_out_date&&<span style={{ fontSize:11, color:C.textMuted, fontWeight:400, marginLeft:8 }}>{new Date(selected.move_out_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                {selected.move_out_date&&<span style={{ fontSize:11, color:C.textMuted, fontWeight:400, marginLeft:8 }}>{parseDateStr(selected.move_out_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
               </div>
               <RoomChecklist rooms={selected.move_out_rooms||[]} onChange={()=>{}} readOnly={true} compareRooms={selected.rooms||[]} />
               {moPhotosView.length > 0 && (
