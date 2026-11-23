@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { stripePromise } from "./lib/stripeClient";
 import { Elements, useStripe } from "@stripe/react-stripe-js";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 
-const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K58bFR0ys4gCdjTCxnMsAExjdp7LtwsINYkqq500qtDctcti";
-const stripePromise = loadStripe(STRIPE_PK);
 
 const C = {
   bg:       "#F5F3EE",
@@ -281,7 +279,9 @@ function WalletContent({ tenant, user }) {
       )}
 
       {/* Link new account (only when online payment is available) */}
-      {!onlinePay ? null : showLink ? (
+      {!onlinePay ? null : !stripePromise ? (
+        <div role="status" style={{ fontSize:13,color:C.textSub }}>Bank linking is unavailable in this environment. Please contact your property manager.</div>
+      ) : showLink ? (
         <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px",marginBottom:12 }}>
           <div style={{ fontSize:12,fontWeight:600,color:C.textSub,marginBottom:12 }}>Link bank account</div>
           <Elements stripe={stripePromise}>

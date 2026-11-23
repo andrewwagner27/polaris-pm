@@ -34,7 +34,7 @@ test("Wallet offers bank linking only when online rent payment is available (pil
   const src = read("src/Wallet.jsx");
   assert.match(src, /const \[onlinePay,\s+setOnlinePay\]\s+= useState\(false\);/, "default: not offered");
   assert.match(src, /setOnlinePay\(!dueErr && !!due\?\.ledger_active && due\?\.online_available !== false\);/);
-  assert.match(src, /\{!onlinePay \? null : showLink \? \(/);
+  assert.match(src, /\{!onlinePay \? null : !stripePromise \? \(/);
 });
 
 test("chat composer: labelled, send key, stays in view above the keyboard, 44px send button", () => {

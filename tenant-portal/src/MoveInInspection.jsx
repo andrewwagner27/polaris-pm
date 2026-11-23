@@ -306,7 +306,7 @@ export default function MoveInInspection() {
                   </ul>
                 </div>
                 <div style={{ fontSize:13, color:C.textMuted, marginBottom:20 }}>
-                  <strong style={{ color:C.textSub }}>{rooms.length} rooms</strong> to walk through · inspection date: {new Date(inspection.inspection_date || inspection.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+                  <strong style={{ color:C.textSub }}>{rooms.length} rooms</strong> to walk through · inspection date: {(inspection.inspection_date ? new Date(inspection.inspection_date.replace(/-/g, "/")) : new Date(inspection.created_at)).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
                 </div>
                 <button onClick={() => setStep(1)}
                   style={{ width:"100%", padding:"12px", background:C.goldDim, border:`1px solid ${C.goldDim}`, borderRadius:6, color:C.gold, fontSize:14, fontWeight:600, cursor:"pointer" }}>

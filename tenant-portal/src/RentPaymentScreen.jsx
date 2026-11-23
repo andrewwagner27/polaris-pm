@@ -1,14 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { stripePromise } from "./lib/stripeClient";
 import { Elements, useStripe } from "@stripe/react-stripe-js";
 import { supabase } from "./supabase";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
 import { A3_ENABLED } from "./lib/release";
 
-const STRIPE_PK = "pk_live_51TeL65HdLm1v28bseS1dKN57CGx4WL4MK1aBoaSXTw7JGX2BG2K58bFR0ys4gCdjTCxnMsAExjdp7LtwsINYkqq500qtDctcti";
-const stripePromise = loadStripe(STRIPE_PK);
 
 const C = {
   bg:       "#F5F3EE",
@@ -150,12 +148,27 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
     });
 
     if (fnError || data?.error) {
-      setError(fnError?.message || data?.error);
+      let details = data;
+      // Supabase returns non-2xx function bodies on FunctionsHttpError.context.
+      if (fnError?.context?.clone) {
+        try { details = await fnError.context.clone().json(); } catch { /* Keep generic error below. */ }
+      }
+      if (details?.payment_intent_id) {
+        setError(details.error || "Your payment needs reconciliation. Do not pay again. Contact your property manager.");
+        setStep("reconcile");
+        return;
+      }
+      setError(details?.error || fnError?.message);
       setStep(savedMethod ? "idle" : "linked");
       onAmountChanged();
       return;
     }
 
+    if (!["processing", "succeeded"].includes(data?.status)) {
+      setError("Payment wasn't submitted. Please check your bank account before trying again.");
+      setStep(savedMethod ? "idle" : "linked");
+      return;
+    }
     setStep("success");
   }
 
@@ -163,12 +176,19 @@ function ACHForm({ tenant, user, payableCents, onAmountChanged }) {
     <div style={{ textAlign:"center",padding:"40px 0",color:C.textSub,fontSize:13 }}>Loading…</div>
   );
 
+  if (step === "reconcile") return (
+    <div role="alert" style={{ fontSize:13,color:C.textSub,lineHeight:1.6 }}>
+      {error}
+      <div style={{ marginTop:12 }}><a href="/home">Back to home</a></div>
+    </div>
+  );
+
   if (step === "success") return (
     <div style={{ textAlign:"center",padding:"32px 0" }}>
       <div style={{ width:64,height:64,borderRadius:"50%",background:`${C.green}18`,border:`1px solid ${C.green}33`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px",fontSize:26,color:C.green }}>✓</div>
       <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-title)",fontWeight:600,color:C.text,marginBottom:6 }}>Payment submitted</div>
       <div style={{ fontSize:13,color:C.textSub,marginBottom:6 }}>{money(payableCents)} via ACH bank transfer</div>
-      <div style={{ fontSize:12,color:C.textMuted,marginBottom:28 }}>ACH transfers take 2–3 business days to settle.</div>
+      <div style={{ fontSize:12,color:C.textMuted,marginBottom:28 }}>Your payment is processing. Your balance updates after Stripe confirms settlement.</div>
       <button onClick={()=>navigate("/home")} style={{ padding:"11px 28px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.textSub,cursor:"pointer",fontFamily:"var(--m-font)" }}>
         ← Back to home
       </button>
@@ -343,6 +363,8 @@ export default function RentPaymentScreen() {
               <div style={{ fontWeight:600,color:C.text,marginBottom:6 }}>Online payment isn't set up for your property yet</div>
               <div style={{ color:C.textSub }}>Your property manager is still finishing setup with our payment processor. Until then, please pay your rent to your property manager directly. Nothing has been charged.</div>
             </div>
+          ) : !stripePromise ? (
+            <div role="status" style={{ fontSize:13,color:C.textSub }}>Online payments are unavailable in this environment. Please contact your property manager.</div>
           ) : (
             <Elements stripe={stripePromise}>
               <ACHForm tenant={tenant} user={user} payableCents={payableCents} onAmountChanged={loadDue}/>

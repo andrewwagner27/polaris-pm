@@ -159,7 +159,7 @@ function AddUnitModal({ propertyId, onClose, onSaved }) {
       unit_number:  form.unit_number,
       bedrooms:     form.bedrooms  ? parseInt(form.bedrooms)    : null,
       bathrooms:    form.bathrooms ? parseFloat(form.bathrooms) : null,
-      rent_amount:  form.rent_amount ? parseFloat(form.rent_amount) : null,
+      rent_amount:  form.rent_amount !== "" ? parseFloat(form.rent_amount) : 0,
     });
     setSaving(false);
     if (error) { setError(error.message); return; }

@@ -5,6 +5,10 @@ const MAX_AMOUNT_CENTS = 10_000_000; // $100,000 sanity cap
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
+
+  let idempotencyKey: string | null = null;
+  const supabase = adminClient();
 
   try {
     const body = await req.json();
@@ -16,8 +20,6 @@ serve(async (req) => {
 
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeSecretKey) throw new Error("STRIPE_SECRET_KEY not set");
-
-    const supabase = adminClient();
 
     // ── Authorization: caller must be the signed-in tenant who owns tenant_id ──
     const caller = await getCaller(req, supabase);
@@ -52,18 +54,20 @@ serve(async (req) => {
     if (amount_cents !== payableCents) {
       return json(req, { error: "The amount due has changed. Please review it and try again." }, 409);
     }
-    const { count: paymentCount, error: countError } = await supabase
-      .from("payments")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenant_id);
-    if (countError) return json(req, { error: "Could not check your balance. Please try again." }, 409);
 
     // The Stripe customer must belong to this tenant (created by create-setup-intent
     // with metadata.tenant_id, or recorded in tenant_payment_methods).
-    const customerRes = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customer_id)}`, {
-      headers: { Authorization: `Bearer ${stripeSecretKey}` },
-    });
-    const customer = await customerRes.json();
+    // Fetch customer and payment method in parallel to save one round-trip (~150-200ms).
+    const [customerRes, methodRes] = await Promise.all([
+      fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customer_id)}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      }),
+      fetch(`https://api.stripe.com/v1/payment_methods/${encodeURIComponent(payment_method_id)}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      }),
+    ]);
+    const [customer, method] = await Promise.all([customerRes.json(), methodRes.json()]);
+
     let ownsCustomer = !customer.error && customer?.metadata?.tenant_id === tenant_id;
     if (!ownsCustomer) {
       const { data: savedMethod } = await supabase
@@ -76,6 +80,13 @@ serve(async (req) => {
       ownsCustomer = !!savedMethod;
     }
     if (!ownsCustomer) return json(req, { error: "Payment method does not belong to this tenant" }, 403);
+
+    // Verify the bank account is actually attached to the authenticated tenant's
+    // Stripe customer. A client-supplied payment_method_id must never select
+    // an unrelated account, even if the customer ID itself is legitimate.
+    if (!methodRes.ok || method.error || method.type !== "us_bank_account" || method.customer !== customer_id) {
+      return json(req, { error: "Choose a verified bank account linked to your tenant profile." }, 403);
+    }
 
     const unit_id = tenant.unit_id || null;
 
@@ -96,8 +107,38 @@ serve(async (req) => {
       return json(req, { error: "Online rent payment isn't set up for your property yet, so nothing was charged. Please pay your property manager directly for now." }, 409);
     }
 
+    // A saved onboarding flag can be stale or belong to another Stripe mode/account.
+    // Check the destination with the same key that will create the charge.
+    const ownerRes = await fetch(`https://api.stripe.com/v1/accounts/${encodeURIComponent(ownerStripeAccountId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    const owner = await ownerRes.json();
+    if (!ownerRes.ok || owner.id !== ownerStripeAccountId || owner.details_submitted !== true
+        || owner.charges_enabled !== true || owner.payouts_enabled !== true || owner.capabilities?.transfers !== "active") {
+      return json(req, { error: "Your property manager's payment account isn't ready. Nothing was charged. Please contact them." }, 409);
+    }
+
     // 5% platform fee
     const platformFee = Math.round(amount_cents * 0.05);
+
+    // ── DB-backed idempotency: one in-flight token per tenant ──
+    // The context fingerprint is stable across the 10-minute bucket boundary that made the
+    // old time-based key unsafe. If two concurrent requests share the same context they get
+    // the same token → Stripe deduplicates to one charge. If a previous token for this
+    // tenant is still pending with a DIFFERENT context (another payment method or ledger
+    // state), we reject before calling Stripe.
+    const tokenContext = [tenant_id, payment_method_id, amount_cents, due.open_rent_cents, due.pending_cents].join(":");
+    const { data: tokenRows, error: tokenErr } = await supabase.rpc("acquire_payment_token", {
+      p_tenant: tenant_id,
+      p_context: tokenContext,
+    });
+    if (tokenErr || !tokenRows?.length) {
+      return json(req, { error: "Could not secure a payment slot. Please try again." }, 409);
+    }
+    idempotencyKey = tokenRows[0].token;
+    if (!tokenRows[0].is_new && tokenRows[0].context !== tokenContext) {
+      return json(req, { error: "A payment is already being processed. Please wait and check your payment history before trying again." }, 409);
+    }
 
     // Build payment intent params
     const params: Record<string, string> = {
@@ -107,9 +148,8 @@ serve(async (req) => {
       payment_method: payment_method_id,
       "payment_method_types[]": "us_bank_account",
       confirm: "true",
-      "mandate_data[customer_acceptance][type]": "online",
-      "mandate_data[customer_acceptance][online][ip_address]": "127.0.0.1",
-      "mandate_data[customer_acceptance][online][user_agent]": "Modus PM",
+      // The tenant accepted the ACH mandate during the bank-linking SetupIntent.
+      // Reuse that mandate; never invent a customer IP address or user agent.
       "metadata[tenant_id]": tenant_id,
       "metadata[unit_id]": unit_id || "",
       ...(isPayRent ? { "metadata[purpose]": "rent" } : {}),
@@ -123,11 +163,6 @@ serve(async (req) => {
       params["metadata[platform_fee_cents]"] = String(platformFee);
     }
 
-    // Two simultaneous requests read the same ledger state, so they share a key and Stripe makes one payment.
-    // The row count changes once a payment exists; the 10-minute bucket keeps a saved Stripe error from blocking a later retry.
-    const idempotencyKey = ["payrent", tenant_id, payment_method_id, amount_cents, due.open_rent_cents, due.pending_cents, paymentCount ?? 0,
-      Math.floor(Date.now() / 600_000)].join(":");
-
     const paymentRes = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
       headers: {
@@ -138,11 +173,27 @@ serve(async (req) => {
       body: new URLSearchParams(params),
     });
 
-    const paymentIntent = await paymentRes.json();
-    if (paymentIntent.error) throw new Error(paymentIntent.error.message);
+    // Guard against non-JSON Stripe responses (HTML error page during outage,
+    // truncated body). We don't know if the charge was created, so keep the token
+    // 'pending' — the client's "do not pay again" message prevents a double charge.
+    let paymentIntent: Record<string, unknown>;
+    try {
+      paymentIntent = await paymentRes.json();
+    } catch {
+      console.error("[create-payment-intent] non-JSON Stripe response", paymentRes.status);
+      return json(req, { error: "Your payment was submitted, but the response was unreadable. Do not pay again. Contact your property manager." }, 503);
+    }
+    if (!paymentRes.ok || paymentIntent.error) {
+      await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
+      throw new Error(paymentIntent.error?.message || "Payment could not be submitted");
+    }
+    if (!paymentIntent.id || !["processing", "succeeded"].includes(paymentIntent.status)) {
+      await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
+      return json(req, { error: "Payment wasn't submitted. Your bank may need verification. Please check your saved bank account." }, 409);
+    }
 
     // Record pending payment, once: Stripe replays the same payment intent for a repeated request, and the index enforces one row.
-    await supabase.from("payments").upsert([{
+    const { error: recordError } = await supabase.from("payments").upsert([{
       tenant_id,
       unit_id,
       amount_cents,
@@ -154,12 +205,26 @@ serve(async (req) => {
       ...(isPayRent ? { category: "Rent", origin: "tenant_pay_rent" } : {}),
     }], { onConflict: "stripe_payment_intent_id", ignoreDuplicates: true });
 
+    if (recordError) {
+      // Token stays 'pending' — do NOT release it. The charge was submitted; retrying
+      // risks a second charge. The user is told not to pay again.
+      console.error("[create-payment-intent] payment recording failed", paymentIntent.id);
+      return json(req, { error: "Your payment was submitted, but its record could not be saved. Do not pay again. Contact your property manager.", payment_intent_id: paymentIntent.id }, 503);
+    }
+
+    await supabase.from("payment_idempotency_tokens").update({ status: "committed" }).eq("id", idempotencyKey);
+
     return json(req, {
       payment_intent_id: paymentIntent.id,
       status: paymentIntent.status,
     });
 
   } catch (err) {
+    if (idempotencyKey) {
+      try {
+        await supabase.from("payment_idempotency_tokens").update({ status: "failed" }).eq("id", idempotencyKey);
+      } catch { /* best-effort release */ }
+    }
     return json(req, { error: err.message }, 400);
   }
 });
