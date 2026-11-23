@@ -26,11 +26,7 @@ export default function AuthCallback() {
           .eq("id", tenantId)
           .is("user_id", null);
 
-        await supabase.auth.updateUser({
-          data: { onboarding_complete: false, role: "tenant" }
-        });
-
-        navigate("/onboarding?tenant_id=" + tenantId);
+        navigate(user.user_metadata?.onboarding_complete ? "/home" : "/onboarding?tenant_id=" + encodeURIComponent(tenantId));
         return;
       }
 
@@ -48,10 +44,6 @@ export default function AuthCallback() {
             .from("tenants")
             .update({ user_id: user.id })
             .eq("id", tenantByEmail.id);
-
-          await supabase.auth.updateUser({
-            data: { onboarding_complete: false, role: "tenant" }
-          });
 
           navigate("/onboarding?tenant_id=" + tenantByEmail.id);
           return;

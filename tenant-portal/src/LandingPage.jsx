@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import aboutRowhouses from "./assets/about-rowhouses.webp";
 
 // Marketing page. Product visuals are CSS mockups of the real Modus screens with illustrative sample data (no
-// screenshots of real tenants, no invented customers or metrics). Online rent payment is not offered here: it is
-// not live (tests/landing-claims.test.mjs).
+// screenshots of real tenants, no invented customers or metrics). About and FAQ describe online payments only
+// where enabled. The homepage makes no availability claim (tests/landing-claims.test.mjs).
 const INK = "#0E1116", INK2 = "#161A21", INK3 = "#1E232C", LINE = "#262B33";
 const IVORY = "#F5F3EE", WHITE = "#FFFFFF", PAPER_LINE = "#E7E2D8";
 const GOLD = "#C7A86C", GOLD_DEEP = "#7A5C12";
@@ -146,11 +147,237 @@ const BENEFITS = [
   { icon: "control",  title: "Stay in control", text: "Approve contractors, review work, and oversee your portfolio." },
 ];
 
-export default function LandingPage() {
+const TOUR_STEPS = [
+  { role: "Resident portal", title: "Report a dripping faucet", status: "Draft", detail: "Unit 2 · Kitchen · Photo attached", action: "Submit sample request" },
+  { role: "Manager dashboard", title: "Review the contractor quote", status: "Quote ready", detail: "Faucet repair · Contractor quote $185", action: "Approve sample quote" },
+  { role: "Resident portal", title: "See when the repair is scheduled", status: "Scheduled", detail: "Kitchen faucet · Thursday, 10 am–12 pm", action: "Restart walkthrough" },
+];
+
+function MaintenanceTour() {
+  const [step, setStep] = useState(0);
+  const current = TOUR_STEPS[step];
+
+  return (
+    <section id="maintenance-tour" tabIndex={-1} aria-labelledby="maintenance-tour-title" className="lp-light lp-white lp-tour">
+      <div className="lp-wrap">
+        <div className="lp-tour-heading">
+          <h2 id="maintenance-tour-title">Try the maintenance walkthrough</h2>
+          <p>Follow one repair through the resident and manager views. This demo uses sample data.</p>
+        </div>
+        <div className="lp-tour-shell">
+          <ol className="lp-tour-steps" aria-label="Walkthrough steps">
+            {["Report an issue", "Approve a quote", "See the schedule"].map((label, index) => (
+              <li key={label}>
+                <button type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
+                  <span>{index + 1}</span>{label}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="lp-tour-panel">
+            <div className="lp-tour-context" aria-live="polite" aria-atomic="true">
+              <div className="lp-tour-meta"><span>{current.role}</span><span>{current.status}</span></div>
+              <h3>{current.title}</h3>
+              <p>{current.detail}</p>
+              {step === 0 && <blockquote>“The kitchen faucet keeps dripping even when it’s fully closed.”</blockquote>}
+              {step === 1 && <blockquote>Replace the worn faucet cartridge and test for leaks.</blockquote>}
+              {step === 2 && <blockquote>Management added a repair window to the request.</blockquote>}
+            </div>
+            <button type="button" className="lp-btn lp-btn-gold" onClick={() => setStep((step + 1) % TOUR_STEPS.length)}>{current.action}</button>
+            {step > 0 && (
+              <div className="lp-tour-preview">
+                {step === 1 ? <DecisionMock/> : <PhoneMock/>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const PUBLIC_PAGES = [
+  { key: "about", label: "About Us" },
+  { key: "faq", label: "FAQ" },
+  { key: "contact", label: "Contact Us" },
+];
+
+function PublicLinks({ page }) {
+  return PUBLIC_PAGES.map(({ key, label }) => (
+    <a key={key} href={"/" + key} aria-current={page === key ? "page" : undefined}>{label}</a>
+  ));
+}
+
+function AboutModus() {
+  return (
+    <div className="lp-about">
+      <section className="lp-about-hero" aria-labelledby="about-title">
+        <div className="lp-wrap lp-about-hero-grid">
+          <div className="lp-about-headline">
+            <p className="lp-about-label">About Us</p>
+            <h1 id="about-title">We’ve been on both sides of the lease.</h1>
+            <p>Modus started with a frustration our founder knew as both a renter and a property investor. It was hard to find out what was happening and who needed to act.</p>
+          </div>
+          <figure className="lp-about-photo">
+            <img src={aboutRowhouses} width={1400} height={928} fetchPriority="high" alt="Brick rowhouses with front steps and flower pots along a tree-lined sidewalk"/>
+            <figcaption>Photo by <a href="https://unsplash.com/photos/a-row-of-brick-buildings-with-flowers-on-the-steps-Ii4Yedkl3z4">Krishna Dubagunta</a></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section className="lp-about-story" aria-label="Why we built Modus">
+        <div className="lp-wrap">
+          <div className="lp-about-perspectives">
+            <div>
+              <h2>As a renter</h2>
+              <p>Our founder would report a problem and then hear nothing back. There was no update, no timeline, and no one to follow up with.</p>
+            </div>
+            <div>
+              <h2>As an investor</h2>
+              <p>He ran into the same problem from the other side. He couldn’t easily tell what was happening at his properties, what it was costing, or which decisions were waiting on him.</p>
+            </div>
+          </div>
+          <p className="lp-about-bridge">The tools were built around paperwork. He built Modus so residents could see where a request stands and managers could see what it would cost and what needed their call.</p>
+        </div>
+      </section>
+
+      <section className="lp-about-example" aria-labelledby="about-example-title">
+        <div className="lp-wrap lp-about-example-inner">
+          <h2 id="about-example-title">What happens when a faucet leaks?</h2>
+          <p>A resident reports the leak in their portal. The manager sees the request, reviews the contractor’s quote, and approves the repair. When management adds the appointment, the resident can see when the contractor is coming.</p>
+          <a className="lp-btn lp-btn-gold" href="/#maintenance-tour">Try the maintenance walkthrough</a>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ModusFaq() {
+  return (
+      <section className="lp-light lp-white lp-faq" aria-labelledby="faq-title">
+        <div className="lp-wrap lp-about-copy">
+          <h1 id="faq-title">Frequently Asked Questions</h1>
+          <details>
+            <summary>What is Modus?</summary>
+            <p>Modus is property management software for residents, owners, and managers. Residents can report issues, message management, and pay rent where online payments are enabled. Owners and managers get the full picture behind each request so they can make decisions quickly.</p>
+          </details>
+          <details>
+            <summary>Who is Modus for?</summary>
+            <p>Independent landlords, small-portfolio investors, and property managers who want something simpler than enterprise software, and better than texts, spreadsheets, and email threads.</p>
+          </details>
+          <details>
+            <summary>How do residents submit a maintenance request?</summary>
+            <p>Through their resident portal. They describe the issue, attach photos if helpful, and can follow the recorded status from submission through scheduling and resolution.</p>
+          </details>
+          <details>
+            <summary>What happens when a resident sends a message?</summary>
+            <p>The Modus AI assistant can answer common questions and suggest basic troubleshooting, such as checking a thermostat setting. Residents can ask for a person or submit a maintenance request for management to review.</p>
+          </details>
+          <details>
+            <summary>How does Modus handle repairs and vendor costs?</summary>
+            <p>When a repair needs a quote, the owner or manager can review and approve the vendor’s estimate before work begins. Vendors can accept work orders electronically, which keeps a record of the job.</p>
+          </details>
+          <details>
+            <summary>How do residents pay rent?</summary>
+            <p>Where online payments are enabled, residents can pay rent through the portal by ACH bank transfer, processed by Stripe. Owners can see payment status in Modus. If online payments are unavailable, follow the payment instructions in your lease.</p>
+          </details>
+          <details>
+            <summary>Is there a mobile app?</summary>
+            <p>Modus works on phones through the browser. Residents can add it to their home screen on supported devices and open it like an app without downloading it from an app store.</p>
+          </details>
+          <details>
+            <summary>How do new residents get set up?</summary>
+            <p>The owner or manager sends an invitation. The resident opens it to create an account and complete setup for their unit. Already set up? <a href="/login">Sign in to the resident portal</a>.</p>
+          </details>
+          <details>
+            <summary>Is my information secure?</summary>
+            <p>Stripe processes bank transfers, and Modus does not store full bank account numbers. Access controls restrict residents to their own rental records and managers to the properties they’re authorized to manage.</p>
+          </details>
+          <details>
+            <summary>How much does Modus cost?</summary>
+            <p><a href="/contact">Contact us for pricing</a> and tell us what you manage.</p>
+          </details>
+          <details>
+            <summary>How do I get started?</summary>
+            <p><a href="/contact">Request a demo through Contact Us</a> or <a href="/#maintenance-tour">try the interactive maintenance walkthrough</a>. If you’re a resident, ask your property manager for an invitation.</p>
+          </details>
+        </div>
+      </section>
+  );
+}
+
+function ContactModus() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const inFlight = useRef(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (inFlight.current) return;
+    const form = event.currentTarget;
+    const fields = Object.fromEntries(new FormData(form));
+    inFlight.current = true;
+    setSending(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok || !["sent", "preview"].includes(data.status)) {
+        setResult({ error: data.error || "We couldn’t confirm delivery. Please try again." });
+        return;
+      }
+      setResult({ message: data.status === "preview" ? "Preview submission complete. No email was sent." : "Thanks for contacting Modus. We received your message." });
+      form.reset();
+    } catch {
+      setResult({ error: "We couldn’t confirm delivery. Please try again." });
+    } finally {
+      inFlight.current = false;
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="lp-light lp-ivory">
+      <div className="lp-wrap lp-about-copy lp-contact">
+        <h1>Contact Us</h1>
+        <p>Have a question about Modus? Send us a message. For help with your rental or a maintenance request, contact your property manager in the <a href="/login">resident portal</a>.</p>
+        <form onSubmit={submit}>
+          <label htmlFor="contact-name">Name</label>
+          <input id="contact-name" name="name" autoComplete="name" maxLength={100} required/>
+          <label htmlFor="contact-email">Email address</label>
+          <input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} required/>
+          <label htmlFor="contact-message">Message</label>
+          <textarea id="contact-message" name="message" rows={6} maxLength={3000} required/>
+          <div hidden><label htmlFor="contact-website">Leave this field empty</label><input id="contact-website" name="website" tabIndex={-1} autoComplete="off"/></div>
+          <button type="submit" className="lp-btn lp-btn-gold" disabled={sending}>{sending ? "Sending…" : "Send message"}</button>
+          <div role="status">{result?.message}</div>
+          {result?.error && <p role="alert" className="lp-contact-error">{result.error}</p>}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+export default function LandingPage({ page = "home" }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtn = useRef(null);
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    const title = document.title;
+    const publicPage = PUBLIC_PAGES.find(item => item.key === page);
+    if (publicPage) document.title = publicPage.label + " | Modus";
+    if (page === "home" && window.location.hash === "#maintenance-tour") {
+      document.getElementById("maintenance-tour")?.scrollIntoView();
+    }
+    if (page === "about" && window.location.hash === "#faq") window.location.replace("/faq");
+    return () => { document.title = title; };
+  }, [page]);
 
   // Mobile menu: Escape closes and returns focus to the button; the first link takes focus on open.
   useEffect(() => {
@@ -171,7 +398,8 @@ export default function LandingPage() {
       <header className="lp-header">
         <div className="lp-wrap lp-header-row">
           <a href="/" onClick={go("/")} aria-label="Modus home" className="lp-logo"><Wordmark/></a>
-          <nav className="lp-nav-desktop" aria-label="Sign in">
+          <nav className="lp-nav-desktop" aria-label="Main navigation">
+            <PublicLinks page={page}/>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
             <a href="/landlord/login" onClick={go("/landlord/login")} className="lp-nav-strong">Landlord login</a>
           </nav>
@@ -184,19 +412,24 @@ export default function LandingPage() {
           <div id="lp-menu" ref={menuRef} className="lp-menu">
             <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a>
             <a href="/login" onClick={go("/login")}>Tenant login</a>
+            <PublicLinks page={page}/>
           </div>
         )}
       </header>
 
       <main>
+        {page === "about" && <AboutModus/>}
+        {page === "faq" && <ModusFaq/>}
+        {page === "contact" && <ContactModus/>}
+        {page === "home" && <>
         {/* ── 1. Hero (dark) ── */}
         <section className="lp-hero">
           <div className="lp-wrap">
             <div className="lp-hero-copy">
               <h1>Property management, without the busywork.</h1>
-              <p>Stay on top of maintenance, tenant communication, and your properties—all in one organized workspace.</p>
+              <p>Track repairs from the first resident report to the final invoice, alongside tenant messages and property records.</p>
               <div className="lp-cta">
-                <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore the dashboard</a>
+                <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
                 <a href="/login" onClick={go("/login")} className="lp-btn lp-btn-quiet">Tenant portal</a>
               </div>
             </div>
@@ -206,6 +439,8 @@ export default function LandingPage() {
             </figure>
           </div>
         </section>
+
+        <MaintenanceTour/>
 
         {/* ── 2. Landlord experience (ivory) ── */}
         <section className="lp-light lp-ivory">
@@ -261,14 +496,19 @@ export default function LandingPage() {
         <section className="lp-final">
           <div className="lp-wrap">
             <h2>Less administration. More ownership.</h2>
-            <a href="/landlord" onClick={go("/landlord")} className="lp-btn lp-btn-gold">Explore Modus</a>
+            <a href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works</a>
             <p className="lp-final-links">Already using Modus? <a href="/landlord/login" onClick={go("/landlord/login")}>Landlord login</a> · <a href="/login" onClick={go("/login")}>Tenant login</a></p>
           </div>
         </section>
+        </>}
       </main>
 
       <footer className="lp-footer">
-        <div className="lp-wrap lp-footer-row"><Wordmark/><span>© {new Date().getFullYear()} Modus Property Management</span></div>
+        <div className="lp-wrap lp-footer-row">
+          <Wordmark/>
+          <nav aria-label="Footer"><PublicLinks page={page}/></nav>
+          <span>© {new Date().getFullYear()} Modus Property Management</span>
+        </div>
       </footer>
     </div>
   );
@@ -279,6 +519,52 @@ const CSS = `
 .lp a { color: inherit; }
 .lp-wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .lp h1, .lp h2, .lp h3 { font-family: var(--m-font); margin: 0; }
+.lp-about-copy { max-width: 800px; }
+.lp-about-copy h1 { font-size: clamp(38px, 7vw, 68px); letter-spacing: -0.05em; line-height: 1.05; }
+.lp-about-copy p { color: #52525B; font-size: 17px; line-height: 1.65; }
+.lp-about-copy .lp-btn { margin-top: 10px; }
+.lp-about { color: #24211C; background: #FFFFFF; }
+.lp-about-hero { padding: 72px 0 56px; background: #F5F3EE; }
+.lp-about-hero-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.15fr); gap: clamp(28px, 5.5vw, 88px); align-items: center; }
+.lp-about-label { margin: 0 0 18px; color: #7A5C12; font-size: 14px; font-weight: 600; }
+.lp .lp-about-headline h1, .lp .lp-about h2 { font-family: var(--m-font-brand); font-weight: 600; letter-spacing: -.035em; }
+.lp .lp-about-headline h1 { max-width: 11ch; font-size: clamp(47px, 6.1vw, 88px); line-height: .97; }
+.lp-about-headline > p:last-child { max-width: 40ch; margin: 24px 0 0; font-size: 17px; line-height: 1.62; color: #514A40; }
+.lp-about-photo { margin: 0; }
+.lp-about-photo img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 46% center; }
+.lp .lp-about-photo figcaption { margin-top: 8px; color: #5E584D; font-size: 12px; text-align: right; }
+.lp-about-story { padding: 66px 0; }
+.lp-about-story .lp-wrap, .lp-about-example-inner { max-width: 960px; }
+.lp-about-perspectives { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 7vw, 96px); }
+.lp-about-perspectives > div { border-top: 1px solid #B5A886; padding-top: 20px; }
+.lp .lp-about h2 { font-size: clamp(33px, 4vw, 51px); line-height: 1.05; }
+.lp-about-perspectives p, .lp-about-example p { margin: 12px 0 0; color: #514A40; font-size: 17px; line-height: 1.65; }
+.lp-about-bridge { max-width: 62ch; margin: 34px 0 0; font-size: 17px; line-height: 1.65; }
+.lp-about-example { padding: 55px 0 66px; background: #F5F3EE; }
+.lp-about-example p { max-width: 62ch; margin-bottom: 22px; }
+@media (max-width: 720px) {
+  .lp-about-hero { padding: 38px 0 26px; }
+  .lp-about-hero-grid, .lp-about-perspectives { grid-template-columns: 1fr; }
+  .lp .lp-about-headline h1 { font-size: clamp(46px, 10vw, 64px); }
+  .lp-about-headline > p:last-child { margin-top: 18px; }
+  .lp-about-photo img { aspect-ratio: 3 / 2; }
+  .lp-about-story, .lp-about-example { padding: 44px 0; }
+}
+.lp-faq { scroll-margin-top: 75px; }
+.lp-faq h1 { margin-bottom: 18px; }
+.lp-faq details { border-bottom: 1px solid #E7E2D8; }
+.lp-faq summary { padding: 16px 2px; min-height: 48px; font-size: 17px; font-weight: 600; cursor: pointer; }
+.lp-faq details p { margin: 0 0 18px; }
+.lp-contact form { display: grid; gap: 10px; max-width: 620px; padding: clamp(16px, 4vw, 30px); background: white; border: 1px solid #E7E2D8; border-radius: 16px; }
+.lp-contact label { font-weight: 600; }
+.lp-contact input, .lp-contact textarea { width: 100%; min-height: 44px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid #8C857A; border-radius: 8px; font: inherit; }
+.lp-contact textarea { resize: vertical; }
+.lp-contact input:focus-visible, .lp-contact textarea:focus-visible { outline: 2px solid #7A5C12; outline-offset: 2px; }
+.lp-contact button { justify-self: start; border: 0; font-family: inherit; cursor: pointer; }
+.lp-contact button:disabled { opacity: .7; cursor: wait; }
+.lp-contact .lp-contact-error { margin: 0; color: #9F2424; }
+.lp-footer-row nav { display: flex; gap: 18px; }
+.lp-footer-row nav a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* Header */
 .lp-header { position: sticky; top: 0; z-index: 50; background: rgba(14,17,22,0.88); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -297,6 +583,24 @@ const CSS = `
 @media (min-width: 721px) { .lp-menu { display: none; } }
 
 /* Buttons */
+.lp-tour { scroll-margin-top: 90px; }
+.lp-tour-heading { max-width: 650px; margin: 0 auto 28px; text-align: center; }
+.lp-tour-heading p { color: #52525B; line-height: 1.6; }
+.lp-tour-shell { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr); gap: 16px; background: #0E1116; padding: clamp(12px, 3vw, 28px); border-radius: 22px; color: #F5F2EB; }
+.lp-tour-steps { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lp-tour-steps button { display: flex; align-items: center; gap: 10px; min-height: 48px; width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lp-tour-steps button[aria-current="step"] { background: #262B33; border-color: #62646A; }
+.lp-tour-steps button span { color: #C7A86C; font-variant-numeric: tabular-nums; }
+.lp-tour-panel { background: #161A21; border-radius: 14px; border: 1px solid #363C45; padding: clamp(16px, 4vw, 32px); }
+.lp-tour-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; font-size: 13px; color: #C7A86C; }
+.lp-tour-panel h3 { margin: 22px 0 8px; font-size: clamp(20px, 3vw, 28px); }
+.lp-tour-panel p { margin: 0; color: #B7BBC4; }
+.lp-tour-panel blockquote { margin: 18px 0; padding: 12px; border-left: 2px solid #C7A86C; background: #1E232C; }
+.lp-tour-panel .lp-btn { border: 0; cursor: pointer; font-family: inherit; }
+.lp-tour-preview { display: grid; justify-items: center; margin-top: 24px; }
+.lp-tour-preview .lp-window { width: 100%; max-width: 560px; }
+.lp-tour button:focus-visible { outline: 2px solid #C7A86C; outline-offset: 3px; }
+@media (max-width: 720px) { .lp-tour-shell { grid-template-columns: 1fr; } }
 .lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; transition: filter .15s, background .15s; }
 .lp-btn-gold { background: ${GOLD}; color: ${INK} !important; }

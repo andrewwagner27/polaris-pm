@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from "react";
+import { useSearchParams } from 'react-router-dom';
+import { useState } from "react";
 import TenantLayout from "./TenantLayout";
 import { useTenant } from "./useTenant";
-import { supabase } from "./supabase";
+import { getSignedStorageUrl } from "./storageUtils";
 
 const C = {
   bg:       "#F5F3EE",
@@ -30,30 +30,26 @@ const CATEGORIES = [
 ];
 
 export default function DocumentsScreen() {
-  const { tenant } = useTenant();
-  const [filter, setFilter] = useState("all");
+  const { tenant, loading } = useTenant();
+  const [params, setParams] = useSearchParams();
+  const filter = CATEGORIES.find(item => item.id === params.get("view"))?.id || "all";
   const [search, setSearch] = useState("");
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (tenant?.id) fetchDocuments();
-    else setLoading(false);
-  }, [tenant?.id]);
+  const hasLease = Boolean(tenant?.lease_document_url) && ["lease", "all"].includes(filter);
+  const showLease = hasLease && "lease agreement".includes(search.trim().toLowerCase());
 
-  async function fetchDocuments() {
-    setLoading(true);
-    // When you add a documents table, query it here.
-    // For now return empty — no fake data.
-    setDocuments([]);
-    setLoading(false);
+  async function openLease() {
+    setOpening(true); setError("");
+    try {
+      const signed = await getSignedStorageUrl("lease-documents", tenant.lease_document_url);
+      if (!signed) throw new Error("Lease unavailable");
+      window.location.assign(signed);
+    } catch {
+      setError("We couldn’t open your lease. Try again or contact your property manager for a copy.");
+    } finally { setOpening(false); }
   }
-
-  const filtered = documents.filter(doc => {
-    const matchCat    = filter === "all" || doc.category === filter;
-    const matchSearch = doc.title.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
 
   return (
     <TenantLayout tenantName={tenant?.name}>
@@ -75,7 +71,7 @@ export default function DocumentsScreen() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px" }}>
             <span style={{ color: C.textMuted, fontSize: 13 }}>⌕</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…"
+            <input aria-label="Search documents" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…"
               style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, fontFamily: "var(--m-font)" }} />
             {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 13 }}>✕</button>}
           </div>
@@ -84,7 +80,7 @@ export default function DocumentsScreen() {
         {/* Filter pills */}
         <div style={{ display: "flex", gap: 8, padding: "14px 20px", overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${C.border}` }}>
           {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setFilter(cat.id)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: filter === cat.id ? C.goldDim : "transparent", color: filter === cat.id ? C.text : C.textSub, border: `1px solid ${filter === cat.id ? C.goldDim : C.border}`, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--m-font)", flexShrink: 0, transition: "all 0.12s" }}>
+            <button key={cat.id} aria-pressed={filter === cat.id} onClick={() => { setError(""); setParams({ view: cat.id }); }} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: filter === cat.id ? C.goldDim : "transparent", color: filter === cat.id ? C.text : C.textSub, border: `1px solid ${filter === cat.id ? C.goldDim : C.border}`, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--m-font)", flexShrink: 0, transition: "all 0.12s" }}>
               {cat.label}
             </button>
           ))}
@@ -94,35 +90,19 @@ export default function DocumentsScreen() {
         <div style={{ padding: "16px 20px 0" }}>
           {loading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted, fontSize: 13 }}>Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ width: 56, height: 56, borderRadius: 14, background: `${C.gold}12`, border: `1px solid ${C.goldDim}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>📂</div>
-              <div style={{ fontSize: 15, fontWeight: 500, color: C.text, marginBottom: 6 }}>No documents yet</div>
-              <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 260, margin: "0 auto" }}>
-                Your lease, receipts, and notices from your property manager will appear here.
-              </div>
+          ) : showLease ? (
+            <div style={{ background:C.surface, border:"1px solid " + C.border, borderRadius:12, padding:18 }}>
+              <h2 style={{ fontSize:16 }}>Lease agreement</h2>
+              <button type="button" onClick={openLease} disabled={opening} style={{ minHeight:44, padding:"0 12px", marginTop:10 }}>
+                {opening ? "Opening…" : "Open lease"}
+              </button>
+              {error && <p role="alert" style={{ color:C.red, marginTop:8 }}>{error}</p>}
             </div>
           ) : (
-            filtered.map(doc => (
-              <div key={doc.id} className="t-doc"
-                style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color 0.15s" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 9, background: `${doc.color}18`, border: `1px solid ${doc.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: doc.color }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 2 }}>{doc.title}</div>
-                  <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>{doc.subtitle}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 9, fontWeight:600, padding: "2px 5px", borderRadius: 3, background: `${C.red}18`, color: C.red, letterSpacing: "0.04em" }}>PDF</span>
-                    <span style={{ fontSize: 11, color: C.textMuted }}>{doc.date} · {doc.size}</span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
-                  <button onClick={e => e.stopPropagation()} style={{ width: 30, height: 30, borderRadius: 7, background: `${C.blue}18`, border: `1px solid ${C.blue}33`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.blue }}>👁</button>
-                  <button onClick={e => e.stopPropagation()} style={{ width: 30, height: 30, borderRadius: 7, background: C.raised, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.textSub }}>⬇</button>
-                </div>
-              </div>
-            ))
+            <div style={{ textAlign:"center", padding:"60px 20px" }}>
+              <h2 style={{ fontSize:16, marginBottom:8 }}>{hasLease ? "No matching documents" : filter === "lease" ? "No lease available online" : "No documents yet"}</h2>
+              {!hasLease && <p style={{ fontSize:13, color:C.textSub }}>Contact your property manager for a copy.</p>}
+            </div>
           )}
         </div>
 

@@ -1,3 +1,4 @@
+import { useSessionDraft } from "./lib/useSessionDraft";
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from "react";
 import { supabase, authHeaders } from "./supabase";
@@ -42,11 +43,14 @@ export default function MessagingScreen() {
 
   // ── State (triggers re-renders) ────────────────────────────
   const [messages, setMessages]     = useState([]);
-  const [input, setInput]           = useState("");
   const [loading, setLoading]       = useState(true);
   const [sending, setSending]       = useState(false);
   const [myUserId, setMyUserId]     = useState(null);   // STATE — drives fromProperty render
   const [tenantId, setTenantId]     = useState(null);
+  const [input, setInput] = useSessionDraft(myUserId && tenantId ? myUserId + ":" + tenantId + ":message" : null, "");
+  const [messageError, setMessageError] = useState("");
+  const [markingRead, setMarkingRead] = useState(false);
+  const unread = messages.filter(message => !message.read && message.recipient_id === myUserId);
   const [awaitingReply, setAwaitingReply] = useState(false); // typing indicator
   const [assistantIssue, setAssistantIssue] = useState(false); // last AI request failed (message still saved)
 
@@ -57,8 +61,11 @@ export default function MessagingScreen() {
   const pollRef       = useRef(null);
 
   useEffect(() => {
-    init();
-    return () => clearInterval(pollRef.current);
+    let active = true;
+    init(() => active).catch(() => {
+      if (active) { setMessageError("We couldn’t load your messages. Please refresh and try again."); setLoading(false); }
+    });
+    return () => { active = false; clearInterval(pollRef.current); };
   }, []);
 
   // Only the history container scrolls (never the page). The count also steps when the typing indicator appears,
@@ -76,8 +83,9 @@ export default function MessagingScreen() {
     if (data) setMessages(data);
   }
 
-  async function init() {
+  async function init(isActive) {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!isActive()) return;
     if (!user) { navigate("/login"); return; }
 
     // Set BOTH state (for render) and ref (for closures)
@@ -86,6 +94,7 @@ export default function MessagingScreen() {
 
     const { data: tenantData } = await supabase
       .from("tenants").select("id").eq("user_id", user.id).single();
+    if (!isActive()) return;
     if (!tenantData) { setLoading(false); return; }
 
     setTenantId(tenantData.id);
@@ -94,16 +103,13 @@ export default function MessagingScreen() {
     const { data: firstMsg } = await supabase
       .from("messages").select("sender_id, recipient_id")
       .eq("tenant_id", tenantData.id).limit(1).single();
+    if (!isActive()) return;
     landlordIdRef.current = firstMsg
       ? (firstMsg.sender_id !== user.id ? firstMsg.sender_id : firstMsg.recipient_id)
       : "858462c7-d86a-498f-8cc1-3fc1eecb1888";
 
     await fetchMessages();
-
-    await supabase.from("messages").update({ read: true })
-      .eq("tenant_id", tenantData.id)
-      .eq("recipient_id", user.id)
-      .eq("read", false);
+    if (!isActive()) return;
 
     // Poll every 2 seconds to pick up AI replies
     pollRef.current = setInterval(fetchMessages, 2000);
@@ -111,43 +117,61 @@ export default function MessagingScreen() {
     setLoading(false);
   }
 
-  async function sendMessage(text) {
+  async function markRead() {
+    if (!unread.length || markingRead) return;
+    setMarkingRead(true); setMessageError("");
+    try {
+      const { error } = await supabase.from("messages").update({ read: true })
+        .eq("tenant_id", tenantId).eq("recipient_id", myUserId).in("id", unread.map(message => message.id));
+      if (error) throw error;
+      await fetchMessages();
+    } catch {
+      setMessageError("We couldn’t mark these messages as read. Please try again.");
+    } finally { setMarkingRead(false); }
+  }
+
+  async function sendMessage(text, clearDraft = false) {
     if (!text.trim() || sending || !myUserIdRef.current || !tenantIdRef.current) return;
     setSending(true);
-    setInput("");
+    setMessageError("");
     markOwnSend();
 
-    const { data, error } = await supabase.from("messages").insert({
-      sender_id: myUserIdRef.current,
-      recipient_id: landlordIdRef.current,
-      tenant_id: tenantIdRef.current,
-      body: text.trim(),
-    }).select().single();
+    try {
+      const { data, error } = await supabase.from("messages").insert({
+        sender_id: myUserIdRef.current,
+        recipient_id: landlordIdRef.current,
+        tenant_id: tenantIdRef.current,
+        body: text.trim(),
+      }).select().single();
 
-    if (!error && data) {
-      // Append confirmed record immediately so it shows without waiting for next poll
-      setMessages(prev => {
-        if (prev.some(m => m.id === data.id)) return prev;
-        return [...prev, data];
-      });
+      if (!error && data) {
+        if (clearDraft) setInput(current => current === text ? "" : current);
+        // Append confirmed record immediately so it shows without waiting for next poll
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.id)) return prev;
+          return [...prev, data];
+        });
 
-      // Fire AI routing once — non-blocking, typing indicator while waiting. NO automatic retry: a request
-      // that failed in the browser may still be running on the server, and a second one would race it
-      // (duplicate AI reply / ticket). If it fails, say so: the message is saved, and a message the AI never
-      // processed is listed in management's daily recap.
-      setAwaitingReply(true);
-      setAssistantIssue(false);
-      fetch("/api/classify-and-route", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ message: text.trim(), tenant_id: tenantIdRef.current, message_id: data.id }),
-      })
-        .then(res => { if (!res.ok) setAssistantIssue(true); })
-        .catch(() => setAssistantIssue(true))
-        .finally(() => setAwaitingReply(false));
-    }
+        // Fire AI routing once — non-blocking, typing indicator while waiting. NO automatic retry: a request
+        // that failed in the browser may still be running on the server, and a second one would race it
+        // (duplicate AI reply / ticket). If it fails, say so: the message is saved, and a message the AI never
+        // processed is listed in management's daily recap.
+        setAwaitingReply(true);
+        setAssistantIssue(false);
+        fetch("/api/classify-and-route", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({ message: text.trim(), tenant_id: tenantIdRef.current, message_id: data.id }),
+        })
+          .then(res => { if (!res.ok) setAssistantIssue(true); })
+          .catch(() => setAssistantIssue(true))
+          .finally(() => setAwaitingReply(false));
+      }
 
-    setSending(false);
+      if (error || !data) setMessageError("Your message wasn’t sent. You can try again.");
+    } catch {
+      setMessageError("We couldn’t confirm that your message was sent.");
+    } finally { setSending(false); }
   }
 
   // Group messages by date for display
@@ -160,7 +184,7 @@ export default function MessagingScreen() {
   });
 
   return (
-    <TenantLayout tenantName={tenant?.name}>
+    <TenantLayout tenantName={tenant?.name} unreadMessages={unread.length}>
       <style>{`
         
         .t-quick:hover{border-color:${C.goldDim}!important;color:${C.gold}!important;}
@@ -191,6 +215,13 @@ export default function MessagingScreen() {
         <div role="note" style={{ background:C.raised, borderBottom:`1px solid ${C.border}`, padding:"8px 16px", fontSize:12, color:C.textSub, lineHeight:1.5, flexShrink:0 }}>
           {AI_DISCLOSURE}
         </div>
+
+        {messageError && <div role="alert" style={{ padding:"8px 16px", color:C.red }}>{messageError}</div>}
+        {unread.length > 0 && (
+          <button type="button" onClick={markRead} disabled={markingRead} style={{ alignSelf:"flex-end", minHeight:44, padding:"0 16px" }}>
+            Mark {unread.length} unread {unread.length === 1 ? "message" : "messages"} as read
+          </button>
+        )}
 
         {/* Messages */}
         <div className="m-chat-body">
@@ -298,7 +329,8 @@ export default function MessagingScreen() {
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+            disabled={!tenantId}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input, true); } }}
             placeholder="Write a message…"
             aria-label="Message to Modus Property Management"
             enterKeyHint="send"
@@ -306,7 +338,7 @@ export default function MessagingScreen() {
             style={{ flex:1, minHeight:44, padding:"11px 16px", fontSize:14, border:`1px solid ${C.border}`, borderRadius:22, background:C.raised, color:C.text, outline:"none", resize:"none", fontFamily:"var(--m-font)", lineHeight:1.4, maxHeight:120 }}
           />
           <button
-            onClick={() => sendMessage(input)}
+            onClick={() => sendMessage(input, true)}
             disabled={!input.trim() || sending}
             aria-label="Send message"
             style={{ width:44, height:44, borderRadius:"50%", background:input.trim()?C.gold:C.raised, border:`1px solid ${input.trim()?C.gold:C.border}`, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:input.trim()?"#FFFFFF":C.textMuted, flexShrink:0, transition:"all 0.15s" }}>

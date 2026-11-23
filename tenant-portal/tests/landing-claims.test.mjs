@@ -9,10 +9,14 @@ const src = readFileSync(new URL("../src/LandingPage.jsx", import.meta.url), "ut
 // Visible copy only (drop the CSS block and comments).
 const copy = src.slice(0, src.indexOf("const CSS = `")).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
 
-test("online rent payment, autopay and other unreleased capabilities are not advertised", () => {
-  for (const re of [/pay rent online/i, /online rent/i, /autopay/i, /rent collection/i, /collect rent/i, /ACH/, /Stripe/, /report export/i, /DSCR/, /Insurance tracking/i]) {
+test("unreleased capabilities are not advertised and rent payment availability is qualified", () => {
+  for (const re of [/autopay/i, /rent collection/i, /collect rent/i, /report export/i, /DSCR/, /Insurance tracking/i]) {
     assert.doesNotMatch(copy, re, String(re));
   }
+  const descriptivePages = copy.slice(copy.indexOf("function AboutModus"), copy.indexOf("function ContactModus"));
+  const homepage = copy.replace(descriptivePages, "");
+  assert.doesNotMatch(homepage, /pay rent online|online rent|\bACH\b|\bStripe\b/i);
+  assert.match(descriptivePages, /Where online payments are enabled, residents can pay rent through the portal by ACH bank transfer, processed by Stripe/);
 });
 
 test("no invented metrics, customer claims or testimonials", () => {
@@ -27,16 +31,18 @@ test("product visuals are decorative mockups labelled as sample data", () => {
     assert.match(body, /aria-hidden="true"/, `${name} is hidden from assistive tech`);
   }
   assert.equal((src.match(/<figcaption>[^<]*sample[^<]*<\/figcaption>/gi) || []).length, 3);
-  assert.doesNotMatch(src, /<img /, "no stock imagery");
+  const home = src.slice(src.indexOf('{page === "home" && <>'), src.indexOf("</main>"));
+  assert.doesNotMatch(home, /<img /, "homepage uses product mockups");
+  assert.match(src, /<img src=\{aboutRowhouses\}[^>]+alt=/, "About photograph has descriptive alt text");
 });
 
 test("the required headlines and calls to action are present and routed", () => {
   for (const s of ["Property management, without the busywork.", "Know what needs your attention. Instantly.",
     "A better experience for the people who call your properties home.", "Less administration. More ownership.",
     "Stay organized", "Respond faster", "Stay in control"]) assert.ok(src.includes(s), s);
-  assert.match(src, /href="\/landlord" onClick=\{go\("\/landlord"\)\} className="lp-btn lp-btn-gold">Explore the dashboard</);
+  assert.equal((src.match(/href="#maintenance-tour" className="lp-btn lp-btn-gold">See how maintenance works/g) || []).length, 2);
   assert.match(src, /href="\/login" onClick=\{go\("\/login"\)\} className="lp-btn lp-btn-quiet">Tenant portal</);
-  assert.match(src, />Explore Modus</);
+  assert.match(src, /id="maintenance-tour"[^>]+aria-labelledby="maintenance-tour-title"/);
 });
 
 test("mobile header: accessible menu button holds both logins; desktop links hide on phones", () => {

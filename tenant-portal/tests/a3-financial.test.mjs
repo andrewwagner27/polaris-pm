@@ -202,7 +202,7 @@ describe("the corrected business rules", () => {
     assert.match(r, /supabase\.rpc\("a3_pay_rent_due"/); assert.match(r, /disabled=\{!\(payableCents > 0\)\}/); assert.match(r, /amount_cents:\s+payableCents/);
     assert.doesNotMatch(r, /recurringCharges|tenant\?\.rent|grossRent/);
     assert.match(r, /Not included in this payment/);
-    assert.match(r, /error \|\| !data \? \{ ledger_active: false \}/, "no ledger figure means no online payment");
+    assert.match(r, /error \|\| !data \? \{ ledger_active: false, unavailable: true \}/, "no ledger figure means no online payment");
   });
   test("the payment function checks the ledger before it calls Stripe, and sends a key", () => {
     const fn = src("supabase/functions/create-payment-intent/index.ts");
