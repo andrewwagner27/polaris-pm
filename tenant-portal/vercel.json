@@ -16,6 +16,10 @@
       "schedule": "0 14 5 * *"
     },
     {
+      "path": "/api/generate-charges",
+      "schedule": "0 13 1 * *"
+    },
+    {
       "path": "/api/autopay-collect",
       "schedule": "0 14 1 * *"
     }
