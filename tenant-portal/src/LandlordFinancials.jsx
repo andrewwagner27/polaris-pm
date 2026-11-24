@@ -328,11 +328,29 @@ function RecurringChargesTab({ charges, tenantMap, onRefresh }) {
 function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
   const [showRecord, setShowRecord] = useState(false);
   const [filter, setFilter]         = useState("all");
+  const [sortCol, setSortCol]        = useState("date");
+  const [sortDir, setSortDir]        = useState("desc");
 
-  const filtered = filter==="all" ? payments
+  function toggleSort(col) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir(col === "date" ? "desc" : "asc"); }
+  }
+
+  const baseFiltered = filter==="all" ? payments
     : filter==="paid" ? payments.filter(isCollected)
     : filter==="void" ? payments.filter(p=>p.voided_at)
     : payments.filter(p=>p.status===filter&&!p.voided_at);
+
+  const filtered = [...baseFiltered].sort((a, b) => {
+    let av, bv;
+    if (sortCol === "tenant")  { av = tenantMap[a.tenant_id]?.name||""; bv = tenantMap[b.tenant_id]?.name||""; }
+    else if (sortCol === "amount") { av = paymentCents(a); bv = paymentCents(b); }
+    else if (sortCol === "status") { av = a.voided_at?"void":a.status; bv = b.voided_at?"void":b.status; }
+    else { av = new Date(a.paid_at||a.created_at).getTime(); bv = new Date(b.paid_at||b.created_at).getTime(); }
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
 
   const refunded = refundsByPayment(refunds);
   const totalPaid = payments.reduce((s,p)=>s+netPaymentCents(p,refunded),0);
@@ -371,7 +389,13 @@ function PaymentsTab({ payments, refunds, tenantMap, onRefresh, tenants }) {
           <table className="m-rtable" style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:C.raised }}>
-                <TH>Tenant</TH><TH>For</TH><TH>Amount</TH><TH>Date</TH><TH>Received through</TH><TH>Status</TH><TH>Note</TH><TH></TH>
+                {[["tenant","Tenant"],["for","For"],["amount","Amount"],["date","Date"],["channel","Received through"],["status","Status"]].map(([col,label])=>(
+                  <th key={col} onClick={()=>["tenant","amount","date","status"].includes(col)&&toggleSort(col)}
+                    style={{ fontSize:12,fontWeight:600,color:sortCol===col?C.gold:C.textSub,padding:"11px 16px",textAlign:"left",borderBottom:`1px solid ${C.border}`,background:C.raised,whiteSpace:"nowrap",cursor:["tenant","amount","date","status"].includes(col)?"pointer":"default",userSelect:"none" }}>
+                    {label}{sortCol===col ? (sortDir==="asc"?" ↑":" ↓") : ""}
+                  </th>
+                ))}
+                <TH>Note</TH><TH></TH>
               </tr>
             </thead>
             <tbody>
