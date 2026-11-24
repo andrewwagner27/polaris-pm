@@ -10,6 +10,10 @@
     {
       "path": "/api/daily-recap",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/late-rent-reminder",
+      "schedule": "0 14 5 * *"
     }
   ]
 }

@@ -50,6 +50,40 @@ export default async function handler(req, res) {
     }
   }
 
+  if (result?.action === "failed") {
+    const { data: payment } = await supabase.from("payments")
+      .select("tenant_id, amount_cents, tenants(name, email)")
+      .eq("stripe_payment_intent_id", result.paymentIntentId)
+      .single();
+
+    if (payment?.tenants?.email) {
+      const firstName = (payment.tenants.name || "Resident").split(" ")[0];
+      const dollars = ((payment.amount_cents || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
+      await sendEmail({
+        to: payment.tenants.email,
+        subject: `Payment failed — $${dollars}`,
+        html: `
+          <div style="background:#0A0B0D;padding:32px 20px;font-family:'Helvetica Neue',sans-serif;">
+            <div style="background:#111316;border:1px solid #252930;border-radius:12px;max-width:560px;margin:0 auto;overflow:hidden;">
+              <div style="padding:24px 32px 20px;border-bottom:1px solid #252930;">
+                <p style="margin:0;font-size:11px;font-weight:600;color:#5C6270;letter-spacing:0.16em;text-transform:uppercase;">MODUS PROPERTY MANAGEMENT</p>
+                <h2 style="margin:8px 0 0;font-size:22px;font-weight:400;color:#EDEAE2;font-family:Georgia,serif;">Payment Failed</h2>
+              </div>
+              <div style="padding:24px 32px;">
+                <p style="color:#9095A0;font-size:14px;margin:0 0 20px;">Hi ${escapeHtml(firstName)}, your rent payment of <strong style="color:#EDEAE2;">$${dollars}</strong> could not be processed.</p>
+                <p style="color:#9095A0;font-size:14px;margin:0 0 24px;">This can happen when a bank account has insufficient funds or is closed. Please log in and try again with another payment method, or contact your property manager.</p>
+                <a href="https://getmodusam.com/pay" style="display:inline-block;padding:12px 24px;background:#7A5C2E;color:#C9A96E;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;">Try again →</a>
+              </div>
+              <div style="padding:16px 32px;border-top:1px solid #252930;">
+                <p style="margin:0;font-size:11px;color:#5C6270;">Modus Property Management · Lakewood, OH</p>
+              </div>
+            </div>
+          </div>
+        `,
+      });
+    }
+  }
+
   if (result?.action === "paid") {
     // Get tenant info for receipt email
     const { data: payment } = await supabase.from("payments")
