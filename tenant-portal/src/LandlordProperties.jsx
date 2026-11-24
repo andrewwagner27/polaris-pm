@@ -411,8 +411,8 @@ export default function LandlordProperties() {
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20 }}>
                     {[
                       ["Total units",   propUnitsFor(prop.id).length],
-                      ["Occupied",      propTenantsFor(prop.id).length],
-                      ["Vacant",        propUnitsFor(prop.id).length-propTenantsFor(prop.id).length],
+                      ["Occupied",      propUnitsFor(prop.id).filter(u=>propTenantsFor(prop.id).some(t=>t.unit_id===u.id)).length],
+                      ["Vacant",        propUnitsFor(prop.id).filter(u=>!propTenantsFor(prop.id).some(t=>t.unit_id===u.id)).length],
                       ["Open tickets",  propMaintFor(prop.id).length],
                       ["Collected",     `$${propCollectedFor(prop.id).toLocaleString()}`],
                       ["Property code", prop.property_code||"Not set"],
