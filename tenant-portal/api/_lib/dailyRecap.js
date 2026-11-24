@@ -46,10 +46,24 @@ export function failedTicketEmails(notes) {
 // escalationEvents: agent_escalation_events rows (resolve/reopen history), or null if unavailable.
 // olderEscalationRows: routing rows from before the 24-hour window (up to OLDER_UNRESOLVED_DAYS), or null.
 // ticketNotes: maintenance_comments system notes from the window, or null.
-export function buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, escalationEvents, olderEscalationRows, ticketNotes, since, now = new Date() }) {
+function paymentTable(list) {
+  if (!list.length) return none;
+  return table(list.map((p) => {
+    const dollars = `$${((Number(p.amount_cents) || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    const name    = escapeHtml(p.tenants?.name || "Tenant");
+    const unitNum = escapeHtml(p.tenants?.units?.unit_number || "?");
+    const date    = shortDate(p.paid_at || p.created_at);
+    return `<tr>${td(name)}${td(`Unit ${unitNum}`, "font-size:12px;color:#9095A0")}${td(`<strong style="color:#72B02A">${dollars}</strong>`, "")}${td(date, "font-size:11px;color:#5C6270")}</tr>`;
+  }).join(""));
+}
+
+export function buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, escalationEvents, olderEscalationRows, ticketNotes, paymentsPendingStuck, paymentsFailed, paymentsSettled, since, now = new Date() }) {
   const failed = [];
   const ok = (name, v) => { if (!Array.isArray(v)) { failed.push(name); return []; } return v; };
   const tk = ok("maintenance tickets", tickets), ins = ok("inspections", inspections), tn = ok("leases", tenants);
+  const pmStuck    = ok("payments (pending)", paymentsPendingStuck);
+  const pmFailed   = ok("payments (failed)",  paymentsFailed);
+  const pmSettled  = ok("payments (settled)", paymentsSettled);
   const escalations = escalationRecapSection(Array.isArray(escalationRows) ? escalationRows : null, { events: escalationEvents });
   const older = olderEscalationRows === undefined ? { count: 0, html: "" } : olderUnresolvedSection(olderEscalationRows, escalationEvents, { since });
   const mailFailures = ticketNotes === undefined ? [] : failedTicketEmails(ticketNotes);
@@ -82,6 +96,11 @@ export function buildDailyRecap({ tickets, inspections, tenants, escalationRows,
       table(mailFailures.map((n) => `<tr>${td(escapeHtml(String(n.body || "").slice(0, 220)))}${td(escapeHtml(n.maintenance_requests?.title || "Ticket"), "font-size:12px;color:#9095A0")}${td(shortDate(n.created_at), "font-size:11px;color:#5C6270")}</tr>`).join(""))) : "",
     unprocessed?.length ? section(`💬 TENANT MESSAGES THE ASSISTANT NEVER ANSWERED (${unprocessed.length})`, "#E05555",
       table(unprocessed.map((m) => `<tr>${td(escapeHtml(String(m.body || "").slice(0, 200)))}${td(`${escapeHtml(m.tenants?.name || "Tenant")}`, "font-size:12px;color:#9095A0")}${td(shortDate(m.created_at), "font-size:11px;color:#5C6270")}</tr>`).join(""))) : "",
+    pmStuck.length   ? section(`💳 PAYMENTS STUCK — PENDING > 5 DAYS (${pmStuck.length})`, "#E05555",
+      `<p style="color:#9095A0;font-size:12px;margin:0 0 10px">ACH should settle in 3–5 business days. These haven't — check Stripe Dashboard for webhook delivery issues.</p>${paymentTable(pmStuck)}`) : "",
+    pmFailed.length  ? section(`❌ FAILED PAYMENTS — LAST 7 DAYS (${pmFailed.length})`, "#F0A430",
+      `<p style="color:#9095A0;font-size:12px;margin:0 0 10px">Tenant has been notified by email. Follow up if they haven't retried.</p>${paymentTable(pmFailed)}`) : "",
+    pmSettled.length ? section(`✅ PAYMENTS SETTLED — LAST 24 HOURS (${pmSettled.length})`, "#72B02A", paymentTable(pmSettled)) : "",
     urgentTickets.length ? section("🚨 URGENT / HIGH PRIORITY", "#E05555", ticketTable(urgentTickets)) : "",
     stalledTickets.length ? section("⏰ OPEN > 4 HOURS (needs acknowledgment)", "#F0A430", ticketTable(stalledTickets)) : "",
     section("🔧 ALL OPEN TICKETS", "#4A9AE8", openTickets.length ? ticketTable(openTickets) : `<p style="color:#5C6270;font-size:12px;margin:0">No open tickets ✓</p>`),
@@ -97,11 +116,14 @@ export function buildDailyRecap({ tickets, inspections, tenants, escalationRows,
   ].filter(Boolean).join("");
 
   const allClear = !failed.length && !escalations.unavailable && !escalations.count && !older.count && !older.unknown && !older.unavailable && !mailFailures?.length && !unprocessed?.length && !urgentTickets.length
-    && !stalledTickets.length && !openTickets.length && !awaitingTenant.length && !expiringLeases.length;
+    && !stalledTickets.length && !openTickets.length && !awaitingTenant.length && !expiringLeases.length
+    && !pmStuck.length && !pmFailed.length;
 
   const summary = [failed.length && "INCOMPLETE", escalations.count && `${escalations.count} escalation${escalations.count === 1 ? "" : "s"}${Array.isArray(escalationEvents) && escalations.resolved ? ` (${escalations.open} open)` : ""}`,
     older.count && `${older.count} older unresolved`, mailFailures?.length && `${mailFailures.length} ticket email${mailFailures.length === 1 ? "" : "s"} failed`,
     escalations.needsAttention && `${escalations.needsAttention} not emailed`, unprocessed?.length && `${unprocessed.length} unanswered`,
+    pmStuck.length && `${pmStuck.length} payment${pmStuck.length === 1 ? "" : "s"} stuck`,
+    pmFailed.length && `${pmFailed.length} payment${pmFailed.length === 1 ? "" : "s"} failed`,
     urgentTickets.length && `${urgentTickets.length} urgent`, stalledTickets.length && `${stalledTickets.length} stalled`,
     expiringLeases.length && `${expiringLeases.length} leases expiring`].filter(Boolean).join(", ");
   const subject = cleanSubject(allClear ? `✅ Daily Recap — All clear · ${today}` : `📋 Daily Recap — ${summary || "open items"} · ${today}`, 200);

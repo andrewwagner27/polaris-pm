@@ -61,7 +61,12 @@ export default async function handler(req, res) {
 
   const since = encodeURIComponent(recapSince());
   const olderSince = new Date(Date.now() - 14 * 24 * 3600e3).toISOString();
-  const [tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes] = await Promise.all([
+  // Payments: pending > 5 days (possible stuck webhook), failed in last 7 days, settled in last 24h
+  const fiveDaysAgo  = encodeURIComponent(new Date(Date.now() - 5  * 24 * 3600e3).toISOString());
+  const sevenDaysAgo = encodeURIComponent(new Date(Date.now() - 7  * 24 * 3600e3).toISOString());
+  const oneDayAgo    = encodeURIComponent(new Date(Date.now() - 1  * 24 * 3600e3).toISOString());
+  const [tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes,
+    paymentsPendingStuck, paymentsFailed, paymentsSettled] = await Promise.all([
     sbFetch("maintenance_requests?select=id,title,priority,status,created_at,tenants(name,units(unit_number))&status=neq.resolved&order=created_at.desc"),
     sbFetch("inspections?select=id,status,inspection_date,created_at,tenants(name,units(unit_number))&status=neq.closed&order=created_at.desc"),
     sbFetch("tenants?select=id,name,lease_end,units(unit_number)&archived=eq.false&lease_end=not.is.null"),
@@ -77,9 +82,15 @@ export default async function handler(req, res) {
     sbFetch(`agent_escalation_events?select=routing_log_id,event,created_at&event=in.(resolved,reopened)&created_at=gte.${encodeURIComponent(olderSince)}&order=created_at.asc`),
     // Failed / unconfirmed ticket emails recorded on tickets in the window.
     sbFetch(`maintenance_comments?select=request_id,body,created_at,author_type,author_name,author_id,maintenance_requests(title)&author_type=eq.system&created_at=gte.${since}&order=created_at.asc`),
+    // Payments pending > 5 days: ACH should have settled by now — possible stuck webhook.
+    sbFetch(`payments?select=id,amount_cents,created_at,tenants(name,units(unit_number))&status=eq.pending&created_at=lte.${fiveDaysAgo}&order=created_at.asc`),
+    // Failed payments in last 7 days: tenant needs to retry.
+    sbFetch(`payments?select=id,amount_cents,created_at,tenants(name,units(unit_number))&status=eq.failed&created_at=gte.${sevenDaysAgo}&order=created_at.desc`),
+    // Payments that settled in the last 24 hours.
+    sbFetch(`payments?select=id,amount_cents,created_at,paid_at,tenants(name,units(unit_number))&status=eq.paid&paid_at=gte.${oneDayAgo}&order=paid_at.desc`),
   ]);
 
-  const recap = buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes, since: decodeURIComponent(since), now: new Date() });
+  const recap = buildDailyRecap({ tickets, inspections, tenants, escalationRows, messages, olderEscalationRows, escalationEvents, ticketNotes, paymentsPendingStuck, paymentsFailed, paymentsSettled, since: decodeURIComponent(since), now: new Date() });
   const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   // One key per day AND per content (payloadKey): a repeated scheduled call with the same content can't
   // send twice; a manual run always sends. A key is never reused with a different payload.
