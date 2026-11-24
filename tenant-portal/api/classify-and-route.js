@@ -12,6 +12,7 @@ import { dispatchVendor } from "./_lib/dispatchVendor.js";
 import { buildRoutingLogRow } from "./_lib/routingLog.js";
 import { buildSystemPrompt, formatThreadContext, loadManagementIds } from "./_lib/aiPrompt.js";
 import { loadApprovedKnowledge, formatKnowledgeForPrompt, loadWithdrawnKnowledge, formatWithdrawnKnowledgeForPrompt } from "./_lib/agentKnowledge.js";
+import { getPaymentContext } from "./_lib/tenantPaymentContext.js";
 import { AI_ASSISTANT_NAME, buildRentContext, applySafetyOverrides, wantsHuman, detectEmergency, flaggedLine } from "./_lib/aiSafety.js";
 import { managementContactFromEnv } from "../src/lib/emergencyContact.js";
 
@@ -214,6 +215,7 @@ export default async function handler(req, res) {
     const { data: due, error: dueErr } = await supabase.rpc("a2_pay_rent_internal", { p_tenant: tenant_id });
     if (dueErr) console.error("Rent ledger lookup error:", dueErr.message);
     const rentContext = buildRentContext(dueErr ? null : due);
+    const paymentContext = await getPaymentContext(supabase, owner.id, message);
 
     // ── 1c. Management-approved answers (Teach Agent) for this tenant's property and unit only ──
     const knowledge = await loadApprovedKnowledge(supabase, { propertyId: tenant?.units?.property_id, unitId: tenant?.unit_id });
@@ -274,6 +276,7 @@ export default async function handler(req, res) {
 Unit: ${tenant?.units?.unit_number || "Unknown"}
 Tenant name: ${tenant?.name || "Resident"}
 ${rentContext ? `\n${rentContext}` : ""}
+${paymentContext}
 
 Recent conversation:
 ${threadContext || "(no prior messages)"}

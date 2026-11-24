@@ -1,42 +1,53 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { supabase } from "./supabase";
 
 export default function ProtectedLandlordRoute({ children }) {
-  const navigate = useNavigate();
-  const [checking, setChecking] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [access, setAccess] = useState("checking");
 
   useEffect(() => {
-    async function checkAuth() {
-      // 1. Check if logged in
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/landlord/login");
-        return;
+    let generation = 0;
+    let active = true;
+    let scheduledUser = null;
+
+    async function verify(userId, current) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active || current !== generation) return;
+        if (user?.id !== userId) {
+          setAccess("denied");
+          return;
+        }
+        const { data: profile } = await supabase.from("profiles")
+          .select("role").eq("id", user.id).maybeSingle();
+        if (active && current === generation) {
+          setAccess(profile?.role === "landlord" ? "allowed" : "denied");
+        }
+      } catch {
+        if (active && current === generation) setAccess("denied");
       }
-
-      // 2. Check role from profiles table
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!profile || profile.role !== "landlord") {
-        navigate("/landlord/login");
-        return;
-      }
-
-      setAuthorized(true);
-      setChecking(false);
     }
 
-    checkAuth();
-  }, [navigate]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const userId = session?.user?.id ?? null;
+      if (userId === scheduledUser && event !== "INITIAL_SESSION" && event !== "USER_UPDATED") return;
+      scheduledUser = userId;
+      const current = ++generation;
+      setAccess(userId ? "checking" : "denied");
+      // Run outside the auth callback so the session lock is released.
+      if (userId) setTimeout(() => {
+        if (active && current === generation) void verify(userId, current);
+      }, 0);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Same dark surface as the management app, so navigating between landlord pages doesn't flash a light screen.
-  if (checking) return (
+  if (access === "checking") return (
     <div role="status" aria-live="polite" style={{
       display: "flex", alignItems: "center", justifyContent: "center",
       minHeight: "100vh", fontFamily: "var(--m-font)",
@@ -53,7 +64,7 @@ export default function ProtectedLandlordRoute({ children }) {
     </div>
   );
 
-  if (!authorized) return null;
+  if (access !== "allowed") return <Navigate to="/landlord/login" replace/>;
 
   return children;
 }
