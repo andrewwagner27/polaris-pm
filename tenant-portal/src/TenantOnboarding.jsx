@@ -326,11 +326,13 @@ export default function TenantOnboarding() {
       if (linkedTenantId) {
         const { data, error: updateError } = await supabase.from("tenants")
           .update({ name, phone: normalizedPhone }).eq("id", linkedTenantId).select("id").maybeSingle();
-        if (updateError || !data) throw new Error("Tenant details were not saved");
+        if (updateError) throw new Error(updateError.message || "Tenant details were not saved");
+        if (!data) throw new Error("Tenant record not updated — check RLS policies on tenants table");
       }
       if (await saveStep({ data: { full_name: name, phone: normalizedPhone } })) throw new Error("Progress was not saved");
       setPhone(normalizedPhone);
-    } catch {
+    } catch (err) {
+      console.error("[onboarding] handlePersonalInfo failed:", err?.message || err);
       setError("We couldn’t save your information. Please try again.");
     } finally { setLoading(false); }
   }
