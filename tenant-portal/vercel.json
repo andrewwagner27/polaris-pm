@@ -14,6 +14,10 @@
     {
       "path": "/api/late-rent-reminder",
       "schedule": "0 14 5 * *"
+    },
+    {
+      "path": "/api/autopay-collect",
+      "schedule": "0 14 1 * *"
     }
   ]
 }

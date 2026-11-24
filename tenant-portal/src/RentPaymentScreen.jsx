@@ -35,16 +35,50 @@ const money = (cents) => {
 };
 const monthOf = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-// Nothing collects rent automatically yet, so this is a notice and not a setting.
-function AutopayUnavailable() {
+function AutopayToggle({ tenant }) {
+  const [enabled,  setEnabled]  = useState(null);   // null = loading
+  const [saving,   setSaving]   = useState(false);
+  const [bankName, setBankName] = useState("");
+
+  useEffect(() => {
+    if (!tenant?.id) return;
+    async function load() {
+      const { data: t } = await supabase.from("tenants").select("autopay_enabled").eq("id", tenant.id).maybeSingle();
+      setEnabled(!!t?.autopay_enabled);
+      const { data: pm } = await supabase.from("tenant_payment_methods").select("bank_name, last4").eq("tenant_id", tenant.id).eq("status", "active").maybeSingle();
+      if (pm) setBankName(`${pm.bank_name} ····${pm.last4}`);
+    }
+    load();
+  }, [tenant?.id]);
+
+  async function toggle() {
+    if (saving || enabled === null) return;
+    setSaving(true);
+    const next = !enabled;
+    await supabase.from("tenants").update({ autopay_enabled: next }).eq("id", tenant.id);
+    setEnabled(next);
+    setSaving(false);
+  }
+
+  if (enabled === null) return null;
+
   return (
     <div style={{ background:C.surface,borderRadius:16,boxShadow:"0 1px 2px rgba(24,24,27,0.04), 0 4px 16px rgba(24,24,27,0.04)",padding:"16px 20px",marginBottom:16 }}>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
-        <div>
+        <div style={{ flex:1,minWidth:0 }}>
           <div style={{ fontSize:14,fontWeight:500,color:C.text,marginBottom:2 }}>Autopay</div>
-          <div style={{ fontSize:13,color:C.textSub }}>Automatic payments aren't available yet. Submit online payments manually.</div>
+          <div style={{ fontSize:13,color:C.textSub }}>
+            {enabled
+              ? (bankName ? `Charges ${bankName} on the 1st of each month.` : "Charges your linked bank account on the 1st of each month.")
+              : "Automatically pay rent on the 1st of each month."}
+          </div>
         </div>
-        <span style={{ fontSize:12,fontWeight:500,padding:"4px 10px",background:C.raised,color:C.textSub,borderRadius:999,flexShrink:0 }}>Not available yet</span>
+        <button onClick={toggle} disabled={saving} aria-pressed={enabled}
+          style={{ flexShrink:0,width:48,height:28,borderRadius:14,border:"none",cursor:saving?"not-allowed":"pointer",
+            background:enabled?"#15803D":"#D1D5DB",transition:"background 0.2s",position:"relative",padding:0,opacity:saving?0.6:1 }}>
+          <span style={{ position:"absolute",top:3,left:enabled?22:3,width:22,height:22,borderRadius:"50%",background:"#fff",
+            boxShadow:"0 1px 3px rgba(0,0,0,0.2)",transition:"left 0.2s",display:"block" }}/>
+        </button>
       </div>
     </div>
   );
@@ -354,8 +388,8 @@ export default function RentPaymentScreen() {
         </div>
         )}
 
-        {/* Autopay notice only where online payment exists at all (otherwise the card above already says so) */}
-        {due?.ledger_active && due.online_available !== false && <AutopayUnavailable/>}
+        {/* Autopay toggle — only where online payment is available */}
+        {due?.ledger_active && due.online_available !== false && <AutopayToggle tenant={tenant}/>}
 
         {/* Payment form (only where a payment can actually be made or its absence explained) */}
         {(!due || (due.ledger_active && due.online_available !== false)) && (
