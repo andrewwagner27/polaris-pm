@@ -333,7 +333,7 @@ export default function TenantOnboarding() {
       setPhone(normalizedPhone);
     } catch (err) {
       console.error("[onboarding] handlePersonalInfo failed:", err?.message || err);
-      setError("We couldn’t save your information. Please try again.");
+      setError("We couldn’t save your information. Please try again." + (err?.message ? ` (${err.message})` : ""));
     } finally { setLoading(false); }
   }
 
