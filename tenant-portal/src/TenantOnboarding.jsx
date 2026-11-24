@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import { inviteLinkState, LINK_MESSAGES } from "./lib/onboardingLink";
 import { claimTenantRecord, CLAIM_MESSAGES } from "./lib/tenantClaim";
+import { stripePromise } from "./lib/stripeClient";
+import { Elements, useStripe } from "@stripe/react-stripe-js";
 
 const C = {
   bg:       "#F5F3EE",
@@ -70,6 +72,101 @@ function InputField({ id: fieldId, label, value, onChange, type="text", placehol
   );
 }
 
+function BankLinkStep({ linkedTenantId, bankLinked, bankName, bankLast4, onLinked, onContinue, loading }) {
+  const stripe = useStripe();
+  const [linkStep,  setLinkStep]  = useState("idle"); // idle | linking | linked
+  const [linkError, setLinkError] = useState("");
+
+  async function linkBank() {
+    if (!stripe || !linkedTenantId) return;
+    setLinkStep("linking"); setLinkError("");
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
+
+    const { data, error: fnError } = await supabase.functions.invoke("create-setup-intent", {
+      body: { tenant_id: linkedTenantId, customer_email: user?.email, customer_name: user?.user_metadata?.full_name || "" }
+    });
+
+    if (fnError || data?.error) {
+      setLinkError(fnError?.message || data?.error || "Could not start bank linking. Please try again.");
+      setLinkStep("idle");
+      return;
+    }
+
+    const { setupIntent, error: stripeError } = await stripe.collectBankAccountForSetup({
+      clientSecret: data.client_secret,
+      params: {
+        payment_method_type: "us_bank_account",
+        payment_method_data: { billing_details: { name: user?.user_metadata?.full_name || "", email: user?.email || "" } },
+      },
+    });
+
+    if (stripeError) { setLinkError(stripeError.message); setLinkStep("idle"); return; }
+
+    if (setupIntent?.status === "requires_confirmation") {
+      const { setupIntent: confirmed, error: confirmError } = await stripe.confirmUsBankAccountSetup(data.client_secret);
+      if (confirmError) { setLinkError(confirmError.message); setLinkStep("idle"); return; }
+
+      const pm     = confirmed?.payment_method;
+      const pmId   = typeof pm === "string" ? pm : pm?.id;
+      const pmData = typeof pm === "object" ? pm : null;
+      const name   = pmData?.us_bank_account?.bank_name || "Bank account";
+      const last4  = pmData?.us_bank_account?.last4     || "****";
+
+      await supabase.from("tenant_payment_methods").upsert({
+        tenant_id:                linkedTenantId,
+        stripe_customer_id:       data.customer_id,
+        stripe_payment_method_id: pmId,
+        bank_name: name,
+        last4,
+        status: "active",
+      });
+
+      onLinked(name, last4);
+      setLinkStep("linked");
+    } else {
+      // Bank requires micro-deposit verification — still counts as initiated
+      setLinkStep("linked");
+      onLinked("Bank account", "****");
+    }
+  }
+
+  const C2 = { green:"#15803D", gold:"#7A5C12", goldDim:"#C9A96E", text:"#18181B", textSub:"#52525B", textMuted:"#6B6B73", border:"#EAE6DE", raised:"#F8F7F4", red:"#B91C1C" };
+
+  return (
+    <>
+      <div style={{ fontFamily:"var(--m-font)",fontSize:"var(--m-fs-section)",fontWeight:600,color:C2.text,marginBottom:6 }}>Link your bank account</div>
+      <div style={{ fontSize:14,color:C2.textSub,lineHeight:1.6,marginBottom:24 }}>Connect a bank account so you can pay rent online. This takes about a minute and uses bank-level security.</div>
+
+      {linkError && <div role="alert" style={{ background:"rgba(224,85,85,0.1)",border:"1px solid rgba(224,85,85,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:C2.red }}>{linkError}</div>}
+
+      {(bankLinked || linkStep === "linked") ? (
+        <div style={{ background:`${C2.green}0F`,border:`1px solid ${C2.green}33`,borderRadius:10,padding:"16px 20px",marginBottom:24,display:"flex",alignItems:"center",gap:12 }}>
+          <div style={{ width:40,height:40,borderRadius:9,background:`${C2.green}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18,color:C2.green }}>✓</div>
+          <div>
+            <div style={{ fontSize:14,fontWeight:600,color:C2.green,marginBottom:2 }}>Bank account linked</div>
+            <div style={{ fontSize:13,color:C2.textSub }}>{bankName} {bankLast4 !== "****" ? `····${bankLast4}` : ""}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background:"#F8F7F4",border:"1px solid #EAE6DE",borderRadius:10,padding:"16px 20px",marginBottom:24 }}>
+          <div style={{ fontSize:13,color:C2.textSub,marginBottom:14,lineHeight:1.5 }}>You'll be guided through securely connecting your bank. Most banks connect instantly via Plaid.</div>
+          <button onClick={linkBank} disabled={linkStep === "linking" || !stripe}
+            style={{ width:"100%",padding:"11px",border:`1px solid ${C2.goldDim}`,borderRadius:8,fontSize:14,fontWeight:500,background:"transparent",color:C2.gold,cursor:linkStep==="linking"?"not-allowed":"pointer",fontFamily:"var(--m-font)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:linkStep==="linking"?0.7:1 }}>
+            {linkStep === "linking" ? <><span style={{ width:14,height:14,border:"2px solid rgba(201,169,110,0.3)",borderTopColor:C2.gold,borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite" }}/> Connecting…</> : "Connect bank account →"}
+          </button>
+        </div>
+      )}
+
+      <button onClick={onContinue} disabled={loading}
+        style={{ width:"100%",padding:"12px",border:`1px solid ${C2.goldDim}`,borderRadius:8,fontSize:14,fontWeight:500,background:"transparent",color:C2.gold,cursor:"pointer",fontFamily:"var(--m-font)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:loading?0.7:1 }}>
+        {bankLinked || linkStep === "linked" ? "Continue →" : "Skip for now →"}
+      </button>
+    </>
+  );
+}
+
 export default function TenantOnboarding() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -77,8 +174,8 @@ export default function TenantOnboarding() {
   const isInvited = !!invitedTenantId;
 
   const STEPS = isInvited
-    ? ["Your info", "Set password", "Your unit", "Emergency contact", "All set"]
-    : ["Your info", "Find your unit", "Emergency contact", "All set"];
+    ? ["Your info", "Set password", "Your unit", "Emergency contact", "Link bank", "All set"]
+    : ["Your info", "Find your unit", "Emergency contact", "Link bank", "All set"];
 
   const [step,           setStep]           = useState(0);
   const [linkedTenantId, setLinkedTenantId] = useState(null);
@@ -337,6 +434,11 @@ export default function TenantOnboarding() {
     setChecklist(prev=>prev.map((item,i)=>i===index?{ ...item, [field]:value }:item));
   }
 
+  // Bank linking state (lifted here so it survives re-renders of the inner component)
+  const [bankLinked, setBankLinked]   = useState(false);
+  const [bankName,   setBankName2]    = useState("");
+  const [bankLast4,  setBankLast4]    = useState("");
+
   async function handleFinish() {
     if (isInvited && !linkedTenantId) { setError("Wait for your unit to finish loading before finishing setup."); return; }
     setLoading(true);
@@ -554,6 +656,21 @@ export default function TenantOnboarding() {
           </>
         )}
 
+        {/* ── Link bank ── */}
+        {stepName==="Link bank"&&(
+          <Elements stripe={stripePromise}>
+            <BankLinkStep
+              linkedTenantId={linkedTenantId}
+              bankLinked={bankLinked}
+              bankName={bankName}
+              bankLast4={bankLast4}
+              onLinked={(name, last4) => { setBankLinked(true); setBankName2(name); setBankLast4(last4); }}
+              onContinue={advance}
+              loading={loading}
+            />
+          </Elements>
+        )}
+
         {/* ── All set ── */}
         {stepName==="All set"&&(
           <>
@@ -568,7 +685,7 @@ export default function TenantOnboarding() {
                 ["Property",          foundProperty?.property||"Not linked yet"],
                 ["Unit",              foundProperty?.unit||"—"],
                 ["Emergency contact", ecName||"Not provided"],
-                
+                ["Bank account",      bankLinked ? `${bankName} ····${bankLast4}` : "Not linked"],
               ].map(([k,v],i,arr)=>(
                 <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
                   <span style={{ fontSize:13,color:C.textSub }}>{k}</span>
