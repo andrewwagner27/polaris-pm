@@ -324,10 +324,11 @@ export default function TenantOnboarding() {
     setLoading(true); setError("");
     try {
       if (linkedTenantId) {
-        const { data, error: updateError } = await supabase.from("tenants")
-          .update({ name, phone: normalizedPhone }).eq("id", linkedTenantId).select("id").maybeSingle();
-        if (updateError) throw new Error(updateError.message || "Tenant details were not saved");
-        if (!data) throw new Error("Tenant record not updated — check RLS policies on tenants table");
+        const { data: fnData, error: fnError } = await supabase.functions.invoke("update-tenant-onboarding", {
+          body: { tenant_id: linkedTenantId, name, phone: normalizedPhone },
+        });
+        if (fnError) throw new Error(fnError.message || "Tenant details were not saved");
+        if (fnData?.error) throw new Error(fnData.error);
       }
       if (await saveStep({ data: { full_name: name, phone: normalizedPhone } })) throw new Error("Progress was not saved");
       setPhone(normalizedPhone);
@@ -406,15 +407,14 @@ export default function TenantOnboarding() {
     setLoading(true); setError("");
     try {
       if (linkedTenantId) {
-        const { data, error } = await supabase.from("tenants").update({
-          emergency_contact_name: ecName.trim(),
-          emergency_contact_phone: normalizedPhone,
-          emergency_contact_relationship: ecRelationship,
-        }).eq("id", linkedTenantId).select("id").maybeSingle();
-        if (error || !data) throw new Error("Emergency contact was not saved");
+        const { data: fnData, error: fnError } = await supabase.functions.invoke("update-tenant-onboarding", {
+          body: { tenant_id: linkedTenantId, emergency_contact_name: ecName.trim(), emergency_contact_phone: normalizedPhone, emergency_contact_relationship: ecRelationship },
+        });
+        if (fnError || fnData?.error) throw new Error(fnError?.message || fnData?.error || "Emergency contact was not saved");
       }
       if (await saveStep()) throw new Error("Progress was not saved");
-    } catch {
+    } catch (err) {
+      console.error("[onboarding] handleEmergencyContact failed:", err?.message || err);
       setError("We couldn’t save your emergency contact. Please try again.");
     } finally { setLoading(false); }
   }
