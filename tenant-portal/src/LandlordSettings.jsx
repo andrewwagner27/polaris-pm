@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabase";
 import LandlordLayout from "./LandlordLayout";
+import { functionErrorMessage } from "./lib/functionError";
 import { PrimaryBtn } from "./ui/Button";
 
 const C = {
@@ -392,7 +393,8 @@ export default function LandlordSettings() {
           refresh_url: `${window.location.origin}/landlord/settings?stripe=refresh`,
         },
       });
-      if (error || data?.error) throw new Error(error?.message || data?.error);
+      if (error) throw Object.assign(new Error(await functionErrorMessage(error)), { _raw: error });
+      if (data?.error) throw new Error(data.error);
       window.location.href = data.onboarding_url;
     } catch (err) {
       setStripeStatusMsg(err.message || "Failed to start onboarding.");
