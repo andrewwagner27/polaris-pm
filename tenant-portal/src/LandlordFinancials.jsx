@@ -712,7 +712,8 @@ export default function LandlordFinancials() {
   const refunded  = refundsByPayment(refunds);
   const thisMonth = payments.filter(p=>{
     if (!isCollected(p)) return false;
-    const d = new Date(p.paid_at||p.created_at);
+    const raw = p.paid_at || p.created_at;
+    const d = new Date(`${String(raw).slice(0,10)}T12:00:00`);
     return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
   });
   const collectedThisMonth = thisMonth.reduce((s,p)=>s+netPaymentCents(p,refunded),0)/100;
