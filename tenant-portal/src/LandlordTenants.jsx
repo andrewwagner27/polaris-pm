@@ -377,19 +377,49 @@ export default function LandlordTenants() {
     };
   });
 
-  const activeEnriched   = enriched.filter(t=>!t.archived);
-  const archivedEnriched = enriched.filter(t=>t.archived);
-  const endingSoonCount = activeEnriched.filter(t=>t.isEndingSoon).length;
-  const newMoveInCount  = activeEnriched.filter(t=>t.isNewMoveIn).length;
-  const lateCount       = activeEnriched.filter(t=>t.isLate).length;
-  const pastCount       = archivedEnriched.length;
+  // Group co-tenants on the same unit into one lease row
+  function groupByUnit(list) {
+    const map = new Map();
+    for (const t of list) {
+      const key = t.unit_id || t.id;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(t);
+    }
+    return Array.from(map.values()).map(members => {
+      const rep   = members[0];
+      const names = members.map(m => m.name).filter(Boolean);
+      const displayName = names.length <= 2
+        ? names.join(", ")
+        : `${names[0]}, ${names[1]} + ${names.length - 2} other${names.length - 2 > 1 ? "s" : ""}`;
+      const allRegistered = members.every(m => m.isRegistered);
+      const anyInvitedOrReg = members.some(m => m.isInvited || m.isRegistered);
+      return {
+        ...rep,
+        _members: members,
+        name:         displayName,
+        isRegistered: allRegistered,
+        isInvited:    !allRegistered && anyInvitedOrReg,
+        isEndingSoon: members.some(m => m.isEndingSoon),
+        isNewMoveIn:  members.some(m => m.isNewMoveIn),
+        isLate:       members.some(m => m.isLate),
+        balance:      members.reduce((s, m) => s + (m.balance ?? 0), 0),
+      };
+    });
+  }
+
+  const activeGroups   = groupByUnit(enriched.filter(t=>!t.archived));
+  const archivedGroups = groupByUnit(enriched.filter(t=>t.archived));
+  const endingSoonCount = activeGroups.filter(t=>t.isEndingSoon).length;
+  const newMoveInCount  = activeGroups.filter(t=>t.isNewMoveIn).length;
+  const lateCount       = activeGroups.filter(t=>t.isLate).length;
+  const pastCount       = archivedGroups.length;
 
   let tabPool;
-  if (activeTab==="ending_soon")  tabPool = activeEnriched.filter(t=>t.isEndingSoon);
-  else if (activeTab==="new_move_ins") tabPool = activeEnriched.filter(t=>t.isNewMoveIn);
-  else if (activeTab==="late")    tabPool = activeEnriched.filter(t=>t.isLate);
-  else if (activeTab==="past")    tabPool = archivedEnriched;
-  else                            tabPool = activeEnriched;
+  if (activeTab==="ending_soon")  tabPool = activeGroups.filter(t=>t.isEndingSoon);
+  else if (activeTab==="new_move_ins") tabPool = activeGroups.filter(t=>t.isNewMoveIn);
+  else if (activeTab==="late")    tabPool = activeGroups.filter(t=>t.isLate);
+  else if (activeTab==="past")    tabPool = archivedGroups;
+  else                            tabPool = activeGroups;
 
   const q = search.trim().toLowerCase();
   const filtered = tabPool.filter(t => !q || [t.name, t.unit, t.email, t.phone, t.property].some(v => String(v||"").toLowerCase().includes(q)));
@@ -414,19 +444,19 @@ export default function LandlordTenants() {
   });
 
   const TABS = [
-    { key:"all",          label:"All leases",  count:activeEnriched.length },
+    { key:"all",          label:"All leases",  count:activeGroups.length },
     ...(balances.mode === "ledger" ? [{ key:"late", label:"Balance due", count:lateCount, accent:C.red }] : []),
     { key:"ending_soon",  label:"Ending soon", count:endingSoonCount, accent:C.amber },
     { key:"new_move_ins", label:"New move-ins",count:newMoveInCount,  accent:C.green },
     { key:"past",         label:"Past tenants",count:pastCount,       accent:C.textSub },
   ];
-  const emptyText = activeTab==="late"?"No tenant has a ledger balance due.":activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":q?"No tenants match your search.":`No tenants${isAll?"":" at this property"} yet.`;
+  const emptyText = activeTab==="late"?"No tenant has a ledger balance due.":activeTab==="ending_soon"?"No leases ending within 90 days.":activeTab==="new_move_ins"?"No move-ins in the last 30 days.":activeTab==="past"?"No past tenants.":q?"No leases match your search.":`No tenants${isAll?"":" at this property"} yet.`;
   const balanceText = (t) => { const v = standingDisplay({ status:t.payStatus, cents:t.balance }); return { v, text: balances.mode==="loading" ? "—" : (v.amountText ?? v.label) }; };
   const portalBadge = (t) => t.isRegistered
     ? <span className="t-badge" style={{ color:C.green, borderColor:"rgba(93,187,99,0.35)" }}>Registered</span>
     : t.isInvited ? <span className="t-badge" style={{ color:C.blue, borderColor:"rgba(106,174,240,0.35)" }}>Invite sent</span>
     : <span className="t-badge">Not invited</span>;
-  const openTenantRow = enriched.find(t => t.id === openId);
+  const openTenantRow = enriched.find(t => t.id === openId) ?? null;
 
   return (
     <LandlordLayout openMaintenance={0} unreadMessages={0}>
@@ -448,7 +478,7 @@ export default function LandlordTenants() {
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12 }}>
           <div>
             <h1 style={{ fontFamily:"var(--m-font)",fontSize:"clamp(22px, 4vw, 28px)",fontWeight:600,margin:0 }}>Tenants</h1>
-            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${activeEnriched.length} active lease${activeEnriched.length===1?"":"s"} · ${selectedName}`}</div>
+            <div style={{ fontSize:13,color:C.textSub,marginTop:3 }}>{loading?"Loading…":`${activeGroups.length} active lease${activeGroups.length===1?"":"s"} · ${selectedName}`}</div>
           </div>
           <PrimaryBtn onClick={()=>setShowAdd(true)}>+ Add tenant</PrimaryBtn>
         </div>
