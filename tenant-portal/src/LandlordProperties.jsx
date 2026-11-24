@@ -236,7 +236,7 @@ export default function LandlordProperties() {
   }
 
   const totalUnits    = units.length;
-  const totalOccupied = tenants.length;
+  const totalOccupied = units.filter(u => tenants.some(t => t.unit_id === u.id)).length;
 
   const prop      = selected ? properties.find(p => p.id === selected) : null;
   const propIdx   = prop ? properties.indexOf(prop) : 0;
@@ -319,7 +319,7 @@ export default function LandlordProperties() {
               const pUnits   = propUnitsFor(prop.id);
               const pTenants = propTenantsFor(prop.id);
               const pMaint   = propMaintFor(prop.id);
-              const occupied = pTenants.length;
+              const occupied = pUnits.filter(u => pTenants.some(t => t.unit_id === u.id)).length;
               const total    = pUnits.length;
               const occPct   = total>0?Math.round((occupied/total)*100):0;
               const collected = propCollectedFor(prop.id);
