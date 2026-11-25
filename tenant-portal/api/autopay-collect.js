@@ -1,7 +1,8 @@
 // api/autopay-collect.js
 // Vercel cron: runs at 14:00 UTC (9 AM ET) on the 1st of each month.
-// Charges every tenant with autopay_enabled=true who has an active payment method and an open balance.
-// Idempotent: Stripe idempotency key prevents double-charges on retry.
+// First materialises tenant_charges from recurring_charges (a2_generate_charges),
+// then charges every tenant with autopay_enabled=true who has an active payment method and an open balance.
+// Idempotent: a2_generate_charges uses UNIQUE(schedule_id, period); Stripe idempotency key prevents double-charges.
 
 import { rejectIfIsolated } from "./_lib/deployEnv.js";
 import { supabaseAdmin as supabase } from "./_lib/auth.js";
@@ -17,6 +18,20 @@ export default async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers["authorization"] !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Step 1: materialise recurring charges for this month before collecting.
+  const { data: chargeRows, error: genError } = await supabase.rpc("a2_generate_charges");
+  if (genError) {
+    console.error("[autopay-collect] generate_charges failed:", genError.message);
+    // Non-fatal: log and continue — charges may already exist from a prior run.
+  } else {
+    const rows = Array.isArray(chargeRows) ? chargeRows : [];
+    console.log("[autopay-collect] generate_charges:", {
+      inserted: rows.filter(r => r.outcome === "inserted").length,
+      skipped:  rows.filter(r => r.outcome === "skipped").length,
+      errors:   rows.filter(r => r.outcome === "error").length,
+    });
   }
 
   // Only run on the 1st (New York time). Allow ?force=true for testing.
