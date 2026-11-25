@@ -568,7 +568,16 @@ export default function LandlordTenants() {
                           <div style={{ display:"flex",alignItems:"center",gap:12 }}>
                             <div aria-hidden="true" style={{ width:36,height:36,borderRadius:"50%",background:`${t.accentColor}22`,border:`1px solid ${t.accentColor}55`,color:t.accentColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,flexShrink:0 }}>{t.initials}</div>
                             <div style={{ minWidth:0 }}>
-                              <button type="button" onClick={(e)=>{ e.stopPropagation(); openTenant(t.id); }} style={{ background:"none",border:"none",padding:0,font:"inherit",fontSize:14,fontWeight:600,color:C.text,cursor:"pointer",textAlign:"left" }}>{t.name}</button>
+                              {t._members && t._members.length > 1
+                                ? <div style={{ display:"flex",flexWrap:"wrap",gap:"2px 6px" }}>
+                                    {t._members.map((m,i) => (
+                                      <button key={m.id} type="button" onClick={(e)=>{ e.stopPropagation(); openTenant(m.id); }} style={{ background:"none",border:"none",padding:0,font:"inherit",fontSize:14,fontWeight:600,color:C.text,cursor:"pointer",textAlign:"left" }}>
+                                        {m.name}{i < t._members.length - 1 ? "," : ""}
+                                      </button>
+                                    ))}
+                                  </div>
+                                : <button type="button" onClick={(e)=>{ e.stopPropagation(); openTenant(t.id); }} style={{ background:"none",border:"none",padding:0,font:"inherit",fontSize:14,fontWeight:600,color:C.text,cursor:"pointer",textAlign:"left" }}>{t.name}</button>
+                              }
                               <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:4 }}>
                                 {portalBadge(t)}
                                 {t.isLate&&<span className="t-badge" style={{ color:C.red,borderColor:"rgba(240,112,112,0.4)" }}>Balance due</span>}
